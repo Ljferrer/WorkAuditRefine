@@ -646,6 +646,26 @@ marker_root_of() {
   done
 }
 
+# link_roots <path>: when <path> is a link chain that ends at a file, the
+# .war-task root of each hop's folder, one per line. The reader passes through
+# each hop, so a link retargeted in a middle worktree changes what it reads. A
+# dangling chain or a cycle reads nothing and adds nothing. The hop limit is the
+# kernel's.
+link_roots() {
+  _lh="$1"; _ln=0; _lhs=""
+  while [ -L "$_lh" ] && [ "$_ln" -lt 32 ]; do
+    _lt="$(readlink "$_lh")" || return 0
+    case "$_lt" in /*) _lh="$_lt" ;; *) _lh="${_lh%/*}/$_lt" ;; esac
+    _lhs="$_lhs$_lh$NL"
+    _ln=$((_ln + 1))
+  done
+  [ "$_ln" -gt 0 ] && [ -f "$_lh" ] || return 0
+  printf '%s' "$_lhs" | while IFS= read -r _lx; do
+    _lc="$(canon "${_lx%/*}")" && [ -n "$_lc" ] && marker_root_of "$_lc"
+  done
+  return 0
+}
+
 # task_worktree_of <path> -> every canonical .war-task worktree root that
 # holds <path>, one per line, or nothing. A relative path resolves against
 # the payload cwd. Two readings, each at its own nearest existing ancestor:
@@ -658,20 +678,13 @@ marker_root_of() {
 # for may follow either rule, so both roots are printed, physical first
 # (deduped when the two ancestors agree; touch_line dedupes a shared root). A
 # link to a file fails the directory walk at the link's parent, and the reader
-# follows it, so the file link's last target adds its own root. The hop limit
-# is the kernel's.
+# follows it, so link_roots adds the roots along the chain, on both readings.
 task_worktree_of() {
   _p="$1"
   case "$_p" in /*) ;; *) _p="$cwd/$_p" ;; esac
-  _lh="$_p"; _ln=0
-  while [ -L "$_lh" ] && [ "$_ln" -lt 32 ]; do
-    _lt="$(readlink "$_lh")" || break
-    case "$_lt" in /*) _lh="$_lt" ;; *) _lh="${_lh%/*}/$_lt" ;; esac
-    _ln=$((_ln + 1))
-  done
-  if [ "$_lh" != "$_p" ] && [ -f "$_lh" ]; then
-    _lc="$(canon "${_lh%/*}")" && [ -n "$_lc" ] && marker_root_of "$_lc"
-  fi
+  link_roots "$_p"
+  fold_path "$_p"
+  [ "$_lo" = "$_p" ] || link_roots "$_lo"
   _d="$_p"
   while [ ! -d "$_d" ]; do
     _nd="${_d%/*}"; [ -n "$_nd" ] || _nd=/
@@ -996,8 +1009,10 @@ compare() {
   while IFS= read -r _wt || [ -n "$_wt" ]; do
     [ -n "$_wt" ] || continue
     T_START=""; T_NOW=""
-    case "$_wt" in /*) ;; *)
-      T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path $_wt)"; return 0 ;;
+    case "$_wt" in
+      /*) ;;
+      '~'*) T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path $_wt)"; return 0 ;;
+      *) T_WT="!unrecognized mark"; REASON="AUDIT-TAMPER: unverifiable fingerprint (unrecognized mark)"; return 0 ;;
     esac
     _rec="$(while IFS= read -r _l; do
               _p="${_l#* }"; _p="${_p#* }"
@@ -1209,7 +1224,7 @@ case "$event" in
     # lost. The cwd fallback is unchanged by an operand token: the
     # command still runs in the payload cwd, and the fallback never walks
     # down into nested worktrees (touch_path, not touch_operand).
-    _bc="$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)" || {
+    _bc="$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)" && [ -n "$_bc" ] || {
       seat_mark "jq failed on a Bash call"
       rm -f "$_open"
       exit 0

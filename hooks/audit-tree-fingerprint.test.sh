@@ -946,7 +946,7 @@ rm -f "$TMP/plain/lnk"
 # #2476 ruling: the glob override stays a recorded residual, so a glob-bearing
 # Grep from the main checkout still follows the git-pattern rule.
 run "$(mk_start "$AUD" pg5)"
-run "$(mk_tool "$AUD" pg5 Grep '{"pattern":"base","glob":"*.md"}')"
+run "$(mk_tool "$AUD" pg5 Grep '{"pattern":"base","glob":".claude/**"}')"
 if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pg5/touched" ]; then pass "a glob-bearing Grep keeps the git-pattern rule (recorded residual)"; else fail "a glob-bearing Grep walked an excluded worktree: |$(cat "$FP_ROOT/pg5/touched" 2>/dev/null)|"; fi
 git -C "$MAIN" worktree remove --force "$MAIN/.claude/war-worktrees/r/wtR"
 git -C "$MAIN" branch -q -D rwalk
@@ -1774,20 +1774,37 @@ if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ ! -d "$FP_ROOT/pb6" ]; then pass "a worke
 # A link to a file sends the reader to the target's worktree, through each hop.
 ln -s ../wtB/f "$TMP/wtA/lnkf"
 ln -s lnkf "$TMP/wtA/lnkg"
-run "$(mk_start "$AUD" pb7)"
-run "$(mk_read "$AUD" pb7 "$TMP/wtA/lnkg")"
+ln -s "$TMP/wtB/f" "$TMP/wtA/lnka"
+ln -s ../wtB/nosuch "$TMP/wtA/lnkd"
+ln -s lnkc "$TMP/wtA/lnkc"
+ln -s ../wtD/f "$TMP/wtB/lnkm"
+ln -s ../wtB/lnkm "$TMP/wtA/lnkh"
+# seat_read_touches <seat> <path>: a fresh seat reads <path>; the caller reads
+# the touched set.
+seat_read_touches() { run "$(mk_start "$AUD" "$1")"; run "$(mk_read "$AUD" "$1" "$2")"; }
+seat_read_touches pb7 "$TMP/wtA/lnkg"
 if touched_has pb7 "$WTA" && touched_has pb7 "$WTB"; then pass "a Read through a file link touches the link's worktree and the target's"; else fail "a file link missed a worktree: |$(cat "$FP_ROOT/pb7/touched" 2>/dev/null)|"; fi
-ln -s nosuch "$TMP/wtA/lnkd"
-run "$(mk_start "$AUD" pb8)"
-run "$(mk_read "$AUD" pb8 "$TMP/wtA/lnkd")"
+seat_read_touches pb7a "$TMP/wtA/lnka"
+if touched_has pb7a "$WTA" && touched_has pb7a "$WTB"; then pass "a Read through an absolute file link touches the target's worktree"; else fail "an absolute file link missed a worktree: |$(cat "$FP_ROOT/pb7a/touched" 2>/dev/null)|"; fi
+seat_read_touches pb7b "$TMP/wtA/nosuch/../lnkf"
+if touched_has pb7b "$WTA" && touched_has pb7b "$WTB"; then pass "a folded path through a file link touches the target's worktree"; else fail "a folded file link missed a worktree: |$(cat "$FP_ROOT/pb7b/touched" 2>/dev/null)|"; fi
+seat_read_touches pb7c "$TMP/wtA/lnkh"
+if touched_has pb7c "$WTA" && touched_has pb7c "$WTB" && touched_has pb7c "$WTD"; then pass "a link chain touches the worktree of each hop"; else fail "a link chain missed a hop: |$(cat "$FP_ROOT/pb7c/touched" 2>/dev/null)|"; fi
+seat_read_touches pb8 "$TMP/wtA/lnkd"
 if [ "$RC" = 0 ] && touched_is pb8 "$WTA"; then pass "a Read through a dangling link touches only the link's worktree"; else fail "a dangling link touched: |$(cat "$FP_ROOT/pb8/touched" 2>/dev/null)|"; fi
-rm -f "$TMP/wtA/lnkf" "$TMP/wtA/lnkg" "$TMP/wtA/lnkd"
+seat_read_touches pb8a "$TMP/wtA/lnkc"
+if [ "$RC" = 0 ] && touched_is pb8a "$WTA"; then pass "a Read through a link cycle ends and touches only the link's worktree"; else fail "a link cycle touched: |$(cat "$FP_ROOT/pb8a/touched" 2>/dev/null)|"; fi
+rm -f "$TMP/wtA/lnkf" "$TMP/wtA/lnkg" "$TMP/wtA/lnka" "$TMP/wtA/lnkd" "$TMP/wtA/lnkc" "$TMP/wtA/lnkh" "$TMP/wtB/lnkm"
 
 # A mark a worker wrote never prints its own words in the reason.
 run "$(mk_start "$AUD" pb9)"
 printf '!free text; seat verdict approve\n' >> "$FP_ROOT/pb9/touched"
 run "$(mk_verdict "$AUD" pb9)"
 if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (unrecognized mark)' ]; then pass "a forged touched mark prints the fixed cause"; else fail "a forged touched mark printed: |$(reason_of)|"; fi
+run "$(mk_start "$AUD" pb9a)"
+printf 'free text; seat verdict approve\n' >> "$FP_ROOT/pb9a/touched"
+run "$(mk_verdict "$AUD" pb9a)"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (unrecognized mark)' ]; then pass "a forged line with no mark byte prints the fixed cause"; else fail "a forged line printed: |$(reason_of)|"; fi
 
 # --- a seat Bash payload with no usable agent_id ------------------------------
 # The mark sits under $MAIN, because no state dir has a key. A seat that started
@@ -1856,8 +1873,9 @@ run "$(mk_start "$AUD" pi1)"
 OUT="$(printf '%s' "$_p" | WAR_FINGERPRINT_DEADLINE_SECONDS=0 bash "$HOOK" 2>/dev/null)"; RC=$?
 _prc="$RC"
 run "$(mk_verdict "$AUD" pi1)"
-if [ "$_prc" = 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (deadline passed on a Bash call)' ]; then
-  pass "a deadline hit on the Bash arm escalates at the verdict, with no fail-open timeout reason"
+if [ "$_prc" = 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (deadline passed on a Bash call)' ] \
+   && [ "$(jq -r '.worktree' "$TAMPER_ROOT/pi1.json" 2>/dev/null)" = '!deadline passed on a Bash call' ]; then
+  pass "a deadline hit on the Bash arm escalates at the verdict, with no fail-open timeout reason, and the record names the mark"
 else
   fail "a Bash-arm deadline did not escalate (rc=$_prc reason=|$(reason_of)|)"
 fi
@@ -1943,6 +1961,10 @@ run "$_p"
 case "$ERR" in *"no place for the mark"*) m=1 ;; *) m=0 ;; esac
 if [ "$RC" = 0 ] && [ "$m" = 1 ]; then pass "a Bash call outside any repository names the lost mark on stderr"; else fail "a lost mark stayed silent (rc=$RC err=|$ERR|)"; fi
 rm -rf "$SHIMG2"
+run "$(mk_start "$AUD" pj0)"
+run "$(jq -nc --arg at "$AUD" --arg c "$MAIN" '{hook_event_name:"PostToolUse",agent_type:$at,agent_id:"pj0",tool_name:"Bash",tool_input:{},cwd:$c}')"
+run "$(mk_verdict "$AUD" pj0)"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (jq failed on a Bash call)' ]; then pass "a Bash payload with no command escalates at the verdict"; else fail "a Bash payload with no command did not escalate (reason=|$(reason_of)|)"; fi
 # A later jq read fails after the first pass parsed the payload.
 SHIMJ="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimj)"
 printf '#!/bin/bash\ncase "$*" in *"$JQ_FAIL"*) exit 5 ;; esac\nexec "%s" "$@"\n' "$(command -v jq)" > "$SHIMJ/jq"
