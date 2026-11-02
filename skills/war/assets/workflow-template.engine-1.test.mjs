@@ -10608,6 +10608,18 @@ test('provenance floor: an own token inside a foreign plan path proves nothing',
   const asked = await runPhase(PROVISION_ARGS({ ruledAsks: [{ findingTitle: 'carried ruling', ruling: 'see docs/plans/wtprov-sibling.md', suggested_fix: 'one line', phase: 3 }] }), defaultImpl)
   assert.equal(asked.out.landDecision, 'held:workflow-error', 'the same holds on a ruled-ask row')
   assert.match(asked.out.workflowError.message, /args\.ruledAsks record "carried ruling" is missing required planSlug coordinate/)
+  // Only a row with idText strips a citation, so on these surfaces a cited path is a foreign path.
+  const cited = 'supersedes docs/plans/wtprov-older.md'
+  const citedIntent = await runPhase(PROVISION_ARGS({ intent: 'Deliver the throttle, ' + cited + '.' }), defaultImpl)
+  assert.equal(citedIntent.out.landDecision, 'held:workflow-error', 'a citation in intent is read past')
+  assert.match(citedIntent.out.workflowError.message, /args\.intent contains none of the run's own plan-slug tokens/)
+  assert.ok(citedIntent.logs.some(l => typeof l === 'string' && l.includes('(docs/plans/wtprov-older.md)')), 'and it logs the warning')
+  const citedSeed = await runPhase(SWEEP_ARGS({ seededPhaseClose: [{ ...row, rationale: cited }] }), sweepBase([]))
+  assert.equal(citedSeed.out.landDecision, 'held:workflow-error', 'a citation in a carried row is read past')
+  assert.match(citedSeed.out.workflowError.message, /args\.seededPhaseClose contains none of the run's own plan-slug tokens/)
+  const citedAsk = await runPhase(PROVISION_ARGS({ ruledAsks: [{ findingTitle: 'carried ruling', ruling: cited, suggested_fix: 'one line', phase: 3 }] }), defaultImpl)
+  assert.equal(citedAsk.out.landDecision, 'held:workflow-error', 'a citation in a ruled-ask row is read past')
+  assert.match(citedAsk.out.workflowError.message, /args\.ruledAsks record "carried ruling" is missing required planSlug coordinate/)
   // Each distinct path and each repeat of it is read past, not only the first.
   const many = await runPhase(PROVISION_ARGS({ intent: 'Spare docs/plans/other-plan.md and docs/plans/wtprov-sibling.md, then docs/plans/wtprov-sibling.md.' }), defaultImpl)
   assert.equal(many.out.landDecision, 'held:workflow-error', 'a repeated path proves nothing either')
@@ -10623,7 +10635,7 @@ test('provenance floor: a stripped predecessor citation stays own-token evidence
   assert.equal(sibling.out.landDecision, 'landed', `a value row's citation vouches for the surface — got ${sibling.out.landDecision}`)
 })
 
-// #2208, #2197: the foreign-id scan stops at the Lead-assembled surfaces.
+// #2208, #2197: the foreign-id refusal and warning cover only intent, backstops and adjudications.
 test('provenance floor: a ruledAsks row naming a foreign plan path launches', async () => {
   const base = { findingTitle: 'carried ruling', ruling: 'edit docs/plans/2026-08-25-older-plan.md', suggested_fix: 'one line in docs/plans/2026-08-25-older-plan.md', phase: 3 }
   for (const row of [{ ...base, planSlug: 'wtprov-a' }, { ...base, ruling: 'wtprov: edit docs/plans/2026-08-25-older-plan.md' }]) {
@@ -10663,17 +10675,14 @@ test('provenance floor: a foreign plan path in adjudications still refuses', asy
   assert.equal(calls.length, 0, 'zero agents spawned')
 })
 
-// #2207: each citation spelling stripSupersedes accepts earns the value-row skip on a value segment only.
+// #2207: each bare citation spelling earns the value-row skip on a value segment only.
 for (const spelling of ['supersedes', 'supersedes:']) {
   test(`provenance floor: a value row spelled "<value> ${spelling} docs/plans/<x>.md" launches with no own token`, async () => {
     const cite = spelling + ' docs/plans/2026-08-06-older-foreign-plan.md'
     const { out } = await runPhase(PROVISION_ARGS({ adjudications: ['0.9.1 ' + cite] }), defaultImpl)
     assert.equal(out.landDecision, 'landed', `an un-doped value row launches — got ${out.landDecision}`)
-    // The arm takes the same case rule as the strip, so every matched citation strips.
-    const cased = await runPhase(PROVISION_ARGS({ adjudications: ['0.9.1 ' + cite.replace('supersedes', 'Supersedes')] }), defaultImpl)
-    assert.equal(cased.out.landDecision, 'landed', `a capitalized citation launches — got ${cased.out.landDecision}`)
     // Controls: prose before or after the citation, or an overlong value, keeps the row own-token-scanned.
-    for (const row of ['ruled: keep the legacy arm ' + cite, '0.9.1 ' + cite + ' because the old call lapsed', 'x'.repeat(65) + ' ' + cite]) {
+    for (const row of ['ruled: keep the legacy arm ' + cite, '0.9.1 ' + cite + ' because the old call lapsed', 'x'.repeat(65) + ' ' + cite, '0.9.1 ' + cite.replace('supersedes', 'Supersedes')]) {
       const prose = await runPhase(PROVISION_ARGS({ adjudications: [row] }), defaultImpl)
       assert.equal(prose.out.landDecision, 'held:workflow-error', `a prose row still needs an own token: ${row}`)
       assert.match(prose.out.workflowError.message, /args\.adjudications contains none of the run's own plan-slug tokens/)
@@ -10684,6 +10693,15 @@ for (const spelling of ['supersedes', 'supersedes:']) {
     assert.match(leak.out.workflowError.message, /\(docs\/plans\/foreign-thing\.md\)/)
   })
 }
+
+test('provenance floor: the value-row skip admits only the two bare spellings', async () => {
+  const path = 'docs/plans/2026-08-06-older-foreign-plan.md'
+  for (const row of ['0.9.1 supersedes plan literal: ' + path, '0.9.1 supersedes::' + path, '0.9.1 supersedes:' + path, '0.9.1 supersedes' + path, '0.9.1 supersedes  ' + path]) {
+    const { out } = await runPhase(PROVISION_ARGS({ adjudications: [row] }), defaultImpl)
+    assert.equal(out.landDecision, 'held:workflow-error', `any other spelling is own-token-scanned: ${row}`)
+    assert.match(out.workflowError.message, /args\.adjudications contains none of the run's own plan-slug tokens/)
+  }
+})
 
 // ---- vacuous-endstate fixture (D5, End state 10) ------------------------------------------
 

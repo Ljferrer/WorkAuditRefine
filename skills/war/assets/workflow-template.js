@@ -1140,9 +1140,10 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
 //     OWN-TOKEN floor only (D10, #1749): the foreign-plan-id scan runs over EVERY backstops and
 //     adjudications row's text, exempt rows included — a source:'auto' row is set by the same
 //     Lead-assembled channel a foreign args blob rides, so a flag that channel sets cannot buy a
-//     bypass of the foreign-id refusal. The scan reads only the Lead-assembled surfaces (intent,
-//     backstops, adjudications; #2208, #2197): ruledAsks and seededPhaseClose rows are carried
-//     engine records, so a foreign path in one never halts a launch.
+//     bypass of the foreign-id refusal. The scan's refusal and warning cover only intent, backstops
+//     and adjudications (#2208, #2197): a ruledAsks or seededPhaseClose row describes finding work
+//     that may name any plan path, and its planSlug field is the provenance coordinate, so a foreign
+//     path in one never halts a launch.
 //   - VALUE rows (D10, #1480): an adjudications row in the canonical version-adjudication shape —
 //     the `{ adjudicated|value, supersedes }` object, the preformatted string adjRow renders
 //     (`<value> (supersedes plan literal: <x>)`), or a one-token value before a bare citation
@@ -1193,13 +1194,13 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // (a VALUE-SHAPED string — one whitespace-free token of at most 64 chars, never prose — plus a string
   // supersedes; a Lead-stamped planFile may ride beside them), the string adjRow renders —
   // `<value> (supersedes plan literal: <x>)` — or a one-token value before a bare citation in the
-  // two bare spellings (`supersedes`, `supersedes:`) stripSupersedes accepts (#2207; same separator and case rule as that strip,
-  // so a value row's citation always strips). The shape test alone would let a prose ruling with a
+  // two bare spellings (`supersedes`, `supersedes:`) stripSupersedes accepts (#2207; only those two,
+  // and that strip is wider, so a value row's citation always strips). The shape test alone would let a prose ruling with a
   // prose `supersedes` bypass the own-token floor, so the value field must look like a value — in
   // BOTH arms: the string arm anchors the same one-token value segment before the citation, so
   // a preformatted prose ruling never launches un-doped where its object form refuses.
   const isValueRow = row => typeof row === 'string'
-    ? /^\S{1,64} \(supersedes plan literal: [^\n]+\)\s*$/.test(row) || /^\S{1,64} supersedes[\s:]*docs\/plans\/[A-Za-z0-9._/-]+\.md\s*$/i.test(row)
+    ? /^\S{1,64} \(supersedes plan literal: [^\n]+\)\s*$/.test(row) || /^\S{1,64} supersedes:? docs\/plans\/[A-Za-z0-9._/-]+\.md\s*$/.test(row)
     : !!row && typeof row === 'object' && typeof (row.adjudicated ?? row.value) === 'string' && typeof row.supersedes === 'string'
       && /^\S{1,64}$/.test(row.adjudicated ?? row.value)
       && Object.keys(row).every(k => ['adjudicated', 'value', 'supersedes', 'planFile', 'source'].includes(k))
@@ -1249,9 +1250,9 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   const hasOwnSlug = row => typeof row.planSlug === 'string' && !!row.planSlug
   const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
   // The #1751 predecessor-citation strip (stripSupersedes / idText) is deliberately adjudications-only:
-  // the `supersedes` citation idiom is an adjudication-row shape, and these rows need no strip,
-  // because the foreign-id scan stops at the Lead-assembled surfaces (#2208). A foreign path here
-  // refuses nothing. The planSlug stamp and the own-token check below still apply.
+  // the `supersedes` citation idiom is an adjudication-row shape. A foreign path here never refuses
+  // or warns (#2208), so its only effect is the own-token read-past, which also covers a citation
+  // because these rows carry no idText. The planSlug stamp and the own-token check below still apply.
   const ruledAskRowText = row => {
     if (typeof row === 'string') return { text: row, exempt: false }  // a string row is its own scannable text (the sibling rowText discipline)
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
@@ -1269,7 +1270,7 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // intent-bearing text is title + rationale + suggested_fix, and the carried row's `planSlug`
   // FIELD (stamped by the emitting engine's carryPhaseClose) is the provenance coordinate — a
   // foreign slug refuses directly; the run's own slug exempts the row. As at ruledAskRowText, the
-  // foreign-id scan skips these rows (#2197), so no idText is needed. Only the own-token check reads the text.
+  // foreign path here never refuses or warns (#2197), and the same no-idText read-past applies.
   const seededPhaseCloseRowText = row => {
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
     const text = ['title', 'rationale', 'suggested_fix']
@@ -1296,12 +1297,13 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     // scanText: non-exempt, non-value rows only (the own-token refusal surface — a surface whose rows
     // are all exempt or all value rows never has to carry a token). evidenceText: EVERY row's text —
     // own-token satisfaction may come from an exempt row (#1666 stands, never narrowed). The
-    // foreign-plan-id scan reads every row's (citation-stripped) text, exempt rows included (#1749),
-    // on the Lead-assembled surfaces only: intent warns and launches (#2375), backstops and
-    // adjudications refuse. ruledAsks and seededPhaseClose rows go unscanned (#2208, #2197). A
-    // foreign path outside a stripped citation never vouches for the plan, so the own-token search
-    // reads past each one: else a path like docs/plans/<own-word>-sibling.md would pass an intent the
-    // foreign arm no longer refuses. A stripped citation stays evidence, because stacked plans share slug words.
+    // foreign-plan-id scan reads every row's text, exempt rows included (#1749), with citations
+    // stripped only where a row sets idText. Intent warns and launches (#2375), backstops and
+    // adjudications refuse, and ruledAsks and seededPhaseClose rows neither refuse nor warn (#2208,
+    // #2197). A foreign path outside a stripped citation never vouches for the plan, so the own-token
+    // search reads past each one: else a path like docs/plans/<own-word>-sibling.md would pass an
+    // intent the foreign arm no longer refuses. A stripped citation stays evidence, because stacked
+    // plans share slug words.
     const scanText = rows.filter(r => !r.exempt && !r.value && r.text).map(r => r.text).join('\n')
     const evidenceText = rows.filter(r => r.text).map(r => r.text).join('\n')
     const idText = rows.filter(r => r.text).map(r => r.idText ?? r.text).join('\n')
