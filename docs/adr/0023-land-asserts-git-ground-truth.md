@@ -206,3 +206,16 @@ Full mechanics: [the design spec](../specs/2026-07-22-merge-land-resilience-desi
 6–9 and §4.4, and [the plan](../plans/2026-07-22-merge-land-resilience.md) Task 1.2. The sibling
 change landed in the same plan — one bounded in-workflow retry for environment-class gate failures —
 is [ADR 0040](0040-environment-class-gate-failures-earn-one-retry.md).
+
+## Amendment (2026-11-01): one bounded re-read, and a resolved `<merge-sha>`
+
+Issue #1837 recorded a land that reached origin and still exited 3 with no message. The call passed a
+short SHA, and a short value never equals the full SHA from `ls-remote`. A lag can give the same
+exit, so both shapes get a fix.
+
+**Decision, extended.** `cmd_land_advance` resolves `<merge-sha>` to its full SHA before the land-truth
+guard, so each compare reads two full SHAs. A value that does not resolve stays as given and keeps
+its die. A post-push read that fails or differs waits 2 s and reads origin once more. A second miss
+dies with exit 3, names both SHAs and the `sync-follower` hint, and leaves the follower unmoved. The
+pre-push read gets no retry, because a failed read there stops before any push. Exit codes do not
+change, and a land still reports success only after origin proves the advance.

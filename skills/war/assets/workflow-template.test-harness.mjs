@@ -2331,7 +2331,7 @@ const BARE_INTERPOLATION_CENSUS = [
   'kind', 'path',
   // Dispatch-owned gate capture strings are constructed before their prompt carriers run.
   'prefix', 'evidenceCapture.clause',
-  // reconcileMerge builds cause from a tagged death or a literal fallback.
+  // reconcileMerge builds cause from a tagged death or a literal fallback, plus any segment_note.
   'cause',
   // c.row / c.rationale (engine-and-audit-verdict-integrity Task 7.1 ace, D6 citations): the `c` local is
   // citationOf's own return at citationStamp and citationSoundnessClause's map callback, gated truthy

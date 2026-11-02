@@ -98,7 +98,8 @@ git** rather than self-reported. Immediately before the push it captures the **p
 (`git ls-remote origin refs/heads/<working>`; a failed readback exits non-zero and never collapses
 into the first-land carve-out), and it refuses a **phantom land** (exit 3) when `<merge-sha>` equals
 that pre-push origin tip **and** the local follower already sits at it; the post-push readback still
-confirms origin advanced to `<merge-sha>`. Immediately before that push — and deliberately *after* the
+confirms origin advanced to `<merge-sha>`, with one re-read after 2 s and a loud exit 3 on a second
+miss. `<merge-sha>` resolves to its full SHA first. Immediately before that push — and deliberately *after* the
 early-return arms, so already-landed reconciliation stays cwd-independent — it also asserts
 `HEAD == <merge-sha>`: the push source is `HEAD:`, so a wrong-cwd invocation dies with the catalogued
 `EX_WRONG_BRANCH` (6) naming both SHAs and the expected cwd (normally the detached `_refinery`) rather
