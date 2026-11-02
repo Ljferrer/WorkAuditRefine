@@ -3938,6 +3938,161 @@ expect "EB.9: a branch ahead of the tip keeps its tip" "$SHA_E9" "$(git -C "$WT_
 expect "EB.9: a branch ahead of the tip writes no warning" "" "$EB_ERR"
 
 # ---------------------------------------------------------------------------
+# #1837 item 1: land-advance's post-push readback. The lagging-ls-remote fixture
+# is a git wrapper first on PATH. It passes each verb to real Git and lets the
+# pre-push ls-remote through, because a push marker gates it. After the push,
+# LA_SHIM sets what ls-remote answers. A sleep stub records its argument, so the
+# rows run at full speed and pin the 2 second wait.
+#   lag-once    the stale tip once, then the real answer
+#   lag-always  the stale tip on each read
+#   fail-once   a Git failure once, then the real answer
+#   fail-always a Git failure on each read
+#   empty       no row on each read
+#   (unset)     the real answer
+# ---------------------------------------------------------------------------
+LA_REAL_GIT="$(command -v git)"
+LA_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t warlashim)"
+REPOS="$REPOS $LA_DIR"
+cat > "$LA_DIR/git" <<'LASHIM'
+#!/bin/bash
+case "${1:-}" in
+  push)
+    "$LA_REAL_GIT" "$@"
+    rc=$?
+    : > "$LA_DIR/pushed"
+    exit "$rc"
+    ;;
+  ls-remote)
+    if [ -e "$LA_DIR/pushed" ]; then
+      printf 'x' >> "$LA_DIR/reads"
+      reads="$(wc -c < "$LA_DIR/reads" | tr -d ' ')"
+      case "${LA_SHIM:-}:$reads" in
+        lag-once:1 | lag-always:*)
+          printf '%s\t%s\n' "$LA_STALE" "$3"
+          exit 0
+          ;;
+        fail-once:1 | fail-always:*)
+          printf 'fatal: the remote end hung up\n' >&2
+          exit 128
+          ;;
+        empty:*) exit 0 ;;
+      esac
+    fi
+    ;;
+esac
+exec "$LA_REAL_GIT" "$@"
+LASHIM
+printf '#!/bin/bash\nprintf "%%s\\n" "$1" >> "$LA_DIR/sleeps"\n' > "$LA_DIR/sleep"
+chmod +x "$LA_DIR/git" "$LA_DIR/sleep"
+
+la_has() {
+  case "$1" in *"$2"*) echo yes ;; *) echo no ;; esac
+}
+
+# la_fixture <branch>: seed <branch>, then detach clone1 at a new commit.
+la_fixture() {
+  LA_PAIR="$(setup_origin_pair)"
+  LA_C1="$(printf '%s' "$LA_PAIR" | cut -d' ' -f1)"
+  LA_C2="$(printf '%s' "$LA_PAIR" | cut -d' ' -f2)"
+  LA_SEED="$(seed_working_branch "$LA_C1" "$LA_C2" "$1")"
+  printf '%s\n' "$1" > "$LA_C1/la.txt"
+  git -C "$LA_C1" add -A
+  git -C "$LA_C1" commit -qm "new sha for $1"
+  LA_NEW="$(git -C "$LA_C1" rev-parse HEAD)"
+  git -C "$LA_C1" checkout -q --detach "$LA_NEW"
+}
+
+# la_run <mode> <branch> <new-sha>: sets LA_RC, LA_ERR, LA_READS and LA_SLEEPS.
+la_run() {
+  rm -f "$LA_DIR/pushed" "$LA_DIR/reads" "$LA_DIR/sleeps"
+  LA_RC=0
+  LA_ERR="$( ( cd "$LA_C1" && LA_SHIM="$1" LA_STALE="$LA_SEED" LA_REAL_GIT="$LA_REAL_GIT" LA_DIR="$LA_DIR" \
+    PATH="$LA_DIR:$PATH" bash "$SCRIPT" land-advance "$2" "$3" ) 2>&1 >/dev/null )" || LA_RC=$?
+  LA_READS=0
+  [ -e "$LA_DIR/reads" ] && LA_READS="$(wc -c < "$LA_DIR/reads" | tr -d ' ')"
+  LA_SLEEPS=""
+  [ -e "$LA_DIR/sleeps" ] && LA_SLEEPS="$(cat "$LA_DIR/sleeps")"
+  return 0
+}
+
+la_follower() { git -C "$LA_C1" rev-parse "refs/heads/$1"; }
+la_origin() { git -C "$LA_C1" ls-remote origin "refs/heads/$1" | cut -f1; }
+
+# LA.1: a lag that clears on the second read lands.
+la_fixture working/la1
+la_run lag-once working/la1 "$LA_NEW"
+expect "LA.1 lagging-ls-remote: a lag that clears exits 0" 0 "$LA_RC"
+expect "LA.1 lagging-ls-remote: the follower advances" "$LA_NEW" "$(la_follower working/la1)"
+expect "LA.1 lagging-ls-remote: the readback runs twice" 2 "$LA_READS"
+expect "LA.1 lagging-ls-remote: the wait is 2 seconds" 2 "$LA_SLEEPS"
+expect "LA.1 lagging-ls-remote: a land that clears says nothing" "" "$LA_ERR"
+
+# LA.2: a lag that stays dies loud, and the follower stays.
+la_fixture working/la2
+la_run lag-always working/la2 "$LA_NEW"
+expect "LA.2 lagging-ls-remote: a lag that stays exits 3" 3 "$LA_RC"
+expect "LA.2 lagging-ls-remote: the die names actual" yes "$(la_has "$LA_ERR" "$LA_SEED")"
+expect "LA.2 lagging-ls-remote: the die names new_sha" yes "$(la_has "$LA_ERR" "$LA_NEW")"
+expect "LA.2 lagging-ls-remote: the die gives the reconcile hint" yes "$(la_has "$LA_ERR" "sync-follower working/la2")"
+expect "LA.2 lagging-ls-remote: the die says the push exited 0" yes "$(la_has "$LA_ERR" "push exited 0")"
+expect "LA.2 lagging-ls-remote: the follower stays" "$LA_SEED" "$(la_follower working/la2)"
+expect "LA.2 lagging-ls-remote: the readback stops after two reads" 2 "$LA_READS"
+expect "LA.2 lagging-ls-remote: the wait is 2 seconds" 2 "$LA_SLEEPS"
+
+# LA.3: a failed ls-remote is a mismatch, on either read.
+la_fixture working/la3
+la_run fail-always working/la3 "$LA_NEW"
+expect "LA.3 lagging-ls-remote: two failed reads exit 3, not Git's code" 3 "$LA_RC"
+expect "LA.3 lagging-ls-remote: the die names new_sha" yes "$(la_has "$LA_ERR" "$LA_NEW")"
+expect "LA.3 lagging-ls-remote: the die gives the reconcile hint" yes "$(la_has "$LA_ERR" "sync-follower working/la3")"
+expect "LA.3 lagging-ls-remote: the follower stays" "$LA_SEED" "$(la_follower working/la3)"
+expect "LA.3 lagging-ls-remote: both reads ran" 2 "$LA_READS"
+
+la_fixture working/la3b
+la_run fail-once working/la3b "$LA_NEW"
+expect "LA.3b lagging-ls-remote: a failed first read that clears exits 0" 0 "$LA_RC"
+expect "LA.3b lagging-ls-remote: the follower advances" "$LA_NEW" "$(la_follower working/la3b)"
+
+la_fixture working/la3c
+la_run empty working/la3c "$LA_NEW"
+expect "LA.3c lagging-ls-remote: an empty read on both tries exits 3" 3 "$LA_RC"
+expect "LA.3c lagging-ls-remote: the die gives the reconcile hint" yes "$(la_has "$LA_ERR" "sync-follower working/la3c")"
+expect "LA.3c lagging-ls-remote: the follower stays" "$LA_SEED" "$(la_follower working/la3c)"
+
+# LA.4: the control. A clean land reads once and never waits.
+la_fixture working/la4
+la_run "" working/la4 "$LA_NEW"
+expect "LA.4 lagging-ls-remote control: a clean land exits 0" 0 "$LA_RC"
+expect "LA.4 lagging-ls-remote control: the follower advances" "$LA_NEW" "$(la_follower working/la4)"
+expect "LA.4 lagging-ls-remote control: one readback" 1 "$LA_READS"
+expect "LA.4 lagging-ls-remote control: no wait" "" "$LA_SLEEPS"
+
+# LA.5: a short <new-sha> lands. The readback compares two full SHAs.
+la_fixture working/la5
+la_run "" working/la5 "$(printf '%.8s' "$LA_NEW")"
+expect "LA.5: a short new_sha exits 0" 0 "$LA_RC"
+expect "LA.5: the follower advances to the full SHA" "$LA_NEW" "$(la_follower working/la5)"
+expect "LA.5: origin holds the full SHA" "$LA_NEW" "$(la_origin working/la5)"
+expect "LA.5: a short new_sha reads origin once" 1 "$LA_READS"
+
+# LA.6: a short <new-sha> cannot slip past the phantom guard.
+la_fixture working/la6
+git -C "$LA_C1" push -q origin "HEAD:refs/heads/working/la6"
+git -C "$LA_C1" update-ref refs/heads/working/la6 "$LA_NEW"
+la_run "" working/la6 "$(printf '%.8s' "$LA_NEW")"
+expect "LA.6: a short phantom exits 3" 3 "$LA_RC"
+expect "LA.6: a short phantom names the phantom route" yes "$(la_has "$LA_ERR" "equals the pre-push origin tip")"
+expect "LA.6: a short phantom runs no push" no "$(la_has "$(ls "$LA_DIR")" pushed)"
+
+# LA.7: a short <new-sha> reads an already-landed origin as landed.
+la_fixture working/la7
+git -C "$LA_C1" push -q origin "HEAD:refs/heads/working/la7"
+la_run "" working/la7 "$(printf '%.8s' "$LA_NEW")"
+expect "LA.7: a short already-landed call exits 0" 0 "$LA_RC"
+expect "LA.7: the follower reconciles to origin" "$LA_NEW" "$(la_follower working/la7)"
+expect "LA.7: a short already-landed call runs no push" no "$(la_has "$(ls "$LA_DIR")" pushed)"
+
+# ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
 echo "provision-worktrees.test.sh: PASS"
