@@ -470,7 +470,7 @@ const landed = [], escalated = [], minorsFiled = [], auditLog = []
 let refineryProvisioned = false
 // Disposition routing (ADR 0013): minorsFiled receives ONLY disposition:'follow-up' findings;
 // notes receives disposition:'note' findings (phase report + servitor feed — memory candidates,
-// never issues).
+// never issues) and the rows recordIgnoreList writes.
 const notes = []
 // pinTransfers (#1913, PIN-7/PIN-10/PIN-14): the run-level pin-transfer ledger. One row per accounted
 // transfer — the wave-side ace rounds (kind:'ace') and the merge slot's rebase probe (kind:'merge') —
@@ -3208,12 +3208,17 @@ const chainByTask = new Map()
 const chainOf = id => { if (!chainByTask.has(id)) chainByTask.set(id, { criticalPath: null, entries: [], survivors: new Set() }); return chainByTask.get(id) }
 const fixLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Fix:[^\n]*)/)
 const ignoreLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Ignore for now:[^\n]*)/)
-// The sweep and terminal workers cannot stop and ask, so their `Ignore for now:` line reaches the
-// operator as a phase-report note. It records dead and blocked results too, because a discarded
-// sweep's commit body never merges. A line that names nothing writes no row.
+// The ADVISORY POLISH, sweep and terminal workers cannot stop and ask, so their `Ignore for now:` list
+// reaches the operator as a phase-report note. A blocked result records its list too, because a discarded
+// sweep's commit body never merges, and a dead dispatch has no list. The list runs to the next blank
+// line, because a worker bullets it or wraps it. "none" or "nothing", alone or with a reason, writes no row.
+const ignoreListOf = text => {
+  const m = typeof text === 'string' ? text.match(/(?:^|\n)[ \t]*(Ignore for now:[^\n]*(?:\n[ \t]*\S[^\n]*)*)/) : null
+  return m ? m[1].split('\n').map(l => l.trim()).join(' ') : null
+}
 const recordIgnoreList = (site, taskId, w) => {
-  const line = ignoreLineOf(w && w.notes)
-  if (!line || /^Ignore for now:\s*(none\b.*)?$/i.test(line)) return
+  const line = ignoreListOf(w && w.notes)
+  if (!line || /^Ignore for now:\s*(?:(?:none|nothing)\.?\s*(?:-.*)?)?$/i.test(line)) return
   log(site + ': the worker left defects for a ruling — ' + line)
   notes.push({ task: taskId, title: site + ' left for a ruling: ' + line, severity: 'Nit', disposition: 'note' })
 }
@@ -4547,7 +4552,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         const polishOwn = new Set((Array.isArray(r.task.files) ? r.task.files : []).map(aceRelPath))
         const polishFence = [...new Set([
           ...(Array.isArray(A.sweepExclude) ? A.sweepExclude.flatMap(e => e.files) : []),
-          ...tasks.filter(t => !done.has(t.id)).flatMap(t => Array.isArray(t.files) ? t.files : []),
+          ...tasks.filter(t => !succeeded.has(t.id)).flatMap(t => Array.isArray(t.files) ? t.files : []),
           ...RELEASE_SLOT_FILES,
         ].map(aceRelPath))].filter(p => typeof p === 'string' && p && !polishOwn.has(p))
         const ace = await dispatchSite(
@@ -4567,6 +4572,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + fixRoundFenceClause(polishFence)
           + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
           { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...spawnWorker('ace') })
+        recordIgnoreList('advisory polish', r.task.id, ace)
         // an ace worker death (D21) takes the existing failed-attempt arm, site-named
         const aceWhy = deathOf(ace) || blockedReason(ace)
         // The tip probe (#2485 D2, PIN-2): dead or not, blocked or not, the branch is read from Git
@@ -6320,7 +6326,8 @@ const stampDrainCause = (f, dispatch, why) => { f.drainCause = { dispatch, why }
 let polishStatus = 'skipped'
 // Phase-scoped exclusion map (PIN-3): built by the sweep-time drain below and read AGAIN by the
 // terminal-pass filter — a polish-panel absorb never passed the drain, so the pass consults the
-// same map before it commits (a campaign- or task-owned file is refused there too).
+// same map before it commits (a campaign- or task-owned file is refused there too). Both prompts
+// also render its keys as the fix-round fence (fixRoundFenceClause).
 const sweepExcl = new Map()
 if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
   // Carry arm (D3b, PIN-5 — replaces the ADR 0013 held-phase demotion): a held phase never

@@ -236,8 +236,7 @@ The operator ruled the limit on those three added builds in PR #2577. A worker f
 site of a listed finding's defect class, and lists any other defect under `Ignore for now:`.
 `FIX_ROUND_SCOPE_CLAUSE` carries that sentence. `fixRoundFenceClause` names each file that another
 task, plan or the release slot owns, and a sibling site there goes on the list. No floor reads that
-set, so the prompt is the guard. A sweep worker cannot stop and ask, so the list is how it asks: the
-engine writes the sweep and terminal lines to the phase report's `notes`, and the re-audit digest
-carries the ADVISORY POLISH line. The sweep stays one commit that one panel judges, so ADR 0012's
+set, so the prompt is the guard. These workers cannot stop and ask, so the list is how they ask: the
+engine writes each list to the phase report's `notes`. The sweep stays one commit that one panel judges, so ADR 0012's
 discard guard holds. The terminal pass stays one commit that one seat judges, and that pass
 forward-reverts a regression.
