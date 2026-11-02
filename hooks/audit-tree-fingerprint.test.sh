@@ -9,8 +9,10 @@
 #
 # The hook acts only for agent types ending `war-auditor` or
 # `war-evidence-auditor`. SubagentStart records every `.war-task` worktree's
-# fingerprint. PreToolUse on Read/Bash/Glob/Grep records the worktree a call
-# reaches. PreToolUse on StructuredOutput compares the touched worktrees and,
+# fingerprint. PreToolUse on Read/Glob/Grep, and PostToolUse and
+# PostToolUseFailure on Bash, record the worktree a call reaches, so a Bash call
+# another guard denied records nothing. PreToolUse on StructuredOutput compares
+# the touched worktrees and,
 # on a mismatch or an unverifiable fingerprint, allows the call with an
 # `updatedInput` whose verdict is `escalate` and whose escalate_reason starts
 # `AUDIT-TAMPER:`. SubagentStop records a mismatch and never blocks. No arm
@@ -106,10 +108,13 @@ PCWD="$MAIN"
 mk_start() { jq -nc --arg at "$1" --arg id "$2" --arg c "$PCWD" '{hook_event_name:"SubagentStart",agent_type:$at,agent_id:$id,cwd:$c}'; }
 mk_stop()  { jq -nc --arg at "$1" --arg id "$2" --arg c "$PCWD" '{hook_event_name:"SubagentStop",agent_type:$at,agent_id:$id,cwd:$c}'; }
 # mk_tool <agent_type> <agent_id> <tool_name> <tool_input-json>
-mk_tool()  { jq -nc --arg at "$1" --arg id "$2" --arg tn "$3" --argjson ti "$4" --arg c "$PCWD" '{hook_event_name:"PreToolUse",agent_type:$at,agent_id:$id,tool_name:$tn,tool_input:$ti,cwd:$c}'; }
+# MK_EV overrides the event; mk_bash defaults it to PostToolUse, the event that records.
+mk_tool()  { jq -nc --arg ev "${MK_EV:-PreToolUse}" --arg at "$1" --arg id "$2" --arg tn "$3" --argjson ti "$4" --arg c "$PCWD" '{hook_event_name:$ev,agent_type:$at,agent_id:$id,tool_name:$tn,tool_input:$ti,cwd:$c}'; }
 mk_read()  { mk_tool "$1" "$2" Read "$(jq -nc --arg p "$3" '{file_path:$p}')"; }
 mk_glob()  { mk_tool "$1" "$2" Glob "$(jq -nc --arg p "$3" '{pattern:"**/*",path:$p}')"; }
-mk_bash()  { mk_tool "$1" "$2" Bash "$(jq -nc --arg c "$3" '{command:$c}')"; }
+mk_bash()  { MK_EV="${MK_EV:-PostToolUse}" mk_tool "$1" "$2" Bash "$(jq -nc --arg c "$3" '{command:$c}')"; }
+mk_bash_pre()  { MK_EV=PreToolUse mk_bash "$@"; }
+mk_bash_fail() { MK_EV=PostToolUseFailure mk_bash "$@" | jq -c '.error="Exit code 1"'; }
 VERDICT='{"verdict":"approve","findings":[{"severity":"Minor","title":"t"}],"confidence":"high"}'
 mk_verdict() { mk_tool "$1" "$2" StructuredOutput "$VERDICT"; }
 
@@ -915,6 +920,36 @@ if [ -n "$_ci" ] && [ "$_cin" = "$_ciok" ]; then
 else
   fail "a check-ignore call reads the index or runs fsmonitor: |$_ci|"
 fi
+# --- grep_walk takes both readings of the search root (#2475, #2476) ----------
+# <run dir>/nosuch/.. fails the physical test, and its folded reading is the
+# run dir. The missing root below it reads nothing, so it walks nothing.
+run "$(mk_start "$AUD" pg1)"
+run "$(mk_grep "$AUD" pg1 "$MAIN/.claude/war-worktrees/r/nosuch/..")"
+if [ "$RC" = 0 ] && touched_is pg1 "$WTR"; then pass "a Grep root like <run dir>/nosuch/.. touches through its lexical reading"; else fail "the lexical Grep root did not walk: |$(cat "$FP_ROOT/pg1/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" pg2)"
+PCWD="$MAIN/.claude/war-worktrees/r"
+_p="$(mk_grep "$AUD" pg2 "nosuch/..")"
+PCWD="$MAIN"
+run "$_p"
+if [ "$RC" = 0 ] && touched_is pg2 "$WTR"; then pass "a relative Grep root folds against the payload cwd"; else fail "the relative lexical Grep root did not walk: |$(cat "$FP_ROOT/pg2/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" pg3)"
+_pg3s=0; in_start pg3 "$WTR" && _pg3s=1
+run "$(mk_grep "$AUD" pg3 "$MAIN/.claude/war-worktrees/r/nosuch")"
+if [ "$_pg3s" = 1 ] && [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pg3/touched" ]; then pass "a missing Grep root walks no worktree (the exact folded dir, not its nearest ancestor)"; else fail "a missing Grep root walked: |$(cat "$FP_ROOT/pg3/touched" 2>/dev/null)|"; fi
+# The two readings disagree across a planted link: the kernel reads lnk/.. as
+# the run dir, and the fold reads it as the plain dir. Each holds a worktree.
+mkdir -p "$MAIN/.claude/war-worktrees/r/inner"
+ln -s "$MAIN/.claude/war-worktrees/r/inner" "$TMP/plain/lnk"
+run "$(mk_start "$AUD" pg4)"
+run "$(mk_grep "$AUD" pg4 "$TMP/plain/lnk/..")"
+if [ "$RC" = 0 ] && touched_has pg4 "$WTR" && touched_has pg4 "$WTP"; then pass "a Grep root across a planted link walks both readings"; else fail "a Grep root across a link missed a reading: |$(cat "$FP_ROOT/pg4/touched" 2>/dev/null)|"; fi
+rm -f "$TMP/plain/lnk"
+# #2476 ruling: the glob override stays a recorded residual, so a glob-bearing
+# Grep from the main checkout still follows the git-pattern rule.
+run "$(mk_start "$AUD" pg5)"
+_pg5s=0; in_start pg5 "$WTR" && _pg5s=1
+run "$(mk_tool "$AUD" pg5 Grep '{"pattern":"base","glob":".claude/**"}')"
+if [ "$_pg5s" = 1 ] && [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pg5/touched" ]; then pass "a glob-bearing Grep keeps the git-pattern rule (recorded residual)"; else fail "a glob-bearing Grep walked an excluded worktree: |$(cat "$FP_ROOT/pg5/touched" 2>/dev/null)|"; fi
 git -C "$MAIN" worktree remove --force "$MAIN/.claude/war-worktrees/r/wtR"
 git -C "$MAIN" branch -q -D rwalk
 git -C "$MAIN" worktree remove --force "$TMP/plain/mid/wtP"
@@ -1697,6 +1732,338 @@ _rc=0; _out="$(printf '%s' "$_wrk_payload" | PATH="$SHIM" "$BASH" "$HOOK" 2>/dev
 if [ "$_rc" = 0 ] && [ -z "$_out" ]; then pass "jq missing on a worker payload whose path ends war-auditor -> pass-through"; else fail "jq missing worker rc=$_rc out=|$_out|"; fi
 rm -rf "$SHIM"
 
+# --- Bash records after the call runs (#2477) --------------------------------
+# reason_of: the escalate_reason of the last run's updatedInput.
+reason_of() { printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null; }
+# The host fires neither post event for a call a hook denied, so a denied
+# ~<name> grep reaches the hook on PreToolUse alone.
+run "$(mk_start "$AUD" pb1)"
+run "$(mk_bash_pre "$AUD" pb1 'git grep -F -n -e ~<name> HEAD -- hooks')"
+_prc="$RC"
+run "$(mk_verdict "$AUD" pb1)"
+if [ "$_prc" = 0 ] && [ "$RC" = 0 ] && [ -z "$OUT" ] && [ ! -s "$FP_ROOT/pb1/touched" ] && [ ! -e "$TAMPER_ROOT/pb1.json" ]; then
+  pass "a denied ~<name> grep that fires only PreToolUse raises no escalate"
+else
+  fail "a denied Bash call still records (rc=$RC out=|$OUT| touched=|$(cat "$FP_ROOT/pb1/touched" 2>/dev/null)|)"
+fi
+run "$(mk_start "$AUD" pb2)"
+run "$(mk_bash "$AUD" pb2 "git -C $TMP/wtA log -1")"
+if [ "$RC" = 0 ] && touched_is pb2 "$WTA"; then pass "a Bash call that ran records on PostToolUse"; else fail "PostToolUse did not record (rc=$RC touched=|$(cat "$FP_ROOT/pb2/touched" 2>/dev/null)|)"; fi
+if [ -z "$(ls "$FP_ROOT/pb2" | grep bash-open)" ]; then pass "a finished Bash recording leaves no open marker"; else fail "a finished Bash recording left an open marker"; fi
+run "$(mk_start "$AUD" pb3)"
+run "$(mk_bash_fail "$AUD" pb3 "git -C $TMP/wtB grep -F -e nomatch HEAD")"
+if [ "$RC" = 0 ] && touched_is pb3 "$WTB"; then pass "a Bash call that exited non-zero records on PostToolUseFailure"; else fail "PostToolUseFailure did not record (rc=$RC touched=|$(cat "$FP_ROOT/pb3/touched" 2>/dev/null)|)"; fi
+printf 'edit after the failed call\n' >> "$TMP/wtB/f"
+run "$(mk_verdict "$AUD" pb3)"
+case "$(reason_of)" in "AUDIT-TAMPER: $WTB changed during the audit round"*) pass "a worktree a failed Bash call read still compares at the verdict" ;; *) fail "a failed Bash call's worktree did not compare: |$(reason_of)|" ;; esac
+run "$(mk_start "$AUD" pb4)"
+run "$(mk_bash_fail "$AUD" pb4 'git grep -F -e ~<name> HEAD')"
+run "$(mk_verdict "$AUD" pb4)"
+case "$(reason_of)" in *'unresolved Bash path ~<name>'*) pass "an unresolved token on a call that ran still escalates" ;; *) fail "an unresolved token on a call that ran did not escalate: |$(reason_of)|" ;; esac
+# Read, Glob and Grep record on PreToolUse alone, and the post arm is Bash only.
+run "$(mk_start "$AUD" pb5)"
+# The payload cwd is a task worktree, so a post arm that took these tools would
+# record it through the cwd fallback.
+PCWD="$TMP/wtA"
+run "$(MK_EV=PostToolUse mk_read "$AUD" pb5 "$TMP/wtA/f")"
+run "$(MK_EV=PostToolUseFailure mk_glob "$AUD" pb5 "$TMP/wtA")"
+run "$(MK_EV=PostToolUse mk_grep "$AUD" pb5 "$TMP/wtA")"
+PCWD="$MAIN"
+if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pb5/touched" ]; then pass "the post events record no Read, Glob or Grep"; else fail "a post event recorded a non-Bash tool: |$(cat "$FP_ROOT/pb5/touched" 2>/dev/null)|"; fi
+run "$(mk_bash_fail 'work-audit-refine:war-worker' pb6 "git -C $TMP/wtA log")"
+if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ ! -d "$FP_ROOT/pb6" ]; then pass "a worker's Bash post event passes through"; else fail "a worker's Bash post event wrote state (rc=$RC)"; fi
+
+# A link to a file sends the reader to the target's worktree, through each hop.
+ln -s ../wtB/f "$TMP/wtA/lnkf"
+ln -s lnkf "$TMP/wtA/lnkg"
+ln -s "$TMP/wtB/f" "$TMP/wtA/lnka"
+ln -s ../wtB/nosuch "$TMP/wtA/lnkd"
+ln -s lnkc "$TMP/wtA/lnkc"
+ln -s ../wtD/f "$TMP/wtB/lnkm"
+ln -s ../wtB/lnkm "$TMP/wtA/lnkh"
+# seat_read_touches <seat> <path>: a fresh seat reads <path>; the caller reads
+# the touched set.
+seat_read_touches() { run "$(mk_start "$AUD" "$1")"; run "$(mk_read "$AUD" "$1" "$2")"; }
+seat_read_touches pb7 "$TMP/wtA/lnkg"
+if touched_has pb7 "$WTA" && touched_has pb7 "$WTB"; then pass "a Read through a file link touches the link's worktree and the target's"; else fail "a file link missed a worktree: |$(cat "$FP_ROOT/pb7/touched" 2>/dev/null)|"; fi
+seat_read_touches pb7a "$TMP/wtA/lnka"
+if touched_has pb7a "$WTA" && touched_has pb7a "$WTB"; then pass "a Read through an absolute file link touches the target's worktree"; else fail "an absolute file link missed a worktree: |$(cat "$FP_ROOT/pb7a/touched" 2>/dev/null)|"; fi
+seat_read_touches pb7b "$TMP/wtA/nosuch/../lnkf"
+if touched_has pb7b "$WTA" && touched_has pb7b "$WTB"; then pass "a folded path through a file link touches the target's worktree"; else fail "a folded file link missed a worktree: |$(cat "$FP_ROOT/pb7b/touched" 2>/dev/null)|"; fi
+seat_read_touches pb7c "$TMP/wtA/lnkh"
+if touched_has pb7c "$WTA" && touched_has pb7c "$WTB" && touched_has pb7c "$WTD"; then pass "a link chain touches the worktree of each hop"; else fail "a link chain missed a hop: |$(cat "$FP_ROOT/pb7c/touched" 2>/dev/null)|"; fi
+# A chain that ends at a directory: each hop's worktree, the first link's too.
+ln -s ../wtD/ddir "$TMP/wtB/lnkn"
+ln -s ../wtB/lnkn "$TMP/wtA/lnki"
+mkdir -p "$TMP/wtD/ddir"
+seat_read_touches pb7d "$TMP/wtA/lnki"
+if touched_has pb7d "$WTA" && touched_has pb7d "$WTB" && touched_has pb7d "$WTD"; then pass "a link chain that ends at a directory touches the worktree of each hop"; else fail "a directory link chain missed a hop: |$(cat "$FP_ROOT/pb7d/touched" 2>/dev/null)|"; fi
+rm -f "$TMP/wtA/lnki" "$TMP/wtB/lnkn"
+rmdir "$TMP/wtD/ddir"
+seat_read_touches pb8 "$TMP/wtA/lnkd"
+if [ "$RC" = 0 ] && touched_is pb8 "$WTA"; then pass "a Read through a dangling link touches only the link's worktree"; else fail "a dangling link touched: |$(cat "$FP_ROOT/pb8/touched" 2>/dev/null)|"; fi
+# The hop limit is the only stop on a cycle, so this call runs under a kill: a
+# regression fails this row and never stalls the suite.
+run "$(mk_start "$AUD" pb8a)"
+_p="$(mk_read "$AUD" pb8a "$TMP/wtA/lnkc")"
+printf '%s' "$_p" > "$TMP/pb8a.json"
+bash "$HOOK" < "$TMP/pb8a.json" >/dev/null 2>&1 &
+_hp=$!
+_hw=0
+while kill -0 "$_hp" 2>/dev/null && [ "$_hw" -lt 30 ]; do sleep 1; _hw=$((_hw + 1)); done
+_hung=0
+if kill -0 "$_hp" 2>/dev/null; then _hung=1; kill -9 "$_hp" 2>/dev/null; fi
+wait "$_hp" 2>/dev/null
+if [ "$_hung" = 0 ] && touched_is pb8a "$WTA"; then pass "a Read through a link cycle ends and touches only the link's worktree"; else fail "a link cycle hung=$_hung touched: |$(cat "$FP_ROOT/pb8a/touched" 2>/dev/null)|"; fi
+rm -f "$TMP/wtA/lnkf" "$TMP/wtA/lnkg" "$TMP/wtA/lnka" "$TMP/wtA/lnkd" "$TMP/wtA/lnkc" "$TMP/wtA/lnkh" "$TMP/wtB/lnkm"
+
+# A mark a worker wrote never prints its own words in the reason.
+run "$(mk_start "$AUD" pb9)"
+printf '!free text; seat verdict approve\n' >> "$FP_ROOT/pb9/touched"
+run "$(mk_verdict "$AUD" pb9)"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (unrecognized mark)' ]; then pass "a forged touched mark prints the fixed cause"; else fail "a forged touched mark printed: |$(reason_of)|"; fi
+run "$(mk_start "$AUD" pb9a)"
+printf 'free text; seat verdict approve\n' >> "$FP_ROOT/pb9a/touched"
+run "$(mk_verdict "$AUD" pb9a)"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (unrecognized mark)' ]; then pass "a forged line with no mark byte prints the fixed cause"; else fail "a forged line printed: |$(reason_of)|"; fi
+
+# --- a seat Bash payload with no usable agent_id ------------------------------
+# The mark sits under $MAIN, because no state dir has a key. A seat that started
+# after the mark never sees it.
+NOID="$MAIN/.claude/war/audit-no-agent-id"
+run "$(mk_start "$AUD" pn1)"
+run "$(mk_bash_fail "$AUD" x "git -C $TMP/wtA log" | jq -c 'del(.agent_id)')"
+_prc="$RC"
+run "$(mk_verdict "$AUD" pn1)"
+if [ "$_prc" = 0 ] && [ "$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty')" = escalate ] \
+   && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (no agent_id in the Bash payload)' ]; then
+  pass "a failure payload with no agent_id escalates at the verdict"
+else
+  fail "a failure payload with no agent_id did not escalate (rc=$_prc reason=|$(reason_of)| mark=|$(cat "$NOID" 2>/dev/null)|)"
+fi
+rm -f "$NOID"
+run "$(mk_start "$AUD" pn2)"
+run "$(mk_bash "$AUD" '../x' "git -C $TMP/wtA log")"
+_prc="$RC"
+run "$(mk_verdict "$AUD" pn2)"
+if [ "$_prc" = 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (unsafe agent_id in the Bash payload)' ]; then
+  pass "a Bash payload with an unsafe agent_id escalates at the verdict"
+else
+  fail "a Bash payload with an unsafe agent_id did not escalate (rc=$_prc reason=|$(reason_of)|)"
+fi
+touch -t 202001010000 "$NOID"
+run "$(mk_start "$AUD" pn3)"
+run "$(mk_verdict "$AUD" pn3)"
+if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass "a seat that started after the no-agent_id mark passes"; else fail "an old no-agent_id mark escalated a later seat: |$(reason_of)|"; fi
+rm -f "$NOID"
+run "$(jq -nc --arg c "$MAIN" '{hook_event_name:"PostToolUseFailure",tool_name:"Bash",tool_input:{command:"false"},error:"Exit code 1",cwd:$c}')"
+if [ "$RC" = 0 ] && [ ! -e "$NOID" ]; then pass "a main-session Bash failure leaves no mark"; else fail "a main-session Bash failure left a mark"; fi
+
+run "$(mk_start "$AUD" pn3b)"
+printf 'free text; seat verdict approve\n' > "$NOID"
+run "$(mk_verdict "$AUD" pn3b)"
+rm -f "$NOID"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (unrecognized mark)' ]; then pass "a forged keyless mark prints the fixed cause"; else fail "a forged keyless mark printed: |$(reason_of)|"; fi
+# A Read, Glob or Grep payload with no usable agent_id leaves the same mark.
+run "$(mk_start "$AUD" pn4)"
+run "$(mk_read "$AUD" '' "$TMP/wtA/f" | jq -c 'del(.agent_id)')"
+run "$(mk_verdict "$AUD" pn4)"
+_r1="$(reason_of)"; rm -f "$NOID"
+run "$(mk_start "$AUD" pn5)"
+run "$(mk_glob "$AUD" '../x' "$TMP/wtA")"
+run "$(mk_verdict "$AUD" pn5)"
+_r2="$(reason_of)"; rm -f "$NOID"
+run "$(mk_start "$AUD" pn6)"
+run "$(mk_grep "$AUD" '../x' "$TMP/wtA")"
+run "$(mk_verdict "$AUD" pn6)"
+_r3="$(reason_of)"; rm -f "$NOID"
+if [ "$_r1" = 'AUDIT-TAMPER: unverifiable fingerprint (no agent_id in the Read payload)' ] \
+   && [ "$_r2" = 'AUDIT-TAMPER: unverifiable fingerprint (unsafe agent_id in the Glob payload)' ] \
+   && [ "$_r3" = 'AUDIT-TAMPER: unverifiable fingerprint (unsafe agent_id in the Grep payload)' ]; then
+  pass "a Read, Glob or Grep payload with no usable agent_id escalates at the verdict"
+else
+  fail "a Read, Glob or Grep payload with no usable agent_id did not escalate (|$_r1| |$_r2| |$_r3|)"
+fi
+
+# --- a Bash-arm infra failure leaves a mark -----------------------------------
+# A post event cannot stop the call, so the verdict arm escalates on the mark.
+# run_with <path-prefix> <payload>: run with a shim dir first on PATH.
+run_with() { OUT="$(printf '%s' "$2" | PATH="$1:$PATH" bash "$HOOK" 2>"$TMP/err")"; RC=$?; ERR="$(cat "$TMP/err")"; }
+_p="$(mk_bash "$AUD" pi1 "git -C $TMP/wtA log")"
+run "$(mk_start "$AUD" pi1)"
+OUT="$(printf '%s' "$_p" | WAR_FINGERPRINT_DEADLINE_SECONDS=0 bash "$HOOK" 2>/dev/null)"; RC=$?
+_prc="$RC"
+run "$(mk_verdict "$AUD" pi1)"
+if [ "$_prc" = 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (deadline passed on a Bash call)' ] \
+   && [ "$(jq -r '.worktree' "$TAMPER_ROOT/pi1.json" 2>/dev/null)" = '!deadline passed on a Bash call' ]; then
+  pass "a deadline hit on the Bash arm escalates at the verdict, with no fail-open timeout reason, and the record names the mark"
+else
+  fail "a Bash-arm deadline did not escalate (rc=$_prc reason=|$(reason_of)|)"
+fi
+SHIM="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshim3)"
+for _t in cat grep printf sed head mkdir dirname git; do _b="$(command -v "$_t")" && [ -n "$_b" ] && ln -s "$_b" "$SHIM/$_t"; done
+_p="$(mk_bash_fail "$AUD" pi2 "git -C $TMP/wtA log")"
+run "$(mk_start "$AUD" pi2)"
+_rc=0; _err="$(printf '%s' "$_p" | PATH="$SHIM" "$BASH" "$HOOK" 2>&1 >/dev/null)" || _rc=$?
+run "$(mk_verdict "$AUD" pi2)"
+case "$_err" in *"jq is not installed"*) m=1 ;; *) m=0 ;; esac
+if [ "$_rc" = 2 ] && [ "$m" = 1 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (jq is not installed on a Bash call)' ]; then
+  pass "jq missing on the Bash arm escalates at the verdict"
+else
+  fail "a jq-less Bash call did not escalate (rc=$_rc err=|$_err| reason=|$(reason_of)|)"
+fi
+_p="$(mk_read "$AUD" pi2b "$TMP/wtA/f")"
+run "$(mk_start "$AUD" pi2b)"
+_rc=0; printf '%s' "$_p" | PATH="$SHIM" "$BASH" "$HOOK" >/dev/null 2>&1 || _rc=$?
+if [ "$_rc" = 2 ] && [ ! -s "$FP_ROOT/pi2b/touched" ]; then pass "jq missing on a Read leaves no mark (exit 2 denies that call)"; else fail "a jq-less Read left a mark (rc=$_rc)"; fi
+rm -rf "$SHIM"
+run "$(mk_start "$AUD" pi3)"
+run "{\"hook_event_name\":\"PostToolUse\",\"agent_type\":\"$AUD\",\"agent_id\":\"pi3\",\"tool_name\":\"Bash\",\"cwd\":\"$MAIN\",\"tool_input\":{"
+_prc="$RC"
+run "$(mk_verdict "$AUD" pi3)"
+if [ "$_prc" = 2 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (payload is not JSON on a Bash call)' ]; then
+  pass "a Bash payload that is not JSON escalates at the verdict"
+else
+  fail "a Bash payload that is not JSON did not escalate (rc=$_prc reason=|$(reason_of)|)"
+fi
+run "$(mk_start "$AUD" pi3b)"
+run "{\"hook_event_name\":\"PostToolUse\",\"agent_type\":\"work-audit-refine:war-worker\",\"agent_id\":\"pi3b\",\"tool_name\":\"Bash\",\"cwd\":\"$MAIN\",\"tool_input\":{"
+if [ "$RC" = 2 ] && [ ! -s "$FP_ROOT/pi3b/touched" ]; then pass "a worker payload that is not JSON leaves no mark"; else fail "a worker payload that is not JSON left a mark (rc=$RC)"; fi
+run "$(mk_start "$AUD" pi3c)"
+run "{\"hook_event_name\":\"PreToolUse\",\"agent_type\":\"$AUD\",\"agent_id\":\"pi3c\",\"tool_name\":\"Bash\",\"cwd\":\"$MAIN\",\"tool_input\":{"
+_prc="$RC"
+run "{\"hook_event_name\":\"PostToolUse\",\"agent_type\":\"$AUD\",\"agent_id\":\"pi3c\",\"tool_name\":\"Read\",\"cwd\":\"$MAIN\",\"tool_input\":{"
+if [ "$_prc" = 2 ] && [ "$RC" = 2 ] && [ ! -s "$FP_ROOT/pi3c/touched" ]; then pass "a broken payload off the Bash post arm leaves no mark"; else fail "a broken payload off the Bash post arm left a mark (rc=$RC)"; fi
+SHIMG2="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimg2)"
+REALGIT="$(command -v git)"
+printf '#!/bin/bash\ncase "$*" in *--git-common-dir*) exit 128 ;; esac\nexec "%s" "$@"\n' "$REALGIT" > "$SHIMG2/git"
+chmod +x "$SHIMG2/git"
+run "$(mk_start "$AUD" pi4)"
+run_with "$SHIMG2" "$(mk_bash "$AUD" pi4 "git -C $TMP/wtA log")"
+_prc="$RC"
+run "$(mk_verdict "$AUD" pi4)"
+if [ "$_prc" = 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (no git common dir on a Bash call)' ]; then
+  pass "a failed git common dir from the main checkout leaves a mark the verdict escalates"
+else
+  fail "a failed git common dir did not escalate (rc=$_prc reason=|$(reason_of)|)"
+fi
+for _tl in Read Glob Grep; do
+  run "$(mk_start "$AUD" pi4b)"
+  case "$_tl" in
+    Read) _p="$(mk_read "$AUD" pi4b "$TMP/wtA/f")" ;;
+    Glob) _p="$(mk_glob "$AUD" pi4b "$TMP/wtA")" ;;
+    Grep) _p="$(mk_grep "$AUD" pi4b "$TMP/wtA")" ;;
+  esac
+  run_with "$SHIMG2" "$_p"
+  run "$(mk_verdict "$AUD" pi4b)"
+  if [ "$(reason_of)" = "AUDIT-TAMPER: unverifiable fingerprint (no git common dir on a $_tl call)" ]; then
+    pass "a failed git common dir on a $_tl call leaves a mark the verdict escalates"
+  else
+    fail "a failed git common dir on a $_tl call did not escalate (reason=|$(reason_of)|)"
+  fi
+done
+run "$(mk_start "$AUD" pi5)"
+PCWD="$TMP/wtA"
+_p="$(mk_bash "$AUD" pi5 'git log')"
+PCWD="$MAIN"
+run_with "$SHIMG2" "$_p"
+_prc="$RC"
+run "$(mk_verdict "$AUD" pi5)"
+if [ "$_prc" = 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (no git common dir on a Bash call)' ]; then
+  pass "a failed git common dir from a linked worktree finds the main checkout through the gitfile"
+else
+  fail "a failed git common dir from a worktree did not escalate (rc=$_prc reason=|$(reason_of)|)"
+fi
+mkdir -p "$TMP/norepo"
+PCWD="$TMP/norepo"
+_p="$(mk_bash "$AUD" pi5b 'git log')"
+PCWD="$MAIN"
+run "$_p"
+case "$ERR" in *"no place for the mark"*) m=1 ;; *) m=0 ;; esac
+if [ "$RC" = 0 ] && [ "$m" = 1 ]; then pass "a Bash call outside any repository names the lost mark on stderr"; else fail "a lost mark stayed silent (rc=$RC err=|$ERR|)"; fi
+rm -rf "$SHIMG2"
+run "$(mk_start "$AUD" pj0)"
+run "$(jq -nc --arg at "$AUD" --arg c "$MAIN" '{hook_event_name:"PostToolUse",agent_type:$at,agent_id:"pj0",tool_name:"Bash",tool_input:{},cwd:$c}')"
+run "$(mk_verdict "$AUD" pj0)"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (jq failed on a Bash call)' ]; then pass "a Bash payload with no command escalates at the verdict"; else fail "a Bash payload with no command did not escalate (reason=|$(reason_of)|)"; fi
+# A later jq read fails after the first pass parsed the payload.
+SHIMJ="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimj)"
+printf '#!/bin/bash\ncase "$*" in *"$JQ_FAIL"*) exit 5 ;; esac\nexec "%s" "$@"\n' "$(command -v jq)" > "$SHIMJ/jq"
+chmod +x "$SHIMJ/jq"
+for _f in .tool_input.command .hook_event_name .tool_name .cwd; do
+  run "$(mk_start "$AUD" pj1)"
+  _p="$(mk_bash_fail "$AUD" pj1 "git -C $TMP/wtA log")"
+  OUT="$(printf '%s' "$_p" | JQ_FAIL="$_f" PATH="$SHIMJ:$PATH" bash "$HOOK" 2>/dev/null)"; _prc=$?
+  run "$(mk_verdict "$AUD" pj1)"
+  if [ "$_prc" = 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (jq failed on a Bash call)' ]; then
+    pass "a failed jq read of $_f on the Bash arm escalates at the verdict"
+  else
+    fail "a failed jq read of $_f did not escalate (rc=$_prc reason=|$(reason_of)|)"
+  fi
+done
+rm -rf "$SHIMJ"
+SHIMG3="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimg3)"
+printf '#!/bin/bash\ncase "$*" in *"worktree list"*) exit 128 ;; esac\nexec "%s" "$@"\n' "$REALGIT" > "$SHIMG3/git"
+chmod +x "$SHIMG3/git"
+run "$(mk_start "$AUD" pi6d)"
+run_with "$SHIMG3" "$(mk_tool "$AUD" pi6d Grep '{"pattern":"base"}')"
+run "$(mk_verdict "$AUD" pi6d)"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (git worktree list failed on a Grep call)' ]; then pass "a failed worktree list on a Grep walk leaves a mark the verdict escalates"; else fail "a failed worktree list on a Grep walk did not escalate (reason=|$(reason_of)|)"; fi
+# At seat start a failed list stays what it was: no mark.
+run_with "$SHIMG3" "$(mk_start "$AUD" pi6a)"
+if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pi6a/touched" ]; then pass "a failed worktree list at seat start leaves no mark"; else fail "a failed worktree list at seat start left a mark: |$(cat "$FP_ROOT/pi6a/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" pi6)"
+run_with "$SHIMG3" "$(mk_bash "$AUD" pi6 "git diff --no-index $TMP/plain /dev/null")"
+_prc="$RC"
+run "$(mk_verdict "$AUD" pi6)"
+rm -rf "$SHIMG3"
+if [ "$_prc" = 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (git worktree list failed on a Bash call)' ]; then
+  pass "a failed worktree list on a Bash walk leaves a mark the verdict escalates"
+else
+  fail "a failed worktree list did not escalate (rc=$_prc reason=|$(reason_of)|)"
+fi
+# A failed list in a submodule repository names no failure in the cwd list.
+SHIMG5="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimg5)"
+printf '#!/bin/bash\ncase "$*" in *"sub dir"*"worktree list"*) exit 128 ;; esac\nexec "%s" "$@"\n' "$REALGIT" > "$SHIMG5/git"
+chmod +x "$SHIMG5/git"
+run "$(mk_start "$AUD" pi6b)"
+run_with "$SHIMG5" "$(mk_bash "$AUD" pi6b "git diff --no-index $TMP/plain /dev/null")"
+run "$(mk_verdict "$AUD" pi6b)"
+rm -rf "$SHIMG5"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (git worktree list failed on a Bash call)' ]; then
+  pass "a failed submodule worktree list on a Bash walk leaves a mark the verdict escalates"
+else
+  fail "a failed submodule worktree list did not escalate (reason=|$(reason_of)|)"
+fi
+# A timeout on an earlier touched line never hides a mark: the verdict must
+# offer no fail-open question for a touched set known to be short.
+run "$(mk_start "$AUD" pi6c)"
+run "$(mk_bash "$AUD" pi6c "git -C $TMP/wtA log")"
+_p="$(mk_bash "$AUD" pi6c "git -C $TMP/wtB log")"
+printf '%s' "$_p" | WAR_FINGERPRINT_DEADLINE_SECONDS=0 bash "$HOOK" >/dev/null 2>&1
+_p="$(mk_verdict "$AUD" pi6c)"
+OUT="$(printf '%s' "$_p" | WAR_FINGERPRINT_DEADLINE_SECONDS=0 bash "$HOOK" 2>/dev/null)"; RC=$?
+if touched_has pi6c "$WTA" && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (deadline passed on a Bash call)' ]; then
+  pass "a verdict-arm timeout on an earlier line does not hide a Bash mark"
+else
+  fail "a timeout hid a Bash mark (reason=|$(reason_of)|)"
+fi
+# A hook killed mid-recording leaves its open marker. The shim kills the hook
+# and its command substitution on the first show-toplevel call.
+SHIMG4="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimg4)"
+printf '#!/bin/bash\ncase "$*" in *--show-toplevel*) _g="$(ps -o ppid= -p "$PPID" | tr -d " ")"; kill -9 "$_g" "$PPID"; sleep 5; exit 1 ;; esac\nexec "%s" "$@"\n' "$REALGIT" > "$SHIMG4/git"
+chmod +x "$SHIMG4/git"
+run "$(mk_start "$AUD" pi7)"
+run_with "$SHIMG4" "$(mk_bash "$AUD" pi7 "git diff $TMP/plain HEAD")" 2>/dev/null
+_prc="$RC"
+run "$(mk_verdict "$AUD" pi7)"
+rm -rf "$SHIMG4"
+if [ "$_prc" != 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (a Bash recording did not finish)' ]; then
+  pass "a hook killed during a Bash recording escalates at the verdict"
+else
+  fail "a killed Bash recording did not escalate (rc=$_prc reason=|$(reason_of)|)"
+fi
+
 # --- registration + conventions ---------------------------------------------
 if jq -e . "$HJSON" >/dev/null 2>&1; then pass "hooks.json parses"; else fail "hooks.json does not parse"; fi
 SUBM='^work-audit-refine:war-(evidence-)?auditor$'
@@ -1707,13 +2074,24 @@ for ev in SubagentStart SubagentStop; do
     *) fail "hooks.json has no $ev matcher $SUBM entry for the hook (got |$reg|)" ;;
   esac
 done
-for m in 'StructuredOutput' 'Read|Bash|Glob|Grep'; do
+for m in 'StructuredOutput' 'Read|Glob|Grep'; do
   reg="$(jq -r --arg m "$m" '.hooks.PreToolUse[] | select(.matcher == $m) | .hooks[].command' "$HJSON" 2>/dev/null)"
   case "$reg" in
     *audit-tree-fingerprint.sh*) pass "hooks.json PreToolUse($m) -> audit-tree-fingerprint.sh" ;;
     *) fail "hooks.json has no PreToolUse matcher $m entry for the hook (got |$reg|)" ;;
   esac
 done
+for ev in PostToolUse PostToolUseFailure; do
+  reg="$(jq -r --arg ev "$ev" '.hooks[$ev][] | select(.matcher == "Bash") | .hooks[] | select(.timeout >= 600) | .command' "$HJSON" 2>/dev/null)"
+  case "$reg" in
+    *audit-tree-fingerprint.sh*) pass "hooks.json $ev(Bash) -> audit-tree-fingerprint.sh with a 600 second timeout" ;;
+    *) fail "hooks.json has no $ev matcher Bash entry for the hook (got |$reg|)" ;;
+  esac
+done
+# No PreToolUse entry for the hook may match Bash: its recorder would run before
+# a sibling guard's deny lands.
+nbash="$(jq '[.hooks.PreToolUse[] | select(.matcher | test("(^|\\|)Bash(\\||$)")) | .hooks[] | select(.command | contains("audit-tree-fingerprint.sh"))] | length' "$HJSON" 2>/dev/null)"
+if [ "$nbash" = 0 ]; then pass "hooks.json runs no PreToolUse fingerprint entry on Bash"; else fail "hooks.json still runs the hook on PreToolUse Bash (entries=|$nbash|)"; fi
 # Every hooks.json entry for the hook carries a timeout of at least 600 s, so
 # the hook's own 540 s default deadline sits below the harness kill.
 nreg="$(jq '[.hooks[][] | .hooks[] | select(.command | contains("audit-tree-fingerprint.sh"))] | length' "$HJSON" 2>/dev/null)"

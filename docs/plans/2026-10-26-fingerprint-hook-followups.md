@@ -163,8 +163,9 @@ Phase 1 (the fingerprint side) → Phase 2 (the touch side) → Phase 3 (release
 
 ## Deferred validations (backstops)
 
-- B1: re-read the Grep and Glob tool ripgrep flags from the installed Claude Code binary and replay the Context probe recipe · why deferred: the flags are bound to the Claude Code version (2.1.311 at this interview), which no CI job installs · runner: the operator, at the first Claude Code upgrade after this release, before the next `/war` run.
+- B1: re-read the Grep and Glob tool ripgrep flags from the installed Claude Code binary and replay the Context probe recipe, and check that the `glob` residual ruled on #2476 still holds: the Grep tool's `glob` is a ripgrep `--glob`, which wins over ignore rules, so a glob that matches an ignored folder's name reads sibling worktrees that `grep_walk` leaves untouched · why deferred: the flags are bound to the Claude Code version (2.1.311 at this interview), which no CI job installs · runner: the operator, at the first Claude Code upgrade after this release, before the next `/war` run.
 - B2: a live `/war` run on this release, whose seats use the Grep tool from the main checkout while sibling workers commit, shows no AUDIT-TAMPER record caused by a sibling worktree · why deferred: needs a real multi-task run with the Grep tool present (seats on 2.1.304 had none) · runner: the Lead, at that run's first Checkpoint, reading `$MAIN/.claude/war/audit-tamper/`.
+- B3: a live seat run shows that PostToolUse and PostToolUseFailure on Bash carry `agent_id` and `agent_type`, and that a Bash call a guard denied fires neither event and leaves its tokens out of the touched set · why deferred: the fingerprint hook rows send hand-built payloads, and the bundle read covers the fields only · runner: the operator, before the next `/war` run on this hook · discharged 2026-11-02 on Claude Code 2.1.316: real `war-auditor` seats in a scratch repo showed both keys on both events, and a denied call fired PreToolUse only. A `git grep` with no match fires PostToolUse, and an `Exit code 128` call fires PostToolUseFailure. No StructuredOutput verdict ran.
 
 ## Notes / conscious deviations
 
