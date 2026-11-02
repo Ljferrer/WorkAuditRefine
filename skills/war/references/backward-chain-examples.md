@@ -112,7 +112,7 @@ Roles: fixer, auditor
 **A class sweep that stops at the producer misses the consumer that skips on the same evidence.**
 Candidate 6 fixed the already-upstream shortcut to require tree equality. Candidate 7 found the recovery-skip path still accepted historical ancestry plus a trailer as proof of present content, marked the task done, and omitted its audit. The reader used the same history evidence the producer had just stopped trusting. The earliest unmet link was the consumer sweep.
 Questions to ask: Who else reads this evidence as proof? Does each reader make the same decision on it?
-Closure: Every recovery probe requires a nonempty final diff and unchanged content at integration; no proof means ordinary work and audit.
+Closure: Every recovery probe requires merge-commit proof and attributed owned content; no proof means ordinary work and audit.
 
 ### three-absorbs-inverted-for-reader-reasons
 Source: external (private), abstracted

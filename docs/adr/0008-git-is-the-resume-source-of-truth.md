@@ -51,3 +51,4 @@ work/audit; a shared commit count or local marker cannot establish task ownershi
 - 2026-09-09 · Operator authorized Git-resident task provenance before automatic recovery skips;
   sibling-only, empty-tagged and untagged legacy branches cannot be marked complete (#2196).
 - 2026-10-30 · The recovery auto-skip proof moved from a worker-written `WAR-Task` commit trailer to the engine's first-parent task merge commit; git stays the source of truth and the repair direction is unchanged · plan `docs/plans/2026-10-28-blocked-ace-and-merge-provenance.md` D8, D14, Task 5.2 · [ADR 0054](0054-merge-commit-provenance-and-the-blocked-ace-tip-probe.md).
+- 2026-11-02 · The recovery content proof moved from the task tip against the integration tip to the task tip against merge commit `M`, and each later first-parent change to an owned path must be another task's merge commit (#2571).

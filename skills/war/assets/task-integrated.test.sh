@@ -17,10 +17,10 @@
 #   9. merge commit whose trailer is not exact (suffix)  -> NO_TASK_PROOF ... has no WAR-Task merge commit
 #  10. merged, then an unrelated integration commit -> TASK_INTEGRATED <task> <merge commit> <later tip>
 #  11. branch moved back below its merge commit's second parent -> NO_TASK_PROOF ... no WAR-Task merge commit
-#  12-16. a later sibling merge edits an owned path                               -> TASK_INTEGRATED (#2571)
+#  12-15. a later sibling merge edits an owned path                               -> TASK_INTEGRATED (#2571)
 #  17-23. any other later change to an owned path       -> NO_TASK_PROOF ... content differs at integration
 #  24-25. owned content at the merge commit differs from the task tip -> NO_TASK_PROOF ... at its merge commit
-#  26-27. a later change off the owned paths, including a glob-shaped path name    -> TASK_INTEGRATED
+#  16, 26-27. a later change off the owned paths, including a glob-shaped name     -> TASK_INTEGRATED
 #  28-30. a failed walk, parent read, trailer read or content compare             -> exit 2, no marker
 #
 # Exit 0 = all cases passed; non-zero = at least one failed.
@@ -226,7 +226,7 @@ engine_merge "$OTHER"
 expect 'case 14: a later sibling merge that deletes an owned path leaves the task proved' \
   "0 TASK_INTEGRATED $TASK $M $(tip)" "$(probe "$TASK" integration working)"
 
-# Case 15: a task that adds nothing new still proves when its owned path later moves.
+# Case 15: a sibling merge off the owned paths, then one on them.
 task_a c15
 later_task "$OTHER" unrelated 'sibling file'
 later_task "$THIRD" feature 'third edit'
@@ -276,6 +276,17 @@ put feature 'polish edit'; g commit -m "polish
 
 WAR-Task: $OTHER"
 expect 'case 20: a single-parent commit with a sibling trailer refuses' "$REFUSED" "$(probe "$TASK" integration working)"
+
+# Case 20b: an octopus merge carries a sibling trailer, but it has three parents.
+task_a c20b
+g checkout -b side integration
+put feature 'side edit'; g commit -m 'side work'
+g checkout -b side2 integration
+put unrelated 'second side'; g commit -m 'second side work'
+g checkout integration
+g -c core.hooksPath=/dev/null merge --no-ff --no-commit side side2
+g -c core.hooksPath=/dev/null commit --no-verify -m 'Merge sides' --trailer "WAR-Task: $OTHER"
+expect 'case 20b: a three-parent merge with a sibling trailer refuses' "$REFUSED" "$(probe "$TASK" integration working)"
 
 # Case 21: a merge with no trailer changes an owned path.
 task_a c21
