@@ -21,9 +21,10 @@ that commit, so worker commits need no trailer, and the committed provenance sur
 rebasing. Unchanged task content at that merge commit across the paths it changed (`M^1..M^2`) is also
 required, and each later first-parent change to those paths must be another task's merge commit (#2571),
 with stable input refs. A fast-forward-only, zero-commit or sibling-only branch has no such
-merge commit and cannot establish that attribution. Later reverts or removals cannot count as completed
+merge commit and cannot establish that attribution. Later reverts or removals outside another task's
+merge commit cannot count as completed
 work merely because ancestry remains. Each probe uses its own repository and base (submodule
-targetRepo/targetBase). Untagged legacy, cancelled-owned and changed-content branches take ordinary
+targetRepo/targetBase). Untagged legacy, cancelled-owned and unattributed-change branches take ordinary
 work/audit; a shared commit count or local marker cannot establish task ownership (#2196).
 
 ## Considered options

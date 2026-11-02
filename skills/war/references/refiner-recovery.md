@@ -143,7 +143,7 @@ A sibling's merge can rewrite an owned path and still pass, because that merge p
 NUL-delimited literal paths preserve filename syntax; input refs are re-read before success.
 Only the complete result permits `preMerged`. Exit 1 (`NO_TASK_PROOF`) takes ordinary ensure-worktree
 and work/audit, including sibling-only, zero-commit, empty-tagged, untagged legacy, fast-forward-only,
-cancelled-owned or changed-content branches. No new phase hold is introduced for absent proof.
+cancelled-owned or unattributed-change branches. No new phase hold is introduced for absent proof.
 Exit 2 or any unrecognized failure stops the barrier with the command and stderr recorded.
 Never replace the helper with ancestor plus a shared commit count. Trailers are committed Git
 provenance, available after cloning on another machine; no local marker, reflog, label or journal

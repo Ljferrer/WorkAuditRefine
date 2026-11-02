@@ -13,12 +13,12 @@
 #   5. working branch equal to integration              -> NO_TASK_PROOF ... has no WAR-Task merge commit
 #   6. a second task's merge commit (second parent = this tip) -> NO_TASK_PROOF ... no WAR-Task merge commit
 #   7. task whose commits net to zero, --no-ff merge                              -> TASK_INTEGRATED
-#   8. merged, then integration changes an owned path -> NO_TASK_PROOF ... content differs at integration
+#   8. merged, then a plain commit changes an owned path -> NO_TASK_PROOF ... changed outside a sibling task merge
 #   9. merge commit whose trailer is not exact (suffix)  -> NO_TASK_PROOF ... has no WAR-Task merge commit
 #  10. merged, then an unrelated integration commit -> TASK_INTEGRATED <task> <merge commit> <later tip>
 #  11. branch moved back below its merge commit's second parent -> NO_TASK_PROOF ... no WAR-Task merge commit
 #  12-15. a later sibling merge edits an owned path                               -> TASK_INTEGRATED (#2571)
-#  17-23. any other later change to an owned path       -> NO_TASK_PROOF ... content differs at integration
+#  17-23. any other later change to an owned path -> NO_TASK_PROOF ... changed outside a sibling task merge
 #  24-25. owned content at the merge commit differs from the task tip -> NO_TASK_PROOF ... at its merge commit
 #  16, 26-27. a later change off the owned paths, including a glob-shaped name     -> TASK_INTEGRATED
 #  28-30. a failed walk, parent read, trailer read or content compare             -> exit 2, no marker
@@ -144,14 +144,14 @@ M="$(git -C "$REPO" rev-parse integration)"
 expect 'case 7: a net-zero task proves through its merge commit' \
   "0 TASK_INTEGRATED $TASK $M $M" "$(probe "$TASK" integration working)"
 
-# Case 8: the owned-path content check over M^1..M^2 still refuses lost task content.
+# Case 8: the later-history walk refuses a plain commit on an owned path.
 new_repo c8
 g checkout -b "$TASK" integration
 put feature 'task feature'; g commit -m 'implement feature'
 engine_merge "$TASK"
 put feature 'lost accepted behavior'; g commit -m 'later change'
 expect 'case 8: owned content changed after the merge refuses' \
-  "1 NO_TASK_PROOF $TASK changed-file content differs at integration" "$(probe "$TASK" integration working)"
+  "1 NO_TASK_PROOF $TASK owned path changed outside a sibling task merge" "$(probe "$TASK" integration working)"
 
 # Case 9: an inexact trailer value never matches the task branch.
 new_repo c9
@@ -200,7 +200,7 @@ task_a() {
   M="$(git -C "$REPO" rev-parse integration)"
 }
 tip() { git -C "$REPO" rev-parse integration; }
-REFUSED="1 NO_TASK_PROOF $TASK changed-file content differs at integration"
+REFUSED="1 NO_TASK_PROOF $TASK owned path changed outside a sibling task merge"
 
 # Case 12 (#2571): B depends on A, edits A's file and merges after A. Both tasks prove.
 task_a c12
@@ -378,6 +378,7 @@ expect 'case 27: a glob-shaped owned path matches only itself' \
   "0 TASK_INTEGRATED $TASK $M $(tip)" "$(probe "$TASK" integration working)"
 
 # probe_shim <args fragment>: run the helper with a git that exits 128 on any call holding the fragment.
+# If SHIM_PASS_FIRST names an absent file, the first matching call passes.
 REAL_GIT="$(command -v git)"
 SHIM="$ROOT/shim"
 mkdir -p "$SHIM"

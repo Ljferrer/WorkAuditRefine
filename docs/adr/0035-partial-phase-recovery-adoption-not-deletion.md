@@ -47,7 +47,7 @@ becomes a land or escalation enum member.**
    zero-commit branch is vacuously an ancestor but has no merge commit naming it, so it takes the ordinary
    dispatch path (#1895, #2006,
    [[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]]); only
-   non-ancestor, merge-commit-less, or absent-branch tasks run. The proof is shell, and the
+   non-ancestor, merge-commit-less, absent-branch or content-unproved tasks run. The proof is shell, and the
    Workflow sandbox has no shell or filesystem — so the **existing** provision-barrier refiner dispatch runs
    it and returns the merged set (a `preMerged` list on its env-outcome); the engine only routes that
    result. Git is the source of truth (ADR 0008); issue labels and `ledger.json` are reconciled toward the

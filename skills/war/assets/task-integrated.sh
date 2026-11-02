@@ -65,7 +65,7 @@ while IFS= read -r -d '' proof_path; do
     parents=$(git show -s --format='%P' "$commit") || die 'cannot read later merge parents'
     set -- $parents
     [ "$#" -eq 2 ] && [ "$owner" != "$task_branch" ] && git check-ref-format "refs/heads/$owner" >/dev/null 2>&1 \
-      || no_proof "$task_branch changed-file content differs at integration"
+      || no_proof "$task_branch owned path changed outside a sibling task merge"
   done
 done < "$proof_paths"
 # The proof used immutable objects; refuse a stale result if any named input moved meanwhile.
