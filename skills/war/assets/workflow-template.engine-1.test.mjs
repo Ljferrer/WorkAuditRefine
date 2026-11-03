@@ -15122,6 +15122,72 @@ test('segmented-gate: re-merge sites — the environment-proceed and baseline-pr
   }
 })
 
+// #2189/#2183: the two sweep-family merge-task sites go through segmentedMerge too, so refiner card
+// step 10 holds at all six merge-task sites. Each site re-dispatches an incomplete reply, and a spent
+// budget still takes that site's fail-open arm.
+test('segmented-gate: the phase-close sweep merge re-dispatches an incomplete reply as merge:p3-polish:segment-2, and a spent budget still discards the sweep fail-open', async () => {
+  const site = /^merge:p3-polish(:segment-\d+)?$/
+  const incomplete = { mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: 'sweep gate backgrounded' }
+  let n = 0
+  const once = (prompt, opts) => site.test(opts.label || '')
+    ? (++n === 1 ? incomplete : { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe13' })
+    : sweepBase([queuedAbsorb()])(prompt, opts)
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), once)
+  const merges = calls.filter(c => site.test(c.opts.label || ''))
+  assert.deepEqual(merges.map(c => c.opts.label), ['merge:p3-polish', 'merge:p3-polish:segment-2'], 'one continuation follows the incomplete reply')
+  assert.ok(merges[0].prompt.includes('BACKGROUNDED GATE (tool-timeout survival)'), 'the sweep merge prompt carries the backgrounded-gate clause')
+  assert.ok(merges[1].prompt.startsWith('SEGMENTED-GATE CONTINUATION') && merges[1].prompt.includes('Merge WAR polish branch'), 'the continuation carries the full sweep merge prompt')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented gate') && l.includes('sweep gate backgrounded')), 'the segment note is logged')
+  assert.equal(out.handoff.polish, 'merged', 'the continuation merges the sweep')
+  const persist = (prompt, opts) => site.test(opts.label || '') ? incomplete : sweepBase([queuedAbsorb()])(prompt, opts)
+  const p = await runPhase(SWEEP_ARGS({ run: { ace: true, roundLimit: 2 } }), persist)
+  assert.equal(p.calls.filter(c => site.test(c.opts.label || '')).length, 3, 'the first dispatch plus exactly roundLimit (2) continuations')
+  assert.ok(p.logs.some(l => typeof l === 'string' && l.includes('segmented-gate budget exhausted') && l.includes('merge:p3-polish')), 'the spent budget is logged')
+  assert.equal(p.out.handoff.polish, 'discarded', 'a spent budget discards the sweep fail-open')
+  assert.ok(p.logs.some(l => typeof l === 'string' && l.includes('DISCARDED') && l.includes('polish merge returned error')), 'the discard routes by the ridden status (error)')
+  assert.equal(p.out.landDecision, 'landed', 'the pre-polish tip still lands')
+})
+
+test('segmented-gate: the terminal-pass merge re-dispatches an incomplete reply as merge:p3-terminal:segment-2, and a spent budget still leaves the commit unmerged fail-open', async () => {
+  const site = /^merge:p3-terminal(:segment-\d+)?$/
+  const incomplete = { mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: 'terminal gate backgrounded' }
+  let n = 0
+  const base = terminalImpl()
+  const once = (prompt, opts) => site.test(opts.label || '')
+    ? (++n === 1 ? incomplete : { mode: 'merge-task', status: 'merged', integration_sha: '7e4a1a12' })
+    : base(prompt, opts)
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), once)
+  const merges = calls.filter(c => site.test(c.opts.label || ''))
+  assert.deepEqual(merges.map(c => c.opts.label), ['merge:p3-terminal', 'merge:p3-terminal:segment-2'], 'one continuation follows the incomplete reply')
+  assert.ok(merges[0].prompt.includes('BACKGROUNDED GATE (tool-timeout survival)'), 'the terminal merge prompt carries the backgrounded-gate clause')
+  assert.ok(merges[1].prompt.startsWith('SEGMENTED-GATE CONTINUATION') && merges[1].prompt.includes('now carrying the terminal-pass commit'), 'the continuation carries the full terminal merge prompt')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented gate') && l.includes('terminal gate backgrounded')), 'the segment note is logged')
+  assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb' && a.sha === '7e4a1a10'), 'the continuation merges, so the absorb is aced at the terminal sha')
+  const persistBase = terminalImpl()
+  const persist = (prompt, opts) => site.test(opts.label || '') ? incomplete : persistBase(prompt, opts)
+  const p = await runPhase(SWEEP_ARGS({ run: { ace: true, roundLimit: 2 }, finalPhase: false }), persist)
+  assert.equal(p.calls.filter(c => site.test(c.opts.label || '')).length, 3, 'the first dispatch plus exactly roundLimit (2) continuations')
+  assert.ok(p.logs.some(l => typeof l === 'string' && l.includes('segmented-gate budget exhausted') && l.includes('merge:p3-terminal')), 'the spent budget is logged')
+  assert.ok(p.logs.some(l => typeof l === 'string' && l.includes('did not merge (error)')), 'the commit stays unmerged and routes by the ridden status (error)')
+  assert.ok(!(p.out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb'), 'nothing is aced on a spent budget')
+  assert.ok(carriedOf(p.out, 'polish-panel absorb'), 'the row carries on a non-final phase')
+  assert.equal(p.out.landDecision, 'landed', 'the phase still lands')
+})
+
+// #2155: one sentence in backgroundGateRule, shared by segmentedGateClause and segmentedLandClause, says
+// a continuation is never the one re-run an environment-proceed or baseline-proceed prompt allows.
+test('segmented-gate: the continuation sentence rides both the merge clause and the land clause, worded once', async () => {
+  const sentence = 'A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an environment-proceed or baseline-proceed prompt allows.'
+  assert.equal(src.split(sentence).length - 1, 1, 'the template words the sentence once')
+  const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl)
+  const merge = calls.find(c => (c.opts.label || '') === 'merge:t1')
+  const land = calls.find(c => /^land:phase-3$/.test(c.opts.label || ''))
+  assert.ok(merge && merge.prompt.includes(sentence), 'segmentedGateClause carries the sentence')
+  assert.ok(land && land.prompt.includes(sentence), 'segmentedLandClause carries the sentence')
+  const ep = (await runPhase(CLS_ARGS(), clsImpl({ mergeResult: envMergeResult }))).calls.find(c => /^merge:t1:environment-proceed$/.test(c.opts.label || ''))
+  assert.ok(ep && ep.prompt.includes('exactly ONE re-run') && ep.prompt.includes(sentence), 'the environment-proceed re-merge keeps its pinned text beside the sentence')
+})
+
 test('segmented-gate: partial gate log reruns the gate — both arms (last line not exit_code:, first line not tip_sha: of the gated sha) on the refiner card and every merge-task and land build, byte-equal, with run_in_background and rerun-from-scratch', async () => {
   const rule = evalPt('PARTIAL_LOG_RULE')
   // Both arms of the two-sided read, and the instruction each arm resolves to.
@@ -18270,8 +18336,10 @@ test('2485/ES6 every task merge site spells the one --no-ff merge commit with th
     assert.match(prompts[site], /integration_sha[^.]*the new merge commit and gate_sha[^.]*the rebased task tip the gate ran at/, site + ': integration_sha is the merge commit and gate_sha the gated tip')
   }
   for (const label of ['merge:p${ph.id}-polish', 'merge:p${ph.id}-terminal']) {
-    const end = src.indexOf('label: `' + label + '`'), start = src.lastIndexOf('reconciledMerge(', end)
+    // both sweep-family merges dispatch through segmentedMerge (#2189)
+    const end = src.indexOf('label: `' + label + '`'), start = src.lastIndexOf('segmentedMerge(', end)
     const block = src.slice(start, end)
+    assert.ok(start > 0 && !block.includes('label: `'), label + ': the block spans this one dispatch site')
     assert.match(block, /then git merge \$\{polishBranch\} \(fast-forward merge\)/, label + ' keeps its fast-forward merge')
     assert.doesNotMatch(block, /--no-ff/, label + ' is never a --no-ff task merge')
   }
