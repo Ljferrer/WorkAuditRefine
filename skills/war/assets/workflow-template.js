@@ -1966,7 +1966,7 @@ const recordAced = (f, sha, extra) => {
 // file, a non-moved tip (tipClass unusable, non-descendant or unchanged) after a polish, subset or
 // re-entry ace dispatch, dead or not, blocked or not (#2485 D2), a red gate at the ace tip, a
 // regressed multi-commit range at the polish, subset or re-entry arm (#2485 D4)), for an out-of-diff
-// absorb, and for the gate-audit family's absorbs — logged, never silent; the sweep-time exclusion set and a sweep discard demote
+// absorb, for a listed ADVISORY POLISH row whose file the polish fence holds, and for the gate-audit family's absorbs — logged, never silent; the sweep-time exclusion set and a sweep discard demote
 // downstream. Release-slot rows never enter here (demoteReleaseSlot at birth, PIN-11).
 const routeToSweep = (f, why) => {
   log('Re-entry routing: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → phaseClose sweep — ' + why + '.')
