@@ -2988,10 +2988,25 @@ const recordBaselineDebt = (ids, baseSha) => {
 // baselineDebtClause: threaded into every subsequent merge/land dispatch so the refiner classifies a
 // COVERED failure 'baseline' directly, no repeated base re-run. Empty list ⇒ '' (byte-identical to a
 // debt-less run — a phase with no recorded debt dispatches unchanged prompts).
+const debtList = () => baselineDebt.map((d, i) => pt`  ${i + 1}. [${d.ids.join(', ')}] — pre-existing at ${d.baseSha || '(base sha unrecorded)'}`).join('\n') + '\n'
 const baselineDebtClause = () => baselineDebt.length
   ? pt`\nKNOWN BASELINE GATE DEBT (pre-existing failures this phase already classified — if your gate failure's failing identifiers are COVERED by one of these, classify gate_failure_class:'baseline' DIRECTLY, report the covered identifiers in gate_failing_ids, and do NOT re-run the base):\n`
-    + baselineDebt.map((d, i) => pt`  ${i + 1}. [${d.ids.join(', ')}] — pre-existing at ${d.baseSha || '(base sha unrecorded)'}`).join('\n') + '\n'
+    + debtList()
   : ''
+// sweepDebtClause (#2150 polish half): the two class-exempt sweep-family merges read the same debt.
+// Empty list ⇒ '' (byte-identical prompts). Otherwise the dispatch is a Workflow-dispatched
+// baseline-proceed over exactly that set: no classification, no base re-run, no new status.
+const sweepDebtClause = () => baselineDebt.length
+  ? pt`\nBASELINE-PROCEED (Workflow-dispatched) over this phase's recorded baseline gate debt:\n` + debtList()
+    + pt`Do NOT classify and do NOT re-run the base. If EVERY failing identifier is in that set, PROCEED over exactly those failures, merge, and return status 'merged' with the covered identifiers in gate_failing_ids. Any other failure returns gate_failed as above, and you do NOT merge.\n`
+  : ''
+// sweepDebtLog: a merged sweep-family result that proceeded over debt logs its ids at the site.
+const sweepDebtLog = (site, mr) => {
+  const ids = debtIds(mr && mr.gate_failing_ids)
+  if (!baselineDebt.length || !ids.length) return
+  const extra = ids.filter(id => !baselineDebt.some(d => d.ids.includes(id)))
+  log(site + ': proceeded over baseline gate debt [' + ids.join(', ') + ']' + (extra.length ? '; NOT in the recorded debt: [' + extra.join(', ') + '], check by hand' : '') + '.')
+}
 // reattachClause: every merge/land prompt's _refinery step BEGINS with this idempotent re-attach, so a
 // dispatch that died mid-classification (classification detaches _refinery to re-run the base) cannot
 // strand the serial queue detached (the re-attached-by-default _refinery, spec §6 / ADR 0019).
@@ -6551,6 +6566,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // gate-failure classification is dispatched here. The idempotent _refinery re-attach IS still
       // included (hygiene — heals a prior dispatch that died mid-classification detached).
       // segmentedMerge re-dispatches an incomplete gate (#2189), and a spent budget discards below.
+      // A red on exactly the recorded baselineDebt set merges (sweepDebtClause, #2150).
       pmr = await segmentedMerge(
         pt`Merge WAR polish branch ${polishBranch} into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
         + reattachClause(refineryLandPath)
@@ -6559,13 +6575,15 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         + pt`  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge ${polishBranch} (fast-forward merge). Push.\n`
         + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh AND skip the done-when floor assert-done-when.sh: those three are task-field-gated and a coherence sweep has no task fields to consult. The submodule floor and the Budget-Raise floor are NOT among the skips — both are unconditional, consult no task fields, and still run (invocations below). This sweep is class-exempt — on gate failure return gate_failed (no classification); the Workflow fail-open DISCARDS. On conflict return conflict; never force.`
         + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE: a coherence sweep is never a declared gitlink bump, so the relax-flag is never threaded here. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`
-        + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${polishBranch} (ALWAYS — it is unconditional and consults no task fields; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }, do NOT merge — the Workflow fail-open DISCARDS the sweep; exit 2 → return { mode: 'merge-task', status: 'error' }).`,
+        + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${polishBranch} (ALWAYS — it is unconditional and consults no task fields; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }, do NOT merge — the Workflow fail-open DISCARDS the sweep; exit 2 → return { mode: 'merge-task', status: 'error' }).`
+        + sweepDebtClause(),
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-polish`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: polishTask.id, repo: refineryLandPath, source: polishBranch, target: ph.integrationBranch, seed: phaseGitSeed })
     }
     if (sweepApproved && pmr && pmr.status === 'merged') {
       polishStatus = 'merged'
       const polishSha = (typeof sweep.head_sha === 'string' && sweep.head_sha) ? sweep.head_sha : '(polish sha unrecorded)'
       log(`phase-close sweep MERGED at ${polishSha} — the land proceeds on the polished tip; ${phaseCloseQueue.length} queued finding(s) considered at the sweep tip.`)
+      sweepDebtLog('phase-close sweep merge:p' + ph.id + '-polish', pmr)
       // RESIDUAL, ruled (#1944-class): a queued finding is recorded aced on the panel's re-approval
       // alone — no per-finding evidence the polish commit reached its file — EXCEPT the one case the
       // sweep's own changed-file report can disprove (D3a "any queued absorb the sweep could not
@@ -6753,6 +6771,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
             // Re-approved → Refine like any ace commit: the refiner merges the polish branch (now
             // carrying the terminal commit) at the serial queue's tail; the land proceeds on it.
             // segmentedMerge re-dispatches an incomplete gate (#2189), and a spent budget stays unmerged.
+            // A red on exactly the recorded baselineDebt set merges (sweepDebtClause, #2150).
             const tmr = await segmentedMerge(
               pt`Merge WAR polish branch ${polishBranch} (now carrying the terminal-pass commit ${terminalSha}) into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
               + reattachClause(refineryLandPath)
@@ -6761,12 +6780,14 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
               + pt`  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge ${polishBranch} (fast-forward merge). Push.\n`
               + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The terminal commit is an ace-shaped absorb commit, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh AND skip the done-when floor assert-done-when.sh: those three are task-field-gated and the pass has no task fields to consult. The submodule floor and the Budget-Raise floor are NOT among the skips — both are unconditional, consult no task fields, and still run (invocations below). On gate failure return gate_failed (no classification); the Workflow fail-open forward-reverts the terminal range and leaves it unmerged. On conflict return conflict; never force.`
               + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`
-              + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${polishBranch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }).`,
+              + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${polishBranch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }).`
+              + sweepDebtClause(),
               { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-terminal`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: polishTask.id, repo: refineryLandPath, source: polishBranch, target: ph.integrationBranch, seed: phaseGitSeed })
             // a dead terminal merge (D21) names its site here
             const tmrWhy = deathOf(tmr) || (tmr && tmr.status) || 'no result'
             if (tmr && tmr.status === 'merged') {
               log('terminal pass: phase ' + ph.id + ' MERGED at ' + terminalSha + ' — the land proceeds on the terminal tip; ' + terminalRows.length + ' absorb(s) recorded aced.')
+              sweepDebtLog('terminal pass merge:p' + ph.id + '-terminal', tmr)
               // #1873-class: the terminal path keeps the citation stamp too
               for (const f of terminalRows) recordAced(f, terminalSha, { terminal: true, ...citationExtra(f) })
             } else {
