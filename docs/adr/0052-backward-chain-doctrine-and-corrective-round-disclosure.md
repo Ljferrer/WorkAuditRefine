@@ -222,3 +222,25 @@ is a separate `war-followup` issue filed at the plan's land Checkpoint.
   disclosure by corrective round, the auditor as classifier, PIN-2 and PIN-3, the no-schema
   transport and the #2302 study trigger · plan 2026-09-11-backward-chain-doctrine, issues #2097,
   #2302
+
+## Amendment (2026-11-02, #2167, #2127): eleven rules on six builds
+
+`fix-round-doctrine.md` now holds eleven rules. Rule 11 says a byte-cap breach on a prompt surface is
+a signal to evict, never to reword. Read "ten rules" above as the count when this ADR landed, and
+"untouched" as true of that landing only. The operator's #2127 ruling also puts the rules on the
+batch ace ADVISORY POLISH, PHASE-CLOSE COHERENCE SWEEP and TERMINAL PASS builds. The FIX_NEEDED, ACE
+BISECTION SUBSET and ACE RE-ENTRY BATCH builds keep them. The floor family stays out of that block,
+and it keeps the backward chain.
+
+The operator ruled the limit on those three added builds in PR #2577. A worker fixes each sibling
+site of a listed finding's defect class, and lists any other defect under `Ignore for now:`.
+`FIX_ROUND_SCOPE_CLAUSE` carries that sentence. `fixRoundFenceClause` names each file that another
+task, plan or the release slot owns, and a sibling site there goes on the list. No floor reads the set,
+so the prompt is the guard. These workers cannot stop and ask, so the list is how they ask: the
+engine writes each list to the phase report's `notes`. ADVISORY POLISH runs beside its wave peers,
+so it fixes a sibling site only in its own files or a listed row's file. Its list of other siblings
+reaches the phase report for a ruling. A listed row in a fenced file goes to the sweep before dispatch. A cross-file claim
+rule for polish was ruled, then split into #2578, because it needs a change to how the
+merge step replays commits. The sweep stays one commit that one panel judges, so ADR 0012's
+discard guard holds. The terminal pass stays one commit that one seat judges, and that pass
+forward-reverts a regression.

@@ -1026,7 +1026,9 @@ The phase-close sweep's union of foreign-owned files and release-slot files: the
 task whose status is not `merged` ∪ `RELEASE_SLOT_FILES`, both sides `aceRelPath`-normalized. A queued
 absorb whose file is in the set demotes to `follow-up` with a reason naming the owner — the entry's plan
 slug, the task id, or "the release slot" — and every demotion is logged. The seat never decides
-exclusion; the engine applies the set at sweep time.
+exclusion; the engine applies the set at sweep time. The sweep and terminal prompts name these
+files as the fix-round fence. ADVISORY POLISH builds its own fence from the same three sources at
+dispatch, less its task's own files, and sends a listed row in a fenced file to the sweep.
 _Avoid_: a seat-side exclusion judgment; a prose or size estimate in place of the file-set match.
 
 **Barrier list** (`BARRIER_TOKENS`):
@@ -1088,7 +1090,7 @@ _Avoid_: tip-only preflight; pinning the value shape (latitude — the key is th
 
 **Phase-close coherence sweep**:
 The fail-open polish pass at a would-land phase's **integrated tip**: one worker in a `p<N>-polish` worktree
-fixes ONLY the queued `phaseClose` absorb findings, a full default-roster panel re-audits the polish SHA,
+fixes ONLY the queued `phaseClose` absorb findings and each sibling site of their defect class, a full default-roster panel re-audits the polish SHA,
 and the refiner merges it at the serial queue's tail — or **discards** it (branch + worktree left in
 place; queue carries on `carriedPhaseClose` (non-final phase) or demotes to follow-up (final))
 and the pre-polish tip lands exactly as it would have. It may only improve the tip; a discarded
@@ -1104,7 +1106,8 @@ pass, on the discard arm it rides the carried queue (non-final phase) or demotes
 **Terminal pass**:
 The one-hop ace commit plus one re-audit seat after the polish merge (ADR 0012 successor of the
 merged-sweep demote arm): the polish panel's absorbs plus what the sweep left unlanded, filtered
-through `aceEligible`, land as ONE `Ace-Charge` commit at the post-polish tip; a regression is
+through `aceEligible`, land as ONE `Ace-Charge` commit at the post-polish tip, with each sibling site
+of their defect class; a regression is
 forward-reverted, then the rows carry (non-final) or demote `demote:absorb-regressed` (final); an
 unlanded or seat-raised absorb demotes `demote:terminal-pass` (final); it
 convenes with `run.ace` off and never budget-blocks. Its second filter is the phase-scoped sweep
