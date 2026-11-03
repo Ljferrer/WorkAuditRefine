@@ -2551,9 +2551,9 @@ const FIX_ROUND_DOCTRINE_CLAUSE = pt`\nFIX-ROUND DOCTRINE: you are dispatched fo
 // and any other defect waits for a ruling. The sweep's discard guard depends on this limit (ADR 0012).
 const FIX_ROUND_SCOPE_CLAUSE = pt`FIX-ROUND SCOPE: a sibling site of a listed finding's defect class is in scope under rule 1. List any other defect you find under \`Ignore for now:\`, and never fix it in this commit. Echo that list into \`notes\` too, because the engine reads only \`notes\`.\n`
 // ADVISORY POLISH runs beside its wave peers, so it fixes a sibling site only in its own files or a
-// listed row's file (operator ruling on PR #2577). The phase-close sweep fixes any other sibling at the
-// merged tip. A cross-file claim rule waits for its own plan and red-team (#2578).
-const POLISH_FILES_CLAUSE = pt`FIX-ROUND FILES: fix a sibling site only in this task's own files or in a listed finding's file. List a sibling site in any other file under \`Ignore for now:\`, and the phase-close sweep fixes it.\n`
+// listed row's file (operator ruling on PR #2577). Its list of other siblings reaches the phase report
+// for a ruling (recordIgnoreList). A cross-file claim rule waits for its own plan and red-team (#2578).
+const POLISH_FILES_CLAUSE = pt`FIX-ROUND FILES: fix a sibling site only in this task's own files or in a listed finding's file. List a sibling site in any other file under \`Ignore for now:\`, and the list reaches the phase report for a ruling.\n`
 // The fence for the bug class limit: a sibling site in a file another task, plan or the release slot
 // owns stays unedited, or that owner rebase-conflicts at its serial merge (sweep-exclusion.md). No floor
 // reads this set, so the prompt is the guard.
@@ -3231,7 +3231,7 @@ const ignoreListOf = text => {
 const recordIgnoreList = (site, taskId, w) => {
   const line = ignoreListOf(w && w.notes)
   const first = ignoreLineOf(w && w.notes) || ''
-  if (!line || line === 'Ignore for now:' || /^Ignore for now:\s*(?:none|nothing|no other\b)(?:$|[.,:;]|\s+[-(]|(?<=other)\s)/i.test(first)) return
+  if (!line || line === 'Ignore for now:' || /^Ignore for now:\s*(?:none|nothing|no other\b)(?:$|[.,:;]|\s+[-(\u2014]|(?<=other)\s)/i.test(first)) return
   log(site + ': the worker left defects for a ruling — ' + line)
   notes.push({ task: taskId, title: site + ' left for a ruling: ' + line, severity: 'Nit', disposition: 'note' })
 }

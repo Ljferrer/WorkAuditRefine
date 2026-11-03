@@ -14413,7 +14413,7 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
       assert.ok(kept && kept.prompt.includes(rules), `${other.site}: keeps the section when only ${b.site} drops its interpolation`)
     }
   }
-  // The floor family stays out (#2127 ruling): its prompt carries neither the rules nor the two heads. Its
+  // The floor family stays out (#2127 ruling): its prompt carries neither the rules nor the DOCTRINE, SCOPE or FENCE heads. Its
   // fixer block still names the reference file.
   const floorBuild = CHAIN_FIX_BUILDS.find(b => b.site === 'floor family')
   const floorP = (floorBuild.find((await floorBuild.run(src)).calls) || {}).prompt
@@ -14504,6 +14504,7 @@ test('fix-round fence: each ruled build names the files another owner holds', as
     ['Ignore for now: None - the chain closed', null],
     ['Ignore for now: nothing - the absorb was the whole chain', null],
     ['Ignore for now: none.', null],
+    ['Ignore for now: none — the chain closed', null],
     ['Ignore for now: none, the sweep queue holds one row.', null],
     ['Ignore for now: none. All three findings in this batch are applied.', null],
     ['Ignore for now: no other open findings were threaded this round', null],
@@ -14528,8 +14529,22 @@ test('fix-round fence: a listed polish row in a fenced file goes to the sweep, n
   assert.ok(!polishP.includes('fenced row'), 'the fenced row never reaches the polish worker')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('"fenced row"') && l.includes('is fenced, so the polish worker never edits it')), 'the fenced row routes to the sweep, logged')
   // Polish keeps its sibling fixes to its own files and the listed rows' files (operator ruling on PR #2577).
-  assert.ok(polishP.includes("FIX-ROUND FILES: fix a sibling site only in this task's own files or in a listed finding's file. List a sibling site in any other file under `Ignore for now:`, and the phase-close sweep fixes it.\n"), 'the polish prompt states its file limit')
+  assert.ok(polishP.includes("FIX-ROUND FILES: fix a sibling site only in this task's own files or in a listed finding's file. List a sibling site in any other file under `Ignore for now:`, and the list reaches the phase report for a ruling.\n"), 'the polish prompt states its file limit')
   assert.equal((src.match(/\n[ ]*\+ POLISH_FILES_CLAUSE(?=\n)/g) || []).length, 1, 'the file limit rides ADVISORY POLISH only')
+})
+
+// A fenced row whose owner merges before the sweep is not excluded there, so the sweep fixes it.
+test('fix-round fence: the sweep fixes a fenced polish row once its owner merges', async () => {
+  const peerRow = nit({ title: 'peer row', file: 'docs/peer2.md' })
+  const args = SWEEP_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', files: ['docs/a.md'], roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', files: ['docs/peer2.md'], roster: [{ lens: 'correctness' }] }] })
+  const { calls, logs, out } = await runPhase(args, sweepBase([peerRow]), {}, src)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('"peer row"') && l.includes('is fenced, so the polish worker never edits it')), 'the row is fenced at polish while t2 is unmerged')
+  assert.ok(out.landed.includes('t2'), 'the owner merged before the sweep (fixture guard)')
+  const sweepP = (calls.find(x => (x.opts.label || '') === 'polish:phase-3') || {}).prompt
+  assert.ok(sweepP && sweepP.includes('peer row'), 'the sweep carries the row')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('"peer row"') && l.includes('demote:exclusion-set')), 'the row is not demoted by the exclusion set')
 })
 
 test('backward-chain: fixer rules byte-equal on all seven builds', async () => {
