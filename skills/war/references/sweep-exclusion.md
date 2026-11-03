@@ -4,7 +4,7 @@ The unbudgeted cold home (ADR 0042) for the Lead duty pointed at from `skills/wa
 
 ## Why
 
-The phase-close sweep and the terminal pass fix absorb rows in this run. A file that another campaign plan still owns must not be touched here, or that plan rebase-conflicts at its serial merge. The engine builds the sweep-time exclusion set from three sources: this list, the `Files:` of every task not `merged` this phase, and `RELEASE_SLOT_FILES`. The ADVISORY POLISH, sweep and terminal prompts name these files as the fix-round fence. Only the first source is the Lead's to build. The engine keeps the owning `slug` for the demotion reason (`demote:exclusion-set`, naming the plan slug).
+The phase-close sweep and the terminal pass fix absorb rows in this run. A file that another campaign plan still owns must not be touched here, or that plan rebase-conflicts at its serial merge. The engine builds the sweep-time exclusion set from three sources: this list, the `Files:` of every task not `merged` this phase, and `RELEASE_SLOT_FILES`. The sweep and terminal prompts name these files as the fix-round fence. ADVISORY POLISH builds its own fence from the same three sources at dispatch, less its task's own files, and sends a listed row in a fenced file to the sweep. Only the first source is the Lead's to build. The engine keeps the owning `slug` for the demotion reason (`demote:exclusion-set`, naming the plan slug).
 
 ## When
 

@@ -1026,8 +1026,9 @@ The phase-close sweep's union of foreign-owned files and release-slot files: the
 task whose status is not `merged` ∪ `RELEASE_SLOT_FILES`, both sides `aceRelPath`-normalized. A queued
 absorb whose file is in the set demotes to `follow-up` with a reason naming the owner — the entry's plan
 slug, the task id, or "the release slot" — and every demotion is logged. The seat never decides
-exclusion; the engine applies the set at sweep time. The ADVISORY POLISH, sweep and terminal prompts
-name these files as the fix-round fence.
+exclusion; the engine applies the set at sweep time. The sweep and terminal prompts name these
+files as the fix-round fence. ADVISORY POLISH builds its own fence from the same three sources at
+dispatch, less its task's own files, and sends a listed row in a fenced file to the sweep.
 _Avoid_: a seat-side exclusion judgment; a prose or size estimate in place of the file-set match.
 
 **Barrier list** (`BARRIER_TOKENS`):
