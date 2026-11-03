@@ -3044,8 +3044,9 @@ const segmentLoop = async (result, isSegment, redispatch) => {
 // (segmentedLand's shape; PIN-9's pair read: a merged result carrying a stray marker is a merge, a
 // marker-absent error is one dispatch that routes by its status). The continuation carries the FULL
 // merge prompt, PARTIAL_LOG_RULE included. Exhaustion returns the final still-incomplete result and
-// its ridden status ('error') routes at the call site, so a sweep-family site takes its fail-open
-// arm. Labels and log lines are concatenation-built.
+// its ridden status ('error') routes at the call site. Git reconciliation runs first, so a sweep-family
+// site takes its fail-open arm only once Git proves the merge unmerged. Labels and log lines are
+// concatenation-built.
 // A dispatch death enters Git reconciliation; only a proved-unmerged death reaches the merge slot. A
 // snapshot death, or TARGET_LOST or TARGET_LATE, returns before any merge dispatch.
 const segmentedMerge = async (prompt, opts, context) => {

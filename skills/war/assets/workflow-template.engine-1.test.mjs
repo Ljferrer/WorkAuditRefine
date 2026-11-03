@@ -8993,7 +8993,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       anchors: [/dispatch_base`? on every result that carries `?rebased_tip/i, /rebased_tip`? equal to `?dispatch_base/i, /empty `?already_upstream_commits/i] },
     // Backgrounded gate + partial-log rule, merge-task (D7, PIN-11, A4, #2086; engine-and-audit-
     // verdict-integrity Task 5.1, PIN-1): the refiner card's merge-task step 10 and every merge-task
-    // build (initial, floor-retry, both *-proceed re-merges and the segment continuation — the
+    // build (initial, floor-retry, both *-proceed re-merges, the segment continuation and the two
+    // sweep-family merges — the
     // `segmented-gate: partial gate log reruns the gate` fixture walks them all; this row censuses the
     // registry-captured initial + environment-proceed prompts) instruct run_in_background, the
     // gate_segment return shape, and PARTIAL_LOG_RULE's two-sided read with its rerun-from-scratch
@@ -15200,8 +15201,9 @@ test('segmented-gate: partial gate log reruns the gate — both arms (last line 
   assert.ok(refinerMd.includes(rule), 'agents/war-refiner.md carries PARTIAL_LOG_RULE byte-equal')
   assert.match(refinerMd, /run_in_background[\s\S]{0,400}gate_segment: "incomplete"/, 'the card instructs run_in_background with the gate_segment return shape (merge-task)')
   assert.match(refinerMd, /Segmented land[\s\S]{0,900}run_in_background/, 'the card\'s segmented-land bullet instructs run_in_background (land)')
-  // Dispatched merge-task builds: initial, floor-retry, environment-proceed, baseline-proceed, and the
-  // continuation after an incomplete return — each carries run_in_background AND the rule.
+  // Dispatched merge-task builds: initial, floor-retry, environment-proceed, baseline-proceed, the
+  // continuation after an incomplete return, and the two sweep-family merges (#2189) — each carries
+  // run_in_background AND the rule.
   let n = 0
   const floorImpl = (prompt, opts) => {
     if (/^merge:t1(:|$)/.test(opts.label || '') && !opts.dispatchKind) { n++; return n === 1 ? { mode: 'merge-task', status: 'no-test' } : { mode: 'merge-task', status: 'merged', integration_sha: 'c0ffee1234' } }
@@ -15217,7 +15219,9 @@ test('segmented-gate: partial gate log reruns the gate — both arms (last line 
   const segCalls = (await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), segImpl)).calls.filter(isMergeT1)
   const epMerge = (await runPhase(CLS_ARGS(), clsImpl({ mergeResult: envMergeResult }))).calls.find(c => /^merge:t1:environment-proceed$/.test(c.opts.label || ''))
   const bpMerge = (await runPhase(CLS_ARGS(), clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['x'], gate_base_sha: 'wbase77' }) }))).calls.find(c => /^merge:t1:baseline-proceed$/.test(c.opts.label || ''))
-  const builds = [['initial merge-task', floorCalls[0]], ['floor-retry re-merge', floorCalls[1]], ['segment continuation', segCalls[1]], ['environment-proceed re-merge', epMerge], ['baseline-proceed re-merge', bpMerge]]
+  const sweepMerge = (await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()]))).calls.find(c => (c.opts.label || '') === 'merge:p3-polish')
+  const terminalMerge = (await runPhase(SWEEP_ARGS(), terminalImpl())).calls.find(c => (c.opts.label || '') === 'merge:p3-terminal')
+  const builds = [['initial merge-task', floorCalls[0]], ['floor-retry re-merge', floorCalls[1]], ['segment continuation', segCalls[1]], ['environment-proceed re-merge', epMerge], ['baseline-proceed re-merge', bpMerge], ['phase-close sweep merge', sweepMerge], ['terminal-pass merge', terminalMerge]]
   for (const [name, c] of builds) {
     assert.ok(c, name + ' dispatched (presence guard)')
     assert.ok(c.prompt.includes('run_in_background'), name + ' instructs run_in_background')

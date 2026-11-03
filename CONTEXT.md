@@ -532,7 +532,7 @@ a new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper 
 `segmentedMerge` on all six merge-task sites (initial, floor-retry, environment-proceed,
 baseline-proceed, and the two sweep-family merges, #2189); the ace gate check loops on
 `gate_green: false` + `gate_segment` in `aceGateGreen` (#2326). A spent budget at a sweep-family
-merge takes that site's fail-open arm (ADR 0051 §3; the `segmented-land: re-land sites`,
+merge takes that site's fail-open arm (ADR 0051 §3 and its 2026-11-03 amendment; the `segmented-land: re-land sites`,
 `segmented-gate: re-merge sites` and two sweep-family `segmented-gate` fixtures in
 `workflow-template.engine-1.test.mjs` are the arbiters of those site lists) — each helper appends
 the clause, dispatches, and re-dispatches while the marker rides its contracted status pair, bounded

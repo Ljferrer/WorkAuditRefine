@@ -176,8 +176,9 @@ say the two sweep-family merges are not segmented. `segmentedMerge` now wraps si
 sites: the four per-task sites and the two sweep-family merges, `merge:p<id>-polish` and
 `merge:p<id>-terminal` (#2189). Refiner card step 10 says the Workflow re-dispatches every
 merge-task, and that is now true at each site (#2183). The same pair read and `run.roundLimit`
-bound apply. A spent budget returns the final `status: 'error'` result, so each sweep-family site
-takes its own fail-open arm: the phase-close sweep discards, and the terminal commit stays unmerged.
+bound apply. A spent budget returns the final `status: 'error'` result. Git reconciliation then runs,
+as for every error result. Once Git proves the merge unmerged, each sweep-family site takes its own
+fail-open arm: the phase-close sweep discards, and the terminal commit stays unmerged.
 
 The shared background rule, which the merge and land clauses both carry, adds one sentence (#2155).
 A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an
