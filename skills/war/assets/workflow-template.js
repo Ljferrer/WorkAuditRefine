@@ -2550,11 +2550,10 @@ const FIX_ROUND_DOCTRINE_CLAUSE = pt`\nFIX-ROUND DOCTRINE: you are dispatched fo
 // the TERMINAL PASS work from a listed set. Rule 1 still reaches each sibling of a listed finding's class,
 // and any other defect waits for a ruling. The sweep's discard guard depends on this limit (ADR 0012).
 const FIX_ROUND_SCOPE_CLAUSE = pt`FIX-ROUND SCOPE: a sibling site of a listed finding's defect class is in scope under rule 1. List any other defect you find under \`Ignore for now:\`, and never fix it in this commit. Echo that list into \`notes\` too, because the engine reads only \`notes\`.\n`
-// The claim rule (operator ruling on PR #2577), ADVISORY POLISH only: the first polish commit in a wave
-// to touch a file outside its task's own files claims it. A later commit there forward-reverts, and its
-// rows go to the phase-close sweep, so the approved work still lands (ace never holds a task).
-const POLISH_CLAIM_CLAUSE = pt`FIX-ROUND CLAIM: a sibling site in a file outside this task's own files is in scope only if no other task in this wave claims that file. The first commit to touch it claims it. The engine reverts a later commit that touches it and sends that commit's rows to the phase-close sweep.\n`
-const polishClaims = new Map()
+// ADVISORY POLISH runs beside its wave peers, so it fixes a sibling site only in its own files or a
+// listed row's file (operator ruling on PR #2577). The phase-close sweep fixes any other sibling at the
+// merged tip. A cross-file claim rule waits for its own plan and red-team (#2578).
+const POLISH_FILES_CLAUSE = pt`FIX-ROUND FILES: fix a sibling site only in this task's own files or in a listed finding's file. List a sibling site in any other file under \`Ignore for now:\`, and the phase-close sweep fixes it.\n`
 // The fence for the bug class limit: a sibling site in a file another task, plan or the release slot
 // owns stays unedited, or that owner rebase-conflicts at its serial merge (sweep-exclusion.md). No floor
 // reads this set, so the prompt is the guard.
@@ -3868,8 +3867,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     }
   }
   const wave = nextWave()
-  // a claim lasts one wave: a later wave rebases onto the merged tip
-  polishClaims.clear()
   if (!wave.length) { log(`No runnable tasks remain — the rest are blocked behind escalations.`); break }
 
   // ---- ACE BISECTION (regression-recovery ladder on a failed --ace batch; D1–D4/D6) ----
@@ -4577,8 +4574,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         ...tasks.filter(t => !succeeded.has(t.id)).flatMap(t => Array.isArray(t.files) ? t.files : []),
         ...RELEASE_SLOT_FILES,
       ].map(aceRelPath))].filter(p => typeof p === 'string' && p && !polishOwn.has(p))
-      // A listed row in a fenced file would get two opposed orders, so it goes to the sweep, whose drain
-      // demotes it naming the owner.
+      // A listed row in a fenced file would get two opposed orders, so it goes to the sweep. The sweep
+      // demotes it naming its owner if that owner is still unmerged, and fixes it otherwise.
       if (openBlockers === 0) for (const f of aceable.filter(x => polishFence.includes(aceRelPath(x.file)))) {
         aceable.splice(aceable.indexOf(f), 1)
         routeToSweep(f, 'its file ' + aceRelPath(f.file) + ' is fenced, so the polish worker never edits it')
@@ -4602,7 +4599,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + FIX_ROUND_DOCTRINE_CLAUSE
           + FIX_ROUND_SCOPE_CLAUSE
           + fixRoundFenceClause(polishFence)
-          + POLISH_CLAIM_CLAUSE
+          + POLISH_FILES_CLAUSE
           + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
           { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...spawnWorker('ace') })
         recordIgnoreList('advisory polish', r.task.id, ace)
@@ -4625,19 +4622,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           aceSha = aceProbe.tip_sha /* the batch ace commit */
           r.reentryBase = aceSha                       // re-entry preflight range anchor (PIN-15)
           const aceEv = aceEvidence(aceProbe, ace)
-          // The claim rule: a fenced file, or a file outside this task's own set that a peer's polish commit
-          // claimed first this wave, makes this commit a clash, judged like a dead re-audit (revert, rows to
-          // the sweep). One task polishes once per wave, so its own earlier claim never meets it here.
-          const claimTouched = [...aceRelSet(aceEv.files)]
-          const claimClash = claimTouched.filter(p => polishFence.includes(p) || polishClaims.has(p))
-          if (!claimClash.length) for (const p of claimTouched) polishClaims.set(p, r.task.id)
-          else log('ace ' + r.task.id + ': polish claim clash on ' + claimClash.join(', ') + ' — another task, plan or the release slot holds it this wave')
           // Gate at the ace tip first (PIN-12), then the delta-scaled panel with per-seat transfer
           // provenance (D3/PIN-10/PIN-18) — the shared ace re-audit seam. More than one commit in the
           // range forces the full panel (aceScope).
-          const { red: batchRed, died: batchDied, seats: reSeats, expected: reExpected } = claimClash.length
-            ? { died: 'polish claim clash on ' + claimClash.join(', ') }
-            : await aceReaudit(r, aceSha, aceable, aceEv)
+          const { red: batchRed, died: batchDied, seats: reSeats, expected: reExpected } = await aceReaudit(r, aceSha, aceable, aceEv)
           if (batchDied) {
             // Dead gate check, unfinished gate or re-audit seat (D21, PIN-25, #2326): nothing judged the ace tip, so no
             // approval can be accounted there — forward-revert the range and route the rows to the

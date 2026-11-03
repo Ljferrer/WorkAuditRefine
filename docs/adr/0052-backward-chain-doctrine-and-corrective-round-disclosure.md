@@ -235,12 +235,12 @@ and it keeps the backward chain.
 The operator ruled the limit on those three added builds in PR #2577. A worker fixes each sibling
 site of a listed finding's defect class, and lists any other defect under `Ignore for now:`.
 `FIX_ROUND_SCOPE_CLAUSE` carries that sentence. `fixRoundFenceClause` names each file that another
-task, plan or the release slot owns, and a sibling site there goes on the list. At ADVISORY POLISH
-the engine also reverts a commit that touches a fenced file. No floor reads the set at the sweep or
-the terminal pass, so the prompt is the guard there. These workers cannot stop and ask, so the list is how they ask: the
-engine writes each list to the phase report's `notes`. On ADVISORY POLISH, the operator ruled a
-claim rule: the first commit in a wave to touch a file outside its task's own files claims it, and
-the engine reverts a later commit there and sends its rows to the phase-close sweep. So ace still
-never turns a mergeable task into a hold. The sweep stays one commit that one panel judges, so ADR 0012's
+task, plan or the release slot owns, and a sibling site there goes on the list. No floor reads the set,
+so the prompt is the guard. These workers cannot stop and ask, so the list is how they ask: the
+engine writes each list to the phase report's `notes`. ADVISORY POLISH runs beside its wave peers,
+so it fixes a sibling site only in its own files or a listed row's file, and the phase-close sweep
+fixes the rest. A listed row in a fenced file goes to the sweep before dispatch. A cross-file claim
+rule for polish was ruled, then split into #2578, because it needs a change to how the
+merge step replays commits. The sweep stays one commit that one panel judges, so ADR 0012's
 discard guard holds. The terminal pass stays one commit that one seat judges, and that pass
 forward-reverts a regression.

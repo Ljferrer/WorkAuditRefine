@@ -18,7 +18,7 @@ The fixer's rules for a fix round or an ace commit. A seat's finding names one s
 
 ## The bug class limit
 
-Operator ruling on PR #2577: the ADVISORY POLISH, PHASE-CLOSE COHERENCE SWEEP and TERMINAL PASS prompts also carry `FIX_ROUND_SCOPE_CLAUSE`. Those workers fix each sibling site of a listed finding's defect class, and list any other defect under `Ignore for now:`. `fixRoundFenceClause` names the files another task, plan or the release slot owns, and a sibling site there goes on that list. All three lists reach the phase report's `notes`. On ADVISORY POLISH, the first commit in a wave to touch a file outside its task's own files claims it. The engine reverts a later commit there and sends its rows to the phase-close sweep.
+Operator ruling on PR #2577: the ADVISORY POLISH, PHASE-CLOSE COHERENCE SWEEP and TERMINAL PASS prompts also carry `FIX_ROUND_SCOPE_CLAUSE`. Those workers fix each sibling site of a listed finding's defect class, and list any other defect under `Ignore for now:`. `fixRoundFenceClause` names the files another task, plan or the release slot owns, and a sibling site there goes on that list. All three lists reach the phase report's `notes`. ADVISORY POLISH runs beside its wave peers, so `POLISH_FILES_CLAUSE` keeps its sibling fixes to its task's own files and the listed rows' files. The phase-close sweep fixes the rest.
 
 ## Editing the rules
 
