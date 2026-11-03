@@ -9062,7 +9062,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/The boundary is two-sided/, /decision-forked blocking finding/, /mechanical blocking finding while fix budget remains ⇒ `request_changes`, never `escalate`/, /reads `escalate_reason` into the phase's escalation record/] },
   ]
-  assert.ok(REGISTRY.length >= 35, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), and the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt)')
+  assert.ok(REGISTRY.length >= 36, 'the byte-cap seat sentence row (#2167), the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), and the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -14401,7 +14401,7 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
     // The bug class limit (PR #2577 ruling) rides only the three ruled builds. The literal here is the oracle.
     const scoped = /ADVISORY POLISH|SWEEP|TERMINAL PASS/.test(b.site)
     assert.equal(live.prompt.includes('FIX-ROUND FENCE:'), scoped, `${b.site}: the fence rides exactly the three ruled builds`)
-    assert.equal(live.prompt.includes("FIX-ROUND SCOPE: a sibling site of a listed finding's defect class is in scope under rule 1. List any other defect you find under `Ignore for now:`, and never fix it in this commit.\n"), scoped, `${b.site}: the bug class limit rides exactly the three ruled builds`)
+    assert.equal(live.prompt.includes("FIX-ROUND SCOPE: a sibling site of a listed finding's defect class is in scope under rule 1. List any other defect you find under `Ignore for now:`, and never fix it in this commit. Echo that list into `notes` too, because the engine reads only `notes`.\n"), scoped, `${b.site}: the bug class limit rides exactly the three ruled builds`)
     assert.ok(!live.prompt.includes(reworded), `${b.site}: a reworded rule never appears (no-false-positive; byte-sensitivity is pinned by the includes(rules) assert above)`)
     // Delete-and-trace: drop this build's interpolation ⇒ this prompt loses the section; each sibling keeps it.
     const mutated = dropDoctrineAt(b.head)
@@ -14452,8 +14452,8 @@ test('fix-round fence: each ruled build names the files another owner holds', as
     assert.deepEqual(fenceOf(p), ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json', 'docs/owned-by-plan.md'], `${site}: the fence lists the campaign file and the release slot, sorted`)
   }
   const peerArgs = ACE_ARGS({ sweepExclude, tasks: [
-    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', files: ['docs/own.md'], roster: [{ lens: 'correctness' }] },
-    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', files: ['docs/peer.md', 'docs/own.md'], roster: [{ lens: 'correctness' }] }] })
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', files: ['./docs/own.md'], roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', files: ['./docs/peer.md', 'docs/own.md'], roster: [{ lens: 'correctness' }] }] })
   const polish = ((await runPhase(peerArgs, polishAceImpl(), {}, src)).calls.find(x => /^ace:polish:t1:/.test(x.opts.label || '')) || {}).prompt
   assert.ok(polish, 'ADVISORY POLISH: dispatched (presence guard)')
   assert.deepEqual(fenceOf(polish), ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json', 'docs/owned-by-plan.md', 'docs/peer.md'], 'ADVISORY POLISH: the fence lists campaign, peer and release-slot files, less the files this task owns')
@@ -14465,7 +14465,7 @@ test('fix-round fence: each ruled build names the files another owner holds', as
   const waveRun = await runPhase(waveArgs, heldImpl, {}, src)
   const wavePolish = (waveRun.calls.find(x => /^ace:polish:t1:/.test(x.opts.label || '')) || {}).prompt
   assert.ok(wavePolish, 'ADVISORY POLISH in the later wave: dispatched (presence guard)')
-  assert.ok(!(waveRun.out.merged || []).includes('t0'), 'the held peer never merged (fixture guard)')
+  assert.ok(!waveRun.out.landed.includes('t0') && waveRun.out.escalated.some(e => e.task === 't0' && e.reason === 'conflict'), 'the held peer never merged (fixture guard)')
   const waveFence = fenceOf(wavePolish)
   assert.ok(waveFence.includes('.claude-plugin/plugin.json'), 'the later wave renders a fence (non-vacuity)')
   assert.ok(waveFence.includes('docs/held-peer.md'), 'an unmerged peer stays in the fence')
@@ -14503,6 +14503,12 @@ test('fix-round fence: each ruled build names the files another owner holds', as
     ['Ignore for now: none', null],
     ['Ignore for now: None - the chain closed', null],
     ['Ignore for now: nothing - the absorb was the whole chain', null],
+    ['Ignore for now: none.', null],
+    ['Ignore for now: none, the sweep queue holds one row.', null],
+    ['Ignore for now: none. All three findings in this batch are applied.', null],
+    ['Ignore for now: no other open findings were threaded this round', null],
+    ['Ignore for now: none\nRefs #1', null],
+    ['Ignore for now: nonexistent.md - a stale link', 'Ignore for now: nonexistent.md - a stale link'],
     ['Ignore for now: none of the queued files, but docs/z.md has a defect', 'Ignore for now: none of the queued files, but docs/z.md has a defect'],
     ['Ignore for now:\n- docs/z.md - stale\n- docs/w.md - stale\n\nRefs #1', 'Ignore for now: - docs/z.md - stale - docs/w.md - stale'],
     ['Ignore for now: docs/z.md - a stale\n  claim\n\nRefs #1', 'Ignore for now: docs/z.md - a stale claim'],
@@ -14511,6 +14517,52 @@ test('fix-round fence: each ruled build names the files another owner holds', as
     const row = (o.notes || []).find(n => /^phase-close sweep left for a ruling/.test(n.title))
     assert.equal(row ? row.title : null, want && 'phase-close sweep left for a ruling: ' + want, `list shape: ${JSON.stringify(text)}`)
   }
+})
+
+// The claim rule (operator ruling on PR #2577): in one wave, the first polish commit to touch a file
+// outside its task's own files claims it. A later commit there reverts, and its rows go to the sweep.
+test('polish claim: the first commit claims an unlisted file, and a later clash reverts to the sweep', async () => {
+  const claimTask = (id, file) => ({ id, issue: 100, title: id, planSlice: 'slice', files: [file], roster: [{ lens: 'correctness' }] })
+  const shaOf = id => (id === 't1' ? 'a' : 'b').repeat(40)
+  const claimImpl = (shared) => {
+    const base = aceBase([nit()])
+    return (prompt, opts) => {
+      const m = (opts.label || '').match(/^ace:polish:(t\d):/)
+      if (!m) return base(prompt, opts)
+      const own = m[1] === 't1' ? 'docs/one.md' : 'docs/two.md'
+      return { task_id: m[1], status: 'implemented', head_sha: shaOf(m[1]), tests: { unit: 1 }, ace_diff_files: [own, shared[m[1]]].filter(Boolean) }
+    }
+  }
+  const args = ACE_ARGS({ tasks: [claimTask('t1', 'docs/one.md'), claimTask('t2', 'docs/two.md')] })
+  const clash = await runPhase(args, claimImpl({ t1: 'CONTEXT.md', t2: 'CONTEXT.md' }), {}, src)
+  const clashLogs = clash.logs.filter(l => typeof l === 'string' && l.includes(': polish claim clash on CONTEXT.md — another task'))
+  assert.equal(clashLogs.length, 1, 'exactly one of the two commits clashes')
+  assert.ok(clash.logs.some(l => typeof l === 'string' && l.includes('failed absorb — polish claim clash on CONTEXT.md') && l.includes('forward-reverted')), 'the clashing commit reverts and its rows go to the sweep')
+  const polishP = (clash.calls.find(x => /^ace:polish:t1:/.test(x.opts.label || '')) || {}).prompt
+  assert.ok(polishP && polishP.includes('FIX-ROUND CLAIM: a sibling site in a file outside this task'), 'the polish prompt states the claim rule')
+  assert.equal((src.match(/\n[ ]*\+ POLISH_CLAIM_CLAUSE(?=\n)/g) || []).length, 1, 'the claim rule rides ADVISORY POLISH only')
+  // A peer's listed file is fenced, so touching it clashes too.
+  const fencedHit = await runPhase(args, claimImpl({ t2: 'docs/one.md' }), {}, src)
+  assert.ok(fencedHit.logs.some(l => typeof l === 'string' && l.includes('ace t2: polish claim clash on docs/one.md')), 'a commit that touches a fenced file clashes')
+  // A claim lasts one wave: a later task rebases onto the merged tip, so it may touch the same file.
+  const waveArgs = ACE_ARGS({ tasks: [claimTask('t1', 'docs/one.md'), { ...claimTask('t2', 'docs/two.md'), deps: ['t1'] }] })
+  const twoWaves = await runPhase(waveArgs, claimImpl({ t1: 'CONTEXT.md', t2: 'CONTEXT.md' }), {}, src)
+  assert.ok(twoWaves.calls.some(x => /^ace:polish:t2:/.test(x.opts.label || '')), 'the later-wave polish ran (presence guard)')
+  assert.ok(!twoWaves.logs.some(l => typeof l === 'string' && l.includes('polish claim clash')), 'a claim from an earlier wave never clashes')
+  const apart = await runPhase(args, claimImpl({ t1: 'CONTEXT.md', t2: 'README.md' }), {}, src)
+  assert.ok(!apart.logs.some(l => typeof l === 'string' && l.includes('polish claim clash')), 'two different unlisted files never clash')
+  const ownOnly = await runPhase(args, claimImpl({}), {}, src)
+  assert.ok(!ownOnly.logs.some(l => typeof l === 'string' && l.includes('polish claim clash')), 'own files never clash')
+})
+
+test('fix-round fence: a listed polish row in a fenced file goes to the sweep, never to the polish worker', async () => {
+  const fenced = nit({ title: 'fenced row', file: 'docs/owned-by-plan.md' })
+  const args = ACE_ARGS({ sweepExclude: [{ slug: 'other-plan', files: ['docs/owned-by-plan.md'] }] })
+  const { calls, logs } = await runPhase(args, aceBase([fenced, nit()]), {}, src)
+  const polishP = (calls.find(x => /^ace:polish:t1:/.test(x.opts.label || '')) || {}).prompt
+  assert.ok(polishP, 'the polish worker still runs for the other row (presence guard)')
+  assert.ok(!polishP.includes('fenced row'), 'the fenced row never reaches the polish worker')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('"fenced row"') && l.includes('is fenced, so the polish worker never edits it')), 'the fenced row routes to the sweep, logged')
 })
 
 test('backward-chain: fixer rules byte-equal on all seven builds', async () => {
