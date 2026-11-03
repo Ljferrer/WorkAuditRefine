@@ -529,18 +529,20 @@ dispatch forced to return mid-run reports the in-band `land_segment` marker on i
 a merge-task reports `gate_segment` the same way — in-band fields riding the existing status, never
 a new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper each —
 `segmentedLand` on all three land sites (initial, environment-proceed, baseline-proceed) and
-`segmentedMerge` on the four per-task merge-task sites (initial, floor-retry, environment-proceed,
-baseline-proceed); the ace gate check loops on `gate_green: false` + `gate_segment` in `aceGateGreen`
-(#2326); the two sweep-family merges are not segmented (ADR 0051 §3; the
-`segmented-land: re-land sites` and `segmented-gate: re-merge sites` fixtures in
-`workflow-template.engine-1.test.mjs` are the arbiters of those two site lists) — each helper appends
+`segmentedMerge` on all six merge-task sites (initial, floor-retry, environment-proceed,
+baseline-proceed, and the two sweep-family merges, #2189); the ace gate check loops on
+`gate_green: false` + `gate_segment` in `aceGateGreen` (#2326). A spent budget at a sweep-family
+merge takes that site's fail-open arm (ADR 0051 §3 and its 2026-11-03 amendment; the `segmented-land: re-land sites`,
+`segmented-gate: re-merge sites` and two sweep-family `segmented-gate` fixtures in
+`workflow-template.engine-1.test.mjs` are the arbiters of those site lists) — each helper appends
 the clause, dispatches, and re-dispatches while the marker rides its contracted status pair, bounded
 by `run.roundLimit`; exhaustion routes by the ridden status, except the ace gate check, whose spent
 bound takes the dispatch-death route. The pair is the read (PIN-9): a landed
 or merged result carrying a stray marker stands, and a marker-absent error is one dispatch that
 routes by its status (`held:land-failed` for a land). The ace gate's background rule rides its
 dispatched prompt alone. For merge and land, both prompt layers instruct backgrounding the
-gate (`run_in_background`) and applying the **Gate-log stamp** read on re-dispatch.
+gate (`run_in_background`) and applying the **Gate-log stamp** read on re-dispatch. A continuation
+never counts as the one re-run an environment-proceed or baseline-proceed prompt allows (#2155).
 _Avoid_: classifying an interrupted gate `gate_failed` (interrupted is incomplete); a marker read
 without its status pair; a new status enum member for the marker.
 

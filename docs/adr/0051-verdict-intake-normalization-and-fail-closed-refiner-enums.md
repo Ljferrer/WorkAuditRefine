@@ -132,6 +132,7 @@ sites route through `routedMr`, so the reason names the real cause instead of ri
 - 2026-09-07 · ADR authored in the living form (a `**Status:**` line, in-place body, this log); records intake normalization, the `already_upstream` refusal arm and the segmented-land helper · issues #1869, #1870, #1973, #1797, #1805
 - 2026-09-07 · section 3 extended to the merge-task twin: `segmentedMerge`, the `gate_segment: 'incomplete'` marker on `status: 'error'` across the four per-task merge-task sites, same pair read and `roundLimit` bound · issue #2156
 - 2026-10-30 · section 3 extended to the ace gate check: `GATE_CHECK` carries `gate_segment`, an unfinished gate re-dispatches, and a spent bound never reads as a red gate · issues #2326, #2329
+- 2026-11-03 · section 3 extended to the two sweep-family merges, so `segmentedMerge` covers six merge-task sites, and the shared background rule says a continuation is never the one allowed re-run · issues #2189, #2183, #2155
 
 ### 2026-09-09 finalization amendment: Git confirms every mutation result
 
@@ -167,3 +168,20 @@ absent one. The final complete Git tree must equal the approved tree for no-pane
 merge omissions or reverted upstream matches cannot substitute for current-content proof.
 Different/unavailable final trees get the full original-content comparison and fresh approval,
 followed by independent confirmation of the same published destination before completion.
+
+### 2026-11-03 amendment: the sweep-family merges are segmented
+
+This amendment supersedes the section 3 sentences that name four per-task merge-task sites and
+say the two sweep-family merges are not segmented. `segmentedMerge` now wraps six merge-task
+sites: the four per-task sites and the two sweep-family merges, `merge:p<id>-polish` and
+`merge:p<id>-terminal` (#2189). Refiner card step 10 says the Workflow re-dispatches every
+merge-task, and that is now true at each site (#2183). The same pair read and `run.roundLimit`
+bound apply. A spent budget returns the final `status: 'error'` result. Git reconciliation then runs,
+as for every error result. Once Git proves the merge unmerged, each sweep-family site takes its own
+fail-open arm: the phase-close sweep discards, and the terminal commit stays unmerged.
+
+The shared background rule, which the merge and land clauses both carry, adds one sentence (#2155).
+A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an
+environment-proceed or baseline-proceed prompt allows. The pinned "exactly ONE re-run" text in
+those prompts is unchanged. The ace gate check carries the same rule, and no ace gate prompt
+allows such a re-run.

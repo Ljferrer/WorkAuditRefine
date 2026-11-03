@@ -3023,9 +3023,12 @@ const GATE_LOG_UNTHREADED = pt`(gate_log_path unthreaded — no captured artifac
 const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRST line is \`tip_sha:\` of the gated sha and its LAST line is \`exit_code:\` (the refiner's stamp); a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding. An unthreaded gate_log_path means no captured artifact: SOFT cannot-confirm, never guess a conventional path.`
 // backgroundGateRule(shape): the run_in_background instruction, parameterized by the in-band return
 // shape (merge-task and ace gate: gate_segment; land: land_segment — A4, no status enum change), and closed by
-// PARTIAL_LOG_RULE so every carrier of the background instruction also carries the read rule.
+// PARTIAL_LOG_RULE so every carrier of the background instruction also carries the read rule. Its
+// continuation sentence (#2155) keeps a SEGMENTED re-dispatch apart from the one re-run that an
+// environment-proceed or baseline-proceed prompt allows, for the merge and land clauses alike. The ace
+// gate check carries it too, and no ace gate prompt allows such a re-run.
 const backgroundGateRule = shape =>
-  pt`BACKGROUNDED GATE (tool-timeout survival): if the gate cannot finish inside this turn, start it with run_in_background (teed to the stamped gate log) and return ${shape} — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. ${PARTIAL_LOG_RULE}`
+  pt`BACKGROUNDED GATE (tool-timeout survival): if the gate cannot finish inside this turn, start it with run_in_background (teed to the stamped gate log) and return ${shape} — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an environment-proceed or baseline-proceed prompt allows. ${PARTIAL_LOG_RULE}`
 const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: '<the step you reached>' }`)
 // segmentLoop(result, isSegment, redispatch): the roundLimit bound every segmented gate shares.
 // redispatch takes the incomplete result and the next segment ordinal, and returns the admitted reply.
@@ -3033,14 +3036,17 @@ const segmentLoop = async (result, isSegment, redispatch) => {
   for (let segments = 0; isSegment(result) && segments < roundLimit; segments++) result = await redispatch(result, segments + 2)
   return result
 }
-// segmentedMerge(prompt, opts): one helper on every task merge-task dispatch site (initial merge,
-// floor-retry re-merge, environment-proceed and baseline-proceed re-merges). Appends
+// segmentedMerge(prompt, opts): one helper on all six merge-task dispatch sites: the four per-task
+// sites (initial merge, floor-retry re-merge, environment-proceed and baseline-proceed re-merges) and
+// the two sweep-family merges (merge:p<id>-polish and merge:p<id>-terminal, #2189). Appends
 // segmentedGateClause, dispatches, and re-dispatches while the result carries the marker WITH its
 // contracted status pair — status:'error' AND gate_segment:'incomplete' — bounded by roundLimit
 // (segmentedLand's shape; PIN-9's pair read: a merged result carrying a stray marker is a merge, a
 // marker-absent error is one dispatch that routes by its status). The continuation carries the FULL
 // merge prompt, PARTIAL_LOG_RULE included. Exhaustion returns the final still-incomplete result and
-// its ridden status ('error') routes at the call site. Labels and log lines are concatenation-built.
+// its ridden status ('error') routes at the call site. Git reconciliation runs first, so a sweep-family
+// site takes its fail-open arm only once Git proves the merge unmerged. Labels and log lines are
+// concatenation-built.
 // A dispatch death enters Git reconciliation; only a proved-unmerged death reaches the merge slot. A
 // snapshot death, or TARGET_LOST or TARGET_LATE, returns before any merge dispatch.
 const segmentedMerge = async (prompt, opts, context) => {
@@ -6544,7 +6550,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // fail-open DISCARDS (the pre-polish tip lands unchanged — see the discard arm below), so no
       // gate-failure classification is dispatched here. The idempotent _refinery re-attach IS still
       // included (hygiene — heals a prior dispatch that died mid-classification detached).
-      pmr = await reconciledMerge(
+      // segmentedMerge re-dispatches an incomplete gate (#2189), and a spent budget discards below.
+      pmr = await segmentedMerge(
         pt`Merge WAR polish branch ${polishBranch} into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
         + reattachClause(refineryLandPath)
         + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch was cut at the integrated tip, so this is normally a no-op).\n`
@@ -6745,7 +6752,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           } else {
             // Re-approved → Refine like any ace commit: the refiner merges the polish branch (now
             // carrying the terminal commit) at the serial queue's tail; the land proceeds on it.
-            const tmr = await reconciledMerge(
+            // segmentedMerge re-dispatches an incomplete gate (#2189), and a spent budget stays unmerged.
+            const tmr = await segmentedMerge(
               pt`Merge WAR polish branch ${polishBranch} (now carrying the terminal-pass commit ${terminalSha}) into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
               + reattachClause(refineryLandPath)
               + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch sits at the integrated tip plus one commit, so this is normally a no-op).\n`
