@@ -14459,7 +14459,7 @@ test('fix-round fence: each ruled build names the files another owner holds', as
   assert.deepEqual(fenceOf(polish), ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json', 'docs/owned-by-plan.md', 'docs/peer.md'], 'ADVISORY POLISH: the fence lists campaign, peer and release-slot files, less the files this task owns')
   // A peer that merged in an earlier wave no longer holds its files, and a peer that ended unmerged still does.
   const waveTask = (id, files, extra = {}) => ({ id, issue: 100, title: id, planSlice: 'slice', files, roster: [{ lens: 'correctness' }], ...extra })
-  const waveArgs = ACE_ARGS({ tasks: [waveTask('t0', ['docs/held-peer.md']), waveTask('tm', ['docs/merged-peer.md']), waveTask('t1', ['docs/own.md'], { deps: ['tm'] })] })
+  const waveArgs = ACE_ARGS({ tasks: [waveTask('t0', ['docs/held-peer.md']), waveTask('tm', ['docs/merged-peer.md']), waveTask('tx', ['docs/merged-nondep.md']), waveTask('t1', ['docs/own.md'], { deps: ['tm'] })] })
   const base = polishAceImpl()
   const heldImpl = (prompt, opts) => (opts.label || '') === 'merge:t0' ? { mode: 'merge-task', status: 'conflict', conflict_files: ['docs/held-peer.md'] } : base(prompt, opts)
   const waveRun = await runPhase(waveArgs, heldImpl, {}, src)
@@ -14470,6 +14470,9 @@ test('fix-round fence: each ruled build names the files another owner holds', as
   assert.ok(waveFence.includes('.claude-plugin/plugin.json'), 'the later wave renders a fence (non-vacuity)')
   assert.ok(waveFence.includes('docs/held-peer.md'), 'an unmerged peer stays in the fence')
   assert.ok(!waveFence.includes('docs/merged-peer.md'), 'a merged peer leaves the fence')
+  // tx merges in wave 1 but is not t1's dependency, so only the merged rule can drop its file.
+  assert.ok(waveRun.out.landed.includes('tx'), 'the non-dependency peer merged (fixture guard)')
+  assert.ok(!waveFence.includes('docs/merged-nondep.md'), 'a merged peer that is not a dependency leaves the fence')
   // The sweep's own charter and the slice its panel judges state the limit.
   const { calls: sweepCalls } = await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()]), {}, src)
   const sweepP = (sweepCalls.find(x => (x.opts.label || '') === 'polish:phase-3') || {}).prompt
