@@ -4611,4 +4611,5 @@ test('#2534 item 23b: /zero-in steps a quiet lens down one rung per round before
   assert.doesNotMatch(loop, /(^|\. )Fill the other seats with `auto`/m, 'no unscoped auto fill remains')
   assert.match(loop, /In a later round, that added `auto` seat runs at low at `neighbors` and is not a kept lens\. If its lens found a Critical, Major or Minor, that lens joins the kept lenses at high at `deep`/)
   assert.match(loop, /A quiet lens at high at `neighbors` steps to low at `neighbors`/, 'every start state has a next rung')
+  assert.match(loop, /In a later round, pass the kept-lens count as `<seats>`, plus one for the added `auto` seat of a lone non-catalog lens/, 'a later round never asks /snipe for refill seats')
 })

@@ -65,6 +65,8 @@ test('the CLI prints roundCap for the Lead', () => {
   const cli = fileURLToPath(new URL('./snipe-args.mjs', import.meta.url))
   const out = JSON.parse(execFileSync(process.execPath, [cli, '2 auto', '--config', '/nonexistent/config.json'], { encoding: 'utf8' }))
   assert.equal(out.roundCap, DEFAULTS.run.roundLimit)
+  assert.deepEqual(out.tiers, snipeTiers({}), 'the CLI prints both rungs (#2534 item 23b)')
+  assert.deepEqual(out.tier, out.tiers.high, 'the tier field stays the high rung')
 })
 
 test('the CLI prints JSON for a config that holds null', () => {
