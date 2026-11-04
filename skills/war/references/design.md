@@ -30,7 +30,7 @@ A Workflow also can't *be* a team's Lead — it's a script with no inbox, and it
 | 5 | Branch model | Per-phase `integration/phase-N`; task worktrees off it; each rebased task merges into it as one per-task `--no-ff` merge commit carrying `WAR-Task: <task branch>` (polish and terminal merges stay fast-forward); `--no-ff` land→working; one PR working→landing |
 | 6 | Autonomy | Auto within a phase, **gate at phase boundaries**, hard escalations always halt; `--afk` flips the gate |
 | 7 | Audit verdict | Severity-tagged; Critical/Major block, Minor/Nit route by auditor-owned **disposition** (absorb/follow-up/note/ask — ADR 0013, amended 2026-08-25), `escalate`→halt; **unanimous on one SHA** |
-| 8 | Auditor count | Per-task **roster** of 1–5 distinct-lens seats (per-seat depth); default roster of 5 seats at `deep`; a lone seat on Critical/low-confidence union-widens toward its own `widen` nomination (valid → those lenses at `deep`), else the default roster's lenses |
+| 8 | Auditor count | Per-task **roster** of 1–5 distinct-lens seats (per-seat depth); default roster of 5 seats at `deep`; a lone seat on Critical/low-confidence union-widens toward its own `widen` nomination (valid → those lenses at `deep` on the high seat tier), else the default roster's lenses |
 | 9 | Witness | Dissolved into Workflow + hooks + Lead |
 | 10 | State/resume | One authority (git) + two advisory records (GitHub issues + JSON ledger(+md)); Workflow resume journal is off-ladder |
 | 11 | Stage graph | Wave-by-wave with barriers; serial merges = the queue; explicit named worktrees |

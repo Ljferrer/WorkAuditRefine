@@ -55,7 +55,7 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS } from './land-decision.mjs'
-import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS, SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES, MODELS, EFFORTS, AUDITOR_TIERS } from './war-config.mjs'
+import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS, SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES, MODELS, MODEL_RANK, EFFORTS, AUDITOR_TIERS } from './war-config.mjs'
 import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS } from './assert-args-complete.mjs'
 import { MANIFEST_PATH_TEMPLATE, MANIFEST_KEYS } from './target-artifacts.mjs'
 
@@ -3552,6 +3552,7 @@ export {
   DEFAULTS,
   SEAT_AGENT_TYPES,
   MODELS,
+  MODEL_RANK,
   EFFORTS,
   AUDITOR_TIERS,
   EVIDENCE_LENS,

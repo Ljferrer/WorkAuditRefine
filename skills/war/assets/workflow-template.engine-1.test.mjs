@@ -32,6 +32,7 @@ import {
   DEFAULTS,
   SEAT_AGENT_TYPES,
   MODELS,
+  MODEL_RANK,
   EFFORTS,
   AUDITOR_TIERS,
   EVIDENCE_LENS,
@@ -8033,6 +8034,10 @@ test('#2534 — seat tier: tier high runs agents.auditor.high, tier low and no t
   assert.deepEqual(noLow.correctness, { model: 'sonnet', effort: 'xhigh' }, 'no low block ⇒ a seat with no tier keeps the base auditor tier')
   assert.deepEqual(noLow.simplicity, { model: 'sonnet', effort: 'xhigh' }, 'no low block ⇒ tier low keeps the base auditor tier')
   assert.deepEqual(noLow.security, { model: 'opus', effort: undefined }, 'no high block ⇒ tier high runs the AUDITOR_TIER_DEFAULTS.high fallback')
+  const stale = await optsOf({ model: 'fable', effort: 'default' })
+  assert.deepEqual(stale.security, { model: 'fable', effort: undefined }, 'a pre-#2534 fable config keeps tier high on fable (the clamp), never the opus default')
+  const below = await optsOf({ model: 'opus', effort: 'high', high: { model: 'sonnet', effort: 'low' } })
+  assert.deepEqual(below.security, { model: 'opus', effort: 'high' }, 'a high tier below the base takes the whole base tier')
   const partial = await optsOf({ model: 'sonnet', effort: 'xhigh', high: { model: 'fable' } })
   assert.deepEqual(partial.security, { model: 'fable', effort: undefined }, 'a partial high block falls back to the high default effort, never the base effort')
 })
@@ -8196,15 +8201,20 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       cases: [['docs']],
       inline: ([tier]) => inlineHelpers().WORKER_TIER_DEFAULTS[tier],
       canonical: ([tier]) => DEFAULTS.agents.worker[tier] },
-    // resolveGate (ADR 0036): the engine's inline gate-composition mirror bound to the canonical war-config.mjs
-    // resolveGate. Behavioral equality over null/empty, plain, and PRE-COMPOSED (built from canonical output),
-    // so a partial detector-token move breaks idempotence and reds this row. Delete the inline resolveGate OR
-    // its composition line and this row (and the enumerated exactly-once prompt asserts below) fail.
     // AUDITOR_TIER_DEFAULTS (#2534): the sandbox fallback for an absent agents.auditor.high, bound to DEFAULTS by value.
     { name: 'AUDITOR_TIER_DEFAULTS (inline ↔ DEFAULTS.agents.auditor.high)', mode: 'behavioral',
       cases: [['high']],
       inline: ([tier]) => inlineHelpers().AUDITOR_TIER_DEFAULTS[tier],
       canonical: ([tier]) => DEFAULTS.agents.auditor[tier] },
+    // MODEL_RANK (#2534): the capability order, hand-copied inline for spawnSeat's high-tier clamp.
+    { name: 'MODEL_RANK (order matters)', mode: 'behavioral',
+      cases: [[]],
+      inline: () => parseInlineArray(/const\s+MODEL_RANK\s*=\s*(\[[^\]]+\])/),
+      canonical: () => MODEL_RANK },
+    // resolveGate (ADR 0036): the engine's inline gate-composition mirror bound to the canonical war-config.mjs
+    // resolveGate. Behavioral equality over null/empty, plain, and PRE-COMPOSED (built from canonical output),
+    // so a partial detector-token move breaks idempotence and reds this row. Delete the inline resolveGate OR
+    // its composition line and this row (and the enumerated exactly-once prompt asserts below) fail.
     { name: 'resolveGate (inline gate-composition ↔ canonical war-config.mjs, idempotent)', mode: 'behavioral',
       cases: RESOLVE_GATE_CASES.map(g => [g]),
       inline: ([g]) => inlineHelpers().resolveGate(g),

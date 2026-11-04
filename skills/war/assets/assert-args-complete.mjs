@@ -242,17 +242,21 @@ export function checkArgs (fields, args) {
 // the seat's own model, else its tier (agents.auditor.high for tier 'high', else agents.auditor.low,
 // else the base auditor model, as spawnSeat resolves it). A warning, never a refusal: the Lead's
 // judgment sets the class. Returns one line per such task.
-const BOUNDARY_PATH = /migrat|(^|[/._-])o?auth(?!or(s|ed|ing|ship)?([/._-]|$))|(^|[/._-])git([/._-]|modules|$)/
+const BOUNDARY_PATH = /migrat|(^|[/._-])(un)?o?auth(?!or(s|ed|ing|ship)?([/._-]|$))|(^|[/._-])git([/._-]|modules|$)/
+// CAMEL_AUTH reads the original-case path, so userAuth.ts and withAuth.tsx carry the signal too.
+const CAMEL_AUTH = /[a-z0-9]Auth(?!or(s|ed|ing|ship)?([^a-z]|$))/
 export function boundaryWarnings (args) {
   const a = (args && args.agents && args.agents.auditor) || {}
-  const seatModel = s => s.model || (s.tier === 'high' ? (a.high || {}).model || 'opus' : (a.low || {}).model || a.model || 'sonnet')
-  const strong = m => MODEL_RANK.indexOf(m) >= MODEL_RANK.indexOf('opus')
+  const rank = m => MODEL_RANK.indexOf(m)
+  const base = a.model || 'sonnet', high = (a.high || {}).model || 'opus'
+  const seatModel = s => s.model || (s.tier === 'high' ? (rank(high) < rank(base) ? base : high) : (a.low || {}).model || base)
+  const strong = m => rank(m) >= rank('opus')
   const out = []
   for (const t of (args && Array.isArray(args.tasks) ? args.tasks : [])) {
     const seats = (t && Array.isArray(t.roster) ? t.roster : []).filter(s => s && typeof s === 'object')
     const signals = [
       ...(seats.some(s => s.lens === 'security') ? ['a security seat'] : []),
-      ...(t && Array.isArray(t.files) ? t.files : []).filter(p => typeof p === 'string' && BOUNDARY_PATH.test(p.toLowerCase())),
+      ...(t && Array.isArray(t.files) ? t.files : []).filter(p => typeof p === 'string' && (BOUNDARY_PATH.test(p.toLowerCase()) || CAMEL_AUTH.test(p))),
     ]
     if (signals.length && !seats.some(s => strong(seatModel(s)))) {
       out.push(`task ${(t && t.id) ?? '?'} has a boundary signal (${signals.join(', ')}) and no seat resolves to opus or above — give a boundary-heavy seat tier 'high' (ADR 0056)`)

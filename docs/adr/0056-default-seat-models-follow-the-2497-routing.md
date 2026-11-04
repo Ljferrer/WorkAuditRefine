@@ -49,7 +49,9 @@ roster policy, and states the choice in a one-line rationale. Sonnet on every se
 behavior bugs in the field, and opus on every seat cost too much on routine seats. A roster seat
 names `tier: 'low'` or `tier: 'high'`. `agents.auditor.high` is defaulted, and
 `agents.auditor.low` is not: a seat with no tier, or with tier low and no low block, runs the base
-auditor model and effort, so an old config runs as before. The values for each preset live in
+auditor model and effort, so an old config runs as before. A high tier whose model ranks below the
+base auditor model resolves to the base tier, so a config written before this amendment never drops
+a high seat below its other seats. The values for each preset live in
 `war-config.mjs` and the `/war-room` preset bullets, never restated here. The boundary rule is the
 floor: a boundary-heavy seat takes the high tier and never runs below opus, an explicit seat pin below
 opus rises, and a `fable` tier stays. A seat that widening adds from a valid nomination runs on the

@@ -1573,6 +1573,7 @@ test('roundLimit default is 6; old default literal absent across enumerated doc 
 // [file, construct regex, preset, path] — capture 1 = model word, optional capture 2 = effort word.
 const DOC_TIER_PINS = [
   ['README.md', /read-only auditor seats \((\w+)\/`(\w+)` by default/, 'balanced', 'snipe'],
+  ['README.md', /boundary-heavy seat runs on the high tier, (\w+) by default/, 'balanced', 'auditor.high'],
   ['README.md', /^By default WAR runs (\w+) workers on `(\w+)` effort and/m, 'balanced', 'worker'],
   ['README.md', /^By default WAR runs \w+ workers on `\w+` effort and (\w+) auditors on `(\w+)`/m, 'balanced', 'auditor'],
   ['README.md', /built-in `DEFAULTS`: (\w+) workers on `(\w+)` effort/, 'balanced', 'worker'],
