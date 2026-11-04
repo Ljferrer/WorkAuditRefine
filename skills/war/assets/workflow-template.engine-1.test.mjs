@@ -15216,6 +15216,8 @@ test('2150: the terminal-pass merge proceeds over exactly the recorded baseline 
   const { out, calls, logs } = await run({ mode: 'merge-task', status: 'merged', integration_sha: '7e4a1a12', gate_failing_ids: DEBT_IDS })
   const m = calls.find(c => c.opts.label === site)
   assert.ok(m.prompt.includes(SWEEP_DEBT_HEAD + " over this phase's recorded baseline gate debt:\n  1. [" + DEBT_IDS.join(', ') + '] — pre-existing at ' + DEBT_BASE + '\n'), 'the terminal merge names the recorded debt')
+  assert.ok(m.prompt.includes('Do NOT classify and do NOT re-run the base. If EVERY failing identifier is in that set, PROCEED over exactly those failures, merge,') && m.prompt.includes('covered identifiers in gate_failing_ids'), 'the terminal merge proceeds over exactly that set, with no classification and no base re-run')
+  assert.ok(m.prompt.includes('Any other failure returns gate_failed as above, and you do NOT merge.\n'), 'a red outside the set keeps gate_failed on the terminal refiner side')
   assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb' && a.sha === '7e4a1a10'), 'a red on the debt set merges, so the absorb is aced')
   assert.ok(logs.some(l => typeof l === 'string' && l === 'terminal pass merge:p3-terminal: proceeded over baseline gate debt [' + DEBT_IDS.join(', ') + '].'), 'the proceed-over is logged with its ids')
   const red = await run({ mode: 'merge-task', status: 'gate_failed', gate_failing_ids: ['test_new'], gate_output: 'a new failure' }, { finalPhase: false })
