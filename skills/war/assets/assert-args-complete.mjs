@@ -57,7 +57,7 @@
 import { readFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { MODEL_RANK } from './war-config.mjs'
+import { MODEL_RANK, DEFAULTS } from './war-config.mjs'
 
 // Fields extracted from pt spans but deliberately NOT required of the launch args. Keys are the
 // mapped field names extractArgsFields() emits. Reasons are load-bearing documentation: an entry
@@ -243,12 +243,14 @@ export function checkArgs (fields, args) {
 // else the base auditor model, as spawnSeat resolves it, with a high tier below the base lifted to the base). A warning, never a refusal: the Lead's
 // judgment sets the class. Returns one line per such task.
 const BOUNDARY_PATH = /migrat|(^|[/._-])(un)?o?auth(?!or(s|ed|ing|ship)?([/._-]|$))|(^|[/._-])git([/._-]|modules|attributes|ignore|$)/
-// CAMEL_AUTH reads the original-case path, so userAuth.ts and withAuth.tsx carry the signal too.
-const CAMEL_AUTH = /[a-z0-9]Auth(?!or(s|ed|ing|ship)?([^a-z]|$))/
+// CAMEL_AUTH and CAMEL_GIT read the original-case path, so userAuth.ts, MyOAuth.ts, GitService.ts and
+// gitClient.js carry the signal too. GitHub names are not Git paths.
+const CAMEL_AUTH = /[a-z0-9O]Auth(?!or(s|ed|ing|ship)?([^a-z]|$))/
+const CAMEL_GIT = /(^|[^A-Za-z]|[a-z0-9])Git(?!Hub)([^a-z]|$)|(^|[^A-Za-z])git[A-Z]/
 export function boundaryWarnings (args) {
   const a = (args && args.agents && args.agents.auditor) || {}
   const rank = m => MODEL_RANK.indexOf(m)
-  const base = a.model || 'sonnet', high = (a.high || {}).model || 'opus'
+  const base = a.model || DEFAULTS.agents.auditor.model, high = (a.high || {}).model || DEFAULTS.agents.auditor.high.model
   const seatModel = s => s.model || (s.tier === 'high' ? (rank(high) < rank(base) ? base : high) : (a.low || {}).model || base)
   const strong = m => rank(m) >= rank('opus')
   const out = []
@@ -256,7 +258,7 @@ export function boundaryWarnings (args) {
     const seats = (t && Array.isArray(t.roster) ? t.roster : []).filter(s => s && typeof s === 'object')
     const signals = [
       ...(seats.some(s => s.lens === 'security') ? ['a security seat'] : []),
-      ...(t && Array.isArray(t.files) ? t.files : []).filter(p => typeof p === 'string' && (BOUNDARY_PATH.test(p.toLowerCase()) || CAMEL_AUTH.test(p))),
+      ...(t && Array.isArray(t.files) ? t.files : []).filter(p => typeof p === 'string' && (BOUNDARY_PATH.test(p.toLowerCase()) || CAMEL_AUTH.test(p) || CAMEL_GIT.test(p))),
     ]
     if (signals.length && !seats.some(s => strong(seatModel(s)))) {
       out.push(`task ${(t && t.id) ?? '?'} has a boundary signal (${signals.join(', ')}) and no seat resolves to opus or above — give a boundary-heavy seat tier 'high' (ADR 0056)`)

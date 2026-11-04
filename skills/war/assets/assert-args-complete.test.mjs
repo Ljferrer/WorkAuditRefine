@@ -350,6 +350,9 @@ test('boundaryWarnings: each boundary signal with no opus seat warns once and na
     [btask({ files: ['.gitmodules'] }), /\.gitmodules/],
     [btask({ files: ['.gitignore'] }), /\.gitignore/],
     [btask({ files: ['.gitattributes'] }), /\.gitattributes/],
+    [btask({ files: ['src/GitService.ts'] }), /GitService\.ts/],
+    [btask({ files: ['lib/gitClient.js'] }), /gitClient\.js/],
+    [btask({ files: ['src/MyOAuth.ts'] }), /MyOAuth\.ts/],
   ]) {
     const w = warnsFor(task)
     assert.equal(w.length, 1, `one warning for ${JSON.stringify(task.files)} / ${JSON.stringify(task.roster)}`)
@@ -364,11 +367,13 @@ test('boundaryWarnings: silent when a seat resolves to opus or above, or when th
   assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security' }, { lens: 'correctness', model: 'fable' }] })), [], 'a fable seat ranks above opus')
   assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security' }] }), { auditor: { model: 'opus', effort: 'default' } }), [], 'an opus base tier covers a seat with no tier')
   assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security' }] }), { auditor: { model: 'sonnet', effort: 'high', low: { model: 'opus', effort: 'default' } } }), [], 'an opus low tier covers a seat with no tier')
-  assert.deepEqual(warnsFor(btask({ files: ['docs/authoring-guide.md', 'AUTHORS.md', 'docs/author.md', 'docs/coAuthors.md', 'src/digit.js', 'README.md'] })), [], 'author, authoring and digit are not boundary words')
+  assert.deepEqual(warnsFor(btask({ files: ['docs/authoring-guide.md', 'AUTHORS.md', 'docs/author.md', 'docs/coAuthors.md', 'src/GitHubBadge.tsx', 'src/legitScore.js', 'src/DigitalClock.ts', 'src/digit.js', 'README.md'] })), [], 'author, authoring and digit are not boundary words')
   assert.deepEqual(warnsFor(btask()), [], 'no signal, no warning')
   assert.equal(warnsFor(btask({ roster: [{ lens: 'security', tier: 'high' }] }), { auditor: { model: 'sonnet', effort: 'high', high: { model: 'sonnet', effort: 'high' } } }).length, 1,
     'a high tier below opus does not cover the floor')
   assert.deepEqual(boundaryWarnings({ tasks: [] }), [], 'a zero-task launch is silent')
+  assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security', tier: 'high' }] }), { auditor: { model: 'sonnet', effort: 'high' } }), [],
+    'an absent high block resolves to the DEFAULTS high model (opus), as spawnSeat resolves it')
   assert.equal(warnsFor(btask({ roster: [{ lens: 'security', tier: 'high' }] }), { auditor: { model: 'sonnet', effort: 'high', high: { model: 'haiku', effort: 'high' } } }).length, 1,
     'the clamp lifts a high tier only to the base model, so a sonnet base still warns')
   assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security', tier: 'high' }] }), { auditor: { model: 'fable', effort: 'default', high: { model: 'sonnet', effort: 'high' } } }), [],
