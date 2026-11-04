@@ -358,7 +358,7 @@ test('SKILL.md holds each loop rule', () => {
     /each seat returned a verdict whose `audit_sha` equals the pushed tip/,
     /no Critical, Major or Minor survives, and the gate and each `check` pass at this tip, the run closes as `settled`/,
     /Use `--size` seats in round 1/,
-    /A lens that found a Critical, Major or Minor last round stays on the high rung at `deep`, and a round never drops it/,
+    /A lens that found a Critical, Major or Minor last round returns to or stays on the high rung at `deep`, and a round never drops it/,
     /`named` lenses stay in each round/,
     /Run the gate and each `check`, commit, run the diff check from section 3, and push\. If the gate or a `check` stays red, stop and close as `held`/,
     /A fix commit never changes `overrides\.gate`/,

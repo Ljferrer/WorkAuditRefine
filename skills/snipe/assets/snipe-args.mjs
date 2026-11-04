@@ -1,7 +1,7 @@
 // /snipe argument parsing + seat/lens reconciliation + seat-tier resolution (#1920).
 // Pure ESM, no deps. Used by the /snipe SKILL as a CLI:
 //   node snipe-args.mjs '<raw arg string>' [--config <path to .claude/war/config.json>]
-// Prints one JSON object: { target, seats, named, autoCount, tier, roundCap, errors }.
+// Prints one JSON object: { target, seats, named, autoCount, tier, tiers, roundCap, errors }.
 // Always exits 0 — the Lead refuses to spawn when `errors` is non-empty.
 //
 // Grammar (trailing, order-tolerant between the two arg tokens):

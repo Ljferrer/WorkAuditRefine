@@ -4601,7 +4601,9 @@ test('#2534 item 23b: /snipe picks each seat rung and depth with its lens, and n
 
 test('#2534 item 23b: /zero-in steps a quiet lens down one rung per round before it drops the seat', () => {
   const loop = readFileSync(join(HERE, '../../zero-in/SKILL.md'), 'utf8').split('## 4.')[1].split('## 5.')[0]
-  assert.match(loop, /A lens that found a Critical, Major or Minor last round stays on the high rung at `deep`, and a round never drops it/)
+  assert.match(loop, /A lens that found a Critical, Major or Minor last round returns to or stays on the high rung at `deep`, and a round never drops it/)
+  assert.match(loop, /A later round uses only the lenses the ladder keeps, so never refill a dropped seat with `auto`/, 'a dropped seat stays dropped')
+  assert.match(loop, /a `named` lens steps down but stops at low at `neighbors`/, 'a named lens is never dropped')
   assert.match(loop, /A lens that found only Nits or nothing steps down one rung: high at `deep`, then low at `deep`, then low at `neighbors`, then dropped/)
   assert.doesNotMatch(loop, /uses fewer seats if the findings narrow/, 'the narrowing rule is retired')
 })
