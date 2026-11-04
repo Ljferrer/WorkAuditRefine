@@ -66,7 +66,8 @@ the two rungs let the Lead step a lens down gracefully between audit rounds, bef
 above the snipe model runs as the snipe tier. The Lead picks each seat's rung and depth with its lens, and a
 boundary-heavy seat takes the high rung at deep. In `/zero-in`, a lens that found a Critical, Major or Minor
 stays high at deep and is never dropped, and a quiet lens steps down one rung per round: high at deep, low
-at deep, low at neighbors, then dropped. Every preset steps down the same way, and `thorough` starts from a
+at deep, low at neighbors, then dropped. A lens with a new finding returns to the high rung at deep, and a
+named lens steps down but stops at low at neighbors. Every preset steps down the same way, and `thorough` starts from a
 higher budget. The default config runs no fable audit seat. The values live in `war-config.mjs` and the
 `/war-room` preset bullets, never restated here.
 
