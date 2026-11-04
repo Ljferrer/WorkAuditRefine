@@ -430,6 +430,11 @@ import {
   provisionSiteCensus,
   PROVISION_SITE_CENSUS,
   provisionFailure,
+  DEBT_IDS,
+  DEBT_BASE,
+  debtSeed,
+  SWEEP_DEBT_HEAD,
+  withoutSweepDebt,
 } from './workflow-template.test-harness.mjs'
 
 
@@ -15173,6 +15178,55 @@ test('segmented-gate: the terminal-pass merge re-dispatches an incomplete reply 
   assert.ok(!(p.out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb'), 'nothing is aced on a spent budget')
   assert.ok(carriedOf(p.out, 'polish-panel absorb'), 'the row carries on a non-final phase')
   assert.equal(p.out.landDecision, 'landed', 'the phase still lands')
+})
+
+// #2150 polish half: both sweep-family merges read the phase's recorded baseline debt. A red on exactly
+// that set merges and logs the ids, a red outside it keeps the site's fail-open arm, and a phase with
+// no debt dispatches the same prompt bytes as before.
+test('2150: the phase-close sweep merge proceeds over exactly the recorded baseline debt and logs it, a red outside the set still discards, and no debt leaves the prompt unchanged', async () => {
+  const site = 'merge:p3-polish'
+  const run = (res) => runPhase(SWEEP_ARGS(), debtSeed((p, o) => (o.label || '') === site && res ? res : sweepBase([queuedAbsorb()])(p, o)))
+  const { out, calls, logs } = await run({ mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe13', gate_failing_ids: DEBT_IDS })
+  const m = calls.find(c => c.opts.label === site)
+  assert.ok(m.prompt.includes(SWEEP_DEBT_HEAD + " over this phase's recorded baseline gate debt:\n  1. [" + DEBT_IDS.join(', ') + '] — pre-existing at ' + DEBT_BASE + '\n'), 'the sweep merge names the recorded debt')
+  assert.ok(m.prompt.includes('Do NOT classify and do NOT re-run the base. If EVERY failing identifier is in that set, PROCEED over exactly those failures, merge,') && m.prompt.includes('covered identifiers in gate_failing_ids'), 'it proceeds over exactly that set, with no classification and no base re-run')
+  assert.ok(m.prompt.includes('Any other failure returns gate_failed as above, and you do NOT merge.\n'), 'a red outside the set keeps gate_failed on the refiner side')
+  assert.equal(out.handoff.polish, 'merged', 'a red on the debt set merges the sweep')
+  assert.ok(logs.some(l => typeof l === 'string' && l === 'phase-close sweep merge:p3-polish: proceeded over baseline gate debt [' + DEBT_IDS.join(', ') + '].'), 'the proceed-over is logged with its ids')
+  const odd = await run({ mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe13', gate_failing_ids: [...DEBT_IDS, 'test_new'] })
+  assert.ok(odd.logs.some(l => typeof l === 'string' && l.includes('NOT in the recorded debt: [test_new]')), 'an id outside the debt is named in the log')
+  const red = await run({ mode: 'merge-task', status: 'gate_failed', gate_failing_ids: ['test_new'], gate_output: 'a new failure' })
+  assert.equal(red.out.handoff.polish, 'discarded', 'a red outside the debt set still discards fail-open')
+  assert.ok(!red.logs.some(l => typeof l === 'string' && l.includes('proceeded over baseline gate debt')), 'a discard logs no proceed-over')
+  const bareRun = await runPhase(SWEEP_ARGS(), (p, o) => (o.label || '') === site ? { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe13', gate_failing_ids: DEBT_IDS } : sweepBase([queuedAbsorb()])(p, o))
+  const bare = bareRun.calls.find(c => c.opts.label === site)
+  assert.ok(!bare.prompt.includes('BASELINE-PROCEED'), 'no debt, no clause')
+  assert.equal(withoutSweepDebt(m.prompt), bare.prompt, 'the clause is the only byte the debt adds to the sweep merge prompt')
+  assert.ok(!bareRun.logs.some(l => typeof l === 'string' && l.includes('proceeded over baseline gate debt')), 'a debt-free merge logs no proceed-over, even with ids on the result')
+  const unnamed = await runPhase(SWEEP_ARGS(), debtSeed((p, o) => (o.label || '') === site ? { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe13', gate_failing_ids: ['test_x'] } : sweepBase([queuedAbsorb()])(p, o), []))
+  const um = unnamed.calls.find(c => c.opts.label === site)
+  assert.ok(unnamed.calls.find(c => c.opts.label === 'land:phase-3').prompt.includes('KNOWN BASELINE GATE DEBT'), 'the unnamed entry is recorded')
+  assert.ok(!um.prompt.includes('BASELINE-PROCEED'), 'an entry with no ids adds no sweep clause')
+  assert.ok(!unnamed.logs.some(l => typeof l === 'string' && l.includes('proceeded over baseline gate debt')), 'an entry with no ids logs no proceed-over')
+})
+
+test('2150: the terminal-pass merge proceeds over exactly the recorded baseline debt and logs it, a red outside the set still forward-reverts, and no debt leaves the prompt unchanged', async () => {
+  const site = 'merge:p3-terminal'
+  const run = (res, over = {}) => { const base = terminalImpl(); return runPhase(SWEEP_ARGS(over), debtSeed((p, o) => (o.label || '') === site && res ? res : base(p, o))) }
+  const { out, calls, logs } = await run({ mode: 'merge-task', status: 'merged', integration_sha: '7e4a1a12', gate_failing_ids: DEBT_IDS })
+  const m = calls.find(c => c.opts.label === site)
+  assert.ok(m.prompt.includes(SWEEP_DEBT_HEAD + " over this phase's recorded baseline gate debt:\n  1. [" + DEBT_IDS.join(', ') + '] — pre-existing at ' + DEBT_BASE + '\n'), 'the terminal merge names the recorded debt')
+  assert.ok(m.prompt.includes('Do NOT classify and do NOT re-run the base. If EVERY failing identifier is in that set, PROCEED over exactly those failures, merge,') && m.prompt.includes('covered identifiers in gate_failing_ids'), 'the terminal merge proceeds over exactly that set, with no classification and no base re-run')
+  assert.ok(m.prompt.includes('Any other failure returns gate_failed as above, and you do NOT merge.\n'), 'a red outside the set keeps gate_failed on the terminal refiner side')
+  assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb' && a.sha === '7e4a1a10'), 'a red on the debt set merges, so the absorb is aced')
+  assert.ok(logs.some(l => typeof l === 'string' && l === 'terminal pass merge:p3-terminal: proceeded over baseline gate debt [' + DEBT_IDS.join(', ') + '].'), 'the proceed-over is logged with its ids')
+  const red = await run({ mode: 'merge-task', status: 'gate_failed', gate_failing_ids: ['test_new'], gate_output: 'a new failure' }, { finalPhase: false })
+  assert.ok(red.calls.some(c => (c.opts.label || '').startsWith('terminal-revert:') && TERMINAL_RANGE_REVERT.test(c.prompt)), 'a red outside the debt set still forward-reverts the terminal range')
+  assert.ok(!(red.out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb'), 'nothing is aced')
+  assert.ok(!red.logs.some(l => typeof l === 'string' && l.includes('proceeded over baseline gate debt')), 'a revert logs no proceed-over')
+  const bare = (await runPhase(SWEEP_ARGS(), terminalImpl())).calls.find(c => c.opts.label === site)
+  assert.ok(!bare.prompt.includes('BASELINE-PROCEED'), 'no debt, no clause')
+  assert.equal(withoutSweepDebt(m.prompt), bare.prompt, 'the clause is the only byte the debt adds to the terminal merge prompt')
 })
 
 // #2155: one sentence in backgroundGateRule, shared by segmentedGateClause and segmentedLandClause, says

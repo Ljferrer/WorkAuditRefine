@@ -3500,6 +3500,25 @@ const PROVISION_SITE_CENSUS = [
 // it as the soft env-blocked escalation, worktree kept; a paraphrased failedCommand throws held:workflow-error.
 const provisionFailure = (failedCommand) => ({ mode: 'merge-task', status: 'error', provision: { ok: false, failedCommand, exitCode: 1, stderrTail: 'ERR_LOCKFILE', provisionSource: 'ci' } })
 
+// #2150 polish half: seed the phase's baseline debt. The t1 merge returns a baseline-class red and its
+// baseline-proceed re-merge merges, so the debt holds DEBT_IDS before the sweep-family merges run.
+const DEBT_IDS = ['test_endpoint_build']
+const DEBT_BASE = 'ba5e0000ba5e'
+// ids = [] records an entry with no identifiers (recordBaselineDebt keeps it, as '(see gate_output)').
+const debtSeed = (base, ids = DEBT_IDS) => (prompt, opts) => {
+  const label = opts.label || ''
+  if (seatOf(opts) === 'war-refiner' && label === 'merge:t1') return { mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ids, gate_base_sha: DEBT_BASE, gate_output: 'pre-existing red' }
+  if (seatOf(opts) === 'war-refiner' && label === 'merge:t1:baseline-proceed') return { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe12' }
+  return base(prompt, opts)
+}
+// The sweep-family debt clause as the prompt carries it, cut out so the rest compares byte-equal.
+const SWEEP_DEBT_HEAD = '\nBASELINE-PROCEED (Workflow-dispatched)'
+const SWEEP_DEBT_TAIL = 'and you do NOT merge.\n'
+const withoutSweepDebt = (prompt) => {
+  const i = prompt.indexOf(SWEEP_DEBT_HEAD), j = prompt.indexOf(SWEEP_DEBT_TAIL, i)
+  return i < 0 || j < 0 ? prompt : prompt.slice(0, i) + prompt.slice(j + SWEEP_DEBT_TAIL.length)
+}
+
 export {
   test,
   assert,
@@ -3929,4 +3948,9 @@ export {
   provisionSiteCensus,
   PROVISION_SITE_CENSUS,
   provisionFailure,
+  DEBT_IDS,
+  DEBT_BASE,
+  debtSeed,
+  SWEEP_DEBT_HEAD,
+  withoutSweepDebt,
 }
