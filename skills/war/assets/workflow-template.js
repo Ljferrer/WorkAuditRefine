@@ -35,7 +35,7 @@ export const meta = {
 //                                     // assert-test-in-diff.sh `--pattern '<value>'` arg at every dispatched
 //                                     // merge-task floor invocation site; null ⇒ bare, byte-identical to today.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
-//                roster:[{ lens, depth?, agentType? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging?, pendingAbsorbs? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                roster:[{ lens, depth?, agentType?, model?, effort?, tier? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging?, pendingAbsorbs? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
 //                                     // pendingAbsorbs = RELAUNCH-SEED ONLY ([finding rows] held by a blocker-held batch ace at a prior launch); aceStage folds
 //                                     // them into the next approve's ace batch through the same routing chain as fresh rows. Absent ⇒ nothing folds.
 //                                     // planSlice = the task charter (REQUIRED non-empty string — the entry-validation
@@ -60,6 +60,7 @@ export const meta = {
 //     ghUser,                         // optional expected gh account for the file-followups preflight (from
 //                                     // overrides.ghUser; string, default '' — gh-preflight.sh's documented no-op)
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
+//                                     // auditor may also carry { rebuttal?, high?, low? } { model, effort } sub-tiers (#2534: high defaulted, low not).
 //                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (defaulted in war-config DEFAULTS), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
 //     absorbCharges?,                 // optional { <task>: n } Lead override of the barrier's Ace-Charge read at a relaunch — read unconditionally
@@ -799,17 +800,31 @@ const ROLE_MODEL = { worker: 'opus', auditor: 'sonnet', refiner: 'sonnet', servi
 // check (#2519). Bound by the MODELS and EFFORTS registry rows in workflow-template.engine-1.test.mjs.
 const MODELS = ['opus', 'sonnet', 'haiku', 'fable']
 const EFFORTS = ['default', 'low', 'medium', 'high', 'xhigh', 'max']
+// AUDITOR_TIERS: inline copy of the war-config.mjs export, the values a seat's `tier` may name (#2534).
+// AUDITOR_TIER_DEFAULTS.high: the sandbox fallback for an absent agents.auditor.high, equal to DEFAULTS.
+// Both are bound by their registry rows in workflow-template.engine-1.test.mjs.
+const AUDITOR_TIERS = ['low', 'high']
+const AUDITOR_TIER_DEFAULTS = { high: { model: 'opus', effort: 'default' } }
+// MODEL_RANK: inline copy of the war-config.mjs export, bound by its registry row. spawnSeat reads it to clamp
+// the high tier: a high model below the base auditor model resolves to the base tier (operator ruling, #2534).
+const MODEL_RANK = ['haiku', 'sonnet', 'opus', 'fable']
 const spawn = role => {
   const a = agents[role] || {}
   const model = a.model || ROLE_MODEL[role]
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
 }
 // spawnSeat(seat, rebut): an auditor roster seat's spawn opts. A seat's own model/effort (#2519, validated by
-// validateRoster) overrides the auditor tier field by field; a seat with neither is exactly spawn('auditor').
-// In a rebuttal round a configured agents.auditor.rebuttal tier replaces both; absent, the round is unchanged.
+// validateRoster) overrides its seat tier field by field. The seat tier (#2534) is agents.auditor.high for
+// tier 'high' (a partial block falls back to AUDITOR_TIER_DEFAULTS.high), else agents.auditor.low, else the
+// base auditor tier: a seat with no tier and no low block is exactly spawn('auditor'). A high tier whose model ranks
+// below the base auditor model takes the base tier, so a config written before #2534 never drops a seat.
+// In a rebuttal round a configured agents.auditor.rebuttal tier replaces all of them; absent, the round is unchanged.
 const spawnSeat = (s, rebut) => {
-  const a = agents.auditor || {}, r = rebut && a.rebuttal, e = r ? r.effort : s.effort ?? a.effort
-  return { model: (r && r.model) || s.model || a.model || ROLE_MODEL.auditor, ...(e && e !== 'default' && { effort: e }) }
+  const a = agents.auditor || {}, r = rebut && a.rebuttal
+  const h = { ...AUDITOR_TIER_DEFAULTS.high, ...a.high }, base = a.model || ROLE_MODEL.auditor
+  const t = s.tier !== 'high' ? (a.low || {}) : MODEL_RANK.indexOf(h.model) < MODEL_RANK.indexOf(base) ? { model: base, effort: a.effort } : h
+  const e = r ? r.effort : s.effort ?? t.effort ?? a.effort
+  return { model: (r && r.model) || s.model || t.model || a.model || ROLE_MODEL.auditor, ...(e && e !== 'default' && { effort: e }) }
 }
 // helperOpts(...words): the spawn opts of a tiny read-only Git dispatch (#2497, ADR 0057). The helper card
 // allows no shell syntax, so a word it cannot pass bare routes that one dispatch to the refiner, and shq quotes it there.
@@ -853,7 +868,7 @@ const isDocsTask = t => Array.isArray(t.files) && t.files.length > 0 && t.files.
 // the SEAT_AGENT_TYPES registry row in workflow-template.engine-1.test.mjs. 'war-evidence-auditor' is the evidence seat.
 const SEAT_AGENT_TYPES = ['war-auditor', 'war-evidence-auditor']
 // Roster validation (D8): 1–5 seats, non-empty string lens, depth absent or neighbors|deep, lenses distinct,
-// agentType absent or a SEAT_AGENT_TYPES member, model/effort absent or a MODELS/EFFORTS member. `evidence` is the run.evidence knob: an evidence-type row is
+// agentType absent or a SEAT_AGENT_TYPES member, model/effort/tier absent or a MODELS/EFFORTS/AUDITOR_TIERS member. `evidence` is the run.evidence knob: an evidence-type row is
 // rejected unless it is exactly true; beside an evidence seat the non-evidence seats cap at 4 (five-seat ceiling).
 const validateRoster = (roster, evidence) => {
   const errors = []
@@ -867,14 +882,14 @@ const validateRoster = (roster, evidence) => {
   if (errors.length > 0) return { valid: false, errors }
   const seen = []
   roster.forEach((seat, i) => {
-    if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth?, agentType?, model?, effort? }`); return }
+    if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth?, agentType?, model?, effort?, tier? }`); return }
     if (typeof seat.lens !== 'string' || !seat.lens) errors.push(`roster[${i}].lens must be a non-empty string`)
     else if (seen.includes(seat.lens)) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
     else seen.push(seat.lens)
     if (seat.depth !== undefined && seat.depth !== 'neighbors' && seat.depth !== 'deep') errors.push(`roster[${i}].depth must be "neighbors" or "deep" when present (got ${JSON.stringify(seat.depth)})`)
     if (seat.agentType !== undefined && !SEAT_AGENT_TYPES.includes(seat.agentType)) errors.push(`roster[${i}].agentType must be one of ${SEAT_AGENT_TYPES.join('|')} when present (got ${JSON.stringify(seat.agentType)})`)
     else if (seat.agentType === 'war-evidence-auditor' && evidence !== true) errors.push(`roster[${i}].agentType "war-evidence-auditor" needs run.evidence: true (the evidence seat is off by default)`)
-    for (const [k, e] of [['model', MODELS], ['effort', EFFORTS]]) if (seat[k] !== undefined && !e.includes(seat[k])) errors.push(`roster[${i}].${k} must be one of ${e.join('|')} when present (got ${JSON.stringify(seat[k])})`)
+    for (const [k, e] of [['model', MODELS], ['effort', EFFORTS], ['tier', AUDITOR_TIERS]]) if (seat[k] !== undefined && !e.includes(seat[k])) errors.push(`roster[${i}].${k} must be one of ${e.join('|')} when present (got ${JSON.stringify(seat[k])})`)
   })
   return { valid: errors.length === 0, errors }
 }
@@ -893,7 +908,7 @@ const widenRoster = (roster, defaultRoster) => {
 }
 // Lone-seat widening SOURCE (D4): a valid auditor nomination is a non-empty array of distinct,
 // non-empty strings, never a `RESERVED_LENSES` or `WIDEN_BARRED_LENSES` member (exports in
-// `war-config.mjs`), strict whole-field. Valid → nominated lenses @ deep,
+// `war-config.mjs`), strict whole-field. Valid → nominated lenses @ deep on the high seat tier (#2534),
 // source 'nominated'; else → defaultRoster verbatim, source 'default'. Feeds widenRoster.
 const RESERVED_LENSES = ['execution-evidence', 'pin-validity']
 // WIDEN_BARRED_LENSES (REA artifact evidence D19): inline copy of the war-config.mjs export, bound by the
@@ -904,7 +919,7 @@ const resolveWidenSource = (nominated, defaultRoster) => {
     nominated.every(l => typeof l === 'string' && l.length > 0 && !RESERVED_LENSES.includes(l) && !WIDEN_BARRED_LENSES.includes(l)) &&
     new Set(nominated).size === nominated.length
   return valid
-    ? { source: 'nominated', seats: nominated.map(lens => ({ lens, depth: 'deep' })) }
+    ? { source: 'nominated', seats: nominated.map(lens => ({ lens, depth: 'deep', tier: 'high' })) }
     : { source: 'default', seats: defaultRoster }
 }
 // resolveGate (F12, idempotent) — inline copy of war-config.mjs resolveGate (named in the block-head marker
@@ -3518,7 +3533,7 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
   // unlisted type at entry, and this guard refuses it again at dispatch so no roster shape ever reaches
   // dispatch under an unlisted type. The evidence seat dispatches as NS + 'war-evidence-auditor' and gets
   // the evidence skeleton from auditPrompt; spawnSeat supplies the model tier for every seat type — the auditor
-  // tier, or the seat's own model/effort when the roster row carries one (#2519).
+  // seat tier (#2534), or the seat's own model/effort when the roster row carries one (#2519).
   const runSeat = seat => {
     const agentType = seat.agentType ?? 'war-auditor'
     if (!SEAT_AGENT_TYPES.includes(agentType)) throw new Error('task ' + task.id + ': roster seat ' + seat.lens + ' names agentType ' + JSON.stringify(agentType) + ' — not a SEAT_AGENT_TYPES member (' + SEAT_AGENT_TYPES.join('|') + '); refused at dispatch')
@@ -4932,7 +4947,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (audit.autoEscalate !== false && task.roster.length === 1 &&
             (seats[0].confidence === 'low' || (seats[0].findings || []).some(f => f.severity === 'Critical'))) {
           // Widening source (D4): the lone seat may nominate catalog lenses via `widen`; a valid
-          // nomination widens toward those seats @ deep, else the union with the default roster. Never silent.
+          // nomination widens toward those seats @ deep on the high seat tier, else the union with the default roster. Never silent.
           const widen = resolveWidenSource(seats[0].widen, defaultRoster)
           task.roster = widenRoster(task.roster, widen.seats)
           const src = widen.source === 'nominated' ? 'nominated' : 'default fallback'

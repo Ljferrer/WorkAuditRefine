@@ -55,7 +55,7 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS } from './land-decision.mjs'
-import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS, SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES, MODELS, EFFORTS } from './war-config.mjs'
+import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS, SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES, MODELS, MODEL_RANK, EFFORTS, AUDITOR_TIERS } from './war-config.mjs'
 import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS } from './assert-args-complete.mjs'
 import { MANIFEST_PATH_TEMPLATE, MANIFEST_KEYS } from './target-artifacts.mjs'
 
@@ -1464,7 +1464,7 @@ const inlineHelperBlock = (() => {
   return { ok: s !== -1 && e > s, block: s !== -1 && e > s ? src.slice(s, e) : '' }
 })()
 const inlineHelpers = (agents = {}) =>
-  new Function('agents', inlineHelperBlock.block + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, isDocsTask, resolveGate }')(agents)
+  new Function('agents', inlineHelperBlock.block + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, AUDITOR_TIER_DEFAULTS, isDocsTask, resolveGate }')(agents)
 
 const AGENTS_FIXTURES = [
   {},                                                                          // all omitted → ROLE_MODEL/DEFAULTS fallback
@@ -1503,6 +1503,8 @@ const VALIDATE_ROSTER_CASES = [
   [[{ lens: 'correctness', effort: 'default' }], undefined],                  // per-seat effort alone
   [[{ lens: 'correctness', model: 'gpt' }], undefined],                       // unknown seat model
   [[{ lens: 'correctness', model: 'opus', effort: 'turbo' }], undefined],     // unknown seat effort
+  [[{ lens: 'correctness', tier: 'high' }, { lens: 'simplicity', tier: 'low' }], undefined], // per-seat tier (#2534)
+  [[{ lens: 'correctness', tier: 'opus' }], undefined],                       // unknown seat tier
 ]
 const WIDEN_ROSTER_CASES = [
   [[{ lens: 'a' }], RTRIO],                                                     // union append
@@ -3550,7 +3552,9 @@ export {
   DEFAULTS,
   SEAT_AGENT_TYPES,
   MODELS,
+  MODEL_RANK,
   EFFORTS,
+  AUDITOR_TIERS,
   EVIDENCE_LENS,
   WIDEN_BARRED_LENSES,
   extractInterpolations,

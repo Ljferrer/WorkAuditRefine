@@ -32,7 +32,9 @@ import {
   DEFAULTS,
   SEAT_AGENT_TYPES,
   MODELS,
+  MODEL_RANK,
   EFFORTS,
+  AUDITOR_TIERS,
   EVIDENCE_LENS,
   WIDEN_BARRED_LENSES,
   extractInterpolations,
@@ -8011,6 +8013,64 @@ test('#2519 — per-seat model: a seat with model/effort dispatches on it; a sea
   assert.deepEqual(optsOf('plan-faithfulness'), { model: 'opus', effort: undefined }, 'a seat effort of default overrides the tier effort (inherit session) and keeps the tier model')
 })
 
+// #2534 — a roster seat's tier picks agents.auditor.high or agents.auditor.low; a seat with no tier runs low, and
+// an absent low block leaves the base auditor tier (byte-identical to before the tiers existed).
+test('#2534 — seat tier: tier high runs agents.auditor.high, tier low and no tier run low, an absent low keeps the base tier', async () => {
+  const roster = [{ lens: 'security', tier: 'high' }, { lens: 'simplicity', tier: 'low' }, { lens: 'correctness' }, { lens: 'plan-faithfulness', tier: 'high', model: 'sonnet' }]
+  const optsOf = async (auditor) => {
+    const { calls } = await runPhase(PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster }], agents: { auditor } }), defaultImpl)
+    return Object.fromEntries(roster.map(({ lens }) => {
+      const c = calls.find(x => x.opts.label === `audit:t1:${lens}`)
+      assert.ok(c, `the ${lens} seat dispatched (presence guard)`)
+      return [lens, { model: c.opts.model, effort: c.opts.effort }]
+    }))
+  }
+  const both = await optsOf({ model: 'sonnet', effort: 'xhigh', low: { model: 'haiku', effort: 'low' }, high: { model: 'fable', effort: 'default' } })
+  assert.deepEqual(both.security, { model: 'fable', effort: undefined }, 'tier high runs agents.auditor.high')
+  assert.deepEqual(both.simplicity, { model: 'haiku', effort: 'low' }, 'tier low runs agents.auditor.low')
+  assert.deepEqual(both.correctness, { model: 'haiku', effort: 'low' }, 'a seat with no tier runs low')
+  assert.deepEqual(both['plan-faithfulness'], { model: 'sonnet', effort: undefined }, 'a seat model still wins over its tier model')
+  const noLow = await optsOf({ model: 'sonnet', effort: 'xhigh' })
+  assert.deepEqual(noLow.correctness, { model: 'sonnet', effort: 'xhigh' }, 'no low block ⇒ a seat with no tier keeps the base auditor tier')
+  assert.deepEqual(noLow.simplicity, { model: 'sonnet', effort: 'xhigh' }, 'no low block ⇒ tier low keeps the base auditor tier')
+  assert.deepEqual(noLow.security, { model: 'opus', effort: undefined }, 'no high block ⇒ tier high runs the AUDITOR_TIER_DEFAULTS.high fallback')
+  const stale = await optsOf({ model: 'fable', effort: 'default' })
+  assert.deepEqual(stale.security, { model: 'fable', effort: undefined }, 'a pre-#2534 fable config keeps tier high on fable (the clamp), never the opus default')
+  const below = await optsOf({ model: 'opus', effort: 'high', high: { model: 'sonnet', effort: 'low' } })
+  assert.deepEqual(below.security, { model: 'opus', effort: 'high' }, 'a high tier below the base takes the whole base tier')
+  const noBase = await optsOf({ high: { model: 'haiku', effort: 'low' } })
+  assert.deepEqual(noBase.security, { model: 'sonnet', effort: undefined }, 'with no auditor model the clamp compares against the ROLE_MODEL.auditor base, as boundaryWarnings does')
+  const partial = await optsOf({ model: 'sonnet', effort: 'xhigh', high: { model: 'fable' } })
+  assert.deepEqual(partial.security, { model: 'fable', effort: undefined }, 'a partial high block falls back to the high default effort, never the base effort')
+})
+
+// #2534 — a lone seat that widens toward a valid nomination adds seats on the high tier (opus by default, fable
+// under a fable high tier). A default-fallback widening adds the config rows as they are.
+test('#2534 — widened seats: nominated seats dispatch on agents.auditor.high, default-fallback seats keep their config row', async () => {
+  const widenImpl = (nominate) => buildSeqImpl(
+    { 'audit:t1:security': [
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'low', ...(nominate && { widen: ['performance'] }),
+          findings: [{ severity: 'Critical', title: 'widen me', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'bad' }] },
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
+      ] },
+    defaultImpl)
+  const run = async (auditor, nominate) => {
+    const { calls } = await runPhase(PROVISION_ARGS({
+      tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'security', depth: 'deep', model: 'opus' }] }],
+      audit: { roster: [{ lens: 'correctness', depth: 'deep' }, { lens: 'simplicity', depth: 'deep', model: 'haiku' }], rosterPolicy: 'all', autoEscalate: true },
+      agents: { auditor },
+    }), widenImpl(nominate))
+    return label => { const c = calls.find(x => x.opts.label === label); assert.ok(c, `${label} dispatched (presence guard)`); return c.opts.model }
+  }
+  const opus = await run({ model: 'sonnet', effort: 'high' }, true)
+  assert.equal(opus('audit:t1:performance'), 'opus', 'a nominated widened seat runs the high tier (opus default), not the sonnet auditor tier')
+  const fable = await run({ model: 'sonnet', effort: 'high', high: { model: 'fable', effort: 'default' } }, true)
+  assert.equal(fable('audit:t1:performance'), 'fable', 'a fable high tier stays fable on a widened seat')
+  const fallback = await run({ model: 'sonnet', effort: 'high' }, false)
+  assert.equal(fallback('audit:t1:correctness'), 'sonnet', 'a default-fallback seat with no model keeps the auditor tier')
+  assert.equal(fallback('audit:t1:simplicity'), 'haiku', 'a default-fallback seat keeps its own config row model')
+})
+
 // agents.auditor.rebuttal: a split panel's rebuttal-round seats take the rebuttal tier, above the seat's own
 // roster model too; the round-0 seats keep their usual tier. Absent, the rebuttal seats keep their usual tier
 // (unchanged from before the tier existed). The security seat carries its own model so the precedence is pinned.
@@ -8123,6 +8183,10 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
     { name: 'EFFORTS', mode: 'deepEqual',
       canonical: EFFORTS,
       extractInline: () => parseInlineArray(/const\s+EFFORTS\s*=\s*(\[[^\]]+\])/) },
+    // AUDITOR_TIERS (#2534): the seat tier enum, hand-copied inline for validateRoster's per-seat tier check.
+    { name: 'AUDITOR_TIERS', mode: 'deepEqual',
+      canonical: AUDITOR_TIERS,
+      extractInline: () => parseInlineArray(/const\s+AUDITOR_TIERS\s*=\s*(\[[^\]]+\])/) },
     { name: 'WIDEN_BARRED_LENSES', mode: 'deepEqual',
       canonical: WIDEN_BARRED_LENSES,
       extractInline: () => parseInlineArray(/const\s+WIDEN_BARRED_LENSES\s*=\s*(\[[^\]]+\])/) },
@@ -8139,6 +8203,16 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       cases: [['docs']],
       inline: ([tier]) => inlineHelpers().WORKER_TIER_DEFAULTS[tier],
       canonical: ([tier]) => DEFAULTS.agents.worker[tier] },
+    // AUDITOR_TIER_DEFAULTS (#2534): the sandbox fallback for an absent agents.auditor.high, bound to DEFAULTS by value.
+    { name: 'AUDITOR_TIER_DEFAULTS (inline ↔ DEFAULTS.agents.auditor.high)', mode: 'behavioral',
+      cases: [['high']],
+      inline: ([tier]) => inlineHelpers().AUDITOR_TIER_DEFAULTS[tier],
+      canonical: ([tier]) => DEFAULTS.agents.auditor[tier] },
+    // MODEL_RANK (#2534): the capability order, hand-copied inline for spawnSeat's high-tier clamp.
+    { name: 'MODEL_RANK (order matters)', mode: 'behavioral',
+      cases: [[]],
+      inline: () => parseInlineArray(/const\s+MODEL_RANK\s*=\s*(\[[^\]]+\])/),
+      canonical: () => MODEL_RANK },
     // resolveGate (ADR 0036): the engine's inline gate-composition mirror bound to the canonical war-config.mjs
     // resolveGate. Behavioral equality over null/empty, plain, and PRE-COMPOSED (built from canonical output),
     // so a partial detector-token move breaks idempotence and reds this row. Delete the inline resolveGate OR

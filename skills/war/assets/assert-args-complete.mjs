@@ -18,6 +18,7 @@
 // Exit contract (floor scripts exit 0/1/2; 2 never collapses into the floor status):
 //   0 — every required field is present; the launch is dispatch-complete.
 //   1 — a required field is missing: stderr names each missing field. Fix the assembled args.
+//   A boundary warning (#2545 part 3, boundaryWarnings below) goes to stderr and never changes the exit code.
 //   2 — tooling error: unreadable template, unreadable args file/stdin, unparseable args JSON, or
 //       a readable template that yields ZERO fallback-free interpolations (wrong template source —
 //       certifying against zero requirements would be a silent pass) — never reported as
@@ -56,6 +57,7 @@
 import { readFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { MODEL_RANK, DEFAULTS } from './war-config.mjs'
 
 // Fields extracted from pt spans but deliberately NOT required of the launch args. Keys are the
 // mapped field names extractArgsFields() emits. Reasons are load-bearing documentation: an entry
@@ -234,6 +236,37 @@ export function checkArgs (fields, args) {
   return [...new Set(missing)].sort()
 }
 
+// ---- Boundary-seat warning (#2545 part 3, ADR 0056) -------------------------------------------
+// A task carries a boundary signal when a seat has the security lens or a Files entry names a
+// migration, auth or Git path. The task needs at least one seat that resolves to opus or above:
+// the seat's own model, else its tier (agents.auditor.high for tier 'high', else agents.auditor.low,
+// else the base auditor model, as spawnSeat resolves it, with a high tier below the base lifted to the base). A warning, never a refusal: the Lead's
+// judgment sets the class. Returns one line per such task.
+const BOUNDARY_PATH = /migrat|(^|[/._-])(un)?o?auth(?!or(s|ed|ing|ship)?([/._-]|$))|(^|[/._-])git([/._-]|modules|attributes|ignore|$)/
+// CAMEL_AUTH and CAMEL_GIT read the original-case path, so userAuth.ts, MyOAuth.ts, GitService.ts and
+// gitClient.js carry the signal too. GitHub names are not Git paths.
+const CAMEL_AUTH = /[a-z0-9O]Auth(?!or(s|ed|ing|ship)?([^a-z]|$))/
+const CAMEL_GIT = /(^|[^A-Za-z]|[a-z0-9])Git(?!Hub)([^a-z]|$)|(^|[^A-Za-z])git(?!Hub)[A-Z]/
+export function boundaryWarnings (args) {
+  const a = (args && args.agents && args.agents.auditor) || {}
+  const rank = m => MODEL_RANK.indexOf(m)
+  const base = a.model || DEFAULTS.agents.auditor.model, high = (a.high || {}).model || DEFAULTS.agents.auditor.high.model
+  const seatModel = s => s.model || (s.tier === 'high' ? (rank(high) < rank(base) ? base : high) : (a.low || {}).model || base)
+  const strong = m => rank(m) >= rank('opus')
+  const out = []
+  for (const t of (args && Array.isArray(args.tasks) ? args.tasks : [])) {
+    const seats = (t && Array.isArray(t.roster) ? t.roster : []).filter(s => s && typeof s === 'object')
+    const signals = [
+      ...(seats.some(s => s.lens === 'security') ? ['a security seat'] : []),
+      ...(t && Array.isArray(t.files) ? t.files : []).filter(p => typeof p === 'string' && (BOUNDARY_PATH.test(p.toLowerCase()) || CAMEL_AUTH.test(p) || CAMEL_GIT.test(p))),
+    ]
+    if (signals.length && !seats.some(s => strong(seatModel(s)))) {
+      out.push(`task ${(t && t.id) ?? '?'} has a boundary signal (${signals.join(', ')}) and no seat resolves to opus or above — give a boundary-heavy seat tier 'high' (ADR 0056)`)
+    }
+  }
+  return out
+}
+
 // ---- CLI -----------------------------------------------------------------------------------
 // Repo-canonical main-guard idiom (war-config.mjs / stage-workflow.mjs / war-memory.mjs): realpath
 // the argv entry so a symlinked invocation still RUNS the floor — the retired file:// string-build
@@ -287,6 +320,7 @@ if (invokedDirectly) {
     process.stderr.write(`assert-args-complete: template ${templatePath} yielded ZERO fallback-free interpolations — wrong template source? refusing to certify\n`)
     process.exit(2)
   }
+  for (const line of boundaryWarnings(parsed)) process.stderr.write(`assert-args-complete: warning: ${line}\n`)
   const missing = checkArgs(fields, parsed)
   if (missing.length) {
     process.stderr.write(`assert-args-complete: launch args are dispatch-INCOMPLETE (${missing.length} missing field(s)):\n`)
