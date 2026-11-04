@@ -77,7 +77,9 @@ export const DEFAULTS = {
     // role (never in ROLES/agentMatrix). Ladder at consumption (snipe-args.mjs snipeTier):
     // agents.snipe, else agents.auditor on an explicit null, else these DEFAULTS. Defaulted here;
     // a preset may re-pin it (see PRESETS).
-    snipe:    { model: 'opus',   effort: 'high' },
+    // snipe.low (#2534 item 23b): the lower rung a /snipe or /zero-in seat steps down to. A low model that ranks
+    // above the snipe model runs as the snipe tier (snipeTiers in snipe-args.mjs).
+    snipe:    { model: 'opus',   effort: 'high', low: { model: 'sonnet', effort: 'high' } },
     // trial: the model/effort of the subagent that runs a fork trial in /war-strategy's plan
     // interview (D18). Read fail-open by /war-strategy's fork-trial subagent dispatch, exactly as
     // /red-team reads agents.redteam. NOT a phase role (never in ROLES/agentMatrix) and no
@@ -183,7 +185,7 @@ export const PRESETS = {
       refiner:  { model: 'sonnet', effort: 'xhigh' },
       servitor: { model: 'opus',   effort: 'high' },
       redteam:  { model: 'fable',  effort: 'default' },
-      snipe:    { model: 'fable',  effort: 'default' },
+      snipe:    { model: 'fable',  effort: 'default', low: { model: 'opus', effort: 'default' } },
       trial:    { model: 'fable',  effort: 'default' },
       // Skill seats one model tier above balanced (fable seats stay on 'default', ADR 0050).
       machine: {
@@ -360,7 +362,15 @@ export function validate(input) {
   if (Object.prototype.hasOwnProperty.call(c.agents, 'redteam')) validateAgentTier(c.agents.redteam, 'agents.redteam', errors)
   // agents.snipe — /snipe's one-shot seat tier (#1920), validated like redteam when present and
   // non-null (explicit null = unset: snipeTier falls back to agents.auditor).
-  if (c.agents.snipe != null) validateAgentTier(c.agents.snipe, 'agents.snipe', errors)
+  // agents.snipe.low (#2534 item 23b): the snipe step-down rung, validated like agents.auditor.low.
+  if (c.agents.snipe != null) {
+    const s = c.agents.snipe
+    if (isObj(s) && Object.prototype.hasOwnProperty.call(s, 'low')) {
+      const { low, ...base } = s
+      validateAgentTier(base, 'agents.snipe', errors)
+      validateAgentTier(low, 'agents.snipe.low', errors)
+    } else validateAgentTier(s, 'agents.snipe', errors)
+  }
   // agents.trial — the fork-trial subagent tier (D18), validated in the redteam idiom (present ⇒ a
   // tier; a present null is rejected). /war-strategy's plan interview reads it fail-open.
   if (Object.prototype.hasOwnProperty.call(c.agents, 'trial')) validateAgentTier(c.agents.trial, 'agents.trial', errors)

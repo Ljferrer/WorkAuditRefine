@@ -7,7 +7,7 @@
 
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { parseSnipeArgs, snipeTier, snipeRoundCap, SNIPE_LENS_CATALOG } from '../../snipe/assets/snipe-args.mjs'
+import { parseSnipeArgs, snipeTier, snipeTiers, snipeRoundCap, SNIPE_LENS_CATALOG } from '../../snipe/assets/snipe-args.mjs'
 
 export const DEFAULT_ROUNDS = 3
 export const DEFAULT_SIZE = 3
@@ -124,5 +124,5 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   let config = {}
   try { config = JSON.parse(readFileSync(configPath, 'utf8')) ?? {} } catch { /* fail-open: defaults ladder */ }
   const roundCap = snipeRoundCap(config)
-  console.log(JSON.stringify({ ...parseZeroInArgs(input, roundCap), tier: snipeTier(config), roundCap }, null, 2))
+  console.log(JSON.stringify({ ...parseZeroInArgs(input, roundCap), tier: snipeTier(config), tiers: snipeTiers(config), roundCap }, null, 2))
 }

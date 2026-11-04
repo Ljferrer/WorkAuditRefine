@@ -12,7 +12,7 @@
 // `auto` entries are seats the Lead picks itself. Effective seats =
 // min(5, max(<seats>, lens-token count, 1)); autoCount = effective - named count.
 
-import { RESERVED_LENSES, MODELS, EFFORTS, DEFAULTS, fillDefaults } from '../../war/assets/war-config.mjs'
+import { RESERVED_LENSES, MODELS, MODEL_RANK, EFFORTS, DEFAULTS, fillDefaults } from '../../war/assets/war-config.mjs'
 
 // Parse-time catalog for the bare-single-word case only — comma lists accept novel lenses.
 // Union of the preset roster pools; keep in sync when a preset introduces a new lens.
@@ -71,6 +71,19 @@ export function snipeTier(config = {}) {
   return effort === 'default' ? { model } : { model, effort }
 }
 
+// snipeTiers(config): the two rungs a /snipe or /zero-in seat takes (#2534 item 23b). high is the snipeTier
+// ladder result. low is agents.snipe.low, else the DEFAULTS low tier, and a low model that ranks above the
+// high model runs as the high tier. Both are in spawnOpts shape. The Lead steps a quiet lens down a rung.
+export function snipeTiers(config = {}) {
+  const high = snipeTier(config)
+  const snipe = (fillDefaults(config).agents ?? DEFAULTS.agents).snipe
+  const l = (snipe && snipe.low) || DEFAULTS.agents.snipe.low
+  const model = MODELS.includes(l.model) ? l.model : DEFAULTS.agents.snipe.low.model
+  const effort = EFFORTS.includes(l.effort) ? l.effort : 'default'
+  const low = MODEL_RANK.indexOf(model) > MODEL_RANK.indexOf(high.model) ? high : effort === 'default' ? { model } : { model, effort }
+  return { low, high }
+}
+
 // Audit-round ceiling for a goal-driven /snipe loop: run.roundLimit, the same cap a phase's
 // fix rounds share. A value validateConfig would refuse falls back to the default.
 export function snipeRoundCap(config = {}) {
@@ -89,5 +102,5 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   let config = {}
   try { config = JSON.parse(readFileSync(configPath, 'utf8')) ?? {} } catch { /* fail-open: defaults ladder */ }
   const parsed = parseSnipeArgs(argv.join(' '))
-  console.log(JSON.stringify({ ...parsed, tier: snipeTier(config), roundCap: snipeRoundCap(config) }, null, 2))
+  console.log(JSON.stringify({ ...parsed, tier: snipeTier(config), tiers: snipeTiers(config), roundCap: snipeRoundCap(config) }, null, 2))
 }

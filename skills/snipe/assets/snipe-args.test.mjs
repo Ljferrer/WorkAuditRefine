@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { parseSnipeArgs, snipeTier, snipeRoundCap, SNIPE_LENS_CATALOG } from './snipe-args.mjs'
-import { DEFAULTS, RESERVED_LENSES } from '../../war/assets/war-config.mjs'
+import { parseSnipeArgs, snipeTier, snipeTiers, snipeRoundCap, SNIPE_LENS_CATALOG } from './snipe-args.mjs'
+import { DEFAULTS, RESERVED_LENSES, presetConfig } from '../../war/assets/war-config.mjs'
 
 // --- invocation limit -------------------------------------------------------
 
@@ -158,13 +158,33 @@ test('seat count outside 1-5 and duplicate/reserved lenses are refused', () => {
 
 test('snipeTier ladder: config snipe tier wins; the operator-set default is opus/high', () => {
   assert.deepEqual(snipeTier({ agents: { snipe: { model: 'haiku', effort: 'low' } } }), { model: 'haiku', effort: 'low' })
-  assert.deepEqual(DEFAULTS.agents.snipe, { model: 'opus', effort: 'high' }, 'operator-set default tier')
+  assert.deepEqual({ model: DEFAULTS.agents.snipe.model, effort: DEFAULTS.agents.snipe.effort }, { model: 'opus', effort: 'high' }, 'operator-set default tier')
   assert.deepEqual(snipeTier({}), { model: 'opus', effort: 'high' })
 })
 
 test('snipeTier: explicit null snipe tier falls back to the auditor tier', () => {
   const r = snipeTier({ agents: { snipe: null, auditor: { model: 'haiku', effort: 'low' } } })
   assert.deepEqual(r, { model: 'haiku', effort: 'low' })
+})
+
+// --- step-down rungs (#2534 item 23b): agents.snipe is high, agents.snipe.low is low --------
+test('snipeTiers: the default low rung is sonnet/high under the opus/high snipe tier', () => {
+  assert.deepEqual(snipeTiers({}), { low: { model: 'sonnet', effort: 'high' }, high: { model: 'opus', effort: 'high' } })
+  assert.deepEqual(snipeTiers({}).high, snipeTier({}), 'high is exactly the snipeTier ladder result')
+})
+test('snipeTiers: thorough steps fable down to opus', () => {
+  assert.deepEqual(snipeTiers(presetConfig('thorough')), { low: { model: 'opus' }, high: { model: 'fable' } })
+})
+test('snipeTiers: a configured low rung wins, and a low rung above the high model runs as the high tier', () => {
+  assert.deepEqual(snipeTiers({ agents: { snipe: { model: 'opus', effort: 'high', low: { model: 'haiku', effort: 'low' } } } }).low, { model: 'haiku', effort: 'low' })
+  assert.deepEqual(snipeTiers({ agents: { snipe: { model: 'haiku', effort: 'low' } } }).low, { model: 'haiku', effort: 'low' }, 'the default sonnet low clamps to a haiku snipe tier')
+  assert.deepEqual(snipeTiers({ agents: { snipe: { model: 'sonnet', effort: 'high', low: { model: 'fable', effort: 'default' } } } }).low, { model: 'sonnet', effort: 'high' }, 'a fable low under a sonnet snipe tier runs as the snipe tier')
+  assert.deepEqual(snipeTiers({ agents: { snipe: { model: 'opus', effort: 'high', low: { model: 'opus', effort: 'medium' } } } }).low, { model: 'opus', effort: 'medium' }, 'a low rung on the same model keeps its own effort (the clamp fires only above the high model)')
+})
+test('snipeTiers survives a null snipe tier, a bogus low and a null agents section', () => {
+  assert.deepEqual(snipeTiers({ agents: { snipe: null, auditor: { model: 'opus', effort: 'xhigh' } } }), { low: { model: 'sonnet', effort: 'high' }, high: { model: 'opus', effort: 'xhigh' } })
+  assert.deepEqual(snipeTiers({ agents: { snipe: { model: 'opus', effort: 'high', low: { model: 'gpt', effort: 'turbo' } } } }).low, { model: 'sonnet' })
+  assert.deepEqual(snipeTiers({ agents: null }), snipeTiers({}))
 })
 
 test('snipeTier omits effort when default (spawnOpts shape)', () => {
