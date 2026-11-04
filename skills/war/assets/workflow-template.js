@@ -242,6 +242,8 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // added or changed (land-decision.mjs untouched, ADR 0005). gate_failing_ids/gate_base_sha carry the
   // classified failing-identifier set + classification base sha on a 'baseline' result — the Workflow's
   // baselineDebt key, the source:'auto' backstop check string, and the baseline-proceed prompt read them.
+  // A 'merged' sweep-family result that proceeded over recorded debt (sweepDebtClause) also carries
+  // gate_failing_ids, and sweepDebtLog reads them (#2150).
   gate_failure_class: { enum: ['introduced', 'baseline', 'environment'] },
   gate_failing_ids: { type: 'array' }, gate_base_sha: { type: 'string' },
   // gate_log_path (D5): the ABSOLUTE path of the .war/gate-<taskId>.log artifact the merge-task tees
@@ -2985,26 +2987,30 @@ const recordBaselineDebt = (ids, baseSha) => {
     source: 'auto',
   })
 }
+// debtList: the numbered recorded-debt rows that baselineDebtClause and sweepDebtClause share.
+const debtList = (rows = baselineDebt) => rows.map((d, i) => pt`  ${i + 1}. [${d.ids.join(', ')}] — pre-existing at ${d.baseSha || '(base sha unrecorded)'}`).join('\n') + '\n'
 // baselineDebtClause: threaded into every subsequent merge/land dispatch so the refiner classifies a
 // COVERED failure 'baseline' directly, no repeated base re-run. Empty list ⇒ '' (byte-identical to a
 // debt-less run — a phase with no recorded debt dispatches unchanged prompts).
-const debtList = () => baselineDebt.map((d, i) => pt`  ${i + 1}. [${d.ids.join(', ')}] — pre-existing at ${d.baseSha || '(base sha unrecorded)'}`).join('\n') + '\n'
 const baselineDebtClause = () => baselineDebt.length
   ? pt`\nKNOWN BASELINE GATE DEBT (pre-existing failures this phase already classified — if your gate failure's failing identifiers are COVERED by one of these, classify gate_failure_class:'baseline' DIRECTLY, report the covered identifiers in gate_failing_ids, and do NOT re-run the base):\n`
     + debtList()
   : ''
-// sweepDebtClause (#2150 polish half): the two class-exempt sweep-family merges read the same debt.
-// Empty list ⇒ '' (byte-identical prompts). Otherwise the dispatch is a Workflow-dispatched
-// baseline-proceed over exactly that set: no classification, no base re-run, no new status.
-const sweepDebtClause = () => baselineDebt.length
-  ? pt`\nBASELINE-PROCEED (Workflow-dispatched) over this phase's recorded baseline gate debt:\n` + debtList()
+// sweepDebtClause (#2150 polish half): the class-exempt merge:p<id>-polish and merge:p<id>-terminal
+// merges read the same debt, but only its named entries: an entry with no ids names nothing to proceed
+// over. No named entry ⇒ '' (byte-identical prompts, today's fail-open arm). Otherwise the dispatch is
+// a Workflow-dispatched baseline-proceed over exactly that set: no classification, no base re-run,
+// no new status.
+const namedDebt = () => baselineDebt.filter(d => d.ids.length)
+const sweepDebtClause = () => namedDebt().length
+  ? pt`\nBASELINE-PROCEED (Workflow-dispatched) over this phase's recorded baseline gate debt:\n` + debtList(namedDebt())
     + pt`Do NOT classify and do NOT re-run the base. If EVERY failing identifier is in that set, PROCEED over exactly those failures, merge, and return status 'merged' with the covered identifiers in gate_failing_ids. Any other failure returns gate_failed as above, and you do NOT merge.\n`
   : ''
 // sweepDebtLog: a merged sweep-family result that proceeded over debt logs its ids at the site.
 const sweepDebtLog = (site, mr) => {
   const ids = debtIds(mr && mr.gate_failing_ids)
-  if (!baselineDebt.length || !ids.length) return
-  const extra = ids.filter(id => !baselineDebt.some(d => d.ids.includes(id)))
+  if (!namedDebt().length || !ids.length) return
+  const extra = ids.filter(id => !namedDebt().some(d => d.ids.includes(id)))
   log(site + ': proceeded over baseline gate debt [' + ids.join(', ') + ']' + (extra.length ? '; NOT in the recorded debt: [' + extra.join(', ') + '], check by hand' : '') + '.')
 }
 // reattachClause: every merge/land prompt's _refinery step BEGINS with this idempotent re-attach, so a

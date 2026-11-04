@@ -3504,9 +3504,10 @@ const provisionFailure = (failedCommand) => ({ mode: 'merge-task', status: 'erro
 // baseline-proceed re-merge merges, so the debt holds DEBT_IDS before the sweep-family merges run.
 const DEBT_IDS = ['test_endpoint_build']
 const DEBT_BASE = 'ba5e0000ba5e'
-const debtSeed = (base) => (prompt, opts) => {
+// ids = [] records an entry with no identifiers (recordBaselineDebt keeps it, as '(see gate_output)').
+const debtSeed = (base, ids = DEBT_IDS) => (prompt, opts) => {
   const label = opts.label || ''
-  if (seatOf(opts) === 'war-refiner' && label === 'merge:t1') return { mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: DEBT_IDS, gate_base_sha: DEBT_BASE, gate_output: 'pre-existing red' }
+  if (seatOf(opts) === 'war-refiner' && label === 'merge:t1') return { mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ids, gate_base_sha: DEBT_BASE, gate_output: 'pre-existing red' }
   if (seatOf(opts) === 'war-refiner' && label === 'merge:t1:baseline-proceed') return { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe12' }
   return base(prompt, opts)
 }

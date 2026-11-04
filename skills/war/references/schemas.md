@@ -94,7 +94,7 @@ A dispatch that spawned and then died under the harness (API/quota/transport) is
   gate_sha?,                                         // (merge-task; #2485 D12) the rebased task tip the gate ran at: the task merge commit's second parent
   gate_log_path?,                                    // (merge-task) ABSOLUTE path of the .war/gate-<taskId>.<dispatch>.<unique>/gate.log artifact the full step-2 gate output was teed to (D5); the gate-audit seat's authoritative HARD-path evidence
   gate_failure_class?: "introduced" | "baseline" | "environment",   // populated WITH status:"gate_failed"; absent ⇒ "introduced" (fail-safe)
-  gate_failing_ids?: ["<failing test/check id>"],   // the classified failing-identifier set — populated on a "baseline" result
+  gate_failing_ids?: ["<failing test/check id>"],   // the classified failing-identifier set — populated on a "baseline" result, and on a "merged" sweep-family result that proceeded over recorded debt
   gate_base_sha?,                                    // the classification base sha — populated on a "baseline" result
   floor_diagnostic?,                                 // (merge-task) the VERBATIM stderr of an exit-1 assert-test-in-diff.sh run (the near-miss diagnostic); fail-open advisory, NEVER routed on
   mappedTests?: ["path"],                            // (merge-task) ALL test paths assert-test-in-diff.sh matched in the task diff, captured from its exit-0 stdout (one per line — the accumulating scan); the gate-audit seat greps them against the captured gate log (D7 — "provably unrun mapped test" becomes mechanical). Produced by the 2026-08-05 precision-chain plan's Task 2.2/2.3, landed 0.17.0
