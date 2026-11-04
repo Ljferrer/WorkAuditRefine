@@ -4534,21 +4534,36 @@ const decomposeStep2 = () => {
   return m[0]
 }
 
-test('#2545: Decompose step 2 carries the seat model duty and points at the boundary rule', () => {
+test('#2545/#2534: Decompose step 2 carries the per-seat tier choice, the boundary floor, and the pointer to the boundary rule', () => {
   const step = decomposeStep2()
-  assert.match(step, /Seat model, under every policy/, 'the duty must bind every rosterPolicy, not only auto')
+  assert.match(step, /Seat tier, under every policy \(ADR 0056, #2534\)/, 'the choice must bind every rosterPolicy, not only auto')
+  assert.match(step, /pick each seat's `tier` the way you pick its lens and depth: `"low"` \(`agents\.auditor\.low`, else the auditor model\) for a routine seat, `"high"` \(`agents\.auditor\.high`\)/,
+    'step 2 must give the Lead the choice of tier per seat, like lens and depth (#2534 ruling)')
+  assert.match(step, /state the choice in a one-line rationale/, 'step 2 must put the choice in a rationale line under every policy')
   assert.match(step, /classify each seat as routine or boundary-heavy by the boundary rule in the Audit step of \[references\/design\.md\]\(references\/design\.md\)/,
     'step 2 must make the Lead classify each seat by the rule at its pointer to design.md')
-  assert.match(step, /set `model: "opus"` on each boundary-heavy seat whose resolved model \(its own `model`, else `agents\.auditor\.model`\) ranks below opus, explicit config pins included \(a `fable` tier stays\)/,
-    'step 2 must raise each seat below opus, pins included, and must never lower a stronger tier')
-  assert.match(step, /state the choice in a one-line rationale/, 'step 2 must put the choice in a rationale line under every policy')
+  assert.match(step, /give each boundary-heavy seat `tier: "high"`, and if its resolved model \(its own `model`, else its tier's model\) still ranks below opus, set `model: "opus"`, explicit config pins included \(a `fable` tier stays\)/,
+    'the boundary floor must raise a seat below opus, pins included, and must never lower a stronger tier')
+  assert.match(step, /those seats on `tier: "high"`/, 'step 2 must name the tier a nominated widened seat runs on')
+})
+
+test('#2545 part 4: the approval gate roster proposal prints each seat\'s resolved model', () => {
+  const m = skillMd.match(/^6\. Present the DAG.*$/m)
+  assert.ok(m, 'could not locate Decompose step 6 in SKILL.md')
+  assert.match(m[0], /The roster proposal prints each seat's lens, depth, tier and resolved model and effort \(its own `model`\/`effort`, else its tier's\)/,
+    'the gate must print the resolved model of every seat before approval')
+})
+
+test('#2545 part 3: SKILL.md relays the launch check boundary warning and never blocks on it', () => {
+  assert.match(skillMd, /Relay each `warning:` line it prints to the operator: a task with a boundary signal and no seat at opus or above \(ADR 0056\)\. A warning never blocks dispatch\./,
+    'the Lead must relay the warning, and the warning must stay advisory')
 })
 
 test('#2545: the boundary list has one home, design.md, and step 2 does not restate it', () => {
   const design = readFileSync(join(HERE, '../references/design.md'), 'utf8')
   const audit = design.match(/^3\. \*\*Audit \(per task\):\*\*.*$/m)
   assert.ok(audit, 'could not locate the Audit (per task) step in design.md')
-  assert.match(audit[0], /boundary-heavy seat \(security, parsing, Git or filesystem, recovery or state-machine work\) `model: "opus"`/,
+  assert.match(audit[0], /boundary-heavy seat \(security, parsing, Git or filesystem, recovery or state-machine work\) `tier: "high"`, and `model: "opus"` too if its resolved model still ranks below opus/,
     'design.md must keep the boundary list and its opus routing in the Audit step')
   assert.match(audit[0], /Raise only a seat whose resolved model ranks below opus .*an explicit pin below opus rises, and a `fable` tier stays/,
     'design.md must state the rank condition, because a Lead reads this rule on its own')

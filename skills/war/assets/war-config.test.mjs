@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
-  DEFAULTS, PRESETS, MODELS, MODEL_RANK, EFFORTS, ROLES, SKILL_SEATS, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, VALE_STYLES,
+  DEFAULTS, PRESETS, MODELS, MODEL_RANK, EFFORTS, AUDITOR_TIERS, ROLES, SKILL_SEATS, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, VALE_STYLES,
   SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES,
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
@@ -107,7 +107,7 @@ test('thorough preset', () => {
   assert.deepEqual(c.agents.snipe, { model: 'fable', effort: 'default' })
   assert.deepEqual(PRESETS.thorough.agents, {
     worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
-    auditor:  { model: 'fable',  effort: 'default', rebuttal: { model: 'fable', effort: 'default' } },
+    auditor:  { model: 'fable',  effort: 'default', rebuttal: { model: 'fable', effort: 'default' }, low: { model: 'opus', effort: 'default' }, high: { model: 'fable', effort: 'default' } },
     refiner:  { model: 'sonnet', effort: 'xhigh' },
     servitor: { model: 'opus',   effort: 'high' },
     redteam:  { model: 'fable',  effort: 'default' },
@@ -1400,16 +1400,16 @@ test('widenRoster: caps at 5 — 1 seat + a 5-lens default → 5 seats, never 6'
 
 const DEF = DEFAULTS.audit.roster
 
-test('resolveWidenSource: valid nomination → per-seat deep, source "nominated"', () => {
+test('resolveWidenSource: valid nomination → per-seat deep on the high seat tier (#2534), source "nominated"', () => {
   const r = resolveWidenSource(['security', 'performance'], DEF)
   assert.equal(r.source, 'nominated')
-  assert.deepEqual(r.seats, [{ lens: 'security', depth: 'deep' }, { lens: 'performance', depth: 'deep' }])
+  assert.deepEqual(r.seats, [{ lens: 'security', depth: 'deep', tier: 'high' }, { lens: 'performance', depth: 'deep', tier: 'high' }])
 })
 
 test('resolveWidenSource: single-lens valid nomination → one deep seat, "nominated"', () => {
   const r = resolveWidenSource(['usability'], DEF)
   assert.equal(r.source, 'nominated')
-  assert.deepEqual(r.seats, [{ lens: 'usability', depth: 'deep' }])
+  assert.deepEqual(r.seats, [{ lens: 'usability', depth: 'deep', tier: 'high' }])
 })
 
 test('resolveWidenSource: RESERVED_LENSES entry rejects the WHOLE nomination → default fallback (no per-entry salvage)', () => {
@@ -1606,7 +1606,7 @@ const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetCo
 // Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
 // SKILL_SEAT_PATHS: every agents.<skill>.<seat> tier (ADR 0056). The skill block itself is a seat map, not a tier.
 const SKILL_SEAT_PATHS = Object.entries(SKILL_SEATS).flatMap(([skill, seats]) => seats.map(seat => `${skill}.${seat}`))
-const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'auditor.rebuttal', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', 'helper', ...SKILL_SEAT_PATHS]
+const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'auditor.rebuttal', 'auditor.high', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', 'helper', ...SKILL_SEAT_PATHS]
 test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
   // A new agents.<tier> in DEFAULTS, or a new object-valued worker sub-tier, must join both lists.
   const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -1660,7 +1660,11 @@ test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig
 // once, no unknown label (the label group is open, so a stray `planner opus/`high`` token reaches the
 // census and fails it), every value equal to presetConfig(). A new preset without a bullet, a bullet
 // that drops a tier, or a reworded token all red here.
-const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', 'rebuttal-tier': 'auditor.rebuttal', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial', 'helper-tier': 'helper' }
+const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', 'rebuttal-tier': 'auditor.rebuttal', 'audit-high-tier': 'auditor.high', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial', 'helper-tier': 'helper' }
+// OPTIONAL_BULLET_LABELS: a tier with no DEFAULTS value (auditor.low, #2534). Its token sits in a preset's
+// bullet exactly when that preset sets the tier, and then equals presetConfig().
+const OPTIONAL_BULLET_LABELS = { 'audit-low-tier': 'auditor.low' }
+const tierSet = (preset, path) => path.split('.').reduce((o, k) => o && o[k], presetConfig(preset).agents) !== undefined
 test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens all equal presetConfig()', () => {
   const text = readDoc('skills/war-room/SKILL.md')
   for (const preset of Object.keys(PRESETS)) {
@@ -1672,8 +1676,9 @@ test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens
       assert.ok(!seen.has(label), `${preset} bullet names ${label} twice`)
       seen.set(label, { model, effort })
     }
-    assert.deepEqual([...seen.keys()].sort(), Object.keys(BULLET_LABELS).sort(), `${preset} bullet must carry exactly one token per tier label`)
-    for (const [label, path] of Object.entries(BULLET_LABELS)) {
+    const labels = { ...BULLET_LABELS, ...Object.fromEntries(Object.entries(OPTIONAL_BULLET_LABELS).filter(([, p]) => tierSet(preset, p))) }
+    assert.deepEqual([...seen.keys()].sort(), Object.keys(labels).sort(), `${preset} bullet must carry exactly one token per tier label`)
+    for (const [label, path] of Object.entries(labels)) {
       const want = tierAt(preset, path)
       assert.deepEqual(seen.get(label), { model: want.model, effort: want.effort }, `${preset} bullet ${label} must equal presetConfig('${preset}').agents.${path}`)
     }
@@ -1711,6 +1716,30 @@ test('agents.auditor.rebuttal: defaulted one model above the auditor in every pr
   const bad = validate({ agents: { auditor: { model: 'sonnet', effort: 'xhigh', rebuttal: { model: 'gpt', effort: 'default' } } } })
   assert.equal(bad.valid, false)
   assert.match(bad.errors.join('\n'), /agents\.auditor\.rebuttal\.model/)
+})
+
+// Seat tiers (#2534): agents.auditor.high is defaulted and agents.auditor.low is not, so a seat with no
+// tier runs the base auditor unless a config sets low. Each preset gives the operator-ruled values.
+test('agents.auditor.low/high seat tiers (#2534): preset values, low left to the base, validated like the other tiers', () => {
+  const eff = (preset, t) => { const a = presetConfig(preset).agents.auditor; return t === 'low' ? (a.low || { model: a.model, effort: a.effort }) : a.high }
+  const want = {
+    balanced: { low: { model: 'sonnet', effort: 'high' }, high: { model: 'opus', effort: 'default' } },
+    thorough: { low: { model: 'opus', effort: 'default' }, high: { model: 'fable', effort: 'default' } },
+    economy: { low: { model: 'sonnet', effort: 'xhigh' }, high: { model: 'opus', effort: 'default' } },
+  }
+  assert.deepEqual(Object.keys(want).sort(), Object.keys(PRESETS).sort(), 'every preset has a ruled tier pair')
+  for (const [preset, w] of Object.entries(want)) for (const t of AUDITOR_TIERS) assert.deepEqual(eff(preset, t), w[t], `${preset} ${t} tier`)
+  assert.equal('low' in DEFAULTS.agents.auditor, false, 'low has no default, so the base auditor fills it')
+  assert.deepEqual(fillDefaults({ agents: { auditor: { model: 'opus', effort: 'high' } } }).agents.auditor.low, undefined, 'an old config keeps low absent')
+  assert.equal(validate({ agents: { auditor: { model: 'sonnet', effort: 'high', low: { model: 'haiku', effort: 'high' } } } }).valid, true)
+  for (const t of AUDITOR_TIERS) {
+    const bad = validate({ agents: { auditor: { model: 'sonnet', effort: 'high', [t]: { model: 'gpt', effort: 'default' } } } })
+    assert.equal(bad.valid, false)
+    assert.match(bad.errors.join('\n'), new RegExp(`agents\\.auditor\\.${t}\\.model`))
+    assert.match(validate({ agents: { auditor: { [t]: { model: 'opus', effort: 'default', tier: 'x' } } } }).errors.join('\n'), new RegExp(`agents\\.auditor\\.${t}\\.tier is not a known key`))
+  }
+  assert.equal(validateRoster([{ lens: 'security', tier: 'high' }, { lens: 'simplicity', tier: 'low' }]).valid, true)
+  assert.match(validateRoster([{ lens: 'security', tier: 'opus' }]).errors.join('\n'), /roster\[0\]\.tier must be one of low\|high/)
 })
 
 test('agents.<skill> seat maps (ADR 0056): a valid seat validates, an unknown seat, a bad tier or a non-object block is refused', () => {
@@ -2666,6 +2695,8 @@ const SAT_INLINE_EXTRACT = /const\s+SEAT_AGENT_TYPES\s*=\s*(\[[^\]]*\])/
 // The per-seat model/effort check (#2519) reads the inline MODELS / EFFORTS enum copies: inject them the same way.
 const MODELS_INLINE_EXTRACT = /const\s+MODELS\s*=\s*(\[[^\]]*\])/
 const EFFORTS_INLINE_EXTRACT = /const\s+EFFORTS\s*=\s*(\[[^\]]*\])/
+// The per-seat tier check (#2534) reads the inline AUDITOR_TIERS copy: injected the same way.
+const TIERS_INLINE_EXTRACT = /const\s+AUDITOR_TIERS\s*=\s*(\[[^\]]*\])/
 const WR_EXTRACT = /const widenRoster\s*=\s*\(roster,\s*defaultRoster\)\s*=>\s*\{([\s\S]*?)\n\}/
 // inlineValidateRoster(): the LIVE inline validateRoster, closed over the LIVE inline SEAT_AGENT_TYPES.
 const inlineValidateRoster = () => {
@@ -2675,9 +2706,9 @@ const inlineValidateRoster = () => {
   assert.ok(satMatch, 'inline SEAT_AGENT_TYPES literal not found in workflow-template.js')
   const inlineTypes = JSON.parse(satMatch[1].replace(/'/g, '"'))
   const enumOf = re => { const m = templateText.match(re); assert.ok(m, `inline ${re} literal not found in workflow-template.js`); return JSON.parse(m[1].replace(/'/g, '"')) }
-  const inlineModels = enumOf(MODELS_INLINE_EXTRACT), inlineEfforts = enumOf(EFFORTS_INLINE_EXTRACT)
-  const fn = new Function('roster', 'evidence', 'SEAT_AGENT_TYPES', 'MODELS', 'EFFORTS', match[1])
-  return Object.assign((roster, evidence) => fn(roster, evidence, inlineTypes, inlineModels, inlineEfforts), { inlineTypes, inlineModels, inlineEfforts })
+  const inlineModels = enumOf(MODELS_INLINE_EXTRACT), inlineEfforts = enumOf(EFFORTS_INLINE_EXTRACT), inlineTiers = enumOf(TIERS_INLINE_EXTRACT)
+  const fn = new Function('roster', 'evidence', 'SEAT_AGENT_TYPES', 'MODELS', 'EFFORTS', 'AUDITOR_TIERS', match[1])
+  return Object.assign((roster, evidence) => fn(roster, evidence, inlineTypes, inlineModels, inlineEfforts, inlineTiers), { inlineTypes, inlineModels, inlineEfforts, inlineTiers })
 }
 const EVIDENCE_SEAT = { lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }
 const plainSeats = n => Array.from({ length: n }, (_, i) => ({ lens: `plain-${i}` }))
@@ -2715,6 +2746,9 @@ const VR_CASES = [
   [[{ lens: 'correctness', model: 'gpt' }], undefined],                   // unknown seat model
   [[{ lens: 'correctness', effort: 'turbo' }], undefined],                // unknown seat effort
   [[{ lens: 'correctness', model: null }], undefined],                    // null seat model is not absent
+  [[{ lens: 'correctness', tier: 'high' }, { lens: 'simplicity', tier: 'low' }], undefined], // per-seat tier (#2534)
+  [[{ lens: 'correctness', tier: 'medium' }], undefined],                 // unknown seat tier
+  [[{ lens: 'correctness', tier: null }], undefined],                     // null seat tier is not absent
 ]
 
 test('drift-guard(F07): inline validateRoster mirror equals canonical validateRoster across accept/reject cases', () => {
@@ -2728,6 +2762,7 @@ test('drift-guard(F07): inline validateRoster mirror equals canonical validateRo
     'inline SEAT_AGENT_TYPES literal in workflow-template.js diverges from canonical SEAT_AGENT_TYPES export')
   assert.deepEqual(inline.inlineModels, MODELS, 'inline MODELS literal in workflow-template.js diverges from canonical MODELS')
   assert.deepEqual(inline.inlineEfforts, EFFORTS, 'inline EFFORTS literal in workflow-template.js diverges from canonical EFFORTS')
+  assert.deepEqual(inline.inlineTiers, AUDITOR_TIERS, 'inline AUDITOR_TIERS literal in workflow-template.js diverges from canonical AUDITOR_TIERS')
 })
 
 test('drift-guard(F07): inline widenRoster mirror equals canonical widenRoster across union/dedupe/cap cases', () => {

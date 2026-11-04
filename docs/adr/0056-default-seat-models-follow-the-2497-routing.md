@@ -43,6 +43,21 @@ on the session model.
 `model`/`effort` included. Every preset sets it one model above its auditor tier, capped at fable. A
 hand-written config that omits it keeps each seat's usual tier.
 
+**Amended 2026-11-03 (#2534, #2545): the Lead picks each audit seat's tier.** By operator ruling, the
+Lead picks a tier for each audit seat the same way it picks the seat's lens and depth, under every
+roster policy, and states the choice in a one-line rationale. Sonnet on every seat missed real
+behavior bugs in the field, and opus on every seat cost too much on routine seats. A roster seat
+names `tier: 'low'` or `tier: 'high'`. `agents.auditor.high` is defaulted, and
+`agents.auditor.low` is not: a seat with no tier, or with tier low and no low block, runs the base
+auditor model and effort, so an old config runs as before. The values for each preset live in
+`war-config.mjs` and the `/war-room` preset bullets, never restated here. The boundary rule is the
+floor: a boundary-heavy seat takes the high tier and never runs below opus, an explicit seat pin below
+opus rises, and a `fable` tier stays. A seat that widening adds from a valid nomination runs on the
+high tier, because widening fires only on a Critical or a low-confidence finding. A default-fallback
+widening adds the config roster rows as they are. The approval gate prints each seat's resolved
+model, and the launch check warns, never refuses, when a task with a boundary signal has no seat at
+opus or above.
+
 ## Consequences
 
 - A run with no config file now spends less on workers and auditors. A missed finding on a

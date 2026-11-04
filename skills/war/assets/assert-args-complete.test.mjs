@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { ptSpans, ptSpanRanges, extractInterpolations, extractArgsFields, unguardedTopLevelKeys, checkArgs, EXEMPT_FIELDS } from './assert-args-complete.mjs'
+import { ptSpans, ptSpanRanges, extractInterpolations, extractArgsFields, unguardedTopLevelKeys, checkArgs, EXEMPT_FIELDS, boundaryWarnings } from './assert-args-complete.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const CLI = join(here, 'assert-args-complete.mjs')
@@ -324,4 +324,51 @@ test('CLI: a surplus second positional is refused (exit 2), never silently ignor
   const r = runCli(['a.json', 'b.json'])
   assert.equal(r.status, 2, 'exit 2 on surplus positional')
   assert.match(r.stderr, /unexpected extra argument/, 'stderr names the surplus token')
+})
+
+// ---------------------------------------------------------------------------
+// Boundary-seat warning (#2545 part 3): warn, never refuse
+// ---------------------------------------------------------------------------
+const SONNET = { auditor: { model: 'sonnet', effort: 'high', high: { model: 'opus', effort: 'default' } } }
+const btask = (over) => ({ id: 't1', title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }], files: ['src/app.js'], ...over })
+const warnsFor = (task, agents = SONNET) => boundaryWarnings({ agents, tasks: [task] })
+
+test('boundaryWarnings: each boundary signal with no opus seat warns once and names the task and the signal', () => {
+  for (const [task, signal] of [
+    [btask({ roster: [{ lens: 'security' }] }), /security seat/],
+    [btask({ files: ['db/migrations/0042_keys.sql'] }), /db\/migrations\/0042_keys\.sql/],
+    [btask({ files: ['server/auth/session.ts'] }), /server\/auth\/session\.ts/],
+    [btask({ files: ['lib/oauth-client.js'] }), /oauth-client/],
+    [btask({ files: ['hooks/validate-auditor-git.sh'] }), /validate-auditor-git\.sh/],
+    [btask({ files: ['.gitmodules'] }), /\.gitmodules/],
+  ]) {
+    const w = warnsFor(task)
+    assert.equal(w.length, 1, `one warning for ${JSON.stringify(task.files)} / ${JSON.stringify(task.roster)}`)
+    assert.match(w[0], /task t1/)
+    assert.match(w[0], signal)
+  }
+})
+
+test('boundaryWarnings: silent when a seat resolves to opus or above, or when the task has no signal', () => {
+  const sec = { roster: [{ lens: 'security', tier: 'high' }] }
+  assert.deepEqual(warnsFor(btask(sec)), [], 'a high-tier seat resolves to opus')
+  assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security' }, { lens: 'correctness', model: 'fable' }] })), [], 'a fable seat ranks above opus')
+  assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security' }] }), { auditor: { model: 'opus', effort: 'default' } }), [], 'an opus base tier covers a seat with no tier')
+  assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security' }] }), { auditor: { model: 'sonnet', effort: 'high', low: { model: 'opus', effort: 'default' } } }), [], 'an opus low tier covers a seat with no tier')
+  assert.deepEqual(warnsFor(btask({ files: ['docs/authoring-guide.md', 'src/digit.js', 'README.md'] })), [], 'author, authoring and digit are not boundary words')
+  assert.deepEqual(warnsFor(btask()), [], 'no signal, no warning')
+  assert.equal(warnsFor(btask({ roster: [{ lens: 'security', tier: 'high' }] }), { auditor: { model: 'sonnet', effort: 'high', high: { model: 'sonnet', effort: 'high' } } }).length, 1,
+    'a high tier below opus does not cover the floor')
+  assert.deepEqual(boundaryWarnings({ tasks: [] }), [], 'a zero-task launch is silent')
+})
+
+test('CLI: a boundary warning goes to stderr and keeps exit 0 (warn, never refuse)', () => {
+  const args = { ...COMPLETE(), agents: SONNET, tasks: [btask({ roster: [{ lens: 'security' }] })] }
+  const r = runCli([], JSON.stringify(args))
+  assert.equal(r.status, 0, 'the warning never changes the exit code')
+  assert.match(r.stderr, /warning: task t1 .*security seat/, 'stderr carries the warning')
+  assert.match(r.stdout, /dispatch-complete/, 'the launch still certifies')
+  const quiet = runCli([], JSON.stringify({ ...args, tasks: [btask({ roster: [{ lens: 'security', tier: 'high' }] })] }))
+  assert.equal(quiet.status, 0)
+  assert.doesNotMatch(quiet.stderr, /warning/, 'an opus seat leaves stderr clean')
 })

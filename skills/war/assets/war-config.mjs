@@ -16,6 +16,9 @@ export const EFFORTS = ['default', 'low', 'medium', 'high', 'xhigh', 'max']
 // not worth its cost); weaker models carry a pinned effort as compensation.
 export const MODEL_RANK = ['haiku', 'sonnet', 'opus', 'fable']
 export const ROSTER_POLICIES = ['auto', 'all', 'solo']
+// AUDITOR_TIERS: the values a roster seat's `tier` may name (#2534). 'low' resolves agents.auditor.low,
+// else the base auditor model and effort; 'high' resolves agents.auditor.high. A seat with no tier runs low.
+export const AUDITOR_TIERS = ['low', 'high']
 // Lenses reserved for built-in passes — never roster-selectable, never a valid widen nomination (D4).
 // (execution-evidence = post-merge gate-audit pass; pin-validity = gitlink-bump pre-flight.)
 export const RESERVED_LENSES = ['execution-evidence', 'pin-validity']
@@ -57,11 +60,13 @@ export const DEFAULTS = {
     // to presetConfig() by DOC_TIER_PINS / the /war-room bullet parser in war-config.test.mjs — when
     // you add a restatement, add a pin row; when you cannot, write a pointer instead of the value.
     // Seat models follow the #2497 / #2519 routing (ADR 0056): opus for bounded worker, fix and ace work,
-    // sonnet for docs-only tasks and routine audit seats. The Lead routes a boundary-heavy seat to opus
-    // through the roster seat's own model.
+    // sonnet for docs-only tasks and routine audit seats. The Lead picks each roster seat's tier (#2534), and
+    // a boundary-heavy seat takes auditor.high.
     worker:   { model: 'opus',   effort: 'default', docs: { model: 'sonnet', effort: 'high' }, fix: { model: 'opus', effort: 'default' } },
     // auditor.rebuttal: the rebuttal-round seat tier, one model above the auditor (capped at fable).
-    auditor:  { model: 'sonnet', effort: 'high', rebuttal: { model: 'opus', effort: 'default' } },
+    // auditor.high: the tier a seat with tier 'high' runs on (#2534). auditor.low has no default, so a seat
+    // with no tier or tier 'low' runs the base auditor model and effort unless a config sets low.
+    auditor:  { model: 'sonnet', effort: 'high', rebuttal: { model: 'opus', effort: 'default' }, high: { model: 'opus', effort: 'default' } },
     refiner:  { model: 'sonnet', effort: 'high', recovery: { model: 'opus', effort: 'high' } },
     servitor: { model: 'sonnet', effort: 'xhigh' },
     // redteam: the model/effort /red-team threads (fail-open) into its probe + adversarial-confirm
@@ -174,7 +179,7 @@ export const PRESETS = {
       // above the opus/sonnet DEFAULTS (ADR 0056), and the refiner pin sits one effort tier above the
       // DEFAULTS refiner.
       worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
-      auditor:  { model: 'fable',  effort: 'default', rebuttal: { model: 'fable', effort: 'default' } },
+      auditor:  { model: 'fable',  effort: 'default', rebuttal: { model: 'fable', effort: 'default' }, low: { model: 'opus', effort: 'default' }, high: { model: 'fable', effort: 'default' } },
       refiner:  { model: 'sonnet', effort: 'xhigh' },
       servitor: { model: 'opus',   effort: 'high' },
       redteam:  { model: 'fable',  effort: 'default' },
@@ -306,7 +311,7 @@ export function workerTierMatrix() {
 
 // Validate an optional agent tier block { model, effort } — model/effort must be in the role enums
 // and no unknown sub-keys (the memory.* unknown-key precedent, so a typo never runs silently). Used
-// for agents.redteam, agents.snipe, agents.trial, agents.helper, agents.auditor.rebuttal, the agents.worker.docs/fix/ace tiers and every agents.<skill>.<seat>
+// for agents.redteam, agents.snipe, agents.trial, agents.helper, agents.auditor.rebuttal/low/high, the agents.worker.docs/fix/ace tiers and every agents.<skill>.<seat>
 // skill seat (SKILL_SEATS): validated exactly
 // like a phase role, but none of them is itself a ROLE (redteam feeds /red-team, snipe feeds /snipe,
 // trial feeds /war-strategy's fork-trial subagent, helper feeds the tiny Git dispatches; the worker tiers refine worker dispatch).
@@ -344,7 +349,10 @@ export function validate(input) {
   if (isObj(c.agents.refiner) && Object.prototype.hasOwnProperty.call(c.agents.refiner, 'recovery')) validateAgentTier(c.agents.refiner.recovery, 'agents.refiner.recovery', errors)
   // agents.auditor.rebuttal: the rebuttal-round seat tier (defaulted; a hand-written config may omit it, and then
   // each rebuttal seat keeps its usual tier).
-  if (isObj(c.agents.auditor) && Object.prototype.hasOwnProperty.call(c.agents.auditor, 'rebuttal')) validateAgentTier(c.agents.auditor.rebuttal, 'agents.auditor.rebuttal', errors)
+  // agents.auditor.low / agents.auditor.high: the seat tiers a roster seat's `tier` names (#2534), validated the same way.
+  for (const tier of ['rebuttal', ...AUDITOR_TIERS]) {
+    if (isObj(c.agents.auditor) && Object.prototype.hasOwnProperty.call(c.agents.auditor, tier)) validateAgentTier(c.agents.auditor[tier], `agents.auditor.${tier}`, errors)
+  }
   // agents.redteam — a { model, effort } tier validated like a role when present, but NOT a phase ROLE:
   // it joins validation only (/red-team consumes it fail-open; the per-phase spawn path never does, and
   // agentMatrix stays four roles). Defaulted in DEFAULTS (preset-overridden); a config
@@ -519,7 +527,7 @@ export function resolveProvision(config) {
 // Roster validation (D8): a roster is an array of 1–5 seats; each seat an object with a
 // non-empty string lens; depth absent or one of neighbors|deep; lenses distinct; agentType absent or a
 // SEAT_AGENT_TYPES member; model/effort absent or a MODELS/EFFORTS member (#2519: a per-seat override of
-// the auditor tier). `evidence` is the run.evidence knob: an evidence-type row is rejected unless
+// the auditor tier); tier absent or an AUDITOR_TIERS member (#2534). `evidence` is the run.evidence knob: an evidence-type row is rejected unless
 // it is exactly true (REA artifact evidence D8/D12). Beside an evidence seat the non-evidence seats cap
 // at 4 (the five-seat ceiling holds); every other roster keeps the plain 1-5 bound.
 // Returns { valid, errors: [string] }. MIRRORED inline in workflow-template.js. Keep in sync.
@@ -535,14 +543,14 @@ export function validateRoster(roster, evidence) {
   if (errors.length > 0) return { valid: false, errors }
   const seen = []
   roster.forEach((seat, i) => {
-    if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth?, agentType?, model?, effort? }`); return }
+    if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth?, agentType?, model?, effort?, tier? }`); return }
     if (typeof seat.lens !== 'string' || !seat.lens) errors.push(`roster[${i}].lens must be a non-empty string`)
     else if (seen.includes(seat.lens)) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
     else seen.push(seat.lens)
     if (seat.depth !== undefined && seat.depth !== 'neighbors' && seat.depth !== 'deep') errors.push(`roster[${i}].depth must be "neighbors" or "deep" when present (got ${JSON.stringify(seat.depth)})`)
     if (seat.agentType !== undefined && !SEAT_AGENT_TYPES.includes(seat.agentType)) errors.push(`roster[${i}].agentType must be one of ${SEAT_AGENT_TYPES.join('|')} when present (got ${JSON.stringify(seat.agentType)})`)
     else if (seat.agentType === 'war-evidence-auditor' && evidence !== true) errors.push(`roster[${i}].agentType "war-evidence-auditor" needs run.evidence: true (the evidence seat is off by default)`)
-    for (const [k, e] of [['model', MODELS], ['effort', EFFORTS]]) if (seat[k] !== undefined && !e.includes(seat[k])) errors.push(`roster[${i}].${k} must be one of ${e.join('|')} when present (got ${JSON.stringify(seat[k])})`)
+    for (const [k, e] of [['model', MODELS], ['effort', EFFORTS], ['tier', AUDITOR_TIERS]]) if (seat[k] !== undefined && !e.includes(seat[k])) errors.push(`roster[${i}].${k} must be one of ${e.join('|')} when present (got ${JSON.stringify(seat[k])})`)
   })
   return { valid: errors.length === 0, errors }
 }
@@ -563,7 +571,7 @@ export function widenRoster(roster, defaultRoster) {
 // nomination is a non-empty array of DISTINCT, non-empty strings, never a `RESERVED_LENSES` or
 // `WIDEN_BARRED_LENSES` member (exports in `war-config.mjs`) — strict whole-field
 // (any bad entry rejects the whole nomination, no per-entry salvage). Valid → seats from the nominated
-// lenses @ deep, source 'nominated'; anything else → defaultRoster verbatim, source 'default' (the
+// lenses @ deep on the high seat tier (#2534), source 'nominated'; anything else → defaultRoster verbatim, source 'default' (the
 // byte-identical default-roster-union fallback). The returned seats feed widenRoster (which keeps the lone seat,
 // dedupes, caps 5), so a nomination naming the seat's own lens is legal. MIRRORED inline in
 // workflow-template.js. Keep in sync.
@@ -572,7 +580,7 @@ export function resolveWidenSource(nominated, defaultRoster) {
     nominated.every(l => typeof l === 'string' && l.length > 0 && !RESERVED_LENSES.includes(l) && !WIDEN_BARRED_LENSES.includes(l)) &&
     new Set(nominated).size === nominated.length
   return valid
-    ? { source: 'nominated', seats: nominated.map(lens => ({ lens, depth: 'deep' })) }
+    ? { source: 'nominated', seats: nominated.map(lens => ({ lens, depth: 'deep', tier: 'high' })) }
     : { source: 'default', seats: defaultRoster }
 }
 
