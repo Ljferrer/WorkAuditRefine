@@ -242,7 +242,7 @@ export function checkArgs (fields, args) {
 // the seat's own model, else its tier (agents.auditor.high for tier 'high', else agents.auditor.low,
 // else the base auditor model, as spawnSeat resolves it). A warning, never a refusal: the Lead's
 // judgment sets the class. Returns one line per such task.
-const BOUNDARY_PATH = /migrat|(^|[/._-])o?auth(n|z|entication|orization|[/._-]|$)|(^|[/._-])git([/._-]|modules|$)/
+const BOUNDARY_PATH = /migrat|(^|[/._-])o?auth(?!or(s|ed|ing|ship)?([/._-]|$))|(^|[/._-])git([/._-]|modules|$)/
 export function boundaryWarnings (args) {
   const a = (args && args.agents && args.agents.auditor) || {}
   const seatModel = s => s.model || (s.tier === 'high' ? (a.high || {}).model || 'opus' : (a.low || {}).model || a.model || 'sonnet')

@@ -1631,6 +1631,9 @@ test('MODEL_RANK is a permutation of MODELS, its ADR 0050 order sentence matches
     assert.ok(rank(t) >= rank(b), `thorough ${path} (${t}) must rank >= balanced (${b})`)
     assert.ok(rank(b) >= rank(e), `balanced ${path} (${b}) must rank >= economy (${e})`)
   }
+  // auditor.low has no default (#2534), so TIER_PATHS cannot hold it: compare the low tier each preset resolves.
+  const low = p => { const a = presetConfig(p).agents.auditor; return (a.low || a).model }
+  assert.ok(rank(low('thorough')) >= rank(low('balanced')) && rank(low('balanced')) >= rank(low('economy')), 'the resolved auditor low tier is monotone across presets')
 })
 
 // ADR 0050: every fable seat carries effort 'default' — the session's knob decides fable's effort.

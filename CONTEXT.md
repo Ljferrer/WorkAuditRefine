@@ -556,7 +556,7 @@ _Avoid_: covenSize, panel size, seat count as a knob independent of the lens lis
 
 **Seat** (audit):
 One independent read-only auditor, convened from one roster entry — a **lens** plus that seat's own
-**depth**. Perspective diversity is the entire value of extra seats, so duplicate lenses in one roster
+**depth** and **tier** (low or high, `AUDITOR_TIERS`). Perspective diversity is the entire value of extra seats, so duplicate lenses in one roster
 are invalid.
 _Avoid_: reviewer instance; redundant/duplicate seats as a form of rigor.
 
@@ -606,7 +606,7 @@ The runtime widening of a **lone** seat that returns a Critical or low-confidenc
 becomes the **union** of the existing seat and a **widening source** (capped at 5), then the full widened
 roster re-audits on the pinned SHA. The source is the seat's own **`widen` nomination** when it supplies
 a valid one (a non-empty list of distinct lens names, never a `RESERVED_LENSES` or `WIDEN_BARRED_LENSES`
-member → those lenses at `deep`), else the **default roster's lenses** (the byte-identical
+member → those lenses at `deep` on the high seat tier), else the **default roster's lenses** (the byte-identical
 default-roster-union fallback). Fires only on 1-seat rosters — a multi-seat roster the human approved is
 never second-guessed.
 _Avoid_: replacing (rather than unioning away from) the lone seat's lens; widening covens further;

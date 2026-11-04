@@ -339,6 +339,10 @@ test('boundaryWarnings: each boundary signal with no opus seat warns once and na
     [btask({ files: ['db/migrations/0042_keys.sql'] }), /db\/migrations\/0042_keys\.sql/],
     [btask({ files: ['server/auth/session.ts'] }), /server\/auth\/session\.ts/],
     [btask({ files: ['lib/oauth-client.js'] }), /oauth-client/],
+    [btask({ files: ['src/authenticate.js'] }), /authenticate\.js/],
+    [btask({ files: ['api/authorize.ts'] }), /authorize\.ts/],
+    [btask({ files: ['lib/oauth2/client.js'] }), /oauth2/],
+    [btask({ files: ['src/authMiddleware.ts'] }), /authMiddleware\.ts/],
     [btask({ files: ['hooks/validate-auditor-git.sh'] }), /validate-auditor-git\.sh/],
     [btask({ files: ['.gitmodules'] }), /\.gitmodules/],
   ]) {
@@ -355,7 +359,7 @@ test('boundaryWarnings: silent when a seat resolves to opus or above, or when th
   assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security' }, { lens: 'correctness', model: 'fable' }] })), [], 'a fable seat ranks above opus')
   assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security' }] }), { auditor: { model: 'opus', effort: 'default' } }), [], 'an opus base tier covers a seat with no tier')
   assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security' }] }), { auditor: { model: 'sonnet', effort: 'high', low: { model: 'opus', effort: 'default' } } }), [], 'an opus low tier covers a seat with no tier')
-  assert.deepEqual(warnsFor(btask({ files: ['docs/authoring-guide.md', 'src/digit.js', 'README.md'] })), [], 'author, authoring and digit are not boundary words')
+  assert.deepEqual(warnsFor(btask({ files: ['docs/authoring-guide.md', 'AUTHORS.md', 'docs/author.md', 'src/digit.js', 'README.md'] })), [], 'author, authoring and digit are not boundary words')
   assert.deepEqual(warnsFor(btask()), [], 'no signal, no warning')
   assert.equal(warnsFor(btask({ roster: [{ lens: 'security', tier: 'high' }] }), { auditor: { model: 'sonnet', effort: 'high', high: { model: 'sonnet', effort: 'high' } } }).length, 1,
     'a high tier below opus does not cover the floor')
