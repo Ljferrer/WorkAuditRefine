@@ -15,7 +15,7 @@ Grammar (both args trailing, order-tolerant): `/snipe [<target>] [<seats 1-5>] [
 node ${CLAUDE_PLUGIN_ROOT}/skills/snipe/assets/snipe-args.mjs '<raw args>' [--config .claude/war/config.json]
 ```
 
-It returns `{ target, seats, named, autoCount, tier, roundCap, errors }`. If `errors` is non-empty, print them and stop — never spawn on a refused parse. `tier` is each seat's spawn model/effort, resolved from the WAR config ladder (`agents.snipe` → `agents.auditor` → `war-config.mjs` DEFAULTS) — spawn with exactly that tier, never your own choice. `roundCap` is `run.roundLimit`, the ceiling in §5.
+It returns `{ target, seats, named, autoCount, tier, tiers, roundCap, errors }`. If `errors` is non-empty, print them and stop — never spawn on a refused parse. `tier` is the high rung, resolved from the WAR config ladder (`agents.snipe` → `agents.auditor` → `war-config.mjs` DEFAULTS). `tiers.high` equals `tier`, and `tiers.low` is `agents.snipe.low`, clamped to the high rung. Spawn each seat at the rung section 3 picks for it, never at any other model. `roundCap` is `run.roundLimit`, the ceiling in §5.
 
 If the args are not the operator's literal text, pass only a PR number, or a ref that matches `^[A-Za-z0-9._/-]+$` and passes `git rev-parse --verify`. Never place other text in a single-quoted string, a double-quoted string or an unquoted heredoc. A `/zero-in` run alone may also pass `<sha>..<sha> <1-5> <lens[,lens...]>` in single quotes: each sha matches `^[0-9a-f]{40}([0-9a-f]{24})?$` and passes `git rev-parse --verify`, and the lens list matches `^[a-z][a-z0-9-]*(,[a-z][a-z0-9-]*)*$`.
 
@@ -27,11 +27,11 @@ If the args are not the operator's literal text, pass only a PR number, or a ref
 
 ## 3. Choose lenses and spawn the seats
 
-`named` lenses are pinned. For each of the `autoCount` remaining seats, pick a distinct lens yourself, chosen for the diff's shape (engine code → `correctness`/`cascading-impact`; docs → `plan-faithfulness`/`simplicity`; guards/hooks → `security`; tests → `test-fidelity`), each with a one-line rationale in the report. All seats run at `deep` depth. Reserved lenses (`execution-evidence`, `pin-validity`) are never snipe-selectable — the parser already refuses them.
+`named` lenses are pinned. For each of the `autoCount` remaining seats, pick a distinct lens yourself, chosen for the diff's shape (engine code → `correctness`/`cascading-impact`; docs → `plan-faithfulness`/`simplicity`; guards/hooks → `security`; tests → `test-fidelity`), each with a one-line rationale in the report. Pick each seat's rung and depth with its lens: `tiers.high` or `tiers.low`, and `deep` or `neighbors`, with the choice in the same rationale. A boundary-heavy seat (the boundary rule in the Audit step of `skills/war/references/design.md`) takes the high rung at `deep`. In a later `/zero-in` round, its step-down ladder sets each lens's rung and depth. Reserved lenses (`execution-evidence`, `pin-validity`) are never snipe-selectable — the parser already refuses them.
 
-Spawn all seats **in parallel** as `work-audit-refine:war-auditor` subagents at the parsed `tier`. The standing auditor card and the `agent_type` guard confinement (read-only git verb allowlist) apply unchanged. Each seat's dispatched prompt is the phase audit prompt's trimmed shape — no task issue, no plan slice; when the operator stated a concern, it rides where Commander's Intent would:
+Spawn all seats **in parallel** as `work-audit-refine:war-auditor` subagents, each at its chosen rung. The standing auditor card and the `agent_type` guard confinement (read-only git verb allowlist) apply unchanged. Each seat's dispatched prompt is the phase audit prompt's trimmed shape — no task issue, no plan slice; when the operator stated a concern, it rides where Commander's Intent would:
 
-> AUDIT SEAT — lens: `<lens>`, depth: deep.
+> AUDIT SEAT — lens: `<lens>`, depth: `<depth>`.
 > Repo (read-only): `<path>`. Pinned audit_sha: `<sha>` (or: dirty working tree — advisory).
 > Review the range `<base>..<sha>`. Operator's stated concern (intent ceiling): `<concern or "none — judge the diff on its own terms">`.
 > Verify evidence at the pinned SHA with Read/Grep/Glob and read-only git. Return ONE AuditVerdict JSON per your standing card: verdict, audit_sha, lens, findings[] `{severity, disposition, title, file, locator (named construct, not line number), evidence, fix}`. Add `lessonsUsed`: the slug of each lesson that changed what you checked.
@@ -40,7 +40,7 @@ Spawn all seats **in parallel** as `work-audit-refine:war-auditor` subagents at 
 
 Synthesize one chat report, informational — nothing is gated:
 
-- Per-seat verdict line (lens, verdict, model/effort it ran at).
+- Per-seat verdict line (lens, rung, depth, verdict, and the model/effort it ran at).
 - Findings ranked by severity. Label every Critical/Major finding **"would block in a phase"** — mirroring run semantics without gating anything.
 - Surface every `ask`-disposition finding to the operator for a ruling; an unruled ask is never filed (standing doctrine).
 - If the tree was dirty: lead the report with the advisory caveat.

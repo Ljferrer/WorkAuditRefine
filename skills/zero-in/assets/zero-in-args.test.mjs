@@ -159,6 +159,10 @@ test('the CLI takes the default config path, a snipe tier and a null config', ()
     const run = () => JSON.parse(execFileSync('node', [helper], { cwd: dir, input: 'fix x', encoding: 'utf8' }))
     assert.equal(run().roundCap, 2)
     assert.deepEqual(run().tier, { model: 'haiku', effort: 'low' })
+    assert.deepEqual(run().tiers, { low: { model: 'haiku', effort: 'low' }, high: { model: 'haiku', effort: 'low' } }, 'the CLI passes snipeTiers through, with the low rung clamped to the snipe tier')
+    writeFileSync(config, JSON.stringify({ agents: { snipe: { model: 'opus', effort: 'high', low: { model: 'sonnet', effort: 'medium' } } } }))
+    assert.deepEqual(run().tiers, { low: { model: 'sonnet', effort: 'medium' }, high: { model: 'opus', effort: 'high' } }, 'a configured low rung reaches the /zero-in JSON')
+    assert.deepEqual(run().tier, { model: 'opus', effort: 'high' }, 'the tier field is unchanged beside tiers')
     writeFileSync(config, 'null')
     assert.equal(run().roundCap, CAP)
   } finally { rmSync(dir, { recursive: true, force: true }) }
@@ -354,7 +358,7 @@ test('SKILL.md holds each loop rule', () => {
     /each seat returned a verdict whose `audit_sha` equals the pushed tip/,
     /no Critical, Major or Minor survives, and the gate and each `check` pass at this tip, the run closes as `settled`/,
     /Use `--size` seats in round 1/,
-    /it keeps every lens that found a Critical, Major or Minor in the last round/,
+    /A lens that found a Critical, Major or Minor last round returns to or stays on the high rung at `deep`, and a round never drops it/,
     /`named` lenses stay in each round/,
     /Run the gate and each `check`, commit, run the diff check from section 3, and push\. If the gate or a `check` stays red, stop and close as `held`/,
     /A fix commit never changes `overrides\.gate`/,

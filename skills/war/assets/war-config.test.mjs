@@ -104,14 +104,14 @@ test('thorough preset', () => {
   assert.equal(c.agents.auditor.effort, 'default')
   assert.equal(c.agents.servitor.model, 'opus')
   assert.equal(c.agents.servitor.effort, 'high')
-  assert.deepEqual(c.agents.snipe, { model: 'fable', effort: 'default' })
+  assert.deepEqual(c.agents.snipe, { model: 'fable', effort: 'default', low: { model: 'opus', effort: 'default' } })
   assert.deepEqual(PRESETS.thorough.agents, {
     worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
     auditor:  { model: 'fable',  effort: 'default', rebuttal: { model: 'fable', effort: 'default' }, low: { model: 'opus', effort: 'default' }, high: { model: 'fable', effort: 'default' } },
     refiner:  { model: 'sonnet', effort: 'xhigh' },
     servitor: { model: 'opus',   effort: 'high' },
     redteam:  { model: 'fable',  effort: 'default' },
-    snipe:    { model: 'fable',  effort: 'default' },
+    snipe:    { model: 'fable',  effort: 'default', low: { model: 'opus', effort: 'default' } },
     trial:    { model: 'fable',  effort: 'default' },
     machine: PRESETS.thorough.agents.machine, survey: PRESETS.thorough.agents.survey, lessons: PRESETS.thorough.agents.lessons,
   }, 'thorough agents literal (worker tiers pinned at fable, ADR 0056; skill seats bound by the /war-room bullet test)')
@@ -244,7 +244,9 @@ test('agents.redteam and agents.snipe: DEFAULTS value plus a per-preset table fo
     assert.deepEqual(presetConfig(preset).agents.redteam, expected, `${preset} preset red-team must be ${JSON.stringify(expected)}`)
   }
   // Sibling per-preset table for the snipe tier: only thorough overrides it; balanced and economy inherit DEFAULTS.
-  const SNIPE = { balanced: { model: 'opus', effort: 'high' }, thorough: { model: 'fable', effort: 'default' }, economy: { model: 'opus', effort: 'high' } }
+  // Each tier carries its step-down rung (#2534 item 23b): sonnet/high, and opus/default under thorough fable.
+  const SL = { model: 'sonnet', effort: 'high' }
+  const SNIPE = { balanced: { model: 'opus', effort: 'high', low: SL }, thorough: { model: 'fable', effort: 'default', low: { model: 'opus', effort: 'default' } }, economy: { model: 'opus', effort: 'high', low: SL } }
   for (const [preset, expected] of Object.entries(SNIPE)) {
     assert.deepEqual(presetConfig(preset).agents.snipe, expected, `${preset} preset snipe tier must be ${JSON.stringify(expected)}`)
   }
@@ -888,7 +890,12 @@ test('hooks.valeStyle defaults workAuditRefine, every VALE_STYLES value validate
 // agents.snipe — /snipe's one-shot seat tier (#1920): defaulted opus/high, validated like
 // redteam when present, explicit null accepted as unset (snipeTier's auditor fallback).
 test('agents.snipe defaults opus/high, validates as a tier, null accepted as unset', () => {
-  assert.deepEqual(DEFAULTS.agents.snipe, { model: 'opus', effort: 'high' }, 'operator-set /snipe default tier')
+  assert.deepEqual(DEFAULTS.agents.snipe, { model: 'opus', effort: 'high', low: { model: 'sonnet', effort: 'high' } }, 'operator-set /snipe default tier and its step-down rung (#2534 item 23b)')
+  assert.equal(validate({ agents: { snipe: { model: 'opus', effort: 'high', low: { model: 'haiku', effort: 'low' } } } }).valid, true, 'a low rung validates')
+  const badLow = validate({ agents: { snipe: { model: 'opus', effort: 'high', low: { model: 'gpt', effort: 'high' } } } })
+  assert.match(badLow.errors.join('\n'), /agents\.snipe\.low\.model/, 'the low rung is validated like agents.auditor.low')
+  assert.match(validate({ agents: { snipe: { model: 'opus', effort: 'high', low: { model: 'sonnet', effort: 'high', tier: 'x' } } } }).errors.join('\n'), /agents\.snipe\.low\.tier is not a known key/)
+  assert.match(validate({ agents: { snipe: { model: 'opus', effort: 'high', low: null } } }).errors.join('\n'), /agents\.snipe\.low must be an object/)
   assert.equal(validate({ agents: { snipe: { model: 'haiku', effort: 'low' } } }).valid, true)
   assert.equal(validate({ agents: { snipe: null } }).valid, true, 'explicit null = unset')
   const bad = validate({ agents: { snipe: { model: 'gpt', effort: 'high' } } })
@@ -1607,7 +1614,7 @@ const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetCo
 // Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
 // SKILL_SEAT_PATHS: every agents.<skill>.<seat> tier (ADR 0056). The skill block itself is a seat map, not a tier.
 const SKILL_SEAT_PATHS = Object.entries(SKILL_SEATS).flatMap(([skill, seats]) => seats.map(seat => `${skill}.${seat}`))
-const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'auditor.rebuttal', 'auditor.high', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', 'helper', ...SKILL_SEAT_PATHS]
+const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'auditor.rebuttal', 'auditor.high', 'snipe.low', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', 'helper', ...SKILL_SEAT_PATHS]
 test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
   // A new agents.<tier> in DEFAULTS, or a new object-valued worker sub-tier, must join both lists.
   const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -1664,7 +1671,7 @@ test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig
 // once, no unknown label (the label group is open, so a stray `planner opus/`high`` token reaches the
 // census and fails it), every value equal to presetConfig(). A new preset without a bullet, a bullet
 // that drops a tier, or a reworded token all red here.
-const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', 'rebuttal-tier': 'auditor.rebuttal', 'audit-high-tier': 'auditor.high', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial', 'helper-tier': 'helper' }
+const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', 'rebuttal-tier': 'auditor.rebuttal', 'audit-high-tier': 'auditor.high', 'snipe-low-tier': 'snipe.low', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial', 'helper-tier': 'helper' }
 // OPTIONAL_BULLET_LABELS: a tier with no DEFAULTS value (auditor.low, #2534). Its token sits in a preset's
 // bullet exactly when that preset sets the tier, and then equals presetConfig().
 const OPTIONAL_BULLET_LABELS = { 'audit-low-tier': 'auditor.low' }
@@ -1744,6 +1751,18 @@ test('agents.auditor.low/high seat tiers (#2534): preset values, low left to the
   }
   assert.equal(validateRoster([{ lens: 'security', tier: 'high' }, { lens: 'simplicity', tier: 'low' }]).valid, true)
   assert.match(validateRoster([{ lens: 'security', tier: 'opus' }]).errors.join('\n'), /roster\[0\]\.tier must be one of low\|high/)
+})
+
+// The default config runs no fable audit seat (operator ruling 2026-11-03, #2534 item 23b): every audit tier
+// balanced resolves, the step-down rungs included, stays below fable. thorough starts higher by design.
+test('balanced (the default config) resolves no audit tier to fable', () => {
+  const a = presetConfig('balanced').agents
+  for (const [path, t] of [['auditor', a.auditor], ['auditor.rebuttal', a.auditor.rebuttal], ['auditor.high', a.auditor.high], ['auditor.low', a.auditor.low || a.auditor], ['snipe', a.snipe], ['snipe.low', a.snipe.low]]) {
+    assert.notEqual(t.model, 'fable', `balanced ${path} must not run fable`)
+  }
+  assert.deepEqual(presetConfig('balanced').agents.snipe.low, { model: 'sonnet', effort: 'high' })
+  assert.deepEqual(presetConfig('economy').agents.snipe.low, { model: 'sonnet', effort: 'high' })
+  assert.deepEqual(presetConfig('thorough').agents.snipe.low, { model: 'opus', effort: 'default' })
 })
 
 test('agents.<skill> seat maps (ADR 0056): a valid seat validates, an unknown seat, a bad tier or a non-object block is refused', () => {

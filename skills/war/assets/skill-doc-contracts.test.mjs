@@ -4586,3 +4586,30 @@ test('#1776: SKILL.md keeps the preflight invocation and a trigger pointer, and 
     assert.ok(staged.includes(moved), 'staged-script.md must carry the moved prose: ' + moved)
   }
 })
+
+// ---- #2534 item 23b: /snipe and /zero-in seats step down a rung ----
+// The low and high rungs let the Lead step a lens down before it narrows the panel (operator ruling 2026-11-03).
+test('#2534 item 23b: /snipe picks each seat rung and depth with its lens, and never pins one tier for every seat', () => {
+  const snipe = readFileSync(join(HERE, '../../snipe/SKILL.md'), 'utf8')
+  assert.ok(!snipe.includes('spawn with exactly that tier, never your own choice'), 'the one-tier rule is retired')
+  assert.match(snipe, /`tiers\.high` equals `tier`, and `tiers\.low` is `agents\.snipe\.low`, clamped to the high rung/)
+  assert.match(snipe, /Pick each seat's rung and depth with its lens: `tiers\.high` or `tiers\.low`, and `deep` or `neighbors`, with the choice in the same rationale/)
+  assert.match(snipe, /A boundary-heavy seat \(the boundary rule in the Audit step of `skills\/war\/references\/design\.md`\) takes the high rung at `deep`/)
+  assert.match(snipe, /Per-seat verdict line \(lens, rung, depth, verdict, and the model\/effort it ran at\)/, 'the report prints each seat model')
+  assert.match(snipe, /depth: `<depth>`\./, 'the dispatched prompt carries the chosen depth')
+  assert.match(snipe, /In a later `\/zero-in` round, its step-down ladder sets each lens's rung and depth/, 'round 1 of a /zero-in run uses the section 3 pick rule')
+})
+
+test('#2534 item 23b: /zero-in steps a quiet lens down one rung per round before it drops the seat', () => {
+  const loop = readFileSync(join(HERE, '../../zero-in/SKILL.md'), 'utf8').split('## 4.')[1].split('## 5.')[0]
+  assert.match(loop, /A lens that found a Critical, Major or Minor last round returns to or stays on the high rung at `deep`, and a round never drops it/)
+  assert.match(loop, /A later round uses only the lenses the ladder keeps, so never refill a dropped seat with `auto`/, 'a dropped seat stays dropped')
+  assert.match(loop, /a `named` lens steps down but stops at low at `neighbors`/, 'a named lens is never dropped')
+  assert.match(loop, /A lens that found only Nits or nothing steps down one rung: high at `deep`, then low at `deep`, then low at `neighbors`, then dropped/)
+  assert.doesNotMatch(loop, /uses fewer seats if the findings narrow/, 'the narrowing rule is retired')
+  assert.match(loop, /In round 1, fill the other seats with `auto`/, 'the auto fill is scoped to round 1, beside the no-refill rule')
+  assert.doesNotMatch(loop, /(^|\. )Fill the other seats with `auto`/m, 'no unscoped auto fill remains')
+  assert.match(loop, /In a later round, that added `auto` seat runs at low at `neighbors` and is not a kept lens\. If its lens found a Critical, Major or Minor, that lens joins the kept lenses at high at `deep`/)
+  assert.match(loop, /A quiet lens at high at `neighbors` steps to low at `neighbors`/, 'every start state has a next rung')
+  assert.match(loop, /In a later round, pass the kept-lens count as `<seats>`, plus one for the added `auto` seat of a lone non-catalog lens/, 'a later round never asks /snipe for refill seats')
+})

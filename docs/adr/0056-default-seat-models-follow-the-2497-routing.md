@@ -60,6 +60,18 @@ widening adds the config roster rows as they are. The approval gate prints each 
 model, and the launch check warns, never refuses, when a task with a boundary signal has no seat at
 opus or above.
 
+**Amended 2026-11-03 (#2534 item 23b): /snipe and /zero-in seats step down a rung.** By operator ruling,
+the two rungs let the Lead step a lens down gracefully between audit rounds, before it narrows the panel.
+`agents.snipe` is the high rung and the defaulted `agents.snipe.low` is the low rung. A low model that ranks
+above the snipe model runs as the snipe tier. The Lead picks each seat's rung and depth with its lens, and a
+boundary-heavy seat takes the high rung at deep. In `/zero-in`, a lens that found a Critical, Major or Minor
+stays high at deep and is never dropped, and a quiet lens steps down one rung per round: high at deep, low
+at deep, low at neighbors, then dropped. A lens with a new Critical, Major or Minor returns to the high rung at deep, a
+quiet lens is one with only Nits or nothing, and a
+named lens steps down but stops at low at neighbors. Every preset steps down the same way, and `thorough` starts from a
+higher budget. The default config runs no fable audit seat. The values live in `war-config.mjs` and the
+`/war-room` preset bullets, never restated here.
+
 ## Consequences
 
 - A run with no config file now spends less on workers and auditors. A missed finding on a
