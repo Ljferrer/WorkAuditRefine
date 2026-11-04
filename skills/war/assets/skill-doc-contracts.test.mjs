@@ -4550,8 +4550,10 @@ test('#2545/#2534: Decompose step 2 carries the per-seat tier choice, the bounda
 test('#2545 part 4: the approval gate roster proposal prints each seat\'s resolved model', () => {
   const m = skillMd.match(/^6\. Present the DAG.*$/m)
   assert.ok(m, 'could not locate Decompose step 6 in SKILL.md')
-  assert.match(m[0], /The roster proposal prints each seat's lens, depth, tier and resolved model and effort \(its own `model`\/`effort`, else its tier's\)/,
+  assert.match(m[0], /The roster proposal prints each seat's lens, depth, tier and resolved model and effort \(its own `model`\/`effort`, else its tier's,/,
     'the gate must print the resolved model of every seat before approval')
+  assert.match(m[0], /with a high tier below the auditor model shown as the auditor tier/, 'the gate print must follow the spawnSeat clamp (#2534)')
+  assert.match(decomposeStep2(), /lifted to the auditor tier when it ranks below it/, 'step 2 must name the high-tier clamp')
 })
 
 test('#2545 part 3: SKILL.md relays the launch check boundary warning and never blocks on it', () => {

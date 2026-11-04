@@ -527,7 +527,7 @@ export function resolveProvision(config) {
 // Roster validation (D8): a roster is an array of 1–5 seats; each seat an object with a
 // non-empty string lens; depth absent or one of neighbors|deep; lenses distinct; agentType absent or a
 // SEAT_AGENT_TYPES member; model/effort absent or a MODELS/EFFORTS member (#2519: a per-seat override of
-// the auditor tier); tier absent or an AUDITOR_TIERS member (#2534). `evidence` is the run.evidence knob: an evidence-type row is rejected unless
+// the seat tier); tier absent or an AUDITOR_TIERS member (#2534). `evidence` is the run.evidence knob: an evidence-type row is rejected unless
 // it is exactly true (REA artifact evidence D8/D12). Beside an evidence seat the non-evidence seats cap
 // at 4 (the five-seat ceiling holds); every other roster keeps the plain 1-5 bound.
 // Returns { valid, errors: [string] }. MIRRORED inline in workflow-template.js. Keep in sync.

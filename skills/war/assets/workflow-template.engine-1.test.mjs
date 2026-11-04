@@ -8038,6 +8038,8 @@ test('#2534 — seat tier: tier high runs agents.auditor.high, tier low and no t
   assert.deepEqual(stale.security, { model: 'fable', effort: undefined }, 'a pre-#2534 fable config keeps tier high on fable (the clamp), never the opus default')
   const below = await optsOf({ model: 'opus', effort: 'high', high: { model: 'sonnet', effort: 'low' } })
   assert.deepEqual(below.security, { model: 'opus', effort: 'high' }, 'a high tier below the base takes the whole base tier')
+  const noBase = await optsOf({ high: { model: 'haiku', effort: 'low' } })
+  assert.deepEqual(noBase.security, { model: 'sonnet', effort: undefined }, 'with no auditor model the clamp compares against the ROLE_MODEL.auditor base, as boundaryWarnings does')
   const partial = await optsOf({ model: 'sonnet', effort: 'xhigh', high: { model: 'fable' } })
   assert.deepEqual(partial.security, { model: 'fable', effort: undefined }, 'a partial high block falls back to the high default effort, never the base effort')
 })

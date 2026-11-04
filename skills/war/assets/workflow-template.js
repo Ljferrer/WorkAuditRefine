@@ -821,8 +821,8 @@ const spawn = role => {
 // In a rebuttal round a configured agents.auditor.rebuttal tier replaces all of them; absent, the round is unchanged.
 const spawnSeat = (s, rebut) => {
   const a = agents.auditor || {}, r = rebut && a.rebuttal
-  const h = { ...AUDITOR_TIER_DEFAULTS.high, ...a.high }
-  const t = s.tier !== 'high' ? (a.low || {}) : MODEL_RANK.indexOf(h.model) < MODEL_RANK.indexOf(a.model) ? { model: a.model, effort: a.effort } : h
+  const h = { ...AUDITOR_TIER_DEFAULTS.high, ...a.high }, base = a.model || ROLE_MODEL.auditor
+  const t = s.tier !== 'high' ? (a.low || {}) : MODEL_RANK.indexOf(h.model) < MODEL_RANK.indexOf(base) ? { model: base, effort: a.effort } : h
   const e = r ? r.effort : s.effort ?? t.effort ?? a.effort
   return { model: (r && r.model) || s.model || t.model || a.model || ROLE_MODEL.auditor, ...(e && e !== 'default' && { effort: e }) }
 }

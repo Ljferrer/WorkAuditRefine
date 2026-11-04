@@ -240,9 +240,9 @@ export function checkArgs (fields, args) {
 // A task carries a boundary signal when a seat has the security lens or a Files entry names a
 // migration, auth or Git path. The task needs at least one seat that resolves to opus or above:
 // the seat's own model, else its tier (agents.auditor.high for tier 'high', else agents.auditor.low,
-// else the base auditor model, as spawnSeat resolves it). A warning, never a refusal: the Lead's
+// else the base auditor model, as spawnSeat resolves it, with a high tier below the base lifted to the base). A warning, never a refusal: the Lead's
 // judgment sets the class. Returns one line per such task.
-const BOUNDARY_PATH = /migrat|(^|[/._-])(un)?o?auth(?!or(s|ed|ing|ship)?([/._-]|$))|(^|[/._-])git([/._-]|modules|$)/
+const BOUNDARY_PATH = /migrat|(^|[/._-])(un)?o?auth(?!or(s|ed|ing|ship)?([/._-]|$))|(^|[/._-])git([/._-]|modules|attributes|ignore|$)/
 // CAMEL_AUTH reads the original-case path, so userAuth.ts and withAuth.tsx carry the signal too.
 const CAMEL_AUTH = /[a-z0-9]Auth(?!or(s|ed|ing|ship)?([^a-z]|$))/
 export function boundaryWarnings (args) {

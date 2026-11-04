@@ -348,6 +348,8 @@ test('boundaryWarnings: each boundary signal with no opus seat warns once and na
     [btask({ files: ['api/unauthorized.ts'] }), /unauthorized\.ts/],
     [btask({ files: ['hooks/validate-auditor-git.sh'] }), /validate-auditor-git\.sh/],
     [btask({ files: ['.gitmodules'] }), /\.gitmodules/],
+    [btask({ files: ['.gitignore'] }), /\.gitignore/],
+    [btask({ files: ['.gitattributes'] }), /\.gitattributes/],
   ]) {
     const w = warnsFor(task)
     assert.equal(w.length, 1, `one warning for ${JSON.stringify(task.files)} / ${JSON.stringify(task.roster)}`)
