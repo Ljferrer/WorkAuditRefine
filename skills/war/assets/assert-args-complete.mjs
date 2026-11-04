@@ -246,7 +246,7 @@ const BOUNDARY_PATH = /migrat|(^|[/._-])(un)?o?auth(?!or(s|ed|ing|ship)?([/._-]|
 // CAMEL_AUTH and CAMEL_GIT read the original-case path, so userAuth.ts, MyOAuth.ts, GitService.ts and
 // gitClient.js carry the signal too. GitHub names are not Git paths.
 const CAMEL_AUTH = /[a-z0-9O]Auth(?!or(s|ed|ing|ship)?([^a-z]|$))/
-const CAMEL_GIT = /(^|[^A-Za-z]|[a-z0-9])Git(?!Hub)([^a-z]|$)|(^|[^A-Za-z])git[A-Z]/
+const CAMEL_GIT = /(^|[^A-Za-z]|[a-z0-9])Git(?!Hub)([^a-z]|$)|(^|[^A-Za-z])git(?!Hub)[A-Z]/
 export function boundaryWarnings (args) {
   const a = (args && args.agents && args.agents.auditor) || {}
   const rank = m => MODEL_RANK.indexOf(m)

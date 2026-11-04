@@ -367,7 +367,7 @@ test('boundaryWarnings: silent when a seat resolves to opus or above, or when th
   assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security' }, { lens: 'correctness', model: 'fable' }] })), [], 'a fable seat ranks above opus')
   assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security' }] }), { auditor: { model: 'opus', effort: 'default' } }), [], 'an opus base tier covers a seat with no tier')
   assert.deepEqual(warnsFor(btask({ roster: [{ lens: 'security' }] }), { auditor: { model: 'sonnet', effort: 'high', low: { model: 'opus', effort: 'default' } } }), [], 'an opus low tier covers a seat with no tier')
-  assert.deepEqual(warnsFor(btask({ files: ['docs/authoring-guide.md', 'AUTHORS.md', 'docs/author.md', 'docs/coAuthors.md', 'src/GitHubBadge.tsx', 'src/legitScore.js', 'src/DigitalClock.ts', 'src/digit.js', 'README.md'] })), [], 'author, authoring and digit are not boundary words')
+  assert.deepEqual(warnsFor(btask({ files: ['docs/authoring-guide.md', 'AUTHORS.md', 'docs/author.md', 'docs/coAuthors.md', 'src/GitHubBadge.tsx', 'src/gitHubApi.ts', 'src/legitScore.js', 'src/DigitalClock.ts', 'src/digit.js', 'README.md'] })), [], 'author, authoring and digit are not boundary words')
   assert.deepEqual(warnsFor(btask()), [], 'no signal, no warning')
   assert.equal(warnsFor(btask({ roster: [{ lens: 'security', tier: 'high' }] }), { auditor: { model: 'sonnet', effort: 'high', high: { model: 'sonnet', effort: 'high' } } }).length, 1,
     'a high tier below opus does not cover the floor')
