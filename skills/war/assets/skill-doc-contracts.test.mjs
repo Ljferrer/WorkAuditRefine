@@ -4597,6 +4597,7 @@ test('#2534 item 23b: /snipe picks each seat rung and depth with its lens, and n
   assert.match(snipe, /A boundary-heavy seat \(the boundary rule in the Audit step of `skills\/war\/references\/design\.md`\) takes the high rung at `deep`/)
   assert.match(snipe, /Per-seat verdict line \(lens, rung, depth, verdict, and the model\/effort it ran at\)/, 'the report prints each seat model')
   assert.match(snipe, /depth: `<depth>`\./, 'the dispatched prompt carries the chosen depth')
+  assert.match(snipe, /In a later `\/zero-in` round, its step-down ladder sets each lens's rung and depth/, 'round 1 of a /zero-in run uses the section 3 pick rule')
 })
 
 test('#2534 item 23b: /zero-in steps a quiet lens down one rung per round before it drops the seat', () => {
@@ -4606,4 +4607,7 @@ test('#2534 item 23b: /zero-in steps a quiet lens down one rung per round before
   assert.match(loop, /a `named` lens steps down but stops at low at `neighbors`/, 'a named lens is never dropped')
   assert.match(loop, /A lens that found only Nits or nothing steps down one rung: high at `deep`, then low at `deep`, then low at `neighbors`, then dropped/)
   assert.doesNotMatch(loop, /uses fewer seats if the findings narrow/, 'the narrowing rule is retired')
+  assert.match(loop, /In round 1, fill the other seats with `auto`/, 'the auto fill is scoped to round 1, beside the no-refill rule')
+  assert.doesNotMatch(loop, /(^|\. )Fill the other seats with `auto`/m, 'no unscoped auto fill remains')
+  assert.match(loop, /In a later round, that added `auto` seat runs at low at `neighbors` and is not a kept lens/)
 })
