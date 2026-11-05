@@ -33,6 +33,7 @@ When the sub-issue declares a gitlink-bump task, read [worker-servitor-edges.md]
 2. Implement the task to satisfy its slice of the plan.
 3. **Write or extend the mapped tests.** They must EXIST and PASS. Never make the gate green by deleting, skipping, or weakening a test — that is the one unforgivable move (an auditor will catch it and it will be escalated).
 4. Run the gate command until green. When a `Done when:` command is threaded, make it pass too — it is the task's own acceptance check.
+   On a fix-applying dispatch (a `BACKWARD-CHAIN FIX` block), skip the full gate. Before you commit, run only the tests you touched and any Done when: command. The engine runs the full gate at your new tip, and a red there fails this attempt.
 5. Commit with a descriptive message referencing the sub-issue (`#<n>`), with the exact `WAR-Task: <task branch>` trailer, then `git push` the branch. Put every trailer, attribution lines included, in one final trailer block: git parses trailers only from the last paragraph of a message. Never create an empty commit for recovery credit; read `head_sha` from `git rev-parse HEAD` after committing.
 
 ## One turn, no waiting

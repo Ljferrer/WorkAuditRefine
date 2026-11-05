@@ -1660,7 +1660,7 @@ const GATE_SITE_CAPTURES = [
     run: (gate) => runPhase(CLS_ARGS({ plan: planWith(gate) }), clsImpl({ mergeResult: baselineMergeResult })) },
   { site: 'evidence:phase-<id> intra-dep integrated-tip re-run', find: (c) => c.find(x => /^evidence:phase-/.test(x.opts.label || '')),
     run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate) }), evidenceImpl) },
-  { site: 'polish:phase-<id> keep-green clause', find: (c) => c.find(x => /^polish:phase-/.test(x.opts.label || '')),
+  { site: 'polish:phase-<id> fix-gate clause', find: (c) => c.find(x => /^polish:phase-/.test(x.opts.label || '')),
     run: (gate) => runPhase(SWEEP_ARGS({ plan: planWith(gate) }), sweepBase([queuedAbsorb()])) },
   { site: 'merge:p<id>-polish re-merge clause', find: (c) => c.find(x => /^merge:p\d+-polish$/.test(x.opts.label || '')),
     run: (gate) => runPhase(SWEEP_ARGS({ plan: planWith(gate) }), sweepBase([queuedAbsorb()])) },
@@ -1705,8 +1705,8 @@ const GATE_SITE_CAPTURES = [
 // prompt sites (MAKE_DONE_PASS joined via Task 2.3; the ace bisection subset via realized-absorb-rate
 // Task 1.1) as a `Done when:` line beside Gate:. The rows pin
 // the two contract halves the plan
-// names: (1) any prompt that says keep-the-gate-green carries the gate command (the D6 prompt-truth
-// sweep), and (2) the absent ⇒ '' set-minus identity — a doneWhen-less run's prompts are
+// names: (1) each task-scoped fix prompt carries the gate command and the FIX_GATE_RULE (the D6
+// prompt-truth sweep), and (2) the absent ⇒ '' set-minus identity — a doneWhen-less run's prompts are
 // byte-identical to a doneWhen-bearing run's prompts minus the single inserted clause (legacy
 // byte-identity, End state 9). Fresh task objects per run (dwTask) — never the shared SINGLE_TASK —
 // because these tests byte-compare prompts ACROSS runs.
@@ -2329,6 +2329,8 @@ const BARE_INTERPOLATION_CENSUS = [
   // every call site; `e.gateLogPath` carries an explicit || conventional-path fallback at evItems;
   // `opts.label` is a segment continuation header's site label — every call site passes one.
   'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'GATE_LOG_UNTHREADED', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
+  // FIX_GATE_RULE (#2617 part 2): a plain-string module const, construction-guaranteed.
+  'FIX_GATE_RULE',
   // gateArtifactLine: kind is a literal at both callers; path is guarded by gateLogPathOf.
   'kind', 'path',
   // Dispatch-owned gate capture strings are constructed before their prompt carriers run.

@@ -3134,8 +3134,8 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
     assert.ok(c.prompt.includes('WITHOUT committing'), 'a preflight hit returns the existing sha without committing')
     assert.ok(c.prompt.includes('in THIS worktree only') && c.prompt.includes('never any shared ref'),
       'the dead-attempt dirt clause is worktree-local only — never any shared ref')
-    assert.ok(c.prompt.includes('keep the gate green') && c.prompt.includes('make gate'),
-      'the subset prompt keeps the gate green and carries the gate command (prompt truth, D6)')
+    assert.ok(c.prompt.includes('run only the tests you touched') && c.prompt.includes('make gate'),
+      'the subset prompt carries the fix-gate rule and the gate command (prompt truth, D6, #2617)')
   }
   // subset ordering: each half lists exactly its own findings (same-file grouping preserved)
   assert.ok(aces[1].prompt.includes('fa nit') && !aces[1].prompt.includes('fb nit'), 'half 1 carries only its findings')
@@ -8440,10 +8440,16 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     'zero dispatches reach the worker site on the refused launch (the floor is at entry)')
 })
 
-test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-green carries the gate command', async () => {
-  // Reach all keep-green prompt classes (the five fix-family prompts plus the three site-segmented
-  // ace classes (subset / reentry / polish) + the phase-close sweep); the sweep filter keys on the literal "keep the gate"
-  // fragment, parenthetical-gate form included.
+test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RULE, none says keep the gate, and the worker card agrees', async () => {
+  // Operator ruling 2026-11-05 (#2617 part 2): a fix-applying dispatch runs only the tests it touched and
+  // any Done when: command, then commits. The engine's own gate at the new tip is the only full gate.
+  // The rule text is read from the template source, so this test and the card check key on one string.
+  const rule = (src.match(/^const FIX_GATE_RULE = '([^']+)'$/m) || [])[1]
+  assert.ok(rule && rule.includes('run only the tests you touched') && rule.includes('Done when:'),
+    'FIX_GATE_RULE resolves in the template source and names touched tests plus Done when:')
+  const workerCard = readFileSync(join(here, '../../../agents/war-worker.md'), 'utf8')
+  assert.ok(workerCard.includes(rule),
+    'agents/war-worker.md carries FIX_GATE_RULE verbatim (standing card and dispatched prompt agree)')
   const runs = [
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), fixNeededImpl()),
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), floorRetryImpl()),
@@ -8455,46 +8461,31 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()])),
     await runPhase(SWEEP_ARGS(), terminalImpl()),   // terminal-pass (D3a): the one-hop pass after the merged sweep
   ]
-  const keepGreen = runs.flatMap(r => r.calls).filter(c => /keep the gate\b/i.test(c.prompt || ''))
+  const calls = runs.flatMap(r => r.calls)
+  for (const c of calls) {
+    assert.doesNotMatch(c.prompt || '', /keep(ing)? the gate\b/i,
+      `prompt "${c.opts.label}" no longer says keep the gate green (#2617: the engine gate is the only full gate)`)
+  }
+  const fixPrompts = calls.filter(c => (c.prompt || '').includes(rule))
   for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^ace:subset:/, /^ace:reentry:/, /^ace:polish:/, /^polish:/, /^terminal:/]) {
-    assert.ok(keepGreen.some(c => cls.test(c.opts.label || '')),
-      `a keep-the-gate-green prompt of class ${cls} was captured (anti-vacuity floor)`)
+    assert.ok(fixPrompts.some(c => cls.test(c.opts.label || '')),
+      `a fix-applying prompt of class ${cls} carries FIX_GATE_RULE (anti-vacuity floor)`)
   }
-  for (const c of keepGreen) {
+  for (const c of fixPrompts) {
     assert.ok(c.prompt.includes('make gate'),
-      `prompt "${c.opts.label}" says keep-the-gate-green AND carries the gate command`)
+      `fix prompt "${c.opts.label}" still names the gate command the engine runs at its new tip`)
   }
-  // Default-deny census (D6, #1334-4): the sweep above only reaches prompts its fixtures drive, so a
-  // keep-green prompt added at a dispatch site no fixture reaches would silently evade it. Count the
-  // space-form phrase over the template SOURCE in OCCURRENCE semantics (case-insensitive; comment
-  // mentions are blanked out below, so their hyphenated form no longer carries the exclusion alone).
-  // The census regex
-  // carries the sweep matcher's own word boundary (\b parity, #1686) so the two halves cannot key on
-  // different phrase sets. Pin re-measured
-  // at task time: 8 (the ace bisection subset prompt joined via realized-absorb-rate Task 1.1; the
-  // ace RE-ENTRY batch prompt joined via in-run-finding-resolution Task 1.1 — its fixture rides
-  // the sweep above).
-  // Line comments are blanked to SPACES, never deleted, so every index below still addresses the
-  // real source (the established `//`-strip idiom in this file, made index-preserving). Blanking is
-  // fail-CLOSED for this pin: an over-blanked line loses its occurrence and reds the count.
+  // Default-deny census: the sweep above only reaches prompts its fixtures drive, so a fix prompt at a
+  // site no fixture reaches would evade it. Line comments are blanked to SPACES (index-preserving).
   const censusSrc = src.replace(/\/\/[^\n]*/g, m => ' '.repeat(m.length))
-  // 8 → 9 (in-band-absorb-default D3a): the terminal-pass prompt joined; its fixture (terminalImpl)
-  // rides the sweep above.
-  const census = [...censusSrc.matchAll(/keep the gate\b/gi)]
-  assert.equal(census.length, 9,
-    'a new keep-the-gate-green prompt must join the D6 sweep above — the space-form census over the template source moved; re-pin this count ONLY alongside extending the sweep fixtures to reach the new site')
-  // Per-occurrence membership (#1686) — the count alone is RELOCATION-blind: an occurrence that
-  // moves out of a dispatched prompt into a comment, or into a dispatch site no fixture drives,
-  // keeps the total at 8 and the pin above stays green
-  // (memory: count-only-source-census-pin-is-blind-to-relocation-not-just-addition). So every match
-  // must also fall inside a fixture-reachable dispatch site's byte range. Each range is derived from
-  // the site's NAMED constructs — its prompt-header anchor through its own `label:` dispatch option,
-  // which is exactly the span that is dispatched — never a line number. `reachedBy` names the label
-  // class the sweep above already captured, so "fixture-reachable" is mechanical, not prose.
-  const KEEP_GREEN_SITES = [
-    // Site-segmented ace labels (D14, PIN-18, #2085): each ace row's reachedBy matches exactly ONE
-    // dispatch site — `ace:subset:` / `ace:reentry:` / `ace:polish:` — so a site that silently stopped
-    // dispatching can no longer borrow a sibling's capture.
+  assert.equal([...censusSrc.matchAll(/keep(ing)? the gate\b/gi)].length, 0,
+    'no template prompt says keep the gate green (#2617)')
+  const census = [...censusSrc.matchAll(/\$\{FIX_GATE_RULE\}/g)]
+  assert.equal(census.length, 10,
+    'a new fix-applying prompt must join the sweep above — re-pin this count ONLY alongside a fixture that reaches the new site')
+  // Per-occurrence membership: the count alone is relocation-blind, so every interpolation must sit
+  // inside a fixture-reachable dispatch site, from its prompt-header anchor to its own label: option.
+  const FIX_GATE_SITES = [
     { site: 'ace bisection subset (ACE BISECTION SUBSET)', from: 'pt`ACE BISECTION SUBSET for WAR task', reachedBy: /^ace:subset:/ },
     { site: 'ace re-entry batch (ACE RE-ENTRY BATCH)', from: 'pt`ACE RE-ENTRY BATCH for WAR task', reachedBy: /^ace:reentry:/ },
     { site: 'ace advisory polish (ADVISORY POLISH (--ace))', from: 'pt`ADVISORY POLISH (--ace) for WAR task', reachedBy: /^ace:polish:/ },
@@ -8503,27 +8494,23 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     { site: 'phase-close coherence sweep (PHASE-CLOSE COHERENCE SWEEP)', from: 'pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase', reachedBy: /^polish:/ },
     { site: 'terminal pass (TERMINAL PASS)', from: 'pt`TERMINAL PASS for WAR phase', reachedBy: /^terminal:/ },
   ]
-  const keepGreenRanges = KEEP_GREEN_SITES.map(s => {
+  const ranges = FIX_GATE_SITES.map(s => {
     const start = censusSrc.indexOf(s.from)
-    assert.ok(start >= 0,
-      `dispatch-site anchor for "${s.site}" resolves in the template source (extraction floor — a renamed construct reds this pin, never silently skips the site)`)
-    assert.equal(censusSrc.indexOf(s.from, start + 1), -1,
-      `dispatch-site anchor for "${s.site}" is UNIQUE (a duplicated anchor would make the range arbitrary)`)
+    assert.ok(start >= 0, `dispatch-site anchor for "${s.site}" resolves in the template source`)
+    assert.equal(censusSrc.indexOf(s.from, start + 1), -1, `dispatch-site anchor for "${s.site}" is unique`)
     const end = censusSrc.indexOf('label:', start)
-    assert.ok(end > start,
-      `dispatch-site "${s.site}" terminates at its own label: dispatch option (range floor)`)
-    assert.ok(keepGreen.some(c => s.reachedBy.test(c.opts.label || '')),
-      `dispatch-site "${s.site}" is fixture-reachable — a keep-green prompt of class ${s.reachedBy} was captured above`)
+    assert.ok(end > start, `dispatch-site "${s.site}" terminates at its own label: dispatch option`)
+    assert.ok(fixPrompts.some(c => s.reachedBy.test(c.opts.label || '')),
+      `dispatch-site "${s.site}" is fixture-reachable`)
     return { ...s, start, end }
   })
   for (const m of census) {
-    const home = keepGreenRanges.find(r => m.index >= r.start && m.index < r.end)
-    assert.ok(home,
-      `the keep-the-gate-green occurrence at source index ${m.index} sits inside a fixture-reachable dispatch site — an occurrence relocated into a comment, or into a site no fixture drives, is a keep-green claim the sweep above never checks`)
+    assert.ok(ranges.some(r => m.index >= r.start && m.index < r.end),
+      `the FIX_GATE_RULE interpolation at source index ${m.index} sits inside a fixture-reachable dispatch site`)
   }
-  for (const r of keepGreenRanges) {
+  for (const r of ranges) {
     assert.ok(census.some(m => m.index >= r.start && m.index < r.end),
-      `dispatch-site "${r.site}" still owns at least one keep-the-gate-green occurrence (anti-vacuity — a range that stops matching is a moved or dropped clause, never a silent pass)`)
+      `dispatch-site "${r.site}" owns at least one FIX_GATE_RULE interpolation`)
   }
 })
 
