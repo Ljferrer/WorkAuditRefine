@@ -2105,7 +2105,13 @@ for _pcmd in \
   "git -C $MAIN log --word-diff-regex $TMP $_psha" \
   "git -C $MAIN log --format=x -S $TMP $_psha" \
   "git -C $MAIN log --author=$TMP $_psha" \
-  "git -C $MAIN log -r -S $TMP $_psha"
+  "git -C $MAIN log -r -S $TMP $_psha" \
+  "git -C $MAIN show -p -S $TMP $_psha" \
+  "git -C $MAIN show -i --grep $TMP $_psha" \
+  "git -C $MAIN show -I $TMP $_psha" \
+  "git -C $MAIN show --word-diff-regex $TMP $_psha" \
+  "git -C $MAIN diff -p -G $TMP $_psha $_psha" \
+  "git -C $MAIN diff -r -S $TMP $_psha $_psha"
 do
   _pi=$((_pi + 1))
   run "$(mk_start "$AUD" pp$_pi)"

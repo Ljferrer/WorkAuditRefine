@@ -54,9 +54,8 @@
 #         see pat_opt) name no path, so they are not touched when the token
 #         before them is free (see pat_free) and no `--` or
 #         `--end-of-options` came before them. Otherwise they stay paths
-#         (over-touch, #2604). An
-#         unquoted `~-` or `~<name>` Bash token (`-C` value or operand) is
-#         unresolved: the payload carries no
+#         (over-touch, #2604). An unquoted `~-` or `~<name>` Bash token
+#         (`-C` value or operand) is unresolved: the payload carries no
 #         OLDPWD, and a `~<name>` needs getpwnam, so the token goes into the
 #         touched set literal (see tilde). A directory
 #         operand that holds task worktrees adds each of them when the
