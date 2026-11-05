@@ -8484,6 +8484,16 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
   for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^cite-budget:/, /^ace:subset:/, /^ace:reentry:/, /^ace:polish:/, /^polish:/, /^terminal:/]) {
     assert.ok(fixPrompts.some(c => cls.test(c.opts.label || '')),
       `a fix-applying prompt of class ${cls} carries FIX_GATE_RULE (anti-vacuity floor)`)
+    // every(), not just some(): a later-round prompt of the class that lost the rule reds too.
+    for (const c of calls.filter(c => cls.test(c.opts.label || ''))) {
+      assert.ok((c.prompt || '').includes(rule), `every ${cls} prompt carries FIX_GATE_RULE ("${c.opts.label}")`)
+    }
+  }
+  // Wider contradiction ban, fix prompts only (refiner prompts still say "Run the gate"): no fix
+  // prompt tells the worker to keep, run or drive the gate, or to bring the gate to green.
+  for (const c of fixPrompts) {
+    assert.doesNotMatch(c.prompt, /\b(keep(ing)?|run|drive) the (full )?gate\b|\bgate\b[^.\n]{0,20}\bgreen\b/i,
+      `fix prompt "${c.opts.label}" never tells the worker to run the full gate or keep it green`)
   }
   for (const c of fixPrompts) {
     assert.ok(c.prompt.includes('make gate'),
@@ -8545,6 +8555,9 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
   // dispatch may sit outside a FIX_GATE_SITES range.
   const workerDispatches = [...censusSrc.matchAll(/agentType: NS \+ 'war-worker'/g)]
   assert.equal(workerDispatches.length, 8, 'eight war-worker dispatch sites (work plus seven fix builds)')
+  // Any spelling: a dispatch that names the agent another way still names 'war-worker' once.
+  assert.equal([...censusSrc.matchAll(/war-worker/g)].length, 8,
+    'every war-worker mention in non-comment source is one of the eight matched dispatch sites')
   const outside = workerDispatches.filter(m => !ranges.some(r => m.index >= r.start && m.index < r.end))
   assert.equal(outside.length, 1, 'only the primary work dispatch sits outside a fix-gate site range')
   assert.match(censusSrc.slice(outside[0].index, outside[0].index + 120), /label: `work:/, 'the one outside dispatch is the work: dispatch')
