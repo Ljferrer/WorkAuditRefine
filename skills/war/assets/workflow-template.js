@@ -1658,7 +1658,7 @@ const floorSkipLogged = new Set()
 // Behavior arm (late-defects D2/D7, PIN-2/PIN-7), ahead of the probe check so it holds with the probe
 // absent too: a seat row classed `behavior` whose route reads `note` never stays a note. With a fix on
 // a named file it is applied ('absorb': in-diff it joins the task's ace batch; out-of-diff, or with no
-// probe, it rides phaseClose:true to the sweep); any other behavior note parks as an ask. A cosmetic
+// probe, it rides phaseClose:true to the behavior-row sort (PIN-21)); any other behavior note parks as an ask. A cosmetic
 // or classless row skips this arm and keeps today's route.
 const intakeFloor = (f, d, diff) => {
   if (f.engineFiled === true) return d
@@ -6437,7 +6437,7 @@ const routeGateAuditRows = () => {
       log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') note with a specified fix rerouted → absorb + phaseClose:true (its file is in phase_diff_files, D15).')
     }
     // Behavior arm (late-defects D2/D7, PIN-2/PIN-7) — intakeFloor's rule on the gate-audit lane: a
-    // behavior note with a fix on a named file rides the sweep whatever phase_diff_files says; any other
+    // behavior note with a fix on a named file rides phaseClose:true to the behavior-row sort (PIN-21) whatever phase_diff_files says; any other
     // behavior note parks as an ask. A cosmetic or classless note keeps the arm above.
     if (d === 'note' && f.findingClass === 'behavior') {
       if (fix && typeof f.file === 'string' && f.file) {
@@ -6569,7 +6569,7 @@ const lateFixPass = async () => {
     // The re-audit rows route under the origin task's real id, never the late-fix pseudo id: the
     // origin's wave record when it has one (a preMerged task has none), else a fresh record on it.
     // dispositionOf then judges in-diff against the origin's own diff probe (the late-fix branch has
-    // no probe); with noReentry both arms of that judgment end at the sweep.
+    // no probe); with noReentry both arms end at the sweep, or at carryLate for a behavior row (PIN-21).
     const lfRecord = [...liveTaskRecords].find(r => r.task === origin) || { task: origin }
     const lfNoReentry = 'born at the late-fix re-audit of ' + id + ' for task ' + origin.id + ' — past the wave side, so re-entry can never dispatch; the phase-close sweep is the vehicle'
     let stop = holding.length ? 'the phase already holds (' + holding.join(', ') + '), so the late-fix pass never ran' : null
