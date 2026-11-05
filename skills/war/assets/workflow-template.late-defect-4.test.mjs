@@ -153,11 +153,28 @@ test('late-defect: ace base — a backgrounded base gate re-dispatches on the se
   assert.ok(base[1].prompt.startsWith('SEGMENTED-GATE CONTINUATION (ace-base-gate:t1)') && base[1].prompt.includes(base[0].prompt), 'the continuation carries the full base prompt')
   assert.ok(logged(logs, 'ace-base-gate:t1: segmented gate (docker build at layer 4)'), 'the segment note is logged')
   // The throwaway worktree outlives a backgrounded base gate: the first prompt asks for its path in
-  // segment_note, and the continuation threads that note and owns the removal (one worktree per base).
-  assert.ok(base[0].prompt.includes('If you background the gate, keep it and put its path in segment_note.'), 'the base prompt asks for the worktree path in segment_note')
-  assert.ok(base[1].prompt.includes('Prior segment_note: docker build at layer 4. Reuse any worktree it names, add none, and remove it once that log is complete.'), 'the continuation threads the prior note and the removal')
+  // segment_note, the shared continuation threads that note, and the base check's own body owns the
+  // reuse and the removal (one worktree per base).
+  const REUSE = 'A continuation reuses the worktree the prior segment_note names instead of adding one, and removes it once that log is complete.'
+  assert.ok(base[0].prompt.includes('If you background the gate, keep it and put its path in segment_note. ' + REUSE), 'the base prompt asks for the worktree path in segment_note and owns its reuse and removal')
+  assert.ok(base[1].prompt.includes('Prior segment_note: docker build at layer 4.\n') && base[1].prompt.includes(REUSE), 'the continuation threads the prior note, and its base body carries the removal')
   const bare = await runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': aceRed([DOCKER]), 'ace-base-gate': baseSeq({ gate_green: false, gate_segment: 'incomplete' }, baseRed([DOCKER])) })
   assert.ok(bare.calls.filter(kindOf('ace-base-gate'))[1].prompt.includes('Prior segment_note: none.'), 'a segment with no note renders none, never undefined')
+  // The read-only ace gate check shares aceSegments and runs in the task worktree, so a note that names
+  // that worktree must never reach a removal order. Oracle: no sentence of the continuation pairs a
+  // worktree with a removal or a reuse.
+  const ACE_SEGMENT = { gate_green: false, gate_segment: 'incomplete', segment_note: 'pytest at 13% in the task worktree' }
+  const removalIn = prompt => prompt.split(/(?<=\.)\s/).filter(s => /worktree/i.test(s) && /\b(remov|reus)/i.test(s))
+  const aceCont = async source => (await runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': baseSeq(ACE_SEGMENT, aceRed([DOCKER])), 'ace-base-gate': baseRed([DOCKER]) }, source))
+    .calls.find(c => labelOf(c) === 'ace-gate:t1:a1:segment-2')
+  const cont = await aceCont()
+  assert.ok(cont && cont.prompt.startsWith('SEGMENTED-GATE CONTINUATION (ace-gate:t1:a1)') && cont.prompt.includes('Prior segment_note: pytest at 13% in the task worktree.\n'), 'the ace gate continuation threads its prior note')
+  assert.deepEqual(removalIn(cont.prompt), [], 'the ace gate continuation carries no worktree removal or reuse order')
+  // Red at base: put the reuse and removal clause back in the shared continuation and the oracle sees it.
+  const shared = "Prior segment_note: ${prior.segment_note || 'none'}.\\n` + body,"
+  assert.ok(src.includes(shared), 'the mutation target is the live shared continuation')
+  const leak = await aceCont(src.replace(shared, "Prior segment_note: ${prior.segment_note || 'none'}. Reuse any worktree it names, add none, and remove it once that log is complete.\\n` + body,"))
+  assert.ok(removalIn(leak.prompt).length, 'the mutant ace gate continuation carries a removal order')
   assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'tidy import' && a.sha === 'ace00001'), 'one proceed-over: the absorb aces')
   assert.ok(!/FORWARD-REVERT/.test(calls.find(isMergeTask).prompt), 'nothing is forward-reverted')
   // Red at base: without the segment loop the first reply names no ids, so the ace tip reverts.
