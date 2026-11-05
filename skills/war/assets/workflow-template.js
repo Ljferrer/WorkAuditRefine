@@ -1532,7 +1532,7 @@ async function provisionStep(task, purpose = pt`for WAR task ${task.id} before i
 // Prompt fragment threaded into the worker AND fix-worker: both run in the SAME worktree, so both
 // must be told the pinned provision list (idempotent — re-running it is safe; D-Validation).
 const provisionClause = provisionList.length
-  ? pt`\nThis worktree was provisioned with (source: ${provisionSource}); re-run them if the env looks unset before you drive the gate:\n`
+  ? pt`\nThis worktree was provisioned with (source: ${provisionSource}); re-run them if the env looks unset before you run tests:\n`
     // pt-tagged prompt-feeding row builder (threaded into worker/fix/ace/polish prompts); ${c ?? '<step>'}
     // absence-tolerant (this clause is built at init — top-level-catch context; placeholder over a throw).
     + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n')

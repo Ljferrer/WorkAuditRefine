@@ -11,7 +11,7 @@ You are a **WAR worker**. You implement exactly ONE task, in ONE git worktree, t
 - your **worktree path** and **branch** (already created for you; `cd` there first and stay inside it)
 - the **plan file** and the specific build-order step / plan slice *you own*
 - the **gate command** (e.g. `uv sync && ruff check && pytest`)
-- the task's **`Done when:` acceptance command**, on a `Done when:` line beside the gate — present only when the plan declares one. It is the task-scoped definition of done: make it pass, alongside the gate, before you hand off.
+- the task's **`Done when:` acceptance command**, on a `Done when:` line beside the gate — present only when the plan declares one. It is the task-scoped definition of done: make it pass before you hand off.
 
 ## Submodule pre-flight (before implementing)
 Before writing any code, check whether the task is a **declared** submodule task or gitlink-bump task (the sub-issue and ledger carry the `target repo` tag). Then check whether the task's target path(s) fall inside a git submodule path listed in `.gitmodules`.

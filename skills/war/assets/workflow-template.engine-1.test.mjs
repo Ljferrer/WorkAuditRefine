@@ -8450,6 +8450,8 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
   const workerCard = readFileSync(join(here, '../../../agents/war-worker.md'), 'utf8')
   assert.ok(workerCard.includes(rule),
     'agents/war-worker.md carries FIX_GATE_RULE verbatim (standing card and dispatched prompt agree)')
+  assert.ok(workerCard.includes('On a fix-applying dispatch (a `BACKWARD-CHAIN FIX` block), skip the full gate.'),
+    'the card scopes the rule to the BACKWARD-CHAIN FIX trigger, so step 4 "Run the gate command until green" never contradicts a fix prompt')
   const runs = [
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), fixNeededImpl()),
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), floorRetryImpl()),
@@ -8511,6 +8513,15 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
   for (const r of ranges) {
     assert.ok(census.some(m => m.index >= r.start && m.index < r.end),
       `dispatch-site "${r.site}" owns at least one FIX_GATE_RULE interpolation`)
+  }
+  // Default-deny over the card's trigger: every fix-applying dispatch carries a BACKWARD-CHAIN FIX block
+  // (chainFixClause), so each chainFixClause call must sit in a site above. A new fix site that
+  // leaves FIX_GATE_RULE out reds here, not just a site that drops it.
+  const chainCalls = [...censusSrc.matchAll(/\bchainFixClause\(/g)]
+  assert.equal(chainCalls.length, 7, 'seven chainFixClause call sites (anti-vacuity floor)')
+  for (const m of chainCalls) {
+    assert.ok(ranges.some(r => m.index >= r.start && m.index < r.end),
+      `the chainFixClause call at source index ${m.index} sits inside a FIX_GATE_SITES range (a new fix-applying dispatch must carry FIX_GATE_RULE)`)
   }
 })
 
