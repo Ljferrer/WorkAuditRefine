@@ -46,3 +46,5 @@ metadata:
 - Prove each regex fires on a sample of the old text.
 
 Related: [[default-flip-must-audit-all-doc-surfaces]], [[structural-test-blind-spot-narrowing-needs-negative-reference-and-default-deny-census]], [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]].
+
+> archived 2026-11-05: resolved — moved to archive

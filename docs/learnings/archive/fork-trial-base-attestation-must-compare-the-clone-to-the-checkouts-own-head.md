@@ -62,3 +62,5 @@ pattern, not a live defect.
 
 Related: [[audit-log-finding-can-be-stale-by-land-time]],
 [[escape-guard-cannot-see-a-read-only-trial-run-in-the-wrong-cwd]].
+
+> archived 2026-11-05: resolved — moved to archive

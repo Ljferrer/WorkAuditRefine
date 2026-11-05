@@ -41,3 +41,5 @@ metadata:
 **Locate-cue (verify still present before acting).** `docs/plans/2026-10-20-rea-artifact-evidence.md` carries the D25 row, End state 21 with its `git merge-base HEAD origin/dev/...` check, and End state 28, with no supersession mark on End state 21. The adjudication-match rule sits at `adjudicationClause` in `skills/war/assets/workflow-template.js`.
 
 Related: [[redteam-adjudication-is-authoritative-version-source]], [[gate-audit-end-state-owned-by-downstream-dep-task-is-non-holding-upstream]], [[release-bump-slots-canonical-no-badge]].
+
+> archived 2026-11-05: resolved — moved to archive

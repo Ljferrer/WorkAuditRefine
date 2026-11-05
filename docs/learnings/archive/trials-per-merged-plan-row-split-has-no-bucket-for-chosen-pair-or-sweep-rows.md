@@ -63,3 +63,5 @@ is none, ask. Do not pick a bucket on your own. Keep the label `trials per merge
 `| trials per merged plan |`. `skills/war-strategy/references/fork-trials.md`, search `## The sweep row`
 and `## Grandfather and reporting`. Grounded at the phase-1 integration tip via the run-scoped
 `_refinery` worktree (rung 2).
+
+> archived 2026-11-05: resolved — moved to archive

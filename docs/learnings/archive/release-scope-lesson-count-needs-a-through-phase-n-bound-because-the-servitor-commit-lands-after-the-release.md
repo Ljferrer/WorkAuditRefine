@@ -45,3 +45,5 @@ The auditor filed a Nit with `disposition: absorb` and asked for the bound "thro
 Same family as [[bounded-window-measurement-comment-self-invalidates-when-its-own-release-commit-lands]] (a later commit enters the window the sentence measures) and [[release-blurb-headline-count-word-can-mismatch-its-own-enumeration]] (a count word that outruns its enumeration).
 
 **Locate-cue (verify still present before acting).** `CHANGELOG.md` `## 0.21.18`, `Release scope:` paragraph. Search `through Phase 1`. Its README twin is the `## Status` `Release scope:` paragraph, which is replaced at each release, so it carries the current release's bound: search `through Phase` there. Grounded at the landed tip via the run-scoped `_refinery` worktree (rung 2, `<repo-root>/.claude/war-worktrees/<run-id>/_refinery`).
+
+> archived 2026-11-05: resolved — moved to archive

@@ -61,3 +61,5 @@ metadata:
 **Locate-cue (verify still present before acting).** `hooks/validate-evidence-auditor-mcp.sh`, the `REA_ALLOWLIST` literal, the `server != "rea"` canary branch, the `for key in output_directory destination` loop, the `RESIDUAL (accepted)` header section and the `Derived at rea-agents: ` header line (value 6.5.0). `hooks/validate-evidence-auditor-mcp.test.sh`, search `foreign server prefix, member suffix` and `output_directory outside evidence dir denied`. `skills/war/assets/evidence-card-allowlist.test.mjs`, search `DERIVED_AT_REA` and `HOST_WRITE_KEY`. Found at the phase-3 integration tip f94b8783, read through the run's `_refinery` worktree. That commit is the second parent of landed tip 6e655d6e, and the landed merge's other parent is an ancestor of it, so the two trees match by ancestry (tree not read directly).
 
 Related: [[evidence-mcp-hook-blast-radius-exceeds-the-evidence-knob]].
+
+> archived 2026-11-05: resolved — moved to archive

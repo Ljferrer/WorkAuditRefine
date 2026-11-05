@@ -51,3 +51,5 @@ The key is read by presence, `has("local")` plus a `type` check, never by `jq -r
 **Locate-cue (verify still present before acting).** `hooks/validate-evidence-auditor-mcp.sh`, the `memory_fence` function. `hooks/validate-evidence-auditor-mcp.test.sh`, search `relative local with a leading component denied` and `beneath the memory root denied`. Found at landed tip fcdc744e, read through the run's `_refinery` worktree (HEAD equal to the tip).
 
 Related: [[memory-query-local-fence-is-hook-only-and-binds-four-seats-not-everyone]].
+
+> archived 2026-11-05: resolved — moved to archive

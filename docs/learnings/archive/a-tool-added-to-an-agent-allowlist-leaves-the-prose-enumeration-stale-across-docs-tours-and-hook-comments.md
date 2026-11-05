@@ -53,3 +53,5 @@ No plan task listed most of them. The structural assertion in the scope-hook tes
 Same family: [[default-flip-must-audit-all-doc-surfaces]], [[a-new-agents-tier-leaves-adr-0050-readme-and-design-md-tier-lists-stale]], [[plan-survey-token-sweep-misses-untagged-siblings]].
 
 **Locate-cue (verify still present before acting).** Grep `Read/Grep/Glob/Write/Edit` over `skills/war/SKILL.md`, `skills/war/references/schemas.md`, `skills/war/references/design.md` and `.tours/architect-war-system.tour`, and `Read, Grep, Glob, Write, Edit` over `skills/war/references/worker-servitor-edges.md` and `hooks/validate-worktree-scope.sh`. Each hit carries "plus the read-only memory query tool". Found at landed tip fcdc744e, read through the run's `_refinery` worktree (HEAD equal to the tip).
+
+> archived 2026-11-05: resolved — moved to archive

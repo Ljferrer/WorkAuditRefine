@@ -51,3 +51,5 @@ metadata:
 **Locate-cue (verify still present before acting).** In `hooks/validate-evidence-auditor-mcp.sh`, search the `case "$atype" in` block, the `MEMORY_TOOL=` line, the `memory_fence` function and the line `command -v jq`. The test row for the missing-`jq` branch is in `hooks/validate-evidence-auditor-mcp.test.sh`, searching `jq is not installed`. Found at landed tip fcdc744e (plan 2026-10-27-memory-query-mcp-tool, phase 1), read through the run's `_refinery` worktree (HEAD equal to the tip).
 
 Related: [[memory-query-local-fence-is-hook-only-and-binds-four-seats-not-everyone]], [[memory-query-tool-full-name-is-single-sourced-in-the-hook-and-plugin-mcp-names-carry-a-plugin-prefix]].
+
+> archived 2026-11-05: resolved — moved to archive

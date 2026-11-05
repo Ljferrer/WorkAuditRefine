@@ -44,3 +44,5 @@ metadata:
 **Locate-cue (verify the fixed form is still present before acting).** `skills/_shared/war-memory-mcp.mjs`, the `collapseBySlug` function and its call in `runMemoryQuery`. `skills/_shared/war-memory-mcp.test.mjs`, search `collapse over drifted twins`. Seen in the fixed form at landed tip fcdc744e, read through the run's `_refinery` worktree.
 
 Related: [[memory-query-server-writes-its-own-log-append-and-copies-the-hit-line-so-its-4kb-budget-is-approximate]], [[negative-assert-on-a-fixture-that-cannot-carry-the-offender-is-vacuous-and-a-label-count-a-fix-round-also-satisfies]].
+
+> archived 2026-11-05: resolved — moved to archive

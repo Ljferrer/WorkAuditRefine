@@ -53,3 +53,5 @@ metadata:
 **Locate-cue (verify still present before acting).** In `hooks/audit-tree-fingerprint.test.sh`, the section headed "git's own change detection off; flagged paths hashed" holds the oracle rows and the four closing rows. The shim's `ls-files` arm honors `SHIM_FAIL`. Found at landed tip 06ef13c17545.
 
 Related: [[weak-test-assertion-passes-without-feature-being-exercised]], [[git-status-in-a-live-sibling-worktree-needs-optional-locks-off]], [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]], [[bash-per-call-watchdog-under-command-substitution-needs-detached-stdio-and-an-expired-gate-on-sigterm]].
+
+> archived 2026-11-05: resolved — moved to archive

@@ -42,3 +42,5 @@ metadata:
 **How to apply.** A notification (a message with no `id`) gets no reply. Keep the arm that returns early for it.
 
 **Locate-cue (verify before acting).** `skills/_shared/war-memory-mcp.mjs`, the `initialize` case in `handle`, the `finally { db.close() }` block in `runMemoryQuery`, and the closing comment about `process.exit`. `skills/_shared/war-memory-mcp.test.mjs`, search `exits 0 on its own and every reply arrives`. Seen in the fixed form at landed tip fcdc744e, read through the run's `_refinery` worktree.
+
+> archived 2026-11-05: resolved — moved to archive

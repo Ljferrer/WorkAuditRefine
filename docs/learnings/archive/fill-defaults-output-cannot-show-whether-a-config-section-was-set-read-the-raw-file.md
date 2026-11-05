@@ -63,3 +63,5 @@ worktree (rung 2).
 Related: [[war-config-fill-defaults-resolver-exits-nonzero-on-absent-config]] (the other face: an
 absent file exits 1),
 [[new-run-config-knob-needs-war-room-whitelist-touch]].
+
+> archived 2026-11-05: resolved — moved to archive

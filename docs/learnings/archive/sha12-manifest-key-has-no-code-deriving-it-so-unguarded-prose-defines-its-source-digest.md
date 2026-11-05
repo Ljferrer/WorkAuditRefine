@@ -75,3 +75,5 @@ Audit finding resolved in a fix round before land, recorded as pattern, not live
 - `skills/war/assets/target-artifacts.test.mjs`: search `const resolve =`.
 
 Found at landed tip 82cef9c9, read through the run's `_refinery` worktree. Its HEAD equals the landed tip, so grounding rung 2 held. The cwd checkout was on another branch.
+
+> archived 2026-11-05: resolved — moved to archive

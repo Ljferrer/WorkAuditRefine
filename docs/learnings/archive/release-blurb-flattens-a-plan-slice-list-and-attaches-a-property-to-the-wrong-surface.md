@@ -47,3 +47,5 @@ The landed bodies disagree. In `skills/war/references/glossary-cold.md`, the doc
 Related: [[release-blurb-overstates-guard-semantics]] (its Recurrences 3 and 6 are the umbrella-clause and appositive-attachment cases), [[a-new-agents-tier-leaves-adr-0050-readme-and-design-md-tier-lists-stale]] (the tier lists that instance (b) describes), [[release-blurb-that-restates-a-code-comment-inherits-its-overclaim]].
 
 **Locate-cue (verify still present before acting).** `skills/war/references/glossary-cold.md` headings `## Fork trial`, `## Pair beat`, `## Trials run block`. Grounded at the landed tip via the run-scoped `_refinery` worktree (rung 2).
+
+> archived 2026-11-05: resolved — moved to archive

@@ -43,3 +43,5 @@ metadata:
 3. Do not add the PR's files to the dev branch to satisfy the check. The release merge brings them.
 
 Related: [[stacked-per-branch-releases-make-main-lag-cumulative]] (the unbumped-predecessor gap behind master-window scoping) and [[bounded-window-measurement-comment-self-invalidates-when-its-own-release-commit-lands]].
+
+> archived 2026-11-05: resolved — moved to archive

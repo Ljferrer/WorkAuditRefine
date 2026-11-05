@@ -49,3 +49,5 @@ metadata:
 **Locate-cue (verify still present before acting).** `hooks/validate-evidence-auditor-mcp.sh`, the `MEMORY_TOOL=` line. `.claude-plugin/plugin.json`, the `mcpServers` key `war-memory`. `skills/war/assets/memory-tool-name.test.mjs`, search `ES6`. Found at landed tip fcdc744e, read through the run's `_refinery` worktree (HEAD equal to the tip).
 
 Related: [[standing-instruction-vs-dispatched-prompt-coverage-split]].
+
+> archived 2026-11-05: resolved — moved to archive

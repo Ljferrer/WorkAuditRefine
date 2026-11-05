@@ -48,3 +48,5 @@ The hook recurses one level only. A nested submodule is not enumerated (read fro
 **Locate-cue (verify still present before acting).** `task_worktrees` and `marked_worktrees_of` in `hooks/audit-tree-fingerprint.sh`, found at landed tip d66961d9 on `dev/2026-10-20-rea-artifact-evidence`. The provision prompt sits in `skills/war/assets/workflow-template.js`.
 
 Related: [[provision-barrier-refiner-owned-not-worker-self-create]], [[submodule-phase-repo-derived-from-task-targetrepo]], [[audit-log-finding-can-be-stale-by-land-time]], [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]].
+
+> archived 2026-11-05: resolved — moved to archive

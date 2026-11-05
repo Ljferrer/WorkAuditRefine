@@ -76,3 +76,5 @@ worktree (rung 2).
 Related: [[new-references-md-file-forces-doc-cli-consistency-placement-census-registration]],
 [[adr-0042-eviction-destination-creation-does-not-auto-register-in-qualified-headers]],
 [[plan-line-number-refs-stale-use-construct-locator]].
+
+> archived 2026-11-05: resolved — moved to archive

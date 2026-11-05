@@ -37,3 +37,5 @@ metadata:
 **Weak pin, fixed.** The default-540 row once grepped a bare `540`, and the header comment satisfied it. The row now greps the `case "$DEADLINE" in` code line. Pin a literal on its code line, never on a number a comment can repeat.
 
 **Locate-cue (verify still present before acting).** In `hooks/audit-tree-fingerprint.test.sh`, the row titled "deadline override at or above 600 is clamped" runs the hook with `SECONDS=1000`. It landed at 218012434004 on `dev/2026-10-20-rea-artifact-evidence`.
+
+> archived 2026-11-05: resolved — moved to archive

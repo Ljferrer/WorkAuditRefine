@@ -45,3 +45,5 @@ metadata:
 - If you change the query-log entry shape in the CLI, change the server append in the same commit.
 
 **Locate-cue (verify still present before acting).** `skills/_shared/war-memory-mcp.mjs`, the functions `appendQueryLogIfPresent`, `localPassesAnchor` and `formatHit`, and the `mem.selectForBudget(collapsed, { topK })` call. `skills/_shared/war-memory.mjs`, the private `appendQueryLog` with its `mkdirSync` and the private `formatLessonLine`. `skills/_shared/war-memory-mcp.test.mjs`, search `hit line shape`. Found at landed tip fcdc744e, read through the run's `_refinery` worktree (HEAD equal to the tip).
+
+> archived 2026-11-05: resolved — moved to archive

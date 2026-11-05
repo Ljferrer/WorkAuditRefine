@@ -48,3 +48,5 @@ The `git branch` read-form loop beside it uses the same default-deny-by-shape id
 **Locate-cue (verify still present before acting).** The "NARROW-FORM grep enforcement" block in `hooks/validate-auditor-git.sh` and the Amendment 2026-10-22 section of `docs/adr/0029-capture-grounds-on-committed-tip.md`, found at landed tip d66961d9 on `dev/2026-10-20-rea-artifact-evidence`.
 
 Related: [[allowlist-catch-all-token-defeats-meta-guard]], [[auditor-seat-can-lack-grep-glob-tools-leaving-no-search-channel]], [[auditor-grep-tool-unrestricted-by-git-verb-bash-guard]], [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]].
+
+> archived 2026-11-05: resolved — moved to archive

@@ -47,3 +47,5 @@ The disabled check runs before argument validation. A malformed call on a sqlite
 **How to apply.** If you add another entry point that imports `war-memory.mjs`, probe sqlite first, or accept that it exits the host process on old Node.
 
 **Locate-cue (verify still present before acting).** `skills/_shared/war-memory-mcp.mjs`, the `loadMemory` function and the `SQLITE_MODULE` const. `skills/_shared/war-memory.mjs`, the `NODE_LT_24_MSG` block near the top. `skills/_shared/war-memory-mcp.test.mjs`, search `ES4:`. Found at landed tip fcdc744e, read through the run's `_refinery` worktree (HEAD equal to the tip).
+
+> archived 2026-11-05: resolved — moved to archive

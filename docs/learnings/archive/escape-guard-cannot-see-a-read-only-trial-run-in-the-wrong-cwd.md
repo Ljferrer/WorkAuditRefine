@@ -62,3 +62,5 @@ the pattern and the remaining residual.
 
 Related: [[fork-trial-base-attestation-must-compare-the-clone-to-the-checkouts-own-head]],
 [[failed-cd-in-a-compound-command-runs-the-rest-in-the-main-checkout]].
+
+> archived 2026-11-05: resolved — moved to archive
