@@ -338,6 +338,37 @@ test('late-defect: hold — a failed late-fix worktree provision stops the defec
   assert.ok(lateWorkers(mutated.calls).length > 0, 'the mutant dispatches a worker into the unprovisioned worktree')
 })
 
+test('late-defect: hold — a dead late-fix worker or a dead late-fix re-audit stops the defect after one round, and the hold names the death', async () => {
+  const deadAt = re => { const base = lateFixImpl(); return (p, o) => { if (re.test(labelOf({ opts: o }))) throw new Error('API error: 529 Overloaded'); return base(p, o) } }
+  const args = () => LATE_FIX_ARGS({ run: { roundLimit: 4 } })
+  const worker = await runPhase(args(), deadAt(/^late-fix:/))
+  assert.equal(lateWorkers(worker.calls).length, 1, 'exactly one late-fix worker runs into the dead API')
+  assert.equal(worker.out.landDecision, 'held:escalation')
+  const wHeld = lateHolds(worker.out)
+  assert.equal(wHeld.length, 1)
+  assert.match(wHeld[0].detail, /the late-fix worker died \(.*529 Overloaded/, 'the hold names the death')
+  assert.doesNotMatch(wHeld[0].detail, /the fix budget is spent/, 'never the spent-budget reason')
+  assert.equal(wHeld[0].fixRounds, 1, 'the round charged its slot, and only that one')
+  // Mirror: a re-audit seat that dies through auditRound's retries stops the defect the same way.
+  const seat = await runPhase(args(), deadAt(/^audit:p\d+-latefix-/))
+  assert.equal(lateWorkers(seat.calls).length, 1, 'exactly one late-fix worker before the dead re-audit')
+  assert.ok(!seat.calls.some(c => labelOf(c) === 'merge:p3-latefix-1'), 'a dead re-audit never merges')
+  const sHeld = lateHolds(seat.out)
+  assert.equal(sHeld.length, 1)
+  assert.match(sHeld[0].detail, /the late-fix re-audit died \(.*529 Overloaded/, 'the hold names the re-audit death')
+  assert.doesNotMatch(sHeld[0].detail, /the fix budget is spent/)
+  // Red proofs by mutation: without each stop the pass spends the whole budget on the dead API.
+  const wStop = "      if (deathOf(w)) { stop = 'the late-fix worker died (' + deathOf(w) + ')'; break }\n"
+  assert.ok(src.includes(wStop), 'the mutation target is the live worker stop')
+  const wMut = await runPhase(args(), deadAt(/^late-fix:/), {}, src.replace(wStop, ''))
+  assert.equal(lateWorkers(wMut.calls).length, 4, 'the mutant dispatches roundLimit workers into the dead API')
+  assert.match(lateHolds(wMut.out)[0].detail, /the fix budget is spent/, 'and holds on the spent-budget reason')
+  const sStop = "      if (died) { stop = 'the late-fix re-audit died (' + died + ')'; break }\n"
+  assert.ok(src.includes(sStop), 'the mutation target is the live re-audit stop')
+  const sMut = await runPhase(args(), deadAt(/^audit:p\d+-latefix-/), {}, src.replace(sStop, ''))
+  assert.equal(lateWorkers(sMut.calls).length, 4, 'the mutant re-dispatches roundLimit workers past each dead re-audit')
+})
+
 test('late-defect: hold — a red late-fix gate takes another round, a conflict stops the pass, and a phase another hard reason holds never runs it', async () => {
   const red = await runPhase(LATE_FIX_ARGS({ run: { roundLimit: 2 } }), lateFixImpl({ mergeStatus: 'gate_failed' }))
   assert.equal(lateWorkers(red.calls).length, 2, 'gate_failed takes the next round')
@@ -505,7 +536,7 @@ test('late-defect: route — a rejected late-fix round routes its Minor/Nit rows
   assert.equal(noteOf(out, 'lf note').length, 1, 'the rejected round\'s note reaches notes')
   assert.ok(polishPromptOf(calls).includes('lf absorb'), 'the rejected round\'s absorb rides the sweep')
   // Red proof by mutation: the engine without the route call records the rows only in auditLog.
-  const call = 'if (!died) routeReauditMinors(lfRecord, seats, { noReentry: lfNoReentry })'
+  const call = 'routeReauditMinors(lfRecord, seats, { noReentry: lfNoReentry })'
   assert.ok(src.includes(call), 'the mutation target is the live route call')
   const mutated = await runPhase(LF_SWEEP_ARGS(), lateReauditImpl([[LF_ASK, LF_FOLLOW_UP, LF_NOTE, LF_ABSORB]]), PROBE, src.replace(call, ''))
   assert.equal(mutated.out.landDecision, 'landed', 'the mutant still lands, so a green land never proves the route')

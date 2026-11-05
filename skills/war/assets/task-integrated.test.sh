@@ -21,7 +21,7 @@
 #  17-23. any other later change to an owned path -> NO_TASK_PROOF ... changed outside a sibling task merge
 #  24-25. owned content at the merge commit differs from the task tip -> NO_TASK_PROOF ... at its merge commit
 #  16, 26-27. a later change off the owned paths, including a glob-shaped name     -> TASK_INTEGRATED
-#  28-30. a failed walk, parent read, trailer read or content compare             -> exit 2, no marker
+#  28-30b. a failed walk, parent read, trailer read (task or late-fix) or content compare -> exit 2, no marker
 #  31. a single-parent late-fix commit whose Late-Fix trailer names this task      -> TASK_INTEGRATED
 #  31b-31e. a Late-Fix naming another task, a near-miss id, a bad index, or on a merge -> NO_TASK_PROOF
 #
@@ -473,6 +473,15 @@ task_a c30
 expect 'case 30: a failed compare at the merge commit exits 2' \
   '2 shim: forced failure
 task-integrated: cannot compare current task content' "$(probe_shim "--quiet $A_TIP $M")"
+
+# Case 30b: a failed Late-Fix trailer read on a later single-parent commit exits 2.
+task_a c30b
+put feature 'late fix'; g commit -m 'late fix
+
+Late-Fix: 3.1:1'
+expect 'case 30b: a failed late-fix trailer read on a later commit exits 2' \
+  '2 shim: forced failure
+task-integrated: cannot read later late-fix trailer' "$(probe_shim "key=Late-Fix,valueonly) $(tip)")"
 
 printf '\ntask-integrated: %d check(s) passed, %d check(s) failed.\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

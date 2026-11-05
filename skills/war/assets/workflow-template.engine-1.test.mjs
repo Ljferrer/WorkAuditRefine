@@ -13442,7 +13442,13 @@ test('absorb-budget (D5 both-surfaces): the absorbCharges read is on agents/war-
     for (const re of ANCHORS) assert.match(text, re, `${name} carries the absorbCharges anchor ${re}`)
   }
   assert.match(barrier.prompt, /the ONE git read allowed beside the named subcommands/, 'the dispatched prompt carries the explicit allowance beside its named commands')
-  assert.match(refinerMd, /one\*\* `git log` read allowed beside the named subcommands/, 'the card carries the same allowance')
+  assert.ok(!barrier.prompt.includes('LATE-FIX CHARGE READ'), 'a non-recovery barrier names no second read')
+  // A recovery relaunch dispatches the LATE-FIX CHARGE READ too, so the allowance counts two reads.
+  const rec = (await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), defaultImpl)).calls.find(isProvision)
+  assert.ok(rec && rec.prompt.includes('LATE-FIX CHARGE READ (per preMerged task)'), 'presence guard: the recovery barrier dispatches the second read')
+  assert.match(rec.prompt, /one of the two git reads allowed beside the named subcommands; the recovery LATE-FIX CHARGE READ is the other/, 'the recovery prompt never calls the absorb read the only one')
+  assert.doesNotMatch(rec.prompt, /the ONE git read allowed/, 'and drops the exclusive wording')
+  assert.match(refinerMd, /one of the two `git log` reads allowed beside the named subcommands; the recovery LATE-FIX CHARGE READ is the other/, 'the card carries the same allowance')
   assert.match(schemasMdForAbsorb, /absorbCharges/, 'schemas.md documents the ENV_OUTCOME absorbCharges field')
   // Schema-slot pins (the done_when_log_path shape): the ENGINE literal declares the slot with its type,
   // the slot stays OPTIONAL, and each schemas.md row binds to the engine key it documents.
