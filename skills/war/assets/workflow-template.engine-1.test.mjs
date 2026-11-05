@@ -9081,14 +9081,27 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // per-surface revert reds this row. Byte-equality of the rule itself is pinned by that fixture.
     { name: 'backgrounded gate — merge-task (D7, PIN-11, #2086): refiner card step 10 ↔ merge-task + environment-proceed dispatch prompts',
       surfaces: [['war-refiner.md', refinerMd], ['merge-task dispatch prompt', mergeP], ['environment-proceed re-merge prompt', epMergeP]],
-      anchors: [/run_in_background/, /gate_segment:\s*['"]incomplete['"]/, /FIRST line is `tip_sha:` of the sha being gated/, /LAST line is `exit_code:`/, /rerun into a FRESH unique artifact/, /never truncate or reuse a file/] },
+      anchors: [/run_in_background/, /gate_segment:\s*['"]incomplete['"]/, /FIRST line is `tip_sha:` of the sha being gated/, /LAST line is `exit_code:`/, /rerun into a FRESH unique artifact/, /never truncate or reuse a file/,
+                /can outrun one tool call \(600000 ms\)/, /poll that log with foreground calls in this same turn/, /your turn end kills the job/, /only if the job dies before it writes `?exit_code:/] },
     // Backgrounded gate, land (D7, PIN-11): the card's segmented-land bullet and every land build (the
     // initial land — captured here — and the environment-proceed re-land; the baseline-proceed re-land
     // and the continuation ride the same segmentedLandClause, walked by the fixture above) carry
     // run_in_background, the land_segment return shape, the phase-keyed land gate log, and the rule.
     { name: 'backgrounded gate — land (D7, PIN-11, #2086): refiner card segmented-land bullet ↔ land + environment-proceed re-land prompts',
       surfaces: [['war-refiner.md', refinerMd], ['land dispatch prompt', landP], ['environment-proceed re-land prompt', epLandP]],
-      anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /git-excluded/, /rerun into a FRESH unique artifact/] },
+      anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /git-excluded/, /rerun into a FRESH unique artifact/,
+                /can outrun one tool call \(600000 ms\)/, /poll that log with foreground calls in this same turn/, /your turn end kills the job/] },
+    // Same-turn poll, land (#2617): the card-wide land row above matches step 10 too, so this row reads
+    // the segmented-land bullet alone against the land dispatch prompt.
+    { name: 'same-turn poll — land (#2617): refiner card segmented-land bullet ↔ land dispatch prompt',
+      surfaces: [['war-refiner.md segmented-land bullet', (refinerMd.split('- **Segmented land (tool-timeout survival):**')[1] || '').split('\n')[0]], ['land dispatch prompt', landP]],
+      anchors: [/can outrun one tool call \(600000 ms\)/, /poll that log with foreground calls in this same turn/, /your turn end kills the job/] },
+    // Shared-stash ban + dirty-tree arm on the pin-transfer probe (#2617): the refiner card's pin-transfer
+    // section and the dispatched probe prompt both forbid git stash and return status error naming the
+    // dirty paths before any rebase. `git stash` counted 0 on both surfaces at the task base.
+    { name: 'pin-transfer stash ban (#2617): refiner card pin-transfer section ↔ the dispatched pin-transfer prompt',
+      surfaces: [['war-refiner.md', refinerMd], ['pin-transfer dispatch prompt', pinTransferP]],
+      anchors: [/Never run `?git stash`?: every worktree and session shares the stash/, /uncommitted changes, return/, /status:? ?['"]error['"]/, /before any rebase/] },
     // Gate-log stamp (D8, PIN-12, #2094): the card's merge-task step 9 and every gateCaptureClause
     // carrier (the captureUses census is the arbiter of that site list) plus the land clause stamp
     // tip_sha: first and exit_code: last on the gate log, and the evidence dispatch's intraDep branch
@@ -18710,4 +18723,19 @@ test('every agent card the engine dispatches is registered in plugin.json (an un
   const dispatched = [...new Set([...readFileSync('skills/war/assets/workflow-template.js', 'utf8').matchAll(/NS \+ '(war-[a-z-]+)'/g)].map(m => m[1]))]
   assert.ok(dispatched.includes('war-helper') && dispatched.includes('war-worker'), 'the scan sees the literals')
   for (const card of dispatched) assert.ok(manifest.agents.includes(`./agents/${card}.md`), `${card} is dispatched but plugin.json does not list it`)
+})
+
+// #2617: a workflow agent exits when its turn ends, so the worker card carries the one-turn rule.
+// Each anchor counted 0 on the card at the base faf52933, so dropping any rule reds this row.
+test('#2617 one-turn rule: the worker card forbids ending a turn with work left, waiting, and git stash', () => {
+  const card = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../../agents/war-worker.md'), 'utf8')
+  const sec = (card.split('## One turn, no waiting')[1] || '').split('\n## ')[0]
+  assert.ok(sec, 'the card has a One turn, no waiting section')
+  for (const re of [/When your turn ends, you exit, and any background job dies with you/,
+    /Never end your turn with work left: commit and push, or return `blocked`/,
+    /One tool call runs at most 600000 ms/,
+    /start it with `run_in_background`, then poll its output with foreground calls in this same turn until it exits/,
+    /Never end your turn to wait for a notification or a monitor/,
+    /Never run `git stash`: every worktree and session shares the stash/,
+    /Fix a red you caused before you probe one you did not/]) assert.match(sec, re)
 })
