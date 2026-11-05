@@ -152,6 +152,12 @@ test('late-defect: ace base — a backgrounded base gate re-dispatches on the se
   assert.match(base[0].prompt, /mktemp -d "[^"]*\/\.war\/gate-ace-base-t1\.[^"]*-1\.XXXXXX"/, 'and its own gate capture key')
   assert.ok(base[1].prompt.startsWith('SEGMENTED-GATE CONTINUATION (ace-base-gate:t1)') && base[1].prompt.includes(base[0].prompt), 'the continuation carries the full base prompt')
   assert.ok(logged(logs, 'ace-base-gate:t1: segmented gate (docker build at layer 4)'), 'the segment note is logged')
+  // The throwaway worktree outlives a backgrounded base gate: the first prompt asks for its path in
+  // segment_note, and the continuation threads that note and owns the removal (one worktree per base).
+  assert.ok(base[0].prompt.includes('If you background the gate, keep it and put its path in segment_note.'), 'the base prompt asks for the worktree path in segment_note')
+  assert.ok(base[1].prompt.includes('Prior segment_note: docker build at layer 4. Reuse any worktree it names, add none, and remove it once that log is complete.'), 'the continuation threads the prior note and the removal')
+  const bare = await runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': aceRed([DOCKER]), 'ace-base-gate': baseSeq({ gate_green: false, gate_segment: 'incomplete' }, baseRed([DOCKER])) })
+  assert.ok(bare.calls.filter(kindOf('ace-base-gate'))[1].prompt.includes('Prior segment_note: none.'), 'a segment with no note renders none, never undefined')
   assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'tidy import' && a.sha === 'ace00001'), 'one proceed-over: the absorb aces')
   assert.ok(!/FORWARD-REVERT/.test(calls.find(isMergeTask).prompt), 'nothing is forward-reverted')
   // Red at base: without the segment loop the first reply names no ids, so the ace tip reverts.

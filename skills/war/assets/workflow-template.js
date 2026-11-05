@@ -4181,7 +4181,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // that are all red there too count as green for the revert decision, logged as a proceed-over, when
   // the red echoes head_sha at the ace tip. A new id, a red with no ids or no matching echo, or a dead
   // or unusable base check keeps the red arm. The base check backgrounds a long gate like the ace gate
-  // (aceSegments), and a segment reply, even a spent one, names no base ids.
+  // (aceSegments), and a segment reply, even a spent one, names no base ids. A backgrounded base check
+  // names its throwaway worktree in segment_note, and the continuation threads that note so the
+  // continuation reuses that worktree and removes it once the log is complete.
   const aceBaseGates = new Map()
   const aceIsSegment = res => !!res && res.gate_green === false && res.gate_segment === 'incomplete'
   const aceBgRule = backgroundGateRule(pt`{ gate_green: false, gate_segment: 'incomplete', gate_log_path: '<the path>', segment_note: '<the step you reached>' }`)
@@ -4189,7 +4191,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   const aceSegments = async (body, opts, capture) => segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), aceIsSegment, async (prior, segment) => {
     log(opts.label + ': segmented gate (' + (prior.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
     return admitGateResult(await dispatchSite(
-      pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior ace gate check returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(prior.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST. If that log is complete, its exit_code is the gate result: do not rerun the gate, finish any Done when: command and return.\n` + body,
+      pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior ace gate check returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(prior.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST. If that log is complete, its exit_code is the gate result: do not rerun the gate, finish any Done when: command and return. Prior segment_note: ${prior.segment_note || 'none'}. Reuse any worktree it names, add none, and remove it once that log is complete.\n` + body,
       { ...opts, label: opts.label + ':segment-' + segment }), capture)
   })
   const aceBaseIds = r => {
@@ -4197,7 +4199,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     if (!aceBaseGates.has(preAceSha)) {
       const capture = newGateCapture(r.task.worktree, 'ace-base-' + r.task.id)
       aceBaseGates.set(preAceSha, aceSegments(
-        pt`ACE BASE GATE CHECK for WAR task ${r.task.id} at the pre-ace tip ${preAceSha}, to find which ace-tip failures were already there. Never commit, revert, push or rebase. Run it in a throwaway \`git -C ${r.task.worktree} worktree add --detach "$(cd / && mktemp -d)/base" ${preAceSha}\`, then remove that worktree.\n`
+        pt`ACE BASE GATE CHECK for WAR task ${r.task.id} at the pre-ace tip ${preAceSha}, to find which ace-tip failures were already there. Never commit, revert, push or rebase. Run it in a throwaway \`git -C ${r.task.worktree} worktree add --detach "$(cd / && mktemp -d)/base" ${preAceSha}\`, then remove that worktree. If you background the gate, keep it and put its path in segment_note.\n`
         + PROVISION_RERUN_CLAUSE
         + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\nUse a fresh .war-task-free TMPDIR. Return { gate_green: false, head_sha: ${preAceSha}, gate_failing_ids: [<each failing test id>] }, or { gate_green: true, head_sha: ${preAceSha} }.\n`
         + capture.clause + pt`\n` + aceBgRule,
