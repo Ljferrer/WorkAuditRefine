@@ -322,11 +322,13 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
 // GATE_CHECK (#1913, PIN-12; arm-split #1951): the read-only gate run at an ace tip. No audit
-// approval — re-run or transferred — is ever accounted at a SHA the gate never passed, so every
-// ace-family commit is gated BEFORE its re-audit. The GREEN arm requires head_sha at the validator
-// (if/then): a terse green reply is re-asked at the tool layer, never reverted. The red arm stays
-// sha-free. Fail-CLOSED on the evidence (absent/malformed ⇒ not green) and fail-OPEN on the task
-// (a red gate forward-reverts the ace tip and the approved pre-ace tip still merges, PIN-2).
+// approval — re-run or transferred — is ever accounted at a SHA the gate never passed, except over
+// failing ids also red at the pre-ace tip, so every ace-family commit is gated BEFORE its re-audit.
+// The GREEN arm requires head_sha at the validator (if/then): a terse green reply is re-asked at the
+// tool layer, never reverted. The red arm's head_sha stays optional at the validator; the base
+// proceed-over (aceGateGreen) needs it. Fail-CLOSED on the evidence (absent/malformed ⇒ not green) and
+// fail-OPEN on the task (a red gate with a new id forward-reverts the ace tip and the approved pre-ace
+// tip still merges, PIN-2).
 // gate_segment (#2326): the MERGE_RESULT marker's ace twin. The literal 'incomplete' rides
 // gate_green:false when the gate outran the turn, so an unfinished gate never reads as a failed one.
 // aceGateGreen re-dispatches on that pair, bounded by roundLimit. A gate_green:true reply with a
@@ -1492,8 +1494,9 @@ const PROVISION_TREE_LINE = pt`PROVISION TREE MARKER (run inside the worktree): 
 const PROVISION_CLEAN_LINE = pt`Provision steps must leave the worktree CLEAN: restore tracked files via \`git checkout -- .\` in that worktree after any step that mutates them (untracked build output is fine). Write the marker only after the restore.`
 // PROVISION_RERUN_CLAUSE (#2485 D15/D19, PIN-15/PIN-19): the ONE tree-keyed re-run sentence every
 // refiner gate site interpolates before any floor or gate — the four merge step (a) copies, the ace-gate
-// check, the polish-sweep and terminal-pass merges, the integrated-tip full-gate re-run, the three land
-// prompts and the _refinery base re-run (classificationClause). The tree, not "this dispatch rebased", is
+// check and its pre-ace base check (ace-base-gate), the polish-sweep, terminal-pass and late-fix merges,
+// the integrated-tip full-gate re-run, the three land prompts and the _refinery base re-run
+// (classificationClause). The tree, not "this dispatch rebased", is
 // the trigger: a pin-transfer probe can rebase the branch and leave step (a) a no-op. A failing step rides
 // MergeResult.provision; the engine applies provisionStep's evidence gate (provisionEvidence). Empty
 // provision list ⇒ '' (every prompt byte-identical to a provision-less run).
@@ -4162,8 +4165,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // ---- PIN-12: THE GATE RUNS AT THE ACE TIP BEFORE ANY RE-AUDIT OR TRANSFER ----
   // A read-only refiner runs the task gate (and the task's Done when: command) at the ace tip. Only a
   // green gate lets the round proceed to its re-audit, so no approval — re-run or transferred — is ever
-  // accounted at a SHA the gate never passed. Fail-CLOSED on evidence: an absent, malformed or dead
-  // result is NOT green. Fail-OPEN on the task (PIN-2): a red gate forward-reverts the ace tip and the
+  // accounted at a SHA the gate never passed, except over failing ids also red at the pre-ace tip (the
+  // ACE BASE GATE below). Fail-CLOSED on evidence: an absent, malformed or dead result is NOT green.
+  // Fail-OPEN on the task (PIN-2): a red gate with a new id forward-reverts the ace tip and the
   // approved pre-ace tip merges; it is never a fix loop and never a hold. Returns { green, died }:
   // a dispatch death (D21) is neither green nor red — `died` names the site and the caller abandons
   // the current subset with the existing abandon reason (the gate never judged the tip).
@@ -4174,8 +4178,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // contract names the red arm's gate_failing_ids; the rest rides the dispatched prompt alone.
   // ACE BASE GATE (late-defects D4/D10, PIN-4/PIN-10): a red with failing ids runs the gate ONCE at the
   // pre-ace tip (r.preAceSha, cached per sha in aceBaseGates, so subsets and re-entry reuse it). Ids
-  // that are all red there too count as green for the revert decision, logged as a proceed-over. A new
-  // id, a red with no ids, or a dead or unusable base check keeps the red arm.
+  // that are all red there too count as green for the revert decision, logged as a proceed-over, when
+  // the red echoes head_sha at the ace tip. A new id, a red with no ids or no matching echo, or a dead
+  // or unusable base check keeps the red arm.
   const aceBaseGates = new Map()
   const aceBaseIds = r => {
     const preAceSha = r.preAceSha
@@ -4195,7 +4200,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       + pt`In the ALREADY-PROVISIONED task worktree ${r.task.worktree} (branch ${r.task.branch}), first confirm \`git -C ${r.task.worktree} rev-parse HEAD\` is ${aceTipSha}; a moved HEAD is NOT green.\n`
       + PROVISION_RERUN_CLAUSE + (provisionList.length ? pt`At this ace gate a failing provision step is NOT green: return { gate_green: false } with that step in gate_output.\n` : '')
       + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-      + pt`Run it from inside that worktree with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Return { gate_green: true, head_sha: ${aceTipSha} } ONLY when the gate and any Done when: command are FULLY green; on a real failure return { gate_green: false, gate_failing_ids: [<each failing test id>] } with the failing tail in gate_output. This gate licenses the pin transfer at this sha — no approval is ever accounted at a sha the gate never passed.\n`
+      + pt`Run it from inside that worktree with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Return { gate_green: true, head_sha: ${aceTipSha} } ONLY when the gate and any Done when: command are FULLY green; on a real failure return { gate_green: false, head_sha: ${aceTipSha}, gate_failing_ids: [<each failing test id>] } with the failing tail in gate_output. This gate licenses the pin transfer at this sha — no approval is ever accounted at a sha the gate never passed, except over ids also red at the pre-ace tip.\n`
       + capture.clause + pt`\n`
       + backgroundGateRule(pt`{ gate_green: false, gate_segment: 'incomplete', gate_log_path: '<the path>', segment_note: '<the step you reached>' }`)
     const opts = { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
@@ -4229,7 +4234,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         : 'gate_green was true but the echoed head_sha ' + g.head_sha + ' names a different commit — the gate did not run at this ace tip'
     const ids = g && g.gate_green === false ? debtIds(g.gate_failing_ids) : []
     const baseIds = ids.length && isSha(r.preAceSha) ? await aceBaseIds(r) : []
-    if (ids.length && ids.every(id => baseIds.includes(id))) {
+    // The proceed-over licenses aceTipSha like the green arm, so it needs the same head_sha echo.
+    if (ids.length && isSha(g.head_sha) && !pinMismatch(g.head_sha, aceTipSha) && ids.every(id => baseIds.includes(id))) {
       log('ace-gate ' + r.task.id + ': proceeds over [' + ids + '], red at the pre-ace tip ' + r.preAceSha + ' too (PIN-10).')
       return { green: true, died: null }
     }
@@ -4890,7 +4896,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             // merge proceeds on the polished tip
             r.seats = reSeats
             r.aceSha = aceSha
-            if (reSeats !== auditSeats) log('ace ' + r.task.id + ': every blocker was there before the ace, so the absorbs stay (PIN-3).')
+            // A probe-cleared approval is accounted at aceSha, so it writes its own pinTransfers row
+            // (aceReaudit wrote none: its panel was not unanimous); the helper logs it.
+            if (reSeats !== auditSeats) recordAceTransfer(r, aceSha, 'probe-cleared', 'every blocker was there before the ace, so the absorbs stay (PIN-3)', reSeats.filter(s => !s.pinTransferred), reSeats.filter(s => s.pinTransferred))
             // aced provenance (D3): the findings this ace commit resolved. No splice needed —
             // classify-at-collection never eagerly filed them. A citation-resolved finding's aced
             // record carries the citation (D6).
@@ -6637,7 +6645,8 @@ const tipWorktreeProvision = (provWhat, provWorktree, provBranch) =>
 
 // ---- LATE-FIX PASS (late-defects D5/D8/D13/D20/D25, PIN-5/PIN-8/PIN-13/PIN-20/PIN-25) ----
 // After every gate-audit seat and BEFORE hardEscalation and landDecision are computed, so a fixed
-// defect lands and a spent one holds. Per queued defect, in queue order: the origin task (lateOriginOf
+// defect lands and a spent one holds. Per queued defect, in queue order: a row whose own task did not
+// merge demotes demote:exclusion-set (the sort's unmerged-owner arm). Else the origin task (lateOriginOf
 // — the row's own merged task, else the merged task whose Files: hold its file, else the lowest-id
 // merged task) lends its roster and its fixRounds budget under run.roundLimit. The refiner cuts a
 // late-fix worktree at the integrated tip; each round one spawnWorker('fix') commit carries the
@@ -6674,6 +6683,10 @@ const lateFixPass = async () => {
   const fence = [...new Set([...(Array.isArray(A.sweepExclude) ? A.sweepExclude.filter(e => e.mode !== 'stacked').flatMap(e => e.files) : []),
     ...tasks.filter(t => !succeeded.has(t.id)).flatMap(t => Array.isArray(t.files) ? t.files : []), ...RELEASE_SLOT_FILES].map(aceRelPath))]
   for (const f of lateFixQueue.splice(0)) {
+    // A wave-side row (the pre-ace probe) can name a task that never merged: the behavior-row sort's
+    // unmerged-owner arm, applied here, so no other task's budget fixes a defect not on the branch.
+    const own = tasks.find(t => t.id === f.task)
+    if (own && !succeeded.has(own.id)) { demote(f, 'follow-up', 'demote:exclusion-set — origin task ' + own.id + ' did not merge; its relaunch re-audits it'); continue }
     const origin = lateOriginOf(f)
     if (!origin) {
       log('late-fix pass: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') has no merged origin task — it keeps the gate-evidence hold.')
@@ -7557,9 +7570,11 @@ if (landDecision === 'landed') {
     const debtBefore = baselineDebt.length
     recordBaselineDebt(landResult.gate_failing_ids, landResult.gate_base_sha)
     // A baseline red first recorded here runs after the late-fix pass (PIN-12): it carries on a
-    // non-final phase, and on the final phase it files with the reason.
-    if (baselineDebt.length > debtBefore) {
-      const row = baselineRow(debtIds(landResult.gate_failing_ids)), why = 'found at the land gate after the late-fix pass'
+    // non-final phase, and on the final phase it files with the reason. Ids the per-task baseline row
+    // already took (at any base sha) are no new defect; an empty id-set is never covered.
+    const landIds = debtIds(landResult.gate_failing_ids), took = baselineTask ? baselineDebt.slice(0, debtBefore) : []
+    if (baselineDebt.length > debtBefore && !(landIds.length && landIds.every(id => took.some(d => d.ids.includes(id))))) {
+      const row = baselineRow(landIds), why = 'found at the land gate after the late-fix pass'
       if (finalPhase) fileFollowUp({ ...row, task: (lateOriginOf(row) || {}).id, rationale: row.rationale + ' — ' + why })
       else carryLate(row, why)
     }
