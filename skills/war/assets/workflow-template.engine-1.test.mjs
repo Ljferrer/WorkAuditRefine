@@ -328,6 +328,8 @@ import {
   fixRoundRulesSection,
   FIX_APPLYING_BUILDS,
   dropDoctrineAt,
+  LATE_FIX_ARGS,
+  lateFixImpl,
   chainRefMd,
   chainRulesSection,
   chainConst,
@@ -3072,8 +3074,8 @@ test('Task 3 — no-enum-leak: no new MERGE_RESULT.status member and no new HARD
   assert.ok(hMatch, 'HARD_ESCALATION_REASONS found')
   const hard = JSON.parse(hMatch[1].replace(/'/g, '"'))
   assert.deepEqual(hard.sort(),
-    ['audit-blocked', 'conflict', 'dep-failed', 'escalate', 'gate-evidence', 'land_stale', 'no-test', 'unpackaged', 'done-unmet', 'budget-uncited', 'unrunnable-deps'].sort(),
-    'HARD_ESCALATION_REASONS is the expected set — aced is a return attribute, not an escalation reason (unpackaged/done-unmet/budget-uncited are merge-task floor hard reasons)')
+    ['audit-blocked', 'conflict', 'dep-failed', 'escalate', 'gate-evidence', 'land_stale', 'no-test', 'unpackaged', 'done-unmet', 'budget-uncited', 'unrunnable-deps', 'late-defect'].sort(),
+    'HARD_ESCALATION_REASONS is the expected set — aced is a return attribute, not an escalation reason (unpackaged/done-unmet/budget-uncited are merge-task floor hard reasons; late-defect is the late-fix pass cap hold, late-defects D20)')
 })
 
 test('bisection — culprit-first excision: a named culprit demotes, the remainder re-applies as ONE subset (no blind halving), and the subset dispatch owns the in-loop revert of the failed batch', async () => {
@@ -7230,7 +7232,8 @@ test('run-lifecycle §4 polish worktree provisioning ok:false → fail-open: swe
 test('run-lifecycle §5 schemas.md presence lock: provisioning-args + footgun carry p<phase>-<task>; ENV_OUTCOME is the uniform provision return with the evidence-gate rule', () => {
   assert.ok(schemasMd.includes('<worktreeRoot>/<runId>/p<phase>-<task>'), 'the runId row / footgun carry the p<phase>-<task> path shape')
   assert.match(schemasMd, /ENV_OUTCOME/, 'schemas.md documents the ENV_OUTCOME shape')
-  assert.match(schemasMd, /uniform return for all three .{0,20}provision/i, 'ENV_OUTCOME is stated as the uniform return for all three provision dispatches')
+  // three → four (late-defects Task 3.1): the late-fix worktree joined the provision dispatches.
+  assert.match(schemasMd, /uniform return for all four .{0,20}provision/i, 'ENV_OUTCOME is stated as the uniform return for all four provision dispatches')
   assert.match(schemasMd, /evidence gate/i, 'schemas.md states the evidence-gate rule')
   assert.match(schemasMd, /entry validation/i, 'schemas.md notes the entry validation naming the missing keys + phase.id (legacy anchor)')
   // Widened (#740): a proximity-window anchor scoped to the Entry validation (H) blockquote proves the
@@ -8448,9 +8451,10 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     await runPhase(ACE_ARGS({ tasks: [dwTask()] }), reentryImpl()),
     await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()])),
     await runPhase(SWEEP_ARGS(), terminalImpl()),   // terminal-pass (D3a): the one-hop pass after the merged sweep
+    await runPhase(LATE_FIX_ARGS(), lateFixImpl()),   // late-fix pass (late-defects Task 3.1)
   ]
   const keepGreen = runs.flatMap(r => r.calls).filter(c => /keep the gate\b/i.test(c.prompt || ''))
-  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^ace:subset:/, /^ace:reentry:/, /^ace:polish:/, /^polish:/, /^terminal:/]) {
+  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^ace:subset:/, /^ace:reentry:/, /^ace:polish:/, /^polish:/, /^terminal:/, /^late-fix:/]) {
     assert.ok(keepGreen.some(c => cls.test(c.opts.label || '')),
       `a keep-the-gate-green prompt of class ${cls} was captured (anti-vacuity floor)`)
   }
@@ -8473,9 +8477,9 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
   // fail-CLOSED for this pin: an over-blanked line loses its occurrence and reds the count.
   const censusSrc = src.replace(/\/\/[^\n]*/g, m => ' '.repeat(m.length))
   // 8 → 9 (in-band-absorb-default D3a): the terminal-pass prompt joined; its fixture (terminalImpl)
-  // rides the sweep above.
+  // rides the sweep above. 9 → 10 (late-defects Task 3.1): the late-fix pass prompt joined (lateFixImpl).
   const census = [...censusSrc.matchAll(/keep the gate\b/gi)]
-  assert.equal(census.length, 9,
+  assert.equal(census.length, 10,
     'a new keep-the-gate-green prompt must join the D6 sweep above — the space-form census over the template source moved; re-pin this count ONLY alongside extending the sweep fixtures to reach the new site')
   // Per-occurrence membership (#1686) — the count alone is RELOCATION-blind: an occurrence that
   // moves out of a dispatched prompt into a comment, or into a dispatch site no fixture drives,
@@ -8496,6 +8500,7 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     { site: 'floor-fix prompt ladder (const fixPrompt)', from: 'const fixPrompt = isNoTest', reachedBy: /^(add-test|make-pass|package-it):/ },
     { site: 'phase-close coherence sweep (PHASE-CLOSE COHERENCE SWEEP)', from: 'pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase', reachedBy: /^polish:/ },
     { site: 'terminal pass (TERMINAL PASS)', from: 'pt`TERMINAL PASS for WAR phase', reachedBy: /^terminal:/ },
+    { site: 'late-fix pass (LATE-FIX PASS)', from: 'pt`LATE-FIX PASS for WAR task', reachedBy: /^late-fix:/ },
   ]
   const keepGreenRanges = KEEP_GREEN_SITES.map(s => {
     const start = censusSrc.indexOf(s.from)
@@ -13437,7 +13442,13 @@ test('absorb-budget (D5 both-surfaces): the absorbCharges read is on agents/war-
     for (const re of ANCHORS) assert.match(text, re, `${name} carries the absorbCharges anchor ${re}`)
   }
   assert.match(barrier.prompt, /the ONE git read allowed beside the named subcommands/, 'the dispatched prompt carries the explicit allowance beside its named commands')
-  assert.match(refinerMd, /one\*\* `git log` read allowed beside the named subcommands/, 'the card carries the same allowance')
+  assert.ok(!barrier.prompt.includes('LATE-FIX CHARGE READ'), 'a non-recovery barrier names no second read')
+  // A recovery relaunch dispatches the LATE-FIX CHARGE READ too, so the allowance counts two reads.
+  const rec = (await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), defaultImpl)).calls.find(isProvision)
+  assert.ok(rec && rec.prompt.includes('LATE-FIX CHARGE READ (per preMerged task)'), 'presence guard: the recovery barrier dispatches the second read')
+  assert.match(rec.prompt, /one of the two git reads allowed beside the named subcommands; the recovery LATE-FIX CHARGE READ is the other/, 'the recovery prompt never calls the absorb read the only one')
+  assert.doesNotMatch(rec.prompt, /the ONE git read allowed/, 'and drops the exclusive wording')
+  assert.match(refinerMd, /one of the two `git log` reads allowed beside the named subcommands; the recovery LATE-FIX CHARGE READ is the other/, 'the card carries the same allowance')
   assert.match(schemasMdForAbsorb, /absorbCharges/, 'schemas.md documents the ENV_OUTCOME absorbCharges field')
   // Schema-slot pins (the done_when_log_path shape): the ENGINE literal declares the slot with its type,
   // the slot stays OPTIONAL, and each schemas.md row binds to the engine key it documents.
@@ -14471,8 +14482,9 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
   // Interpolation census: one line per fix-applying build, and the worker/auditor prompt builders
   // carry none (the constant is interpolated at exactly the enumerated sites).
   const sites = (src.match(/\n[ ]*\+ FIX_ROUND_DOCTRINE_CLAUSE(?=\n)/g) || []).length
-  assert.equal((src.match(/\n[ ]*\+ FIX_ROUND_SCOPE_CLAUSE(?=\n)/g) || []).length, 3, 'the bug class limit is interpolated at the three ruled builds and nowhere else')
-  assert.equal((src.match(/\n[ ]*\+ fixRoundFenceClause\(/g) || []).length, 3, 'the fence is interpolated at the three ruled builds and nowhere else')
+  // 3 → 4 (late-defects Task 3.1): the LATE-FIX PASS build carries the bug class limit and the fence too.
+  assert.equal((src.match(/\n[ ]*\+ FIX_ROUND_SCOPE_CLAUSE(?=\n)/g) || []).length, 4, 'the bug class limit is interpolated at the four ruled builds and nowhere else')
+  assert.equal((src.match(/\n[ ]*\+ fixRoundFenceClause\(/g) || []).length, 4, 'the fence is interpolated at the four ruled builds and nowhere else')
   assert.equal(sites, FIX_APPLYING_BUILDS.length, 'the shared block is interpolated at each enumerated fix-applying build and nowhere else (the #2127 ruling names these builds, and the floor family stays out)')
   // Extraction-and-equality (rule 5 of the block): the FIX_ROUND_RULES literal itself equals the
   // reference section, so an engine-side superset (one extra rule) is red — containment alone
@@ -14494,10 +14506,10 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
     assert.ok(live.prompt.includes(pointer), `${b.site}: names the reference by its plugin-root-anchored path`)
     assert.match(live.prompt, /cause line before the fix: cause, then class, then fix \(the cause-then-class-then-fix rule\)/, `${b.site}: asks for the cause line before the fix`)
     assert.match(live.prompt, /note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round \(the note-absorb rule\)/, `${b.site}: names the note-absorb rule`)
-    // The bug class limit (PR #2577 ruling) rides only the three ruled builds. The literal here is the oracle.
-    const scoped = /ADVISORY POLISH|SWEEP|TERMINAL PASS/.test(b.site)
-    assert.equal(live.prompt.includes('FIX-ROUND FENCE:'), scoped, `${b.site}: the fence rides exactly the three ruled builds`)
-    assert.equal(live.prompt.includes("FIX-ROUND SCOPE: a sibling site of a listed finding's defect class is in scope under rule 1. List any other defect you find under `Ignore for now:`, and never fix it in this commit. Echo that list into `notes` too, because the engine reads only `notes`.\n"), scoped, `${b.site}: the bug class limit rides exactly the three ruled builds`)
+    // The bug class limit (PR #2577 ruling) rides only the four ruled builds. The literal here is the oracle.
+    const scoped = /ADVISORY POLISH|SWEEP|TERMINAL PASS|LATE-FIX PASS/.test(b.site)
+    assert.equal(live.prompt.includes('FIX-ROUND FENCE:'), scoped, `${b.site}: the fence rides exactly the four ruled builds`)
+    assert.equal(live.prompt.includes("FIX-ROUND SCOPE: a sibling site of a listed finding's defect class is in scope under rule 1. List any other defect you find under `Ignore for now:`, and never fix it in this commit. Echo that list into `notes` too, because the engine reads only `notes`.\n"), scoped, `${b.site}: the bug class limit rides exactly the four ruled builds`)
     assert.ok(!live.prompt.includes(reworded), `${b.site}: a reworded rule never appears (no-false-positive; byte-sensitivity is pinned by the includes(rules) assert above)`)
     // Delete-and-trace: drop this build's interpolation ⇒ this prompt loses the section; each sibling keeps it.
     const mutated = dropDoctrineAt(b.head)
@@ -17677,16 +17689,16 @@ test('rea clause: rides every worker spawn site when on; every prompt byte-ident
     assert.ok(on.calls.every(c => !isWorker(c) || c.prompt.includes(REA_HEAD)), `${s.site}: every Work-phase worker prompt carries the clause when on`)
   }
   // Source census (comment-stripped — the reaClause header comment names the pairing): every worker spawn
-  // site that carries provisionClause carries the REA clause beside it — the eight sites (work, fix, floor
-  // family, ace ×3, polish sweep, terminal pass), none skipped. The six task-bearing sites call
-  // reaClauseOf(task) / reaClauseOf(r.task) (the resolved manifest path rides); the two task-less sites
+  // site that carries provisionClause carries the REA clause beside it — the nine sites (work, fix, floor
+  // family, ace ×3, polish sweep, terminal pass, late-fix pass), none skipped. The seven task-bearing sites call
+  // reaClauseOf(task) / reaClauseOf(r.task) / reaClauseOf(origin) (the resolved manifest path rides); the two task-less sites
   // (polish sweep, terminal pass) carry the bare reaClause.
   const code = src.replace(/^\s*\/\/.*$/gm, '')
   const carriers = (code.match(/\+ provisionClause\b/g) || []).length
-  const resolved = (code.match(/\+ provisionClause \+ reaClauseOf\((?:r\.)?task\)/g) || []).length
+  const resolved = (code.match(/\+ provisionClause \+ reaClauseOf\((?:(?:r\.)?task|origin)\)/g) || []).length
   const bare = (code.match(/\+ provisionClause \+ reaClause\b/g) || []).length
-  assert.equal(carriers, 8, `eight provisionClause carrier sites (got ${carriers})`)
-  assert.equal(resolved, 6, `six task-bearing sites call reaClauseOf(task) (got ${resolved})`)
+  assert.equal(carriers, 9, `nine provisionClause carrier sites (got ${carriers})`)
+  assert.equal(resolved, 7, `seven task-bearing sites call reaClauseOf(task) or reaClauseOf(origin) (got ${resolved})`)
   assert.equal(bare, 2, `two task-less sites carry the bare reaClause (got ${bare})`)
   assert.equal(resolved + bare, carriers, 'the REA clause rides every provisionClause carrier site')
 })
@@ -18720,6 +18732,50 @@ test('2485/ES15 the gate-log preamble repeats the provision_tree marker line, an
   assert.ok(bare && !bare.prompt.includes(ACE_RED), 'a provision-less ace gate carries no provision sentence')
 })
 
+
+test('floor re-audit Minor/Nit rows walk the shared ladder: an ask parks, a barrier follow-up files, an absorb rides the sweep, and dropping the route call leaves them only in auditLog (PIN-1 sibling of the late-fix re-audit)', async () => {
+  // no-test → add-test → re-audit(approve WITH rows) → re-merge(merged). The wave audit (first
+  // 'audit:t1:correctness' call) approves clean; the floor re-audit (second call) raises three rows.
+  const rows = [
+    { severity: 'Minor', title: 'floor ask', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'ask', ask: { question: 'which pattern?', fork: ['a', 'b'] } },
+    { severity: 'Minor', title: 'floor follow-up', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified' },
+    { severity: 'Minor', title: 'floor absorb', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'absorb', suggested_fix: 'rename it' },
+  ]
+  const impl = () => buildSeqImpl(
+    { 'merge:t1': [{ mode: 'merge-task', status: 'no-test' }],
+      'audit:t1:correctness': [approveWith('audit:t1:correctness', []), approveWith('audit:t1:correctness', rows)] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && (opts.phase === 'Provision' || opts.dispatchKind === 'polish-worktree')) return { ok: true }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
+      if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'deadbeef' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    })
+  const args = () => PROVISION_ARGS({ tasks: SINGLE_TASK, audit: { roster: [{ lens: 'correctness' }] }, run: { ace: true } })
+  const { out, calls, logs } = await runPhase(args(), impl(), PROBE)
+  assert.equal(out.landDecision, 'landed')
+  assert.ok(calls.some(c => /^add-test:t1:/.test(c.opts.label || '')), 'the floor sub-loop ran')
+  const parked = (out.asks || []).filter(a => a && a.finding && a.finding.title === 'floor ask')
+  assert.equal(parked.length, 1, 'the floor re-audit ask parks for the Checkpoint')
+  assert.equal(parked[0].task, 't1')
+  const filed = demotionOf(out, 'floor follow-up')
+  assert.ok(filed && filed.barrier === 'barrier:underspecified', 'the barrier follow-up files')
+  assert.ok(polishPromptOf(calls).includes('floor absorb'), 'the absorb rides the phase-close sweep')
+  assert.ok(!demotionOf(out, 'floor absorb'), 'the absorb is not filed')
+  assert.ok(logs.some(l => /"floor absorb" \(task t1\) → phaseClose sweep — floor-fix re-audit in the merge slot/.test(l)), 'the sweep route names the floor re-audit')
+  // Red proof by mutation: without the route call the rows sit only in auditLog.
+  const call = "routeReauditMinors(r, reSeats, { noReentry: 'floor-fix re-audit in the merge slot"
+  assert.ok(src.includes(call), 'the mutation target is the live route call')
+  const mutant = src.replace(/ *routeReauditMinors\(r, reSeats, \{ noReentry: 'floor-fix re-audit in the merge slot[^\n]*\n/, '')
+  assert.notEqual(mutant, src)
+  const m = await runPhase(args(), impl(), PROBE, mutant)
+  assert.equal(m.out.landDecision, 'landed', 'the mutant still lands, so a green land never proves the route')
+  for (const t of ['floor ask', 'floor follow-up', 'floor absorb']) {
+    assert.ok(!(m.out.asks || []).some(a => a && a.finding && a.finding.title === t) && !demotionOf(m.out, t) && !(m.out.notes || []).some(n => n && n.title === t) && !polishPromptOf(m.calls).includes(t), `without the route call "${t}" is dropped`)
+  }
+})
 
 test('every agent card the engine dispatches is registered in plugin.json (an unlisted card is not an agent type)', () => {
   const manifest = JSON.parse(readFileSync('.claude-plugin/plugin.json', 'utf8'))

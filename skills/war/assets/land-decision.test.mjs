@@ -61,6 +61,15 @@ test('budget-uncited is a hard escalation reason (D6, ADR 0005: an uncited ceili
   assert.ok(HARD_ESCALATION_REASONS.includes('budget-uncited'))
 })
 
+// ---- late-defect (late-defects-fixed-in-run D20, PIN-20): the late-fix pass cap hold on the final phase ----
+test('late-defect: hold — late-defect is a hard escalation reason, so a spent late fix holds a phase that merged work', () => {
+  assert.ok(HARD_ESCALATION_REASONS.includes('late-defect'), 'late-defect is a HARD_ESCALATION_REASONS member')
+  assert.equal(decideLand({ landed: ['t1'], escalated: [{ task: 't1', reason: 'late-defect', fixRounds: 6, detail: 'spent' }] }), 'held:escalation')
+  assert.equal(decideLand({ landed: ['t1'], escalated: [] }), 'landed', 'the carry arm (no escalation, a carriedTasks row) lands')
+  assert.ok(!KNOWN_LAND_DECISIONS.some(d => d.includes('late-defect')), 'no new land decision: the hold reads held:escalation')
+  assert.ok(!SOFT_ENV_REASONS.includes('late-defect') && !DEMOTE_REASONS.some(d => d.includes('late-defect')), 'never a soft or demote member')
+})
+
 // ---- BARRIER_TOKENS (in-band-absorb-default D1, PIN-1/PIN-2) — the seat's structured `barrier` enum ----
 // Exactly four members, in order: three follow-up barriers plus `barrier:trade-off` (an ask route).
 // Finding-level tokens only — disjoint from every land-path enum; the inline hand-mirror lives in
@@ -380,7 +389,8 @@ const MERGE_TASK_FLOOR_ONLY = ['no-test', 'unpackaged', 'done-unmet', 'budget-un
 // held:escalation at land-decision time — carried in `escalated[]` from the work/audit/merge phases
 // (escalate/audit-blocked/conflict/dep-failed/gate-evidence/unrunnable-deps) or emitted by the land
 // prompt itself (land_stale). It is exactly HARD_ESCALATION_REASONS minus the merge-task-floor reasons.
-const LAND_PHASE_REACHABLE = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps']
+// late-defect (late-defects Task 3.1) joins it: the late-fix pass pushes it into `escalated[]` before the land decision.
+const LAND_PHASE_REACHABLE = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'late-defect']
 
 // The land-dispatch block: from the relandDiscrimination helper (which emits land_stale) through the end
 // of the `if (landDecision === 'landed')` land-prompt branches. `block` = land-phase prompts; `outside`

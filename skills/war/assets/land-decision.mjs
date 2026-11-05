@@ -19,11 +19,15 @@
 // Budget-Raise trailer), carried on the wire as status:'no-test' + floor_route:'budget-uncited' and normalized by the Workflow's routedMr
 // at every merge-task dispatch site; a hard reason under its own name so the escalation record names the tripped floor (D6, ADR 0005).
 // Mirrors no-test/unpackaged/done-unmet; must land in BOTH mirrors + the drift guard.
+// late-defect (late-defects-fixed-in-run D20, PIN-20): the late-fix pass ran out of the origin task's fix rounds
+// (fixRounds >= run.roundLimit) on the FINAL phase — or met a phase another hard reason already holds, where the pass never runs — so the
+// defect holds the land for a Lead ruling; on a non-final phase the same defect carries on carriedTasks instead.
+// Produced only by the late-fix pass, which runs before the land decision; never a land-phase status.
 // defectClass ('plan') is escalation-record METADATA on the escalation record, orthogonal to `reason` — it is NEVER a member of this
 // array nor of KNOWN_LAND_DECISIONS (ADR 0005). A worker-authored plan/spec defect is *classified*, never routed through a new reason
 // enum member; the negative drift-guard in land-decision.test.mjs pins both tokens ('plan-defect'/'held:plan-defect') out of both sets
 // permanently, so "completing" the sentinel feature into an enum here fails loud.
-export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet', 'budget-uncited']
+export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet', 'budget-uncited', 'late-defect']
 
 // SOFT_ENV_REASONS (#1411): the soft env/infra family of per-task escalation reasons —
 // 'env-blocked' (a run.provision step failed: the worker was never spawned) and 'env-died' (a
