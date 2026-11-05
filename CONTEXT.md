@@ -163,10 +163,10 @@ it down (or preserving it on escalation).
 _Avoid_: setup, bootstrapping, worktree management.
 
 **provision mode**:
-The refiner's third dispatch mode, alongside `merge-task` and `land-phase`: the three provisioning
+The refiner's third dispatch mode, alongside `merge-task` and `land-phase`: the four provisioning
 dispatches it performs — the phase git-topology barrier (`provision:phase-<id>`), the per-task
-provision-run (`provision-run:<taskId>`), and the phase-close polish worktree
-(`polish-worktree:phase-<id>`). All three return the **env-outcome** shape
+provision-run (`provision-run:<taskId>`), the phase-close polish worktree
+(`polish-worktree:phase-<id>`), and the late-fix worktree (`late-fix-worktree:p<phase>-latefix-<k>`). All four return the **env-outcome** shape
 (`{ ok, taskId?, failedCommand?, exitCode?, stderrTail?, provisionSource? }`), never a MergeResult, and
 a provision dispatch is never out-of-mode — the refiner does not decline it ([ADR 0001](docs/adr/0001-explicitly-managed-worktrees.md)).
 _Avoid_: rerouting provisioning to another agent; treating a provision dispatch as a MergeResult mode.
@@ -997,8 +997,8 @@ WAVE-SIDE re-audit (plain, bisection-subset, or a re-entry batch's own), dispatc
 ace-style batch on the same machinery (canonical: `aceReentry` in
 `skills/war/assets/workflow-template.js`), **never a new round type or status member**. The
 **Absorb budget** (`absorbRounds < run.absorbRounds`, the per-task ace meter separate from `fixRounds`)
-is their SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters:
-its absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), never
+is their SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters, and
+neither do the merge-slot floor-fix re-audit and the late-fix pass re-audit: their absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), never
 budget-gated. Budget spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
 sweep-discard ⇒ carried on `carriedPhaseClose` (non-final phase) or `follow-up` (final); a
 forward-reverted finding never re-enters (the oscillation bound); every demotion is logged.
@@ -1477,7 +1477,7 @@ lets an assembled payload too large to ride the Workflow tool call travel with t
 (dispatched args, when passed, still win). It fails loud on a missing or duplicated anchor rather
 than forking silently onto the wrong text.
 **Comment strip + size floor (#2099)**: before the substitutions the stager blanks every full-line `//`
-comment in code state (line count preserved — an `--args` stage then adds two prelude lines after
+comment in code state and drops the leading indent of every top-level code line (#2613) (line count preserved — an `--args` stage then adds two prelude lines after
 `meta`; strings, template literals, regexes and trailing comments pass through verbatim, one scanner
 residual recorded in the reference below), because the
 Workflow tool refuses a script over its 524,288-byte `scriptPath` cap and the shipped template alone
@@ -1486,7 +1486,7 @@ sizes and writes nothing, and a pre-existing staged file over the cap is refused
 `--force` rather than reused. Full doctrine: `skills/war/references/staged-script.md`.
 **Write-if-absent**: an existing staged file *is* the run's script and is reused byte-untouched
 (approved stage injections and journal-replay identity survive the same-journal resume) — unless the existing file is over the `scriptPath` cap, which the stager refuses (the
-#2099 entry above); a deliberate `--force` overwrites it with a fresh, comment-stripped substitution
+#2099 entry above); a deliberate `--force` overwrites it with a fresh, comment- and indent-stripped substitution
 from the shipped template. A fresh run or Recovery relaunch mints a new `runId` and stages
 into its own directory per `skills/war/references/launch-identity.md`, including same-day retries.
 Retention is **manifest-equivalent** — kept, never reaped, doubling as dispatch provenance for

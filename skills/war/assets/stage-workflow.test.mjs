@@ -85,9 +85,10 @@ test('(b) minimal fixture: staged text carries derived literals, differs only in
   assert.equal(restored, stripFullLineComments(MINIMAL_TEMPLATE), 'against the stripped fixture: the strip drops the meta lines\' indent (arm (s))')
 })
 
-// The shipped-template arms compare against the COMMENT-STRIPPED template (#2099): the stager blanks
-// full-line code comments before it substitutes, so "differs only in the two literals" holds against
-// stripFullLineComments(original), and the strip itself is proven separately in (p).
+// The shipped-template arms compare against the COMMENT- AND INDENT-STRIPPED template (#2099, #2613): the
+// stager blanks full-line code comments and drops top-level indent before it substitutes, so "differs only
+// in the two literals" holds against stripFullLineComments(original), and the strip itself is proven
+// separately in (p) and (s).
 test('(b) shipped template: staged text carries derived literals, differs only in the two literals', () => {
   const dir = scratch('stage-ship-')
   const original = stripFullLineComments(readFileSync(TEMPLATE, 'utf8'))
