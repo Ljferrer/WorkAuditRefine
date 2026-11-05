@@ -18826,3 +18826,15 @@ test('#2617 dirty stop at the polish sweep merge, unconfirmed by Git: it loses t
   assert.ok(calls.some(c => (c.opts.label || '') === 'merge:p3-polish'), 'the polish merge runs (presence guard)')
   assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile' && (c.opts.label || '').startsWith('git-reconcile:merge:p3-polish')), 'an unconfirmed sweep stop reconciles Git before the discard')
 })
+
+test('#2617 dirty stop at the polish sweep merge, confirmed by Git: no reconciliation, no hold, and the sweep discards', async () => {
+  const base = sweepBase([queuedAbsorb()])
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:p3-polish' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : base(prompt, opts)
+  const { out, calls } = await runPhase(SWEEP_ARGS(), impl)
+  const pm = calls.find(c => (c.opts.label || '') === 'merge:p3-polish')
+  assert.ok(pm && pm.prompt.includes('git -C <rebase worktree> status'), 'the polish merge runs and its stop names the worktree it rebases in')
+  assert.ok((out.auditLog || []).some(a => a.site === 'merge:p3-polish' && a.verdict === 'git-confirmed:error'), 'Git confirms the stop')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'a confirmed sweep stop skips reconciliation')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
+  assert.equal(out.handoff.polish, 'discarded', 'the sweep takes its fail-open discard')
+})

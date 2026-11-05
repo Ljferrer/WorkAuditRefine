@@ -3063,7 +3063,7 @@ const GATE_LOG_STAMP = pt`Stamp the artifact: its FIRST line is \`tip_sha: <the 
 // DIRTY_TASK_STOP (#2617): the pin-transfer probe and every segmentedMerge site stop on tracked edits;
 // the shared stash is never a workaround. The per-task sites hold (routedMr); the polish and terminal
 // sweep merges take their fail-open discard.
-const DIRTY_TASK_STOP = pt`Never run git stash: every worktree and session shares the stash. Before any forward-revert or rebase: if git -C <the TASK worktree> status --porcelain --untracked-files=no prints anything, return { status: 'error', detail: 'dirty task worktree: <those paths>' }.\n`
+const DIRTY_TASK_STOP = pt`Never run git stash: every worktree and session shares the stash. Before any forward-revert or rebase: if git -C <rebase worktree> status --porcelain --untracked-files=no prints anything, return { status: 'error', detail: 'dirty task worktree: <those paths>' }.\n`
 const PARTIAL_LOG_RULE = pt`Only an explicitly marked SEGMENTED continuation may reuse its returned gate_log_path. Read only that supplied path, never a guessed conventional path: it is THIS logical dispatch's completed gate result only when its FIRST line is \`tip_sha:\` of the sha being gated AND its LAST line is \`exit_code:\`. If absent, unstamped, partial or stale, rerun into a FRESH unique artifact; never truncate or reuse a file a prior background job may still write. A fresh logical dispatch always allocates a fresh artifact, even at the same tip.`
 // Missing paths are evidence absence, never permission to read a previous dispatch's file.
 const GATE_LOG_UNTHREADED = pt`(gate_log_path unthreaded — no captured artifact)`
@@ -5166,6 +5166,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // reverts twice; a staged index (INDEX-DIRTY) or a reverted index that is not the approved tree
       // (TREE-MISMATCH) makes no commit and the refiner stops with status 'error', so no content a
       // panel never judged is committed or merged. Ace never turns a mergeable task into a hold.
+      // DIRTY_TASK_STOP runs first at both sites, so a staged index there holds as a dirty task
+      // worktree (escalate, #2617) before the revert can print INDEX-DIRTY.
       const revertRange = rangeRevertOf(r)
       const aceRevertClause = revertRange
         ? pt`FORWARD-REVERT (--ace): the commits above the last approved tip ${revertRange.approved} are not approved (the pre-revert tip ${revertRange.tip || 'was never read from Git'}). BEFORE the rebase step (a), in the TASK worktree, run exactly: `
