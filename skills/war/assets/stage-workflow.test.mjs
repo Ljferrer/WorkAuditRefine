@@ -1039,24 +1039,43 @@ process.stdout.write('\\nPROBE ' + JSON.stringify({ srcRaw: h.src === raw, raw: 
 // named by the column-0 declaration that encloses it, and read from the call to the next blank line
 // (makeDispatch's runForm calls sit on the lines after its opener). A site outside the exempt list
 // must wrap runForm; an exempt site must not, so the list cannot go stale silently. The two exempt
-// sites evaluate a pt literal, whose bytes oracle (b) proves the strip never moves.
+// sites evaluate a pt literal, whose bytes oracle (b) proves the strip never moves. The same window
+// rule runs over every sibling workflow-template.*.test.mjs file: a test-local compile of a
+// src-derived slice (an engine slice, an extracted arrow, a regex literal) imports runForm from the
+// harness and wraps it, so under the flag it runs the staged form too. No test-local site evaluates a
+// pt literal, so that census has no exempt list, and a site is named by file and line.
 const HARNESS_COMPILE_EXEMPT = {
   evalPt: 'a pt literal whose bytes oracle (b) proves invariant',
   evalTemplateConst: 'a pt literal whose bytes oracle (b) proves invariant',
 }
-const harnessCompileSites = (text) => {
+const compileSiteWindows = (text) => {
   const sites = []
   const re = /new (?:Async)?Function\(/g
   let m
   while ((m = re.exec(text))) {
-    const decl = [...text.slice(0, m.index).matchAll(/^(?:const|let|function) ([A-Za-z_$][\w$]*)/gm)].pop()
-    assert.ok(decl, `a compile site at offset ${m.index} sits under a column-0 declaration`)
     const stop = text.indexOf('\n\n', m.index)
     const next = text.slice(re.lastIndex).search(/new (?:Async)?Function\(/)
     const ends = [stop, next === -1 ? -1 : re.lastIndex + next, text.length].filter((e) => e !== -1)
-    sites.push({ name: decl[1], window: text.slice(m.index, Math.min(...ends)) })
+    sites.push({ index: m.index, line: text.slice(0, m.index).split('\n').length, window: text.slice(m.index, Math.min(...ends)) })
   }
   return sites
+}
+const harnessCompileSites = (text) => compileSiteWindows(text).map(({ index, window }) => {
+  const decl = [...text.slice(0, index).matchAll(/^(?:const|let|function) ([A-Za-z_$][\w$]*)/gm)].pop()
+  assert.ok(decl, `a compile site at offset ${index} sits under a column-0 declaration`)
+  return { name: decl[1], window }
+})
+const TEST_FILE_RE = /^workflow-template\..*\.test\.mjs$/
+const testFileTexts = () => readdirSync(HERE).filter((f) => TEST_FILE_RE.test(f)).sort().map((f) => [f, readFileSync(join(HERE, f), 'utf8')])
+const assertTestFilesCompileStaged = (texts) => {
+  let seen = 0
+  for (const [file, text] of texts) {
+    for (const { line, window } of compileSiteWindows(text)) {
+      seen++
+      assert.ok(window.includes('runForm('), `${file}:${line} compiles a src-derived slice and must wrap it in runForm(...)`)
+    }
+  }
+  return seen
 }
 const assertHarnessCompilesStaged = (text) => {
   const sites = harnessCompileSites(text)
@@ -1079,6 +1098,28 @@ test('indent-strip: harness runs the staged form', () => {
       dropped = dropped.replace(call, call.replace(/runForm\((\w+)\)/, '$1'))
     }
     assert.throws(() => assertHarnessCompilesStaged(dropped), new RegExp(`${site} compiles a src-derived slice`), `dropping ${site}'s runForm calls reds the census`)
+  }
+  // The test-file census: every site wraps, the census is non-vacuous, and each test file with a site
+  // imports runForm. Red proofs, both window shapes: the first site whose runForm sits on the opener
+  // line and the first whose runForm sits on a later line each lose their wrapper.
+  const texts = testFileTexts()
+  assert.ok(assertTestFilesCompileStaged(texts) > 0, 'non-vacuity: at least one test-file-local compile site exists')
+  for (const [file, text] of texts) {
+    if (compileSiteWindows(text).length) assert.match(text, /^  runForm,$/m, `${file} imports runForm from the harness`)
+  }
+  const shapes = { opener: null, later: null }
+  for (const [file, text] of texts) {
+    for (const site of compileSiteWindows(text)) {
+      const at = site.window.indexOf('runForm(')
+      const shape = site.window.slice(0, at).includes('\n') ? 'later' : 'opener'
+      if (!shapes[shape]) shapes[shape] = { file, text, site }
+    }
+  }
+  for (const [shape, hit] of Object.entries(shapes)) {
+    assert.ok(hit, `a test-file-local site with runForm on the ${shape} line exists for the red proof`)
+    const { file, text, site } = hit
+    const dropped = text.slice(0, site.index) + site.window.replace('runForm(', '(') + text.slice(site.index + site.window.length)
+    assert.throws(() => assertTestFilesCompileStaged([[file, dropped]]), new RegExp(`${file.replace(/\./g, '\\.')}:${site.line} compiles a src-derived slice`), `dropping the ${shape}-line runForm at ${file}:${site.line} reds the census`)
   }
   const on = probeHarness(true)
   assert.ok(on.srcRaw, 'the exported src stays the raw template for source-reading tests')
@@ -1128,7 +1169,7 @@ test('(q) over-cap fresh stage: exits non-zero, names the sizes, writes nothing;
   const over = runStager([padFixture(dir, 'padded.js', SCRIPT_BYTE_CAP), dir, 'cap-slug', '1'], { expectFail: true })
   assert.notEqual(over.status, 0, 'an over-cap staged copy must not exit 0')
   assert.match(over.stderr, CAP_FRAGMENT)
-  assert.match(over.stderr, /comment-stripped template \d+ bytes/)
+  assert.match(over.stderr, /\(stripped template \d+ bytes;/, 'the size floor labels the comment- and indent-stripped size as the stripped template')
   assert.match(over.stderr, /embedded args 0 bytes/)
   assert.ok(!existsSync(join(dir, deriveName('cap-slug', '1') + '.js')), 'nothing is written on refusal')
 

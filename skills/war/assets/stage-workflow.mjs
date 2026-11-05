@@ -16,7 +16,7 @@
 //   stages, and a journal replay must see identical bytes even across a mid-run plugin upgrade — so
 //   it is left byte-untouched, its path printed, exit 0 (with --args, one stderr warning that the
 //   flag was ignored). A deliberate restage passes --force (the only path that overwrites an
-//   existing staged file, from a fresh comment-stripped substitution of the current shipped
+//   existing staged file, from a fresh comment- and indent-stripped substitution of the current shipped
 //   template) — that is also how changed args are re-embedded. An existing file over the scriptPath
 //   cap is the one reuse refused: it cannot dispatch, so the stager exits non-zero naming --force.
 //   Fail-loud: a missing OR duplicated anchor exits NON-ZERO with a named error (never a silent
@@ -331,7 +331,7 @@ function main(argv) {
       process.exit(1)
     }
     if (existingBytes > SCRIPT_BYTE_CAP) {
-      process.stderr.write(`stage-workflow: existing staged file ${stagedPath} is ${existingBytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap — it cannot dispatch; restage it with --force (a fresh, comment-stripped substitution: any injected stage in the old file is lost and must be re-applied, and a resumeFromRunId journal recorded against the old bytes no longer matches)\n`)
+      process.stderr.write(`stage-workflow: existing staged file ${stagedPath} is ${existingBytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap — it cannot dispatch; restage it with --force (a fresh, comment- and indent-stripped substitution: any injected stage in the old file is lost and must be re-applied, and a resumeFromRunId journal recorded against the old bytes no longer matches)\n`)
       process.exit(1)
     }
     if (argsFile !== null) {
@@ -397,7 +397,7 @@ function main(argv) {
   const bytes = Buffer.byteLength(staged, 'utf8')
   if (bytes > SCRIPT_BYTE_CAP) {
     const argsBytes = embedded === null ? 0 : Buffer.byteLength(JSON.stringify(embedded), 'utf8')
-    process.stderr.write(`stage-workflow: staged script would be ${bytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap (comment-stripped template ${strippedBytes} bytes; embedded args ${argsBytes} bytes; the rest is substitution and prelude overhead) — nothing written; slim the --args payload, or the template's code\n`)
+    process.stderr.write(`stage-workflow: staged script would be ${bytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap (stripped template ${strippedBytes} bytes; embedded args ${argsBytes} bytes; the rest is substitution and prelude overhead) — nothing written; slim the --args payload, or the template's code\n`)
     process.exit(1)
   }
 

@@ -106,6 +106,9 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 // when it runs. The staged form of `src` itself is computed once; a mutated copy is staged on each
 // build. stage-workflow.test.mjs row `indent-strip: harness runs the staged form` proves the executed
 // bytes and holds the census of these compile sites (a new site must wrap runForm or join its exempt list).
+// runForm is exported: a test-file-local compile of a src-derived slice (an engine slice, an extracted
+// arrow, a regex literal) wraps it too, and the same row's census over every workflow-template.*.test.mjs
+// file holds those sites to it (no exempt list there: no test-local site evaluates a pt literal).
 const STAGED_RUN = process.env.WAR_TEMPLATE_STRIPPED === '1'
 let stagedSrc = null
 const runForm = (code) => {
@@ -3597,6 +3600,7 @@ export {
   exactGitDiffRecipe,
   fixtureContentId,
   AsyncFunction,
+  runForm,
   build,
   fakeParallel,
   NEW_SEAT_DEFAULTS,
