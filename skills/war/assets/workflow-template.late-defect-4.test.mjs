@@ -78,7 +78,7 @@ test('late-defect: ace base — record-split replay: a standing docker red at th
   assert.match(mutant.calls.find(isMergeTask).prompt, /FORWARD-REVERT/, 'and forward-reverts the ace tip')
 })
 
-test('late-defect: ace base — a new failing id, a dead base check and a red with no ids each keep the forward-revert', async () => {
+test('late-defect: ace base — a new failing id, a dead, green or unplaced base check and a red with no ids each keep the forward-revert', async () => {
   const reverts = async (seats, why) => {
     const { out, calls } = await runPhase(ACE_ARGS(), recordSplit(), seats)
     assert.ok(!(out.aced || []).length, why + ': nothing is aced')
@@ -92,6 +92,19 @@ test('late-defect: ace base — a new failing id, a dead base check and a red wi
   await reverts({ 'ace-gate': aceRed([DOCKER]), 'ace-base-gate': p => ({ gate_green: true, head_sha: shaIn(p, /at the pre-ace tip ([0-9a-f]{7,40})/) }) }, 'a green base')
   const bare = await reverts({ 'ace-gate': aceRed(undefined), 'ace-base-gate': baseRed([DOCKER]) }, 'a red with no ids')
   assert.equal(bare.filter(kindOf('ace-base-gate')).length, 0, 'no ids, nothing to compare: no base run')
+  // A base red that does not place itself at the pre-ace tip licenses nothing: each of the two
+  // aceBaseIds echo clauses (isSha, pinMismatch) has its own case and its own mutant.
+  const keep = 'b.gate_green === false && isSha(b.head_sha) && !pinMismatch(b.head_sha, preAceSha) ? debtIds('
+  assert.ok(src.includes(keep), 'the mutation target is the live base echo clause')
+  // The fixture's pre-ace tip is deadbeef, so another sha must differ from it.
+  for (const [head_sha, why, clause] of [['abcdef12', 'a base red at another sha', ' && !pinMismatch(b.head_sha, preAceSha)'], [undefined, 'a base red with no echo', ' && isSha(b.head_sha)']]) {
+    const seats = { 'ace-gate': aceRed([DOCKER]), 'ace-base-gate': () => ({ gate_green: false, head_sha, gate_failing_ids: [DOCKER] }) }
+    const placed = await reverts(seats, why)
+    assert.equal(placed.filter(kindOf('ace-base-gate')).length, 1, why + ': presence, the base ran and named every id')
+    // Red at base: without the clause the unplaced base red licenses the ace tip.
+    const mutant = await runPhase(ACE_ARGS(), recordSplit(), seats, src.replace(keep, keep.replace(clause, '')))
+    assert.ok((mutant.out.aced || []).length, why + ': the mutant aces over a base red it cannot place')
+  }
 })
 
 test('late-defect: ace base — the proceed-over needs the ace red to echo the ace tip: a red at another sha or with no echo still forward-reverts', async () => {
@@ -123,9 +136,9 @@ test('late-defect: ace base — the base result is cached per pre-ace sha, so th
 const LOCK_ABSORB = nit({ title: 'cache key spelled twice', file: 'src/lock.js', disposition: 'absorb' })
 const LOCK_NOTE = { severity: 'Nit', title: 'stale lock read', file: 'src/lock.js', rationale: 'the lock is read before the refresh', disposition: 'note' }
 const LOCK_MAJOR = { severity: 'Major', title: 'stale lock read', file: 'src/lock.js', rationale: 'the lock is read before the refresh, so a second writer wins', suggested_fix: 'refresh the lock before the read' }
-const obelisk = () => lateOk(buildSeqImpl({
+const obelisk = (majors = [LOCK_MAJOR]) => lateOk(buildSeqImpl({
   'audit:t1:correctness': [approveWith('audit:t1:correctness', [LOCK_ABSORB, LOCK_NOTE]),
-    { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [LOCK_MAJOR] }],
+    { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: majors }],
   'ace:polish:t1:a1': [bWorker('ace00001')],
 }, (p, o) => seatOf(o) === 'war-auditor' ? approveWith(o.label, []) : aceBase([])(p, o)))
 const probeRun = (answer, source) => runPhase(ACE_ARGS(), obelisk(), { 'pre-ace-probe': answer }, source)
@@ -178,6 +191,40 @@ test('late-defect: probe — no reverts as today; unknown, a malformed answer an
     assert.ok(lf[0].prompt.includes(LOCK_MAJOR.suggested_fix), why + ': with its fix')
     assert.ok(logged(logs, 'pre-ace probe: unknown'), why + ': it queues as unknown')
   }
+})
+
+// One seat, two Majors on the absorb's file: the probe clears only the yes blocker, so ADR 0054's
+// revert still sees the no blocker. Both answer orders run, so no order-bound mutant passes.
+const LOCK_TWICE = { severity: 'Major', title: 'lock released twice', file: 'src/lock.js', rationale: 'release() runs in the catch and in the finally', suggested_fix: 'release the lock once, in the finally' }
+const mixedRun = (yesAt, source) => runPhase(ACE_ARGS(), obelisk([LOCK_MAJOR, LOCK_TWICE]),
+  { 'pre-ace-probe': (p, o) => ({ exists: o.label === 'pre-ace-probe:t1:' + yesAt ? 'yes' : 'no', evidence: 'read at the pre-ace tip' }) }, source)
+test('late-defect: probe — mixed answers: the yes blocker gets a late fix, the no blocker still forward-reverts, and the seat is not cleared', async () => {
+  const probeCleared = o => (o.pinTransfers || []).filter(t => t.mode === 'probe-cleared')
+  for (const [yesAt, yes, no] of [[1, LOCK_MAJOR, LOCK_TWICE], [2, LOCK_TWICE, LOCK_MAJOR]]) {
+    const why = 'yes at blocker ' + yesAt
+    const { out, calls, logs } = await mixedRun(yesAt)
+    assert.deepEqual(calls.filter(kindOf('pre-ace-probe')).map(labelOf), ['pre-ace-probe:t1:1', 'pre-ace-probe:t1:2'], why + ': one probe per blocker')
+    const lf = lateFixOf(calls)
+    assert.deepEqual(lf.map(labelOf), ['late-fix:t1:r1'], why + ': the yes blocker queues one late fix')
+    assert.ok(lf[0].prompt.includes(yes.suggested_fix) && !lf[0].prompt.includes(no.title), why + ': for the yes blocker only')
+    assert.ok(logged(logs, 'late-fix pass: queued [Major] "' + yes.title + '"', 'pre-ace probe: yes'), why + ': the queue log names the yes answer')
+    assert.ok(!logged(logs, 'late-fix pass: queued [Major] "' + no.title + '"'), why + ': the no blocker never queues')
+    assert.ok(regressed(out), why + ': the no blocker still drives demote:absorb-regressed')
+    assert.match(calls.find(isMergeTask).prompt, /FORWARD-REVERT/, why + ': and the ace tip is forward-reverted')
+    // The seat stays request_changes: a probeCleared approval is the only source of a probe-cleared row.
+    assert.equal(probeCleared(out).length, 0, why + ': the seat is not probe-cleared, so no probe-cleared row')
+  }
+  // Red at base: a mutant that clears the seat on any yes merges over the no blocker.
+  const cleared = 'const cleared = kept.length < (s.findings || []).length && !blockingOf([{ findings: kept }]).length'
+  assert.ok(src.includes(cleared), 'the mutation target is the live cleared rule')
+  const anyYes = await mixedRun(1, src.replace(cleared, 'const cleared = kept.length < (s.findings || []).length; if (cleared) kept.length = 0'))
+  assert.ok(!regressed(anyYes.out) && probeCleared(anyYes.out).length === 1, 'the any-yes mutant clears the seat and keeps the absorb')
+  // Red at base: a mutant that probes only the first blocker dispatches one probe.
+  const gate = "if (b.severity !== 'Critical' && b.severity !== 'Major') { kept.push(b); continue }"
+  assert.ok(src.includes(gate), 'the mutation target is the live per-blocker gate')
+  const firstOnly = await mixedRun(2, src.replace(gate, "if (n || (b.severity !== 'Critical' && b.severity !== 'Major')) { kept.push(b); continue }"))
+  assert.equal(firstOnly.calls.filter(kindOf('pre-ace-probe')).length, 1, 'the first-only mutant probes one blocker')
+  assert.equal(lateFixOf(firstOnly.calls).length, 0, 'and the second blocker\'s yes never reaches the late-fix pass')
 })
 
 // A wave-side probe row can name a task that later fails to merge on a soft route. The pass then
