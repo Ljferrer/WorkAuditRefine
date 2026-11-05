@@ -2,16 +2,19 @@
 # Prove task-specific work already reached integration before a recovery skip.
 # Usage (from the repository): task-integrated.sh <task-branch> <integration> <working>
 # Exit 0: integrated task provenance, with task content intact at its merge commit and changed
-# later only by other tasks' merge commits; 1: no proof, run work/audit;
+# later only by other tasks' merge commits or its own late-fix commits; 1: no proof, run work/audit;
 # 2: Git/usage error, stop recovery. Branches are local names, never revision expressions.
 # Ownership comes from the engine's task merge commit (#2485 D14): a first-parent commit of the
 # phase whose parsed WAR-Task trailer names the task branch and whose second parent is the task tip.
 # Worker commits need no trailer, so untrailered floor-fix, ace and revert commits prove through it.
+# After the merge, an owned path may change only in another task's merge commit or in a late-fix
+# commit of this task: one parent and a `Late-Fix: <task id>:<n>` trailer (late-defects PIN-25).
 set -euo pipefail
 die() { printf 'task-integrated: %s\n' "$1" >&2; exit 2; }
 no_proof() { printf 'NO_TASK_PROOF %s\n' "$1"; exit 1; }
 [ "$#" -eq 3 ] || die 'expected task, integration and working branch names'
 task_branch="$1"; integration_branch="$2"; working_branch="$3"
+task_leaf=${task_branch##*/}; task_id=${task_leaf#p*-}   # the bare task id a Late-Fix trailer names
 for branch in "$task_branch" "$integration_branch" "$working_branch"; do
   git check-ref-format "refs/heads/$branch" >/dev/null 2>&1 || die 'invalid branch name'
 done
@@ -46,7 +49,8 @@ done
 # The merge commit is the ownership proof, so a task whose commits net to zero still proves.
 # Its owned paths are the merge's own change set, M^1..M^2: keep rename sides, Gitlinks, modes
 # and deletions. A later sibling may build on an owned path (#2571), so each path's task content
-# must match at M, and each later first-parent change to it must be another task's merge commit.
+# must match at M, and each later first-parent change to it must be another task's merge commit,
+# or a single-parent late-fix commit whose Late-Fix trailer names this task.
 # The walk stops at M..<integration tip>, the same bound as the absorb-charge read.
 proof_paths=$(mktemp "${TMPDIR:-/tmp}/war-task-integrated.XXXXXX") || die 'cannot allocate proof paths'
 trap 'rm -f "$proof_paths"' EXIT
@@ -64,8 +68,20 @@ while IFS= read -r -d '' proof_path; do
     owner=$(git show -s --format='%(trailers:key=WAR-Task,valueonly)' "$commit") || die 'cannot read later task trailer'
     parents=$(git show -s --format='%P' "$commit") || die 'cannot read later merge parents'
     set -- $parents
-    [ "$#" -eq 2 ] && [ "$owner" != "$task_branch" ] && git check-ref-format "refs/heads/$owner" >/dev/null 2>&1 \
-      || no_proof "$task_branch owned path changed outside a sibling task merge"
+    [ "$#" -eq 2 ] && [ "$owner" != "$task_branch" ] && git check-ref-format "refs/heads/$owner" >/dev/null 2>&1 && continue
+    # A late-fix commit (late-defects PIN-25): one parent and a `Late-Fix: <task id>:<n>` trailer
+    # naming this task's bare id, the branch leaf after its p<phase>- prefix.
+    if [ "$#" -eq 1 ]; then
+      late=$(git show -s --format='%(trailers:key=Late-Fix,valueonly)' "$commit") || die 'cannot read later late-fix trailer'
+      named=0
+      while IFS= read -r value; do
+        index=${value##*:}
+        case "$index" in ''|*[!0-9]*) continue ;; esac
+        [ "${value%:*}" = "$task_id" ] && named=1
+      done <<< "$late"
+      [ "$named" -eq 1 ] && continue
+    fi
+    no_proof "$task_branch owned path changed outside a sibling task merge"
   done
 done < "$proof_paths"
 # The proof used immutable objects; refuse a stale result if any named input moved meanwhile.

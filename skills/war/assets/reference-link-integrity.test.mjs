@@ -725,3 +725,19 @@ test('late-defect: class eviction — the calibration block landed byte-identica
     assert.ok(!auditorCard.includes(literal), `war-auditor.md still carries the evicted body literal "${literal}" — the block lives in references/ only (a duplicated body drifts)`);
   }
 });
+
+// --- Arm 8: the late-fix pass doctrine home (2026-11-04-late-defects-fixed-in-run Task 3.1) ----
+// late-fix-pass.md is born cold (no eviction, so no QUALIFIED_HEADERS row): the refiner card's
+// late-fix worktree flavor points at it in the `when <trigger>, read <file>` shape, the dispatched
+// provision carries the same dispatchKind, and the file names the hold's canonical export.
+test('late-defect: hold — the refiner card points at late-fix-pass.md in the when <trigger>, read shape, and the file resolves and names its canonical homes', () => {
+  const card = readFileSync(join(REPO_ROOT, 'agents/war-refiner.md'), 'utf8');
+  assert.match(card, /\*\*Late-fix worktree — `dispatchKind: late-fix-worktree`\*\*[^\n]*When dispatched for the late-fix pass, read \[late-fix-pass\.md\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/late-fix-pass\.md\)/,
+    'the card flavor carries the plugin-root-anchored trigger pointer');
+  const doc = join(REPO_ROOT, REFERENCES_DIR, 'late-fix-pass.md');
+  assert.ok(existsSync(doc), 'late-fix-pass.md exists');
+  const text = readFileSync(doc, 'utf8');
+  for (const literal of ['Late-Fix: <task id>:<n>', 'late-fix-worktree', 'carriedTasks[]', "reason: 'late-defect'", '../assets/land-decision.mjs']) {
+    assert.ok(text.includes(literal), `late-fix-pass.md names ${literal}`);
+  }
+});

@@ -149,6 +149,10 @@ const EVICTION_DESTINATIONS = [
   // #2545: the retired-token sweep clause evicted from skills/war/SKILL.md phrases
   // `war-memory.mjs query`, so its verb claim moves with it and stays scanned.
   'skills/war/references/retired-token-sweep.md',
+  // late-fix-pass.md (2026-11-04-late-defects-fixed-in-run Task 3.1): the born-cold late-fix pass
+  // doctrine behind the agents/war-refiner.md late-fix worktree pointer; it phrases the
+  // provision-worktrees.sh `ensure-worktree` step, so it stays under the verb scan.
+  'skills/war/references/late-fix-pass.md',
   'skills/war/references/setup.md',
   'skills/war/references/docker-gate.md',
   'skills/war/references/submodule-flows.md',

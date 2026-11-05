@@ -1996,9 +1996,10 @@ test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matche
   // Precision-chain Task 2.3: 'done-unmet' added to both mirrors.
   // Engine-and-audit-verdict-integrity D6 (ADR 0005): 'budget-uncited' added to both mirrors — the
   // routedMr-normalized Budget-Raise floor route escalates under its own name at every per-task merge-task dispatch site.
+  // Late-defects Task 3.1 (D20, PIN-20): 'late-defect' added to both mirrors — the late-fix pass cap hold.
   //
   // The template has:
-  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet', 'budget-uncited']
+  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet', 'budget-uncited', 'late-defect']
   const match = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(match, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
   // Normalize single-quoted strings to double-quoted for JSON.parse.
@@ -2012,6 +2013,7 @@ test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matche
   assert.ok(HARD_ESCALATION_REASONS.includes('no-test'), 'no-test must be in canonical HARD_ESCALATION_REASONS (M2)')
   assert.ok(HARD_ESCALATION_REASONS.includes('unpackaged'), 'unpackaged must be in canonical HARD_ESCALATION_REASONS (container-packaging floor)')
   assert.ok(HARD_ESCALATION_REASONS.includes('budget-uncited'), 'budget-uncited must be in canonical HARD_ESCALATION_REASONS (Budget-Raise floor, D6)')
+  assert.ok(HARD_ESCALATION_REASONS.includes('late-defect'), 'late-defect must be in canonical HARD_ESCALATION_REASONS (the late-fix pass cap hold, late-defects D20)')
 })
 
 // ---------------------------------------------------------------------------
@@ -2101,6 +2103,7 @@ test('node-test breadth: skills/ contains at least the expected set of *.test.mj
     'skills/war/assets/workflow-template.git-5.test.mjs',
     'skills/war/assets/workflow-template.git-6.test.mjs',
     'skills/war/assets/workflow-template.late-defect-1.test.mjs',
+    'skills/war/assets/workflow-template.late-defect-2.test.mjs',
     'skills/war/assets/workflow-template.recovery.test.mjs',
     'skills/war/assets/workflow-template.submodule-1.test.mjs',
     'skills/war/assets/workflow-template.submodule-2.test.mjs',
