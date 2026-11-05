@@ -200,6 +200,36 @@ test('late-defect: exclusion held phase —a held phase skips the sort: the beha
   assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('behavior-row sort skipped: ')), 'the skip is logged')
 })
 
+test('late-defect: exclusion late hold — a late-defect hold the late-fix pass adds after the sort carries the task-owned behavior row on carriedPhaseClose, and a landing phase still files it', async () => {
+  // The late-fix re-audit rejects every round when spent, so the unowned row t1 originates spends
+  // its budget and holds the final phase (late-defect). t2 never merges, so its Files: own
+  // src/sync.js and the sort lists the T52 row as owned.
+  const tasks = () => [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], files: ['src/sync.js'] }]
+  const free = T52({ file: 'src/free.js', title: 'unowned behavior row' })
+  const reject = label => /^audit:p3-latefix-/.test(label) ? { seat: label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+    findings: [{ severity: 'Major', title: 'fix incomplete', file: 'src/free.js', rationale: 'r', suggested_fix: 'add the missing arm' }] } : null
+  const run = (spent, s) => runPhase(SWEEP_ARGS({ tasks: tasks(), finalPhase: true, run: { ace: true, roundLimit: 1 } }),
+    lateWrap(buildSeqImpl({ 'merge:t2': [{ mode: 'merge-task', status: 'gate_failed', gate_output: 'red' }] }, p4Base({ queued: [free, T52()], seatsOf: spent ? reject : null }))), {}, s)
+  const { out, calls } = await run(true)
+  assert.equal(out.landDecision, 'held:escalation', 'presence guard: the spent late fix holds the final phase')
+  assert.ok((out.escalated || []).some(e => e && e.reason === 'late-defect' && e.detail.includes(free.title)), 'presence guard: the hold is the unowned row\'s')
+  assert.deepEqual(lateWorkers(calls).map(labelOf), ['late-fix:t1:r1'], 'one round under run.roundLimit 1')
+  assert.ok(carriedOf(out, T52().title), 'the task-owned row rides carriedPhaseClose, so the relaunch sorts it again')
+  assert.ok(!demotionOf(out, T52().title), 'and it is never filed')
+  // Mirror: the same rows with budget left land the phase, and the owned row files naming its owner.
+  const landed = await run(false)
+  assert.equal(landed.out.landDecision, 'landed', 'presence guard: the late fix lands')
+  assert.equal((demotionOf(landed.out, T52().title) || {}).demoteReason, 'demote:exclusion-set — behavior row: src/sync.js is owned by task t2 (not merged: its relaunch edits it), so no late fix here')
+  assert.ok(!carriedOf(landed.out, T52().title), 'a landing phase never carries it')
+  // Red proof by mutation: demoting the owned row inside the sort, before the land decision, files it on the held phase.
+  const keep = "        sortOwned.set(f, file + ' is owned by ' + owner)\n"
+  assert.ok(src.includes(keep), 'the mutation target is the live keep-and-key step')
+  const mutated = await run(true, src.replace(keep, "        demote(f, 'follow-up', 'demote:exclusion-set — behavior row: ' + file + ' is owned by ' + owner)\n        continue\n"))
+  assert.equal(mutated.out.landDecision, 'held:escalation')
+  assert.ok(demotionOf(mutated.out, T52().title) && !carriedOf(mutated.out, T52().title), 'the mutant files the row a held phase would carry')
+})
+
 test('late-defect: exclusion corroboration — a re-mint of a row carryLate carried finds it on carriedTasks under its raiser key', () => {
   const h = registrySlice()
   const row = { severity: 'Minor', task: 'p3-polish', title: 'carried behavior', file: 'docs/c.md', seat: 'audit:p3-polish:correctness', findingClass: 'behavior' }

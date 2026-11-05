@@ -11895,7 +11895,7 @@ test('reaudit-sweep (queued registry): a finding already queued for the sweep or
   h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...f, seat: undefined }] }])
   assert.equal(h.phaseCloseQueue.length, 1, 'the re-mint never queues a second sweep record')
   assert.equal((r.reentryQueue || []).length, 0, 'the re-mint never re-queues for re-entry either')
-  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry, held for the next ace batch, or carried on carriedPhaseClose for the relaunch, this phase — the queued record stands')),
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry, held for the next ace batch, carried on carriedPhaseClose for the relaunch, queued for the late-fix pass, or carried on carriedTasks, this phase — the queued record stands')),
     'the refusal is logged with the queued-registry reason (never silent)')
   // Entry point 2 — the re-entry queue arm stamps too: a fresh eligible absorb queues once.
   const g = { severity: 'Nit', task: 't1', title: 'lagging comment', file: 'skills/b.js', disposition: 'absorb' }

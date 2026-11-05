@@ -998,7 +998,7 @@ ace-style batch on the same machinery (canonical: `aceReentry` in
 `skills/war/assets/workflow-template.js`), **never a new round type or status member**. The
 **Absorb budget** (`absorbRounds < run.absorbRounds`, the per-task ace meter separate from `fixRounds`)
 is their SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters, and
-neither do the merge-slot floor-fix re-audit and the late-fix pass re-audit: their absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), never
+neither do the merge-slot floor-fix re-audit and the late-fix pass re-audit: their absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), except a late-fix re-audit `behavior` absorb, which carries on `carriedTasks[]` (non-final) or files "raised after the late-fix pass" (final), PIN-21, never
 budget-gated. Budget spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
 sweep-discard ⇒ carried on `carriedPhaseClose` (non-final phase) or `follow-up` (final); a
 forward-reverted finding never re-enters (the oscillation bound); every demotion is logged.
