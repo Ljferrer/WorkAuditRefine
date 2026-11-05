@@ -351,7 +351,7 @@ export function validate(input) {
     // rank at least the ace model. One rank above is the recommended split (operator ruling 2026-11-05).
     const fx = worker.fix, ac = worker.ace
     if (isObj(fx) && isObj(ac) && MODEL_RANK.indexOf(fx.model) < MODEL_RANK.indexOf(ac.model)) {
-      errors.push(`agents.worker.fix.model must rank at least agents.worker.ace.model (${MODEL_RANK.join(' < ')}): ace charges 5 and 6 run on the fix tier (got fix ${JSON.stringify(fx.model)}, ace ${JSON.stringify(ac.model)})`)
+      errors.push(`agents.worker.fix.model must rank at least agents.worker.ace.model (${MODEL_RANK.join(' < ')}): ace charges 5 and 6 run on the fix tier (got fix ${JSON.stringify(fx.model)}, ace ${JSON.stringify(ac.model)}; recommended: fix one rank above ace)`)
     }
   }
   if (isObj(c.agents.refiner) && Object.prototype.hasOwnProperty.call(c.agents.refiner, 'recovery')) validateAgentTier(c.agents.refiner.recovery, 'agents.refiner.recovery', errors)

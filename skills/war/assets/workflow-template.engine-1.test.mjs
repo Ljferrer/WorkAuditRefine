@@ -18839,7 +18839,7 @@ test('#2617 dirty task worktree at merge-task, unconfirmed by Git: the stop keep
   assert.ok(!out.landed.includes('t1') && out.landed.includes('t2'), 'the dirty task never merges, and the clean sibling does')
 })
 
-test('#2617 dirty stop at the polish sweep merge, unconfirmed by Git: it loses the dirty prefix and reconciles before its fail-open arm', async () => {
+test('#2617 dirty stop at the polish sweep merge, unconfirmed by Git: it reconciles before its fail-open arm', async () => {
   const base = sweepBase([queuedAbsorb()])
   const impl = (prompt, opts) => (opts.label || '') === 'merge:p3-polish' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : base(prompt, opts)
   const { out, calls } = await runPhase(SWEEP_ARGS(), impl, {

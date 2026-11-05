@@ -376,7 +376,11 @@ test('agents.worker.fix must rank at least agents.worker.ace, because ace charge
   const low = v('sonnet', 'opus')
   assert.equal(low.valid, false, 'a fix model below the ace model is refused')
   assert.match(low.errors.join('\n'), /agents\.worker\.fix\.model must rank at least agents\.worker\.ace\.model/)
+  assert.match(low.errors.join('\n'), /recommended: fix one rank above ace/, 'the refusal names the recommended split')
   assert.equal(validate({ agents: { worker: { fix: { model: 'haiku', effort: 'default' } } } }).valid, true, 'no ace tier, no rank check')
+  // An ace-only config meets the defaulted fix tier (opus), because validate checks the filled config.
+  assert.equal(validate({ agents: { worker: { ace: { model: 'fable', effort: 'default' } } } }).valid, false, 'an ace tier above the defaulted fix tier is refused')
+  assert.equal(validate({ agents: { worker: { ace: { model: 'opus', effort: 'default' } } } }).valid, true, 'an ace tier equal to the defaulted fix tier passes')
   for (const preset of Object.keys(PRESETS)) assert.equal(validate(presetConfig(preset)).valid, true, preset + ' stays valid')
 })
 
