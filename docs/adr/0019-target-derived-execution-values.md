@@ -165,3 +165,18 @@ same convention this ADR already applies to the container-packaging spec's §8 r
 `introduced` and `baseline` routes, and the target-derived execution values (the test-floor pattern,
 docker-gate composition, and the provision base), stand unchanged; only the `environment`
 class-route moved.
+
+## Amendment (2026-11-05): a baseline red is also a late defect
+
+**Amended.** The class-routes-doctrine row's `baseline` route, "the merge/land proceeds and the debt is
+recorded as a deduped `source: 'auto'` backstop entry," still holds at the merge: a per-task
+baseline-proceed merge proceeds, and the backstop entry is still recorded. Since late-defects PIN-12,
+that merge also queues ONE `behavior` late defect per run that names every recorded failing id. The
+late-fix pass fixes it before land on the origin task's `fixRounds`. A spent one rides
+`carriedTasks[]` on a non-final phase and holds the final phase as `held:escalation` with reason
+`late-defect`. A `baseline` red first recorded at the land gate runs after the late-fix pass: the
+baseline-proceed re-land still runs, and the red carries on a non-final phase or files on the final
+phase, both with the reason "found at the land gate after the late-fix pass". The previous amendment's "the `introduced` and
+`baseline` routes ... stand unchanged" is narrowed the same way. The `environment` route keeps its
+ADR 0040 route and makes no row. Plan `docs/plans/2026-11-04-late-defects-fixed-in-run.md` D12, PIN-12,
+Task 5.1. Procedure: [late-fix-pass.md](../../skills/war/references/late-fix-pass.md).

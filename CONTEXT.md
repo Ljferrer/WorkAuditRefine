@@ -448,10 +448,12 @@ land path); treating an absent class as anything but `introduced`.
 **baseline gate debt**:
 A gate failure the refiner proves **pre-existing** at the classification base (the phase integration
 base at merge-task; the detached `origin/<working>` tip at land) by re-running the failing gate there and
-matching the failing identifiers. It **never blocks** the diff that did not cause it — the merge/land
-proceeds — and is always recorded as a deduped `source: 'auto'` **Backstop** entry, surfaced at every
-land and in the final PR (ADR 0017: the un-run validation becomes a ratified-backstop record, never
-prose).
+matching the failing identifiers. It never blocks the merge of the diff that did not cause it — the
+merge proceeds — and is always recorded as a deduped `source: 'auto'` **Backstop** entry, surfaced at
+every land and in the final PR (ADR 0017: the un-run validation becomes a ratified-backstop record, never
+prose). It also becomes one behavior late defect per run (PIN-12): the late-fix pass fixes it before
+land, and a spent one carries (non-final phase) or holds the final phase as `late-defect`. A land-gate
+baseline red carries or files ([ADR 0019](docs/adr/0019-target-derived-execution-values.md) amendment).
 _Avoid_: treating it as a passing gate (the gate is red — the debt just predates the diff); a silent
 proceed (the backstop entry is mandatory).
 
@@ -530,17 +532,17 @@ a merge-task reports `gate_segment` the same way — in-band fields riding the e
 a new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper each —
 `segmentedLand` on all three land sites (initial, environment-proceed, baseline-proceed) and
 `segmentedMerge` on all six merge-task sites (initial, floor-retry, environment-proceed,
-baseline-proceed, and the two sweep-family merges, #2189); the ace gate check loops on
-`gate_green: false` + `gate_segment` in `aceGateGreen` (#2326). A spent budget at a sweep-family
-merge takes that site's fail-open arm (ADR 0051 §3 and its 2026-11-03 amendment; the `segmented-land: re-land sites`,
+baseline-proceed, and the two sweep-family merges, #2189); the ace gate check and the pre-ace base
+check (`ace-base-gate`) loop on `gate_green: false` + `gate_segment` through `aceSegments` (#2326).
+A spent budget at a sweep-family merge takes that site's fail-open arm (ADR 0051 §3 and its 2026-11-03 amendment; the `segmented-land: re-land sites`,
 `segmented-gate: re-merge sites` and two sweep-family `segmented-gate` fixtures in
 `workflow-template.engine-1.test.mjs` are the arbiters of those site lists) — each helper appends
 the clause, dispatches, and re-dispatches while the marker rides its contracted status pair, bounded
 by `run.roundLimit`; exhaustion routes by the ridden status, except the ace gate check, whose spent
-bound takes the dispatch-death route. The pair is the read (PIN-9): a landed
-or merged result carrying a stray marker stands, and a marker-absent error is one dispatch that
-routes by its status (`held:land-failed` for a land). The ace gate's background rule rides its
-dispatched prompt alone. For merge and land, both prompt layers instruct backgrounding the
+bound takes the dispatch-death route, and the base check, whose spent segment names no base ids,
+so the ace gate keeps its red arm. The pair is the read (PIN-9): a landed or merged result carrying a stray marker stands, and a marker-absent error is one dispatch that
+routes by its status (`held:land-failed` for a land). The background rule of the ace gate and its
+base check rides their dispatched prompts alone. For merge and land, both prompt layers instruct backgrounding the
 gate (`run_in_background`) and applying the **Gate-log stamp** read on re-dispatch. A continuation
 never counts as the one re-run an environment-proceed or baseline-proceed prompt allows (#2155).
 _Avoid_: classifying an interrupted gate `gate_failed` (interrupted is incomplete); a marker read

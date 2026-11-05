@@ -147,6 +147,10 @@ const NEW_SEAT_DEFAULTS = {
   // refiner returns.
   'ace-gate': (prompt) => ({ gate_green: true, head_sha: (String(prompt).match(/at the ace tip ([0-9a-f]{7,40})/) || [])[1] }),
   'pin-transfer': { status: 'error' },
+  // late-defects T5.1: the base gate at the pre-ace tip answers green (so a red ace gate keeps the red
+  // arm), and the pre-ace probe answers 'no' (so a regressed re-audit keeps today's arms).
+  'ace-base-gate': (prompt) => ({ gate_green: true, head_sha: (String(prompt).match(/at the pre-ace tip ([0-9a-f]{7,40})/) || [])[1] }),
+  'pre-ace-probe': { exists: 'no', evidence: 'harness default' },
   'audit-pin': prompt => {
     const reported = fixturePinRequest(prompt)
     return reported.length && reported.every(x => typeof x === 'string' && /^[0-9a-f]{7,40}$/.test(x))
@@ -232,7 +236,7 @@ const isHexSha = s => typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s)
 const fixtureTree = name => createHash('sha1').update('tree:' + name).digest('hex')
 const branchOfPrompt = prompt => (String(prompt).match(/\(branch ([^,)\s]+)/) || [])[1] || null
 const FIXTURE_REF_TIP = 'feed0000'.padEnd(40, '0')
-const NEW_SEAT_KINDS = ['ace-gate', 'pin-transfer', 'diff-probe', 'pin-confirm', 'pin-snapshot', 'target-reconcile', 'merge-confirm', 'merge-snapshot', 'merge-reconcile', 'audit-pin', 'tip-probe', 'ace-revert']
+const NEW_SEAT_KINDS = ['ace-gate', 'ace-base-gate', 'pre-ace-probe', 'pin-transfer', 'diff-probe', 'pin-confirm', 'pin-snapshot', 'target-reconcile', 'merge-confirm', 'merge-snapshot', 'merge-reconcile', 'audit-pin', 'tip-probe', 'ace-revert']
 
 // Scripted Git proof for neutral flow fixtures; real Git integrity tests supply their own
 // independent resolver and raw responses. This helper never changes worker/auditor responses.
@@ -295,7 +299,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
 
 const seatOf = (opts) => (opts.agentType || '').split(':').pop()
 const defaultImpl = (prompt, opts) => {
-  if (opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin' || opts.dispatchKind === 'tip-probe' || opts.dispatchKind === 'ace-revert') return answerNewSeat({}, prompt, opts)
+  if (opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin' || opts.dispatchKind === 'tip-probe' || opts.dispatchKind === 'ace-revert' || opts.dispatchKind === 'ace-base-gate' || opts.dispatchKind === 'pre-ace-probe') return answerNewSeat({}, prompt, opts)
   const seat = seatOf(opts)
   // Provision dispatches now return the ENV_OUTCOME shape: the git-topology barrier
   // (dispatchKind 'provision-barrier') AND the per-task provision-run (dispatchKind 'provision-run')
@@ -347,7 +351,9 @@ const idx = (calls, pred) => calls.findIndex(pred)
 const isProvision = (c) => c.opts.dispatchKind === 'provision-barrier'
 const isWorker = (c) => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Work'
 const isFixWorker = (c) => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Audit'
-const isAuditor = (c) => seatOf(c.opts) === 'war-auditor'
+// The pre-ace probe (late-defects T5.1) is a war-auditor seat that answers { exists, evidence }, never a
+// verdict, so it is no audit dispatch here; its own rows find it by dispatchKind 'pre-ace-probe'.
+const isAuditor = (c) => seatOf(c.opts) === 'war-auditor' && c.opts.dispatchKind !== 'pre-ace-probe'
 const isServitor = (c) => seatOf(c.opts) === 'war-servitor'
 
 // --- Part B: per-task run.provision execution in the refiner barrier ------------------------
@@ -2329,6 +2335,10 @@ const BARE_INTERPOLATION_CENSUS = [
   // re-entry tip (the tip probe's tip_sha, isSha-checked by usableTipProbe), construction-guaranteed
   // a string.
   'aceTipSha',
+  // preAceSha (late-defects T5.1): the ace base gate's and the pre-ace probe's pre-ace tip — r.preAceSha,
+  // set from approvedShaOf at the batch dispatch and read only behind an isSha guard (the base gate) or
+  // on the regressed batch arm, whose re-audit pinned it — construction-guaranteed a string.
+  'preAceSha',
   // aceCharge (absorb-budget, D5): the `Ace-Charge: <task>:<n>` trailer value at the three ace-side
   // commit prompts — concatenation-built from r.task.id (entry-validated) and r.task.absorbRounds
   // (barrier-seeded, then integer-guarded at the wave thunk) — construction-guaranteed a string.
@@ -3555,8 +3565,10 @@ const PROVISION_SITE_CENSUS = [
   'PROVISION_CLEAN_LINE @ PROVISION_RERUN_CLAUSE',
   'PROVISION_CLEAN_LINE @ tipWorktreeProvision',
   'PROVISION_CLEAN_LINE @ provisionStep',
-  // the refiner gate sites (D15): four merge step (a) copies, the ace-gate check, the integrated-tip
-  // re-run, the polish-sweep, terminal-pass and late-fix merges, the three land gates and the _refinery base re-run
+  // the refiner gate sites (D15): four merge step (a) copies, the ace-gate check and its pre-ace base
+  // check (late-defects T5.1), the integrated-tip re-run, the polish-sweep, terminal-pass and late-fix
+  // merges, the three land gates and the _refinery base re-run
+  'PROVISION_RERUN_CLAUSE @ ace-base-gate:',
   'PROVISION_RERUN_CLAUSE @ ace-gate:',
   'PROVISION_RERUN_CLAUSE @ classificationClause',
   'PROVISION_RERUN_CLAUSE @ evidence:phase-${ph.id}',
@@ -3592,6 +3604,9 @@ const debtSeed = (base, ids = DEBT_IDS) => (prompt, opts) => {
   const label = opts.label || ''
   if (seatOf(opts) === 'war-refiner' && label === 'merge:t1') return { mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ids, gate_base_sha: DEBT_BASE, gate_output: 'pre-existing red' }
   if (seatOf(opts) === 'war-refiner' && label === 'merge:t1:baseline-proceed') return { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe12' }
+  // The merged baseline-proceed queues one baseline late defect (late-defects PIN-12): its late-fix
+  // worktree provisions, so the pass runs and the phase reaches the sweep these rows read.
+  if (seatOf(opts) === 'war-refiner' && opts.dispatchKind === 'late-fix-worktree') return { ok: true }
   return base(prompt, opts)
 }
 // The sweep-family debt clause as the prompt carries it, cut out so the rest compares byte-equal.

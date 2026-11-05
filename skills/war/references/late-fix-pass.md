@@ -6,7 +6,7 @@ The late-fix pass fixes a late defect before the phase lands. A late defect is a
 
 The pass runs after every post-merge gate-audit seat and before the engine computes `hardEscalation` and `landDecision`. A fixed defect lands with the phase, and a spent one holds or carries.
 
-Its queue holds late defects. A gate-audit-family seat (the per-task seat, the integrated-tip seat or the end-state-only seat) sends a Critical or Major with a non-blank `suggested_fix` to the queue. A fix-less blocker, or an `escalate` verdict, keeps the `gate-evidence` hold. The behavior-row sort (PIN-21) also sends each `behavior` phaseCloseQueue row on a stacked-owned or unowned file to the queue. See the `sweepExclude` row in [schemas.md](schemas.md).
+Its queue holds late defects. A gate-audit-family seat (the per-task seat, the integrated-tip seat or the end-state-only seat) sends a Critical or Major with a non-blank `suggested_fix` to the queue. A fix-less blocker, or an `escalate` verdict, keeps the `gate-evidence` hold. The behavior-row sort (PIN-21) also sends each `behavior` phaseCloseQueue row on a stacked-owned or unowned file to the queue. See the `sweepExclude` row in [schemas.md](schemas.md). The wave-side pre-ace probe sends each ace re-audit blocker it answers `yes` or `unknown` (PIN-3, PIN-11), and a per-task baseline-proceed merge sends one `baseline` row per run that names every recorded failing id (PIN-12). The `baseline` row's late-fix merge never proceeds over the debt it fixes. See the GateCheck and PreAceProbe rows in [schemas.md](schemas.md).
 
 One defect gets one late fix. If several seats raise the same file and title, the queue keeps the first row and logs each dropped copy. The dropped copy's seat is corroborated onto the kept row. The late-fix worker prompt carries each copy whose rationale or `suggested_fix` differs. A row with no file never dedups, because a bare title cannot show that two tasks' rows are one defect.
 
@@ -14,7 +14,9 @@ If another hard escalation already holds the phase, the pass does not run. Each 
 
 ## The origin task
 
-Each defect charges one origin task:
+A row whose own task did not merge this phase (a wave-side pre-ace probe row) charges no task. It demotes `demote:exclusion-set`, like the behavior-row sort's unmerged-owner arm, and the task's relaunch re-audits it.
+
+Each other defect charges one origin task:
 
 1. the row's own merged task (the per-task seat);
 2. else the merged task whose `Files:` hold the defect's file;
