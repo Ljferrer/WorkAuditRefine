@@ -83,14 +83,17 @@ test('late-defect: class — intakeFloor: a behavior note with a fix reads absor
   assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('behavior note with no fix on a named file → ask')), 'the ask reroute is logged')
 })
 
-test('late-defect: class — end to end: an in-diff behavior note joins the task ace batch, an out-of-diff one rides the sweep, a fix-less one parks as an ask, and none stays a note', async () => {
+test('late-defect: class — end to end: an in-diff behavior note joins the task ace batch, an out-of-diff one joins the late-fix pass (never the sweep, PIN-21), a fix-less one parks as an ask, and none stays a note', async () => {
   const inFix = minor({ title: 'behavior in diff', severity: 'Nit', disposition: 'note', suggested_fix: 'fix it', findingClass: 'behavior' })
   const outFix = minor({ title: 'behavior out of diff', severity: 'Nit', file: 'docs/elsewhere.md', disposition: 'note', suggested_fix: 'fix it', findingClass: 'behavior' })
   const bare = minor({ title: 'behavior no fix', severity: 'Nit', disposition: 'note', findingClass: 'behavior' })
   const { out, calls } = await runPhase(SWEEP_ARGS(), floorImpl([inFix, outFix, bare]), PROBE)
   const ace = calls.find(isAce)
   assert.ok(ace && ace.prompt.includes('behavior in diff'), 'the in-diff behavior note joins the task ace batch')
-  assert.ok(polishPromptOf(calls).includes('behavior out of diff'), 'the out-of-diff behavior note rides the sweep')
+  // Task 4.1 (PIN-21): the rerouted absorb rides phaseCloseQueue, and the behavior-row sort sends it to
+  // the late-fix pass on an unowned file, so the sweep never receives it.
+  assert.ok(calls.some(c => /^late-fix:/.test(c.opts.label || '') && c.prompt.includes('behavior out of diff')), 'the out-of-diff behavior note joins the late-fix pass')
+  assert.ok(!polishPromptOf(calls).includes('behavior out of diff'), 'and never the sweep')
   assert.ok(isAsk(out, 'behavior no fix'), 'the fix-less behavior note parks as an ask')
   for (const t of ['behavior in diff', 'behavior out of diff', 'behavior no fix']) {
     assert.ok(!isNote(out, t), `"${t}" never stays a note`)
@@ -112,13 +115,14 @@ test('late-defect: class — end to end: a cosmetic note and a classless note ke
   }
 })
 
-test('late-defect: class — the gate-audit floor pass: a behavior note with a fix rides the sweep even outside phase_diff_files, a fix-less one parks, and a cosmetic one keeps the old arm', async () => {
+test('late-defect: class — the gate-audit floor pass: a behavior note with a fix is applied even outside phase_diff_files (the late-fix pass, PIN-21), a fix-less one parks, and a cosmetic one keeps the old arm', async () => {
   const bFix = gaAbsorb({ title: 'ga behavior out of diff', disposition: 'note', file: 'docs/untouched.md', findingClass: 'behavior' })
   const bBare = gaAbsorb({ title: 'ga behavior no fix', disposition: 'note', suggested_fix: '', findingClass: 'behavior' })
   const cos = gaAbsorb({ title: 'ga cosmetic out of diff', disposition: 'note', file: 'docs/untouched.md', findingClass: 'cosmetic' })
   const evidence = { perTask: [], phase_diff_files: ['./docs/ga.md'] }
   const { out, calls, logs } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [bFix, bBare, cos], evidence }))
-  assert.ok(polishPromptOf(calls).includes('ga behavior out of diff'), 'the behavior note with a fix rides the sweep')
+  assert.ok(calls.some(c => /^late-fix:/.test(c.opts.label || '') && c.prompt.includes('ga behavior out of diff')), 'the behavior note with a fix is applied by the late-fix pass')
+  assert.ok(!polishPromptOf(calls).includes('ga behavior out of diff'), 'never the sweep (Task 4.1, PIN-21)')
   assert.ok(isAsk(out, 'ga behavior no fix'), 'the fix-less behavior note parks')
   assert.ok(!isNote(out, 'ga behavior out of diff') && !isNote(out, 'ga behavior no fix'), 'neither behavior row stays a note')
   assert.ok(isNote(out, 'ga cosmetic out of diff'), 'the cosmetic out-of-phase-diff note stays a note')
