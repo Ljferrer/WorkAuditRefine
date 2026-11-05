@@ -1139,15 +1139,21 @@ test('indent-strip: harness runs the staged form', () => {
 
 // The closed census of workflow-template tests that cannot pass on the staged form and so skip under
 // WAR_TEMPLATE_STRIPPED=1. It is EMPTY: every such test passes on the staged form, because `src`
-// stays raw for the source-reading tests and only execution runs staged. The row is default-deny: the
-// flag may be read in exactly one place (the harness's STAGED_RUN line), so a test that starts
-// skipping under it reds here until it joins this census with its own `indent-strip: census …` row.
+// stays raw for the source-reading tests and only execution runs staged. The row is default-deny on
+// two signals: the flag may be read in exactly one place (the harness's STAGED_RUN line), and no
+// `{ skip:` option or `.skip(` call may sit within three lines of a `runForm` or `STAGED_RUN` read
+// (a skip keyed on `runForm(src) !== src` names no flag). A test that starts skipping on either
+// signal reds here until it joins this census with its own `indent-strip: census …` row.
 const STAGED_SKIP_CENSUS = []
 test('indent-strip: census of tests skipped on the staged form is closed', () => {
   const files = readdirSync(HERE).filter((f) => /^workflow-template\..+\.test\.mjs$/.test(f) || f === 'workflow-template.test-harness.mjs').sort()
   assert.ok(files.length > 10, `non-vacuity: ${files.length} template test files scanned`)
-  const reads = files.flatMap((f) => readFileSync(join(HERE, f), 'utf8').split('\n').filter((line) => line.includes('WAR_TEMPLATE_STRIPPED') && !/^\s*\/\//.test(line)).map((line) => `${f}: ${line.trim()}`))
+  const sources = files.map((f) => [f, readFileSync(join(HERE, f), 'utf8').split('\n')])
+  const reads = sources.flatMap(([f, lines]) => lines.filter((line) => line.includes('WAR_TEMPLATE_STRIPPED') && !/^\s*\/\//.test(line)).map((line) => `${f}: ${line.trim()}`))
   assert.deepEqual(reads, ["workflow-template.test-harness.mjs: const STAGED_RUN = process.env.WAR_TEMPLATE_STRIPPED === '1'"], 'the flag is read only by the harness switch, so no test skips under it')
+  const skipsNearStaged = sources.flatMap(([f, lines]) => lines.flatMap((line, i) =>
+    (/\{\s*skip\s*:|\.skip\(/.test(line) && lines.slice(Math.max(0, i - 3), i + 4).some((l) => /runForm|STAGED_RUN/.test(l))) ? [`${f}:${i + 1}: ${line.trim()}`] : []))
+  assert.deepEqual(skipsNearStaged, [], 'no `{ skip:` or `.skip(` sits within three lines of a runForm or STAGED_RUN read, so no test skips on another staged-form signal')
   assert.deepEqual(STAGED_SKIP_CENSUS, [], 'no test is skipped on the staged form')
 })
 
