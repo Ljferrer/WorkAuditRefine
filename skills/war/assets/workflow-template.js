@@ -3765,9 +3765,12 @@ if (tasks.length) {
     // seeds fixRounds, so the late-fix pass resumes the origin task's budget, never a fresh one.
     const lfc = (barrierOut.lateFixCharges && typeof barrierOut.lateFixCharges === 'object') ? barrierOut.lateFixCharges : {}
     const lfKey = Object.keys(lfc).find(k => preMergedIdOf(k) === norm)
+    // A malformed value never seeds and never stays silent, and the seed never lowers a count.
     if (lfKey !== undefined && Number.isInteger(lfc[lfKey]) && lfc[lfKey] > 0) {
-      t.fixRounds = lfc[lfKey]
+      t.fixRounds = Math.max(Number.isInteger(t.fixRounds) ? t.fixRounds : 0, lfc[lfKey])
       log('late-fix charge: task ' + id + ' resumes at fixRounds ' + t.fixRounds + ' (the highest Late-Fix trailer after its merge commit, PIN-25).')
+    } else if (lfKey !== undefined) {
+      log('late-fix charge: task ' + id + ' lateFixCharges value ' + JSON.stringify(lfc[lfKey]) + ' is malformed — fixRounds not seeded (logged, never silent).')
     }
     log(`recovery: task ${id} is pre-merged on the adopted integration branch (ancestor of the frozen tip merged by its own WAR-Task merge commit — the barrier's task-integrated.sh ancestry, merge-commit ownership and owned-content proof) — recorded merged, no worker dispatched.`)
   }
@@ -6573,7 +6576,7 @@ const lateFixPass = async () => {
         + reattachClause(refineryLandPath)
         + pt`  (a) REBASE in the LATE-FIX worktree: git -C ${lfWorktree} rebase ${ph.integrationBranch} (normally a no-op).\n`
         + PROVISION_RERUN_CLAUSE
-        + pt`  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge ${lfBranch} (fast-forward merge). Push.\n`
+        + pt`  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge --ff-only ${lfBranch}; if it is not a fast-forward, return conflict and do not merge. Push.\n`
         + pt`Run the gate (${plan.gate}) after the rebase in the late-fix worktree, with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Skip assert-test-in-diff.sh, assert-packaging-in-diff.sh and assert-done-when.sh (task-field-gated; the late-fix pseudo-task has no task fields). On gate failure return gate_failed (no classification); on conflict return conflict; never force.`
         + pt` Before step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${lfBranch} (BARE; exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }; exit 2 → status 'error') and assert-budget-raise-cited.sh ${ph.integrationBranch} ${lfBranch} (exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }; exit 2 → status 'error'); never merge on a non-zero exit.`
         + sweepDebtClause(),

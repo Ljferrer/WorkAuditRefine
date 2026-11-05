@@ -65,7 +65,8 @@ test('late-defect: gate-audit f65e7e37 replay — a Major with a full suggested_
   assert.ok(reaudit, 'the origin task roster re-audits the late-fix sha')
   assert.ok(reaudit.prompt.includes('abcdef1'), 'at the new tip')
   const merge = calls.find(c => labelOf(c) === 'merge:p3-latefix-1')
-  assert.ok(merge && /git merge war\/wtprov-a\/p3-latefix-1 \(fast-forward merge\)/.test(merge.prompt), 'the refiner fast-forwards the late-fix branch in _refinery')
+  assert.ok(merge && merge.prompt.includes('git merge --ff-only war/wtprov-a/p3-latefix-1; if it is not a fast-forward, return conflict and do not merge.'), 'the refiner fast-forwards the late-fix branch in _refinery, so no merge commit hides its Late-Fix trailer')
+  assert.ok(!/git merge war\/wtprov-a\/p3-latefix-1\b/.test(merge.prompt), 'no plain git merge of the late-fix branch')
   assert.ok(merge.prompt.includes('Run the gate (make gate'), 'the gate runs before the merge')
   const order = [prov, w, reaudit, merge, calls.find(isLand)].map(c => calls.indexOf(c))
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'provision, fix, re-audit, merge, then land')
@@ -177,6 +178,18 @@ test('late-defect: charge — a relaunch rebuilds fixRounds from the barrier lat
   assert.equal(lateHolds(resumed.out)[0].fixRounds, 6)
   const barrier = resumed.calls.find(c => c.opts.dispatchKind === 'provision-barrier')
   assert.ok(barrier.prompt.includes('LATE-FIX CHARGE READ (per preMerged task)'), 'the recovery barrier asks for the read')
+  // A malformed value (string, fraction, zero, null) never seeds, and the drop is logged.
+  for (const bad of ['5', 2.5, 0, null]) {
+    const m = await run({ ok: true, preMerged: ['t1'], lateFixCharges: { 'p3-t1': bad } })
+    assert.ok(m.logs.some(l => l.includes('late-fix charge: task t1 lateFixCharges value ' + JSON.stringify(bad) + ' is malformed — fixRounds not seeded (logged, never silent).')), 'malformed ' + JSON.stringify(bad) + ' is logged')
+    assert.ok(!m.logs.some(l => /late-fix charge: task t1 resumes/.test(l)), 'malformed ' + JSON.stringify(bad) + ' never seeds')
+    assert.equal(lateWorkers(m.calls)[0].opts.label, 'late-fix:t1:r1')
+  }
+  // The seed never lowers a higher count the task already holds.
+  const higher = await runPhase(PROVISION_ARGS({ phase: ES_PHASE, tasks: [LATE_TASK({ fixRounds: 6 })], recovery: { sanctioned: true } }), (p, o) => o.dispatchKind === 'provision-barrier' ? { ok: true, preMerged: ['t1'], lateFixCharges: { 'p3-t1': 5 } } : lateFixImpl({ rejects: 99 })(p, o))
+  assert.ok(higher.logs.some(l => /late-fix charge: task t1 resumes at fixRounds 6/.test(l)), 'the higher count stays')
+  assert.deepEqual(lateWorkers(higher.calls), [], 'no round left under run.roundLimit 6')
+  assert.equal(lateHolds(higher.out)[0].fixRounds, 6)
   // Control: no charge read ⇒ a fresh budget, so the first trailer is t1:1.
   const fresh = await run({ ok: true, preMerged: ['t1'] })
   assert.equal(lateWorkers(fresh.calls)[0].opts.label, 'late-fix:t1:r1')
@@ -236,7 +249,7 @@ const askOf = (out, title) => (out.asks || []).filter(a => a && a.finding && a.f
 const noteOf = (out, title) => (out.notes || []).filter(n => n && n.title === title)
 const isRouted = (out, title) => askOf(out, title).length > 0 || !!demotionOf(out, title) || noteOf(out, title).length > 0
 
-test('late-defect: hold — the late-fix re-audit Minor/Nit rows walk the shared ladder under the origin task: an ask parks, a follow-up files, a note notes, an absorb rides the sweep, and none stays only in auditLog', async () => {
+test('late-defect: route — the late-fix re-audit Minor/Nit rows walk the shared ladder under the origin task: an ask parks, a follow-up files, a note notes, an absorb rides the sweep, and none stays only in auditLog', async () => {
   const { out, calls, logs } = await runPhase(LF_SWEEP_ARGS(), lateReauditImpl([[LF_ASK, LF_FOLLOW_UP, LF_NOTE, LF_ABSORB]]), PROBE)
   assert.equal(out.landDecision, 'landed')
   const row = out.auditLog.find(e => e.verdict === 'late-fix:approve')
@@ -254,7 +267,7 @@ test('late-defect: hold — the late-fix re-audit Minor/Nit rows walk the shared
   for (const t of ['lf ask', 'lf follow-up', 'lf note']) assert.ok(!polishPromptOf(calls).includes(t), `"${t}" never joins the sweep`)
 })
 
-test('late-defect: hold — a rejected late-fix round routes its Minor/Nit rows too, a re-raise in the next round corroborates the first record, and dropping the route call leaves every row unrouted', async () => {
+test('late-defect: route — a rejected late-fix round routes its Minor/Nit rows too, a re-raise in the next round corroborates the first record, and dropping the route call leaves every row unrouted', async () => {
   // Round 1 rejects with the four rows; round 2 approves and raises the ask and the follow-up again.
   const rows = [[LF_ASK, LF_FOLLOW_UP, LF_NOTE, LF_ABSORB], [LF_ASK, LF_FOLLOW_UP]]
   const { out, calls, logs } = await runPhase(LF_SWEEP_ARGS(), lateReauditImpl(rows, { rejects: 1 }), PROBE)
@@ -275,7 +288,7 @@ test('late-defect: hold — a rejected late-fix round routes its Minor/Nit rows 
   for (const t of ['lf ask', 'lf follow-up', 'lf note', 'lf absorb']) assert.ok(!isRouted(mutated.out, t) && !polishPromptOf(mutated.calls).includes(t), `without the route call "${t}" is dropped — the rows above prove the call`)
 })
 
-test('late-defect: hold — a preMerged origin task has no wave record, and the late-fix re-audit rows still route under it', async () => {
+test('late-defect: route — a preMerged origin task has no wave record, and the late-fix re-audit rows still route under it', async () => {
   const args = PROVISION_ARGS({ phase: ES_PHASE, tasks: [LATE_TASK()], audit: { roster: [{ lens: 'correctness' }] }, recovery: { sanctioned: true } })
   const base = lateReauditImpl([[LF_ASK, LF_FOLLOW_UP]])
   const impl = (p, o) => o.dispatchKind === 'provision-barrier' ? { ok: true, preMerged: ['t1'] } : base(p, o)
