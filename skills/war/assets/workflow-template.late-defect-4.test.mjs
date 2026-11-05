@@ -41,6 +41,14 @@ import {
   DEBT_IDS,
   DEBT_BASE,
   debtSeed,
+  PT_ARGS,
+  ptImpl,
+  blockedWith,
+  revertAwarePinSeats,
+  movedProbe,
+  RANGE_TIP,
+  mergeRangeRevert,
+  ACE_FILE,
 } from './workflow-template.test-harness.mjs'
 
 const labelOf = c => c.opts.label || ''
@@ -130,6 +138,40 @@ test('late-defect: ace base — the base result is cached per pre-ace sha, so th
   assert.equal(calls.filter(kindOf('ace-base-gate')).length, 1, 'one base run serves both')
   const aced = (out.aced || []).map(a => a.finding && a.finding.title)
   assert.ok(aced.includes('first') && aced.includes('second'), 'both batches ace over the standing red')
+})
+
+// A base gate that outruns the turn backgrounds like the ace gate (#2326/#2329): the segment pair
+// re-dispatches before the ids are read, and a segment reply, even a spent one, names no base ids.
+const BASE_SEGMENT = { gate_green: false, gate_segment: 'incomplete', segment_note: 'docker build at layer 4' }
+const baseSeq = (...replies) => { let n = 0; return p => { const x = replies[Math.min(n++, replies.length - 1)]; return typeof x === 'function' ? x(p) : x } }
+test('late-defect: ace base — a backgrounded base gate re-dispatches on the segment pair, then proceeds over; a spent segment names no ids', async () => {
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': aceRed([DOCKER]), 'ace-base-gate': baseSeq(BASE_SEGMENT, baseRed([DOCKER])) })
+  const base = calls.filter(kindOf('ace-base-gate'))
+  assert.deepEqual(base.map(labelOf), ['ace-base-gate:t1', 'ace-base-gate:t1:segment-2'], 'one bounded re-dispatch, labelled with its segment')
+  assert.ok(base[0].prompt.includes("return { gate_green: false, gate_segment: 'incomplete', gate_log_path: '<the path>', segment_note: '<the step you reached>' }") && /run_in_background/.test(base[0].prompt), 'the base prompt carries the background rule and its return pair')
+  assert.match(base[0].prompt, /mktemp -d "[^"]*\/\.war\/gate-ace-base-t1\.[^"]*-1\.XXXXXX"/, 'and its own gate capture key')
+  assert.ok(base[1].prompt.startsWith('SEGMENTED-GATE CONTINUATION (ace-base-gate:t1)') && base[1].prompt.includes(base[0].prompt), 'the continuation carries the full base prompt')
+  assert.ok(logged(logs, 'ace-base-gate:t1: segmented gate (docker build at layer 4)'), 'the segment note is logged')
+  assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'tidy import' && a.sha === 'ace00001'), 'one proceed-over: the absorb aces')
+  assert.ok(!/FORWARD-REVERT/.test(calls.find(isMergeTask).prompt), 'nothing is forward-reverted')
+  // Red at base: without the segment loop the first reply names no ids, so the ace tip reverts.
+  const loop = 'aceBaseGates.set(preAceSha, aceSegments('
+  assert.ok(src.includes(loop), 'the mutation target is the live base dispatch')
+  const once = await runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': aceRed([DOCKER]), 'ace-base-gate': baseSeq(BASE_SEGMENT, baseRed([DOCKER])) }, src.replace(loop, 'aceBaseGates.set(preAceSha, ((b, o) => dispatchSite(b, o))('))
+  assert.equal(once.calls.filter(kindOf('ace-base-gate')).length, 1, 'the mutant dispatches once')
+  assert.match(once.calls.find(isMergeTask).prompt, /FORWARD-REVERT/, 'and forward-reverts the ace tip')
+  // A spent segment budget that echoes the pre-ace tip and the ids still licenses nothing.
+  const spent = { 'ace-gate': aceRed([DOCKER]), 'ace-base-gate': p => ({ ...BASE_SEGMENT, ...baseRed([DOCKER])(p), gate_segment: 'incomplete' }) }
+  const args = () => ACE_ARGS({ run: { ...ACE_ARGS().run, roundLimit: 2 } })
+  const dry = await runPhase(args(), recordSplit(), spent)
+  assert.equal(dry.calls.filter(kindOf('ace-base-gate')).length, 3, 'the initial base check + exactly roundLimit (2) re-dispatches')
+  assert.ok(!(dry.out.aced || []).length, 'a spent base segment aces nothing')
+  assert.match(dry.calls.find(isMergeTask).prompt, /FORWARD-REVERT/, 'and the ace tip is forward-reverted')
+  // Red at base: without the segment clause the spent reply licenses the ace tip.
+  const seg = '!deathOf(b) && !aceIsSegment(b) && b.gate_green === false'
+  assert.ok(src.includes(seg), 'the mutation target is the live segment clause')
+  const mutant = await runPhase(args(), recordSplit(), spent, src.replace(seg, '!deathOf(b) && b.gate_green === false'))
+  assert.ok((mutant.out.aced || []).length, 'the mutant aces over a gate that never finished')
 })
 
 // ---- (b) the pre-ace probe: Obelisks t1, a Nit noted by the first panel returns as a Major ----
@@ -227,6 +269,34 @@ test('late-defect: probe — mixed answers: the yes blocker gets a late fix, the
   assert.equal(lateFixOf(firstOnly.calls).length, 0, 'and the second blocker\'s yes never reaches the late-fix pass')
 })
 
+// A regressed two-commit range (the 2485/ES2 fixture): the probe runs before ADR 0054's whole-range
+// revert, so a yes blocker keeps the absorbs and the default no answer keeps today's range revert.
+const RANGE_MAJOR = { severity: 'Major', title: 'range broke it', file: ACE_FILE, rationale: 'regressed', suggested_fix: 'restore the guard' }
+const rangeRun = (seats, source) => runPhase(PT_ARGS(), lateOk(ptImpl([nit({ file: ACE_FILE })], blockedWith(RANGE_TIP), {
+  seatOver: (lens, sha) => sha === RANGE_TIP && lens === 'correctness' ? { verdict: 'request_changes', findings: [RANGE_MAJOR] } : {} })),
+  revertAwarePinSeats(RANGE_TIP, { 'tip-probe': movedProbe(RANGE_TIP, { count: 2 }), ...seats }), source)
+const rangeReverted = logs => logged(logs, 'the ace range of 2 commits regressed on re-audit')
+test('late-defect: probe — a regressed two-commit range whose blocker answers yes keeps the absorbs; the default no keeps the whole-range revert', async () => {
+  const yes = { 'pre-ace-probe': { exists: 'yes', evidence: 'there before' } }
+  const { out, calls, logs } = await rangeRun(yes)
+  assert.deepEqual(calls.filter(kindOf('pre-ace-probe')).map(labelOf), ['pre-ace-probe:t1:1'], 'presence: the range blocker is probed')
+  assert.doesNotMatch(calls.find(isMergeTask).prompt, mergeRangeRevert(RANGE_TIP), 'yes: the merge does not revert the range')
+  assert.ok(!rangeReverted(logs), 'yes: no range-regressed route')
+  assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'tidy import'), 'yes: the absorb stays aced')
+  assert.deepEqual(lateFixOf(calls).map(labelOf), ['late-fix:t1:r1'], 'yes: the blocker queues a late fix')
+  const no = await rangeRun({})
+  assert.equal(no.calls.filter(kindOf('pre-ace-probe')).length, 1, 'no: presence, the default answer ran')
+  assert.match(no.calls.find(isMergeTask).prompt, mergeRangeRevert(RANGE_TIP), 'no: the merge forward-reverts the whole range')
+  assert.ok(rangeReverted(no.logs), 'no: the rows route as a regressed range')
+  assert.equal(lateFixOf(no.calls).length, 0, 'no: no late fix')
+  // Red at base: a probe skipped on the multi-commit arm reverts the range over a yes blocker.
+  const site = '!isSha(preAce) ? auditSeats : await preAceProbe('
+  assert.ok(src.includes(site), 'the mutation target is the live probe condition')
+  const mutant = await rangeRun(yes, src.replace(site, '!isSha(preAce) || aceProbe.count > 1 ? auditSeats : await preAceProbe('))
+  assert.match(mutant.calls.find(isMergeTask).prompt, mergeRangeRevert(RANGE_TIP), 'the mutant reverts the range')
+  assert.equal(lateFixOf(mutant.calls).length, 0, 'and the yes blocker gets no late fix')
+})
+
 // A wave-side probe row can name a task that later fails to merge on a soft route. The pass then
 // demotes it, so no other task's budget fixes a defect that is not on the integration branch.
 test('late-defect: probe — a yes row whose origin task never merges demotes demote:exclusion-set, and no other task gets its late fix', async () => {
@@ -310,7 +380,7 @@ test('late-defect: baseline — a baseline red first recorded at the land gate c
   assert.equal(lateFixOf(final.calls).length, 0, 'no late fix runs after the land gate')
 })
 
-test('late-defect: baseline — a land red on ids the per-task baseline row already took, at another base sha, adds no second row', async () => {
+test('late-defect: baseline — a land red on ids the per-task baseline row already took, at the same or another base sha, adds no second row', async () => {
   const landRed = () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: BASE_IDS, gate_base_sha: 'landbase1', gate_output: 'red at origin too' })
   const merge = label => label === 'merge:t1' ? baselineMerge : { mode: 'merge-task', status: 'merged' }
   const phase = (landResult, source) => runPhase(CLS_ARGS({ finalPhase: false }), lateOk(clsImpl({ mergeResult: merge, landResult })), {}, source)
@@ -331,9 +401,22 @@ test('late-defect: baseline — a land red on ids the per-task baseline row alre
   assert.ok(!untaken.out.landed.includes('t1') && untaken.out.landed.includes('t2'), 'presence: the baseline-proceed merge died and t2 merged')
   assert.equal(lateFixOf(untaken.calls).length, 0, 'presence: no per-task baseline row was queued')
   assert.ok(untaken.out.carriedTasks.some(t => t.title === 'baseline gate red: ' + BASE_IDS[0]), 'so the land red carries')
-  // Red at base: the bare length test carries a duplicate.
+  // The common topology: the land base equals the per-task classification base (the working branch
+  // did not move), so recordBaselineDebt dedups the land red and the debt list does not grow.
+  const sameBase = () => ({ ...landRed(), gate_base_sha: baselineMerge.gate_base_sha })
+  const sameDied = clsImpl({ mergeResult: merge, landResult: sameBase })
+  const diedPhase = source => runPhase({ ...TWO, finalPhase: false }, lateOk((p, o) => labelOf({ opts: o }) === 'merge:t1:baseline-proceed' ? (() => { throw new Error('socket hang up') })() : sameDied(p, o)), {}, source)
+  const same = await diedPhase()
+  assert.equal(lateFixOf(same.calls).length, 0, 'presence: same base, no per-task baseline row was queued')
+  assert.ok(same.out.carriedTasks.some(t => t.title === 'baseline gate red: ' + BASE_IDS[0]), 'a same-base land red still carries')
+  // The mirror: at the same base, ids the per-task row took still add no second row.
+  assert.deepEqual(rows(await phase(sameBase)), ['late-fix:t1:r1'], 'same base, taken ids: exactly one row')
+  // Red at base: the debt-length test drops the same-base land red.
   const site = '!(landIds.length && landIds.every(id => took.some(d => d.ids.includes(id))))'
-  assert.ok(src.includes(site), 'the mutation target is the live guard')
+  assert.ok(src.includes('if (' + site + ') {'), 'the mutation target is the live guard')
+  const lengthGate = await diedPhase(src.replace('if (' + site + ') {', 'if (baselineDebt.length > debtBefore && ' + site + ') {'))
+  assert.ok(!lengthGate.out.carriedTasks.some(t => /^baseline gate red: /.test(t.title)), 'the length-gated mutant carries nothing')
+  // Red at base: without the took test the land red carries a duplicate.
   assert.equal(rows(await phase(landRed, src.replace(site, 'true'))).length, 2, 'the mutant adds a second row')
 })
 

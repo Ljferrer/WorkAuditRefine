@@ -3152,7 +3152,7 @@ const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRS
 // PARTIAL_LOG_RULE so every carrier of the background instruction also carries the read rule. Its
 // continuation sentence (#2155) keeps a SEGMENTED re-dispatch apart from the one re-run that an
 // environment-proceed or baseline-proceed prompt allows, for the merge and land clauses alike. The ace
-// gate check carries it too, and no ace gate prompt allows such a re-run.
+// gate check and its pre-ace base check carry it too, and no ace gate prompt allows such a re-run.
 const backgroundGateRule = shape =>
   pt`BACKGROUNDED GATE (tool-timeout survival): if the gate cannot finish inside this turn, start it with run_in_background (teed to the stamped gate log) and return ${shape} — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an environment-proceed or baseline-proceed prompt allows. ${PARTIAL_LOG_RULE}`
 const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: '<the step you reached>' }`)
@@ -3179,7 +3179,7 @@ const segmentedMerge = async (prompt, opts, context) => {
   const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
   return reconciledMerge(prompt + segmentedGateClause, opts, context, async (body, opts, capture) => {
     const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
-      log('Phase ' + ph.id + ': segmented gate — the merge dispatch ' + opts.label + ' returned the in-band gate_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the merge-task to run to completion (segment ' + segment + ', bounded by roundLimit ' + roundLimit + ').')
+      log('Phase ' + ph.id + ': segmented gate — ' + opts.label + ' returned gate_segment:\'incomplete\' (' + (result.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
       return admitGateResult(await dispatchSite(
         pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior merge-task dispatch returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST; every step is idempotent (a done rebase re-resolves clean, a green gate re-runs green), so run the FULL sequence to completion.\n` + body,
         { ...opts, label: opts.label + ':segment-' + segment }), capture)
@@ -4172,7 +4172,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // a dispatch death (D21) is neither green nor red — `died` names the site and the caller abandons
   // the current subset with the existing abandon reason (the gate never judged the tip).
   // A gate that outruns the turn (#2326, #2329) is also neither: the refiner backgrounds it and returns
-  // the gate_segment pair, and the loop below re-dispatches, bounded by roundLimit. A spent bound takes
+  // the gate_segment pair, and aceSegments re-dispatches, bounded by roundLimit. A spent bound takes
   // the `died` route, because nothing judged the tip: the ace tip forward-reverts and the rows reach the
   // sweep with a reason that names the unfinished gate, never a red one. The refiner card's Gate
   // contract names the red arm's gate_failing_ids; the rest rides the dispatched prompt alone.
@@ -4180,21 +4180,34 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // pre-ace tip (r.preAceSha, cached per sha in aceBaseGates, so subsets and re-entry reuse it). Ids
   // that are all red there too count as green for the revert decision, logged as a proceed-over, when
   // the red echoes head_sha at the ace tip. A new id, a red with no ids or no matching echo, or a dead
-  // or unusable base check keeps the red arm.
+  // or unusable base check keeps the red arm. The base check backgrounds a long gate like the ace gate
+  // (aceSegments), and a segment reply, even a spent one, names no base ids.
   const aceBaseGates = new Map()
+  const aceIsSegment = res => !!res && res.gate_green === false && res.gate_segment === 'incomplete'
+  const aceBgRule = backgroundGateRule(pt`{ gate_green: false, gate_segment: 'incomplete', gate_log_path: '<the path>', segment_note: '<the step you reached>' }`)
+  // aceSegments: the segmented dispatch the ace gate check and its base check share (#2326/#2329).
+  const aceSegments = async (body, opts, capture) => segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), aceIsSegment, async (prior, segment) => {
+    log(opts.label + ': segmented gate (' + (prior.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
+    return admitGateResult(await dispatchSite(
+      pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior ace gate check returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(prior.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST. If that log is complete, its exit_code is the gate result: do not rerun the gate, finish any Done when: command and return.\n` + body,
+      { ...opts, label: opts.label + ':segment-' + segment }), capture)
+  })
   const aceBaseIds = r => {
     const preAceSha = r.preAceSha
-    if (!aceBaseGates.has(preAceSha)) aceBaseGates.set(preAceSha, dispatchSite(
-      pt`ACE BASE GATE CHECK for WAR task ${r.task.id} at the pre-ace tip ${preAceSha}, to find which ace-tip failures were already there. Never commit, revert, push or rebase. Run it in a throwaway \`git -C ${r.task.worktree} worktree add --detach "$(cd / && mktemp -d)/base" ${preAceSha}\`, then remove that worktree.\n`
-      + PROVISION_RERUN_CLAUSE
-      + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\nUse a fresh .war-task-free TMPDIR. Return { gate_green: false, head_sha: ${preAceSha}, gate_failing_ids: [<each failing test id>] }, or { gate_green: true, head_sha: ${preAceSha} }.`,
-      { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-base-gate', label: 'ace-base-gate:' + r.task.id, schema: GATE_CHECK, ...spawn('refiner') })
-      .then(b => b && !deathOf(b) && b.gate_green === false && isSha(b.head_sha) && !pinMismatch(b.head_sha, preAceSha) ? debtIds(b.gate_failing_ids) : []))
+    if (!aceBaseGates.has(preAceSha)) {
+      const capture = newGateCapture(r.task.worktree, 'ace-base-' + r.task.id)
+      aceBaseGates.set(preAceSha, aceSegments(
+        pt`ACE BASE GATE CHECK for WAR task ${r.task.id} at the pre-ace tip ${preAceSha}, to find which ace-tip failures were already there. Never commit, revert, push or rebase. Run it in a throwaway \`git -C ${r.task.worktree} worktree add --detach "$(cd / && mktemp -d)/base" ${preAceSha}\`, then remove that worktree.\n`
+        + PROVISION_RERUN_CLAUSE
+        + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\nUse a fresh .war-task-free TMPDIR. Return { gate_green: false, head_sha: ${preAceSha}, gate_failing_ids: [<each failing test id>] }, or { gate_green: true, head_sha: ${preAceSha} }.\n`
+        + capture.clause + pt`\n` + aceBgRule,
+        { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-base-gate', label: 'ace-base-gate:' + r.task.id, schema: GATE_CHECK, ...spawn('refiner') }, capture)
+        .then(b => b && !deathOf(b) && !aceIsSegment(b) && b.gate_green === false && isSha(b.head_sha) && !pinMismatch(b.head_sha, preAceSha) ? debtIds(b.gate_failing_ids) : []))
+    }
     return aceBaseGates.get(preAceSha)
   }
   const aceGateGreen = async (r, aceTipSha) => {
     const capture = newGateCapture(r.task.worktree, 'ace-' + r.task.id)
-    const isSegment = res => !!res && res.gate_green === false && res.gate_segment === 'incomplete'
     const body =
       pt`ACE GATE CHECK for WAR task ${r.task.id} at the ace tip ${aceTipSha}. READ-ONLY: run the gate, change nothing beyond the provision re-run, its restore and the git-excluded gate log — never commit, revert, push or rebase.\n`
       + pt`In the ALREADY-PROVISIONED task worktree ${r.task.worktree} (branch ${r.task.branch}), first confirm \`git -C ${r.task.worktree} rev-parse HEAD\` is ${aceTipSha}; a moved HEAD is NOT green.\n`
@@ -4202,18 +4215,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
       + pt`Run it from inside that worktree with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Return { gate_green: true, head_sha: ${aceTipSha} } ONLY when the gate and any Done when: command are FULLY green; on a real failure return { gate_green: false, head_sha: ${aceTipSha}, gate_failing_ids: [<each failing test id>] } with the failing tail in gate_output. This gate licenses the pin transfer at this sha — no approval is ever accounted at a sha the gate never passed, except over ids also red at the pre-ace tip.\n`
       + capture.clause + pt`\n`
-      + backgroundGateRule(pt`{ gate_green: false, gate_segment: 'incomplete', gate_log_path: '<the path>', segment_note: '<the step you reached>' }`)
-    const opts = { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
-      label: 'ace-gate:' + r.task.id + ':a' + r.task.absorbRounds, schema: GATE_CHECK, ...spawn('refiner') }
-    const g = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (prior, segment) => {
-      log('ace-gate ' + r.task.id + ': segmented gate at ace tip ' + aceTipSha + ' (' + (typeof prior.segment_note === 'string' && prior.segment_note ? prior.segment_note : 'no segment note') + '); re-dispatching the check (segment ' + segment + ', bounded by roundLimit ' + roundLimit + ').')
-      return admitGateResult(await dispatchSite(
-        pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior ace gate check returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(prior.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST. If that log is complete, its exit_code is the gate result: do not rerun the gate, finish any Done when: command and return.\n` + body,
-        { ...opts, label: opts.label + ':segment-' + segment }), capture)
-    })
+      + aceBgRule
+    const g = await aceSegments(body, { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
+      label: 'ace-gate:' + r.task.id + ':a' + r.task.absorbRounds, schema: GATE_CHECK, ...spawn('refiner') }, capture)
     const gateDied = deathOf(g)
     if (gateDied) return { green: false, died: gateDied }
-    if (isSegment(g)) {
+    if (aceIsSegment(g)) {
       log('ace-gate ' + r.task.id + ': segmented-gate budget exhausted after ' + roundLimit + ' re-dispatch(es) at ace tip ' + aceTipSha + ' — the gate never finished, so nothing judged this tip.')
       return { green: false, died: 'the ace gate at ' + aceTipSha + ' never finished within roundLimit ' + roundLimit }
     }
@@ -7448,7 +7455,7 @@ if (landDecision === 'landed') {
     const body = prompt + segmentedLandClause
     return reconciledMerge(body, opts, { task: 'phase-' + ph.id, repo: submodLandTask && submodLandTask.targetRepo || refineryLandPath, source: ph.integrationBranch, target: workingBranchFor(submodLandTask), land: true }, async (body, opts, capture) => {
       const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
-        log('Phase ' + ph.id + ': segmented land — the land dispatch ' + opts.label + ' returned the in-band land_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the land to run to completion (segment ' + segment + ', bounded by roundLimit ' + roundLimit + ').')
+        log('Phase ' + ph.id + ': segmented land — ' + opts.label + ' returned land_segment:\'incomplete\' (' + (result.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
         return admitGateResult(await dispatchSite(
           pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
           { ...opts, label: opts.label + ':segment-' + segment }), capture)
@@ -7569,11 +7576,12 @@ if (landDecision === 'landed') {
     // gate_failed routes by class with 'baseline' treated as 'introduced' — bounded, no 2nd re-dispatch).
     const debtBefore = baselineDebt.length
     recordBaselineDebt(landResult.gate_failing_ids, landResult.gate_base_sha)
-    // A baseline red first recorded here runs after the late-fix pass (PIN-12): it carries on a
-    // non-final phase, and on the final phase it files with the reason. Ids the per-task baseline row
-    // already took (at any base sha) are no new defect; an empty id-set is never covered.
+    // A land baseline red runs after the late-fix pass (PIN-12): it carries on a non-final phase, and on
+    // the final phase it files with the reason. Only ids the per-task baseline row already took (at any
+    // base sha) are no new defect. The dedup above is no test: a died baseline-proceed records the same
+    // ids at the same base and queues no row. An empty id-set is never covered.
     const landIds = debtIds(landResult.gate_failing_ids), took = baselineTask ? baselineDebt.slice(0, debtBefore) : []
-    if (baselineDebt.length > debtBefore && !(landIds.length && landIds.every(id => took.some(d => d.ids.includes(id))))) {
+    if (!(landIds.length && landIds.every(id => took.some(d => d.ids.includes(id))))) {
       const row = baselineRow(landIds), why = 'found at the land gate after the late-fix pass'
       if (finalPhase) fileFollowUp({ ...row, task: (lateOriginOf(row) || {}).id, rationale: row.rationale + ' — ' + why })
       else carryLate(row, why)
