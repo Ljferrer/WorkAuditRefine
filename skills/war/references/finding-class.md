@@ -16,6 +16,17 @@ How the engine routes the class:
 - The intake floor turns a behavior `note` with a fix on a named file into `absorb`. In the task diff it joins the task's ace batch. Outside the diff, or with no diff probe, it rides `phaseClose:true` to the behavior-row sort (PIN-21), which sends it to the late-fix pass or demotes it naming the owner. Any other behavior `note` parks as an ask for the Checkpoint ruling. The gate-audit floor pass applies the same rule, always through the behavior-row sort.
 - A cosmetic row, or a row with no class, keeps today's route. Intake drops a value outside the export, so that row reads as classless.
 
+## Pre-ace probe
+
+A regressed ace re-audit dispatches one PRE-ACE PROBE seat per Critical or Major blocker, before the engine names culprits or reverts a range (plan 2026-11-04-late-defects-fixed-in-run, D3/D11, PIN-3/PIN-11). The seat is read-only and judges one question: does this blocker already exist at the pre-ace tip, the approved tip before the ace commit?
+
+- Read the pre-ace tip through git only, with `git show <pre-ace sha>:<file>` and `git diff <pre-ace sha> <ace sha>`. The task worktree sits at the ace tip, so a plain file read shows the wrong commit.
+- Return `{ exists: 'yes' | 'no' | 'unknown', evidence }`. `evidence` names the lines you read.
+- `yes`: the same defect is there at the pre-ace tip. The engine keeps the ace's absorbs, counts your seat as approving that blocker for the batch, and sends the blocker to the late-fix pass.
+- `no`: the ace commit added it. Today's regression arms run: culprit excision, halving, or the whole-range revert.
+- `unknown`: git cannot settle it. The engine reverts as today, and the blocker still joins the late-fix pass as a `behavior` row. A dead seat or a malformed answer reads as `unknown`.
+- Never answer `yes` to save an absorb. A wrong `yes` keeps a regression on the branch until the late-fix pass fixes it.
+
 ## Moved from the auditor card
 
 ### Stale-looking-but-correct calibration

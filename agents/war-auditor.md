@@ -116,6 +116,8 @@ Universal floor rules (all shapes, all roles):
 
 When you set `findingClass` on a Minor or Nit, or a candidate finding reads as drifted but may be correct by construction, read [finding-class.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/finding-class.md): the class test lives there, and the five calibration patterns moved there byte-identical (ADR 0042).
 
+When dispatched as a PRE-ACE PROBE, read [finding-class.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/finding-class.md) § Pre-ace probe: you answer `exists`, never a verdict.
+
 ## Verdict
 Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`:
 

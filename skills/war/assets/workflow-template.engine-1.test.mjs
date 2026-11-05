@@ -6725,10 +6725,13 @@ test("Task 1.1 (End state 4) — merge-site bounds: a baseline-proceed re-merge 
 test("#598 validation 5+6 — merge 'baseline' → ONE baseline-proceed re-merge, merge proceeds, ONE deduped source:'auto' backstop; two same-id tasks ⇒ one entry + debt threaded (no 2nd base re-run)", async () => {
   const IDS = ['pytest:test_legacy_a', 'ruff:E501:old.py']
   const impl = clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: IDS, gate_base_sha: 'base9999', gate_output: 'base RED with the same ids — pre-existing' }) })
-  const { out, calls } = await runPhase(CLS_ARGS({ tasks: [
+  // A non-final phase: the merged baseline red is now one behavior late defect (late-defects PIN-12),
+  // and this fixture's every merge stays red, so the late fix never lands and the row carries.
+  const { out, calls } = await runPhase(CLS_ARGS({ finalPhase: false, tasks: [
     { id: 't1', issue: 301, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
     { id: 't2', issue: 302, title: 'T2', planSlice: 's2', roster: [{ lens: 'correctness' }] },
   ] }), impl)
+  assert.equal(out.carriedTasks.filter(t => t.seat === 'baseline').length, 1, 'one baseline late defect per run, carried')
   const bp = calls.filter(c => isMergeTask(c) && /:baseline-proceed$/.test(c.opts.label || ''))
   assert.equal(bp.length, 2, 'one baseline-proceed re-merge dispatched per baseline-classified task (delete the baseline branch ⇒ 0 ⇒ this fails)')
   assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), 'both baseline tasks merged (baseline-proceed proceeded over the recorded debt)')
@@ -12974,7 +12977,7 @@ test('#1951 red-arm control — { gate_green: false } with no head_sha stays sch
   const red = (logs || []).find(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED'))
   assert.ok(red, 'the red gate is logged')
   assert.match(red, /FAIL: 1 test failed/, 'the reason is the gate output')
-  assert.ok(!/no usable head_sha/.test(red), 'the sha arm never fires on a red reply — the red arm stays sha-free')
+  assert.ok(!/no usable head_sha/.test(red), 'the sha arm never fires on a red reply — the green arm\'s sha reason never names a red')
 })
 
 test('#1956 — default-deny keyword census: every keyword in the evaluated schemas is one the vendored evaluator implements', () => {
@@ -13795,7 +13798,9 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   // sortOwned behavior row naming its owner, and a behavior row born at a late-fix re-audit, final phase only),
   // sweep-discarded ×1 more (a polish-panel behavior row, final phase only) and terminal-pass ×1 more
   // (a terminal-seat behavior row, final phase only) — each "raised after the late-fix pass" or owned.
-  assert.equal(sites.length, 29, `the census domain is exactly TWENTY-NINE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
+  // 29 → 30 (late-defects Task 5.1 ace): exclusion-set ×1 more (the late-fix pass demotes a queued row
+  // whose own task did not merge, e.g. a wave-side pre-ace probe row).
+  assert.equal(sites.length, 30, `the census domain is exactly THIRTY follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
   for (const s of sites) {
     const p = reasonPrefixOf(s.reason)
     assert.ok(p, `demote site @${s.index}: the reason leads with a literal prefix (got: ${s.reason.slice(0, 60)})`)
