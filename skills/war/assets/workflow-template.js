@@ -1666,7 +1666,7 @@ const intakeFloor = (f, d, diff) => {
     if (typeof f.file === 'string' && f.file.length > 0 && !blankText(f.suggested_fix)) {
       const inDiff = diff instanceof Set && diff.has(aceRelPath(f.file))
       if (!inDiff) f.phaseClose = true
-      log('intake floor REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') behavior note with a fix → absorb' + (inDiff ? ' (in-diff: joins the task\'s ace batch)' : ' + phaseClose:true (out-of-diff or no probe: rides the sweep)') + ' — a behavior note never stays a note (PIN-2).')
+      log('intake floor REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') behavior note with a fix → absorb' + (inDiff ? ' (in-diff: joins the task\'s ace batch)' : ' + phaseClose:true (out-of-diff or no probe: rides the sort)') + ' — a behavior note never stays a note (PIN-2).')
       return 'absorb'
     }
     log('intake floor REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') behavior note with no fix on a named file → ask (parked for the Checkpoint ruling) — a behavior note never stays a note (PIN-2).')
