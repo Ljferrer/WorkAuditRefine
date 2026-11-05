@@ -247,8 +247,10 @@ function replaceExactlyOnce(text, anchor, replacement, label) {
 // *comment* is fine (the shipped template already opens with one); a leading `const` is not.
 // Reproduced live 2026-07-27 while hand-embedding args into a staged copy.
 // ponytail: line-anchored, string-blind by construction — meta is a fixed { name, description,
-// phases } shape with no column-0 `}` inside it; no match throws a named error (fail-loud), never a
-// silent mis-insertion.
+// phases } shape, and in the indent-stripped copy this regex reads (every meta line sits at column 0
+// there, so indent is no guard) no line inside it is exactly `}`: a nested `}`-only line at any indent
+// in the shipped template would end the match early and land the prelude inside the object literal;
+// no match throws a named error (fail-loud), never a silent mis-insertion.
 const META_STATEMENT = /^export const meta\s*=\s*\{[\s\S]*?^\}$/m
 
 // Step (3) of the substitution order: inject the payload LAST, after every exactly-once count has
@@ -376,8 +378,8 @@ function main(argv) {
     staged = replaceExactlyOnce(staged, NAME_ANCHOR, `name: '${deriveName(planSlug, phaseId, campaignOrdinal)}'`, 'name')
     staged = replaceExactlyOnce(staged, DESCRIPTION_ANCHOR, deriveDescription(planSlug, phaseId, campaignOrdinal), 'description')
     // Steps (2)+(3), --args only: rewrite the fallback tail, THEN inject the payload. Without the
-    // flag neither runs: the staged copy is the comment-stripped substitution with no prelude and
-    // no fallback rewrite.
+    // flag neither runs: the staged copy is the comment- and indent-stripped substitution with no
+    // prelude and no fallback rewrite.
     if (embedded !== null) {
       staged = replaceExactlyOnce(staged, ARGS_FALLBACK_ANCHOR, ': (args || EMBEDDED_ARGS)', 'args fallback')
       staged = insertArgsPrelude(staged, embedded)

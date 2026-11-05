@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, isAbsolute } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR, SCRIPT_BYTE_CAP, deriveName, deriveDescription, stripFullLineComments } from './stage-workflow.mjs'
-import { extractInterpolations, ptSpanRanges } from './assert-args-complete.mjs'
+import { extractInterpolations, extractArgsFields, unguardedTopLevelKeys, ptSpanRanges } from './assert-args-complete.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const STAGER = join(HERE, 'stage-workflow.mjs')
@@ -965,6 +965,24 @@ test('indent-strip: the fallback-free interpolation census is unchanged', () => 
   assert.ok(census.length > 50, `non-vacuity: ${census.length} interpolation chains`)
   assert.deepEqual(census, [...extractInterpolations(SHIPPED)], 'occurrence counts included')
 })
+// The args preflight (`assert-args-complete.mjs --template <staged path>`) reads top-level bindings by
+// their column-0 position, and the indent strip moves every top-level-frame line to column 0. On a
+// template holding an indented function-local `const z = A.zz`, the stripped copy would bind a field
+// the raw template never binds — the fixture below is that template, and it must fail this oracle.
+const assertArgsFieldCensusUnchanged = (original) => {
+  const stripped = stripFullLineComments(original)
+  assert.deepEqual([...unguardedTopLevelKeys(stripped)], [...unguardedTopLevelKeys(original)], 'the column-0 top-level binding set is unchanged on the staged form')
+  assert.deepEqual(extractArgsFields(stripped), extractArgsFields(original), 'the args preflight field set is unchanged on the staged form')
+}
+test('indent-strip: the args-field census is unchanged', () => {
+  shippedStripped() // non-vacuity: the strip removed indent from the shipped template at all
+  assert.ok(unguardedTopLevelKeys(SHIPPED).size > 5 && extractArgsFields(SHIPPED).length > 10, 'non-vacuity: the shipped template binds args fields')
+  assertArgsFieldCensusUnchanged(SHIPPED)
+  const indentedLocal = 'const A = args\nconst p = A.planSlug\nfunction f () {\n  const z = A.zz\n  return pt`${p} ${z}`\n}\n'
+  assert.deepEqual(extractArgsFields(indentedLocal), ['planSlug'], 'the raw fixture binds only the column-0 field')
+  assert.deepEqual(extractArgsFields(stripFullLineComments(indentedLocal)), ['planSlug', 'zz'], 'the stripped fixture binds the function-local field too')
+  assert.throws(() => assertArgsFieldCensusUnchanged(indentedLocal), /binding set is unchanged/, 'an indented function-local `const z = A.zz` is refused')
+})
 test('indent-strip: NAME_ANCHOR and ARGS_FALLBACK_ANCHOR substitute on the staged form', () => {
   const dir = scratch('stage-indent-anchor-')
   const slug = 'indent-anchor'
@@ -1015,7 +1033,53 @@ process.stdout.write('\\nPROBE ' + JSON.stringify({ srcRaw: h.src === raw, raw: 
   assert.equal(r.status, 0, r.stderr)
   return JSON.parse(r.stdout.split('\nPROBE ').pop())
 }
+// The compile-site census over the harness source. The probe above proves build() alone; the other
+// sites that compile a `src`-derived slice (inlineHelpers, makeDispatch, registrySlice, grabSchema,
+// mergeResultSchema) are proven by text: each site is a `new Function(` / `new AsyncFunction(` call,
+// named by the column-0 declaration that encloses it, and read from the call to the next blank line
+// (makeDispatch's runForm calls sit on the lines after its opener). A site outside the exempt list
+// must wrap runForm; an exempt site must not, so the list cannot go stale silently. The two exempt
+// sites evaluate a pt literal, whose bytes oracle (b) proves the strip never moves.
+const HARNESS_COMPILE_EXEMPT = {
+  evalPt: 'a pt literal whose bytes oracle (b) proves invariant',
+  evalTemplateConst: 'a pt literal whose bytes oracle (b) proves invariant',
+}
+const harnessCompileSites = (text) => {
+  const sites = []
+  const re = /new (?:Async)?Function\(/g
+  let m
+  while ((m = re.exec(text))) {
+    const decl = [...text.slice(0, m.index).matchAll(/^(?:const|let|function) ([A-Za-z_$][\w$]*)/gm)].pop()
+    assert.ok(decl, `a compile site at offset ${m.index} sits under a column-0 declaration`)
+    const stop = text.indexOf('\n\n', m.index)
+    const next = text.slice(re.lastIndex).search(/new (?:Async)?Function\(/)
+    const ends = [stop, next === -1 ? -1 : re.lastIndex + next, text.length].filter((e) => e !== -1)
+    sites.push({ name: decl[1], window: text.slice(m.index, Math.min(...ends)) })
+  }
+  return sites
+}
+const assertHarnessCompilesStaged = (text) => {
+  const sites = harnessCompileSites(text)
+  assert.deepEqual(sites.map((s) => s.name).sort(), ['build', 'evalPt', 'evalTemplateConst', 'grabSchema', 'inlineHelpers', 'makeDispatch', 'mergeResultSchema', 'registrySlice'], 'the harness compile-site census is closed: a new site wraps runForm or joins HARNESS_COMPILE_EXEMPT')
+  for (const { name, window } of sites) {
+    const wraps = window.includes('runForm(')
+    if (name in HARNESS_COMPILE_EXEMPT) assert.ok(!wraps, `${name} is exempt (${HARNESS_COMPILE_EXEMPT[name]}) and compiles the raw slice`)
+    else assert.ok(wraps, `${name} compiles a src-derived slice and must wrap it in runForm(...)`)
+  }
+}
 test('indent-strip: harness runs the staged form', () => {
+  const harnessText = readFileSync(HARNESS, 'utf8')
+  assertHarnessCompilesStaged(harnessText)
+  // Red proofs, one per window shape: build's call sits on the opener line; makeDispatch's calls sit
+  // on the lines after its opener, so both are dropped to prove the window reads past that line.
+  for (const [site, calls] of [['build', ['runForm(source)']], ['makeDispatch', ['${runForm(semBlock)}', '${runForm(dispatchBlock)}']]]) {
+    let dropped = harnessText
+    for (const call of calls) {
+      assert.equal(harnessText.split(call).length - 1, 1, `the mutation anchor occurs exactly once in the harness: ${call}`)
+      dropped = dropped.replace(call, call.replace(/runForm\((\w+)\)/, '$1'))
+    }
+    assert.throws(() => assertHarnessCompilesStaged(dropped), new RegExp(`${site} compiles a src-derived slice`), `dropping ${site}'s runForm calls reds the census`)
+  }
   const on = probeHarness(true)
   assert.ok(on.srcRaw, 'the exported src stays the raw template for source-reading tests')
   assert.ok(on.staged && !on.raw, 'under the flag build() compiles the staged form, not the raw template')

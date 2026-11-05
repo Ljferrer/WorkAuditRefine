@@ -95,13 +95,17 @@ const fixtureContentId = (repo, base, tip) => {
   return r.stdout.trim()
 }
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
-// WAR_TEMPLATE_STRIPPED=1 (plan 2026-11-04-late-defects-fixed-in-run, Task 1.1): every execution site
-// in this harness runs the STAGED form — stage-workflow.mjs's stripFullLineComments of the code it was
-// handed — so the engine suites prove the bytes a /war phase dispatches. `src` stays the raw template
-// either way: the source-reading tests read comments and indent from it. A fixture that mutates `src`
-// for a delete-and-trace control mutates the raw text, and the mutated copy is staged when it runs.
-// The staged form of `src` itself is computed once; a mutated copy is staged on each build.
-// stage-workflow.test.mjs row `indent-strip: harness runs the staged form` proves the executed bytes.
+// WAR_TEMPLATE_STRIPPED=1 (plan 2026-11-04-late-defects-fixed-in-run, Task 1.1): every site in this
+// harness that compiles template code (build, inlineHelpers, makeDispatch, registrySlice, grabSchema,
+// mergeResultSchema) runs the STAGED form — stage-workflow.mjs's stripFullLineComments of the code it
+// was handed — so the engine suites prove the bytes a /war phase dispatches. The exceptions are the
+// pt-literal evaluators evalPt and evalTemplateConst: they evaluate a pt literal, whose bytes the strip
+// never moves (stage-workflow.test.mjs oracle (b)), so they compile the raw slice. `src` stays the raw
+// template either way: the source-reading tests read comments and indent from it. A fixture that
+// mutates `src` for a delete-and-trace control mutates the raw text, and the mutated copy is staged
+// when it runs. The staged form of `src` itself is computed once; a mutated copy is staged on each
+// build. stage-workflow.test.mjs row `indent-strip: harness runs the staged form` proves the executed
+// bytes and holds the census of these compile sites (a new site must wrap runForm or join its exempt list).
 const STAGED_RUN = process.env.WAR_TEMPLATE_STRIPPED === '1'
 let stagedSrc = null
 const runForm = (code) => {
