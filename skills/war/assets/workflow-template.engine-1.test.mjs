@@ -8540,6 +8540,21 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
     assert.ok(ranges.some(r => m.index >= r.start && m.index < r.end),
       `the chainFixClause call at source index ${m.index} sits inside a FIX_GATE_SITES range (a new fix-applying dispatch must carry FIX_GATE_RULE)`)
   }
+  // Round 4 (#2617): key the default-deny on the worker dispatch itself, not only on chainFixClause.
+  // Eight war-worker dispatches: the primary work dispatch plus seven fix builds. Only the work
+  // dispatch may sit outside a FIX_GATE_SITES range.
+  const workerDispatches = [...censusSrc.matchAll(/agentType: NS \+ 'war-worker'/g)]
+  assert.equal(workerDispatches.length, 8, 'eight war-worker dispatch sites (work plus seven fix builds)')
+  const outside = workerDispatches.filter(m => !ranges.some(r => m.index >= r.start && m.index < r.end))
+  assert.equal(outside.length, 1, 'only the primary work dispatch sits outside a fix-gate site range')
+  assert.match(censusSrc.slice(outside[0].index, outside[0].index + 120), /label: `work:/, 'the one outside dispatch is the work: dispatch')
+  // Every FIX_GATE_RULE token, in any spelling: the definition plus the ten site interpolations.
+  assert.equal([...censusSrc.matchAll(/\bFIX_GATE_RULE\b/g)].length, 11,
+    'FIX_GATE_RULE appears only at its definition and the ten fix sites (no bare concatenation elsewhere)')
+  assert.ok(calls.some(c => /^work:/.test(c.opts.label || '')), 'a work: prompt was captured (anti-vacuity)')
+  for (const c of calls.filter(c => /^work:/.test(c.opts.label || ''))) {
+    assert.ok(!(c.prompt || '').includes(rule), 'the primary work prompt never carries FIX_GATE_RULE: it runs the full gate')
+  }
 })
 
 test('A1 (Task 1.3) — the old plan-slice-criteria framing is retired from the worker card, case-insensitively', () => {
