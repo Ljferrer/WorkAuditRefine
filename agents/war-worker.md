@@ -35,6 +35,13 @@ When the sub-issue declares a gitlink-bump task, read [worker-servitor-edges.md]
 4. Run the gate command until green. When a `Done when:` command is threaded, make it pass too — it is the task's own acceptance check.
 5. Commit with a descriptive message referencing the sub-issue (`#<n>`), with the exact `WAR-Task: <task branch>` trailer, then `git push` the branch. Put every trailer, attribution lines included, in one final trailer block: git parses trailers only from the last paragraph of a message. Never create an empty commit for recovery credit; read `head_sha` from `git rev-parse HEAD` after committing.
 
+## One turn, no waiting (#2617)
+When your turn ends, you exit, and any background job dies with you.
+- Never end your turn with work left: commit and push, or return `blocked`.
+- Never wait on a background job or a monitor. Run each command in the foreground, with a `timeout` long enough for it.
+- Never run `git stash`: every worktree and session shares the stash.
+- Fix a red you caused before you probe one you did not.
+
 ## Backward chain (the finish line first)
 When your prompt carries a `BACKWARD-CHAIN WORK` block (the WORK dispatch), read [backward-chain-worker.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-worker.md) — lock the finish line, chain backward from it to the tip, and write `Critical path:` then `Ignore for now:` into `notes`. When it carries a `BACKWARD-CHAIN FIX` block (every fix-applying dispatch: a fix round, an ace commit, a floor correction, the phase-close sweep — which spawns a worker agent too — and the terminal pass), read [backward-chain-fix.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-fix.md) — the rules ride the dispatched prompt, and the prompt names the depth section for its corrective round.
 
