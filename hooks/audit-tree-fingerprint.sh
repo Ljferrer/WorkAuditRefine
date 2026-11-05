@@ -905,7 +905,7 @@ pat_free() {
     --*) ;;
     -?*)
       case "${1#-}" in *[!0-9]*) ;; *) _pok=1; return 0 ;; esac
-      pk_strip "${1#-}"; [ -n "$_pk" ] && [ -z "$_pc" ] && _pok=1
+      pk_strip "${1#-}"; [ -z "$_pc" ] && _pok=1
       [ -n "$_p1" ] && case "$1" in -[$_p1]) _pok=1 ;; esac ;;
     *) _pok=1 ;;
   esac
@@ -1331,7 +1331,7 @@ case "$event" in
       exit 0
     }
     quote_words "$_bc"
-    _found=0; _want=0; _base="$cwd"; _first=1; _sub=0; _noindex=0; _pv=0; _dd=0; _pok=0
+    _found=0; _want=0; _base="$cwd"; _first=1; _sub=0; _noindex=0; _pv=0; _dd=0
     for _tok in $_cmd; do
       [ "$_tok" = --no-index ] && _noindex=1
     done
@@ -1365,7 +1365,7 @@ case "$event" in
           [ "$_t" = diff ] && implied_noindex && _noindex=1
         fi
       elif [ "$_pv" = 1 ]; then
-        _pv=0; _pok=1; continue
+        _pv=0; continue
       elif [ "$_dd" = 0 ]; then
         # A search pattern names no path (pat_opt), so neither the option
         # nor its value is touched. After `--` or `--end-of-options` (git
