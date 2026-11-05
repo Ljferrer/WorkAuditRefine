@@ -58,6 +58,7 @@ import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIE
 import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS, SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES, MODELS, MODEL_RANK, EFFORTS, AUDITOR_TIERS } from './war-config.mjs'
 import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS } from './assert-args-complete.mjs'
 import { MANIFEST_PATH_TEMPLATE, MANIFEST_KEYS } from './target-artifacts.mjs'
+import { stripFullLineComments } from './stage-workflow.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
@@ -94,8 +95,23 @@ const fixtureContentId = (repo, base, tip) => {
   return r.stdout.trim()
 }
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+// WAR_TEMPLATE_STRIPPED=1 (plan 2026-11-04-late-defects-fixed-in-run, Task 1.1): every execution site
+// in this harness runs the STAGED form — stage-workflow.mjs's stripFullLineComments of the code it was
+// handed — so the engine suites prove the bytes a /war phase dispatches. `src` stays the raw template
+// either way: the source-reading tests read comments and indent from it. A fixture that mutates `src`
+// for a delete-and-trace control mutates the raw text, and the mutated copy is staged when it runs.
+// The staged form of `src` itself is computed once; a mutated copy is staged on each build.
+// stage-workflow.test.mjs row `indent-strip: harness runs the staged form` proves the executed bytes.
+const STAGED_RUN = process.env.WAR_TEMPLATE_STRIPPED === '1'
+let stagedSrc = null
+const runForm = (code) => {
+  if (!STAGED_RUN) return code
+  if (code !== src) return stripFullLineComments(code)
+  if (stagedSrc === null) stagedSrc = stripFullLineComments(src)
+  return stagedSrc
+}
 // `source` defaults to the live template; a fixture passes a mutated copy for a delete-and-trace control.
-const build = (source = src) => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', source)
+const build = (source = src) => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', runForm(source))
 
 // --- Behavioral harness (mirrors red-team workflow-scaffold.test.mjs) ----------------------
 // Run the template with a mock `agent` that records every { prompt, opts } in call order, plus a
@@ -1464,7 +1480,7 @@ const inlineHelperBlock = (() => {
   return { ok: s !== -1 && e > s, block: s !== -1 && e > s ? src.slice(s, e) : '' }
 })()
 const inlineHelpers = (agents = {}) =>
-  new Function('agents', inlineHelperBlock.block + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, AUDITOR_TIER_DEFAULTS, isDocsTask, resolveGate }')(agents)
+  new Function('agents', runForm(inlineHelperBlock.block) + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, AUDITOR_TIER_DEFAULTS, isDocsTask, resolveGate }')(agents)
 
 const AGENTS_FIXTURES = [
   {},                                                                          // all omitted → ROLE_MODEL/DEFAULTS fallback
@@ -2226,9 +2242,9 @@ const dispatchBlock = (() => {
   return m ? m[0] : null
 })()
 const makeDispatch = (agent, maxParallel) => new Function('agent', 'maxParallel', `
-  ${semBlock}
+  ${runForm(semBlock)}
   const dispatchSemaphore = makeSemaphore(maxParallel)
-  ${dispatchBlock}
+  ${runForm(dispatchBlock)}
   return { dispatch, dispatchSemaphore }
 `)(agent, maxParallel)
 
@@ -2451,7 +2467,7 @@ const registrySlice = (runOverride = {}) => {
   // BARRIER_TOKENS / DEMOTE_REASONS are the module-top mirrors — injected as the canonical exports
   // (the D2 registry rows deepEqual them).
   const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS',
-    src.slice(sliceStart, sliceEnd)
+    runForm(src.slice(sliceStart, sliceEnd))
     + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, mergeSeat, seatsListOf, normalizeFinding, normalizeSeat, queuedKeys, liveTaskRecords, diffFilesByTask, dispositionOf, intakeFloor, demote }')
   const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [] }
   const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
@@ -2568,7 +2584,7 @@ const grabSchema = (name) => {
     if (src[k] === '{') d++
     // The literal references the inline BARRIER_TOKENS mirror (barrier-list, D1) — bound here from the
     // canonical export (the D2 mirror registry deepEquals the two).
-    if (src[k] === '}') { d--; if (d === 0) return new Function('BARRIER_TOKENS', 'return (' + src.slice(j, k + 1) + ')')(BARRIER_TOKENS) }
+    if (src[k] === '}') { d--; if (d === 0) return new Function('BARRIER_TOKENS', 'return (' + runForm(src.slice(j, k + 1)) + ')')(BARRIER_TOKENS) }
   }
   throw new Error('unbalanced ' + name)
 }
@@ -3393,7 +3409,7 @@ const mergeResultSchema = () => {
   const literal = src.match(/const\s+MERGE_RESULT\s*=[^]*?(?=\n\n)/)[0]
   const envLit = src.match(/const ENV_OUTCOME = \{[^]*?absorbCharges: \{ type: 'object' \} \} \}\n/)[0]
   const pick = src.match(/const MERGE_PROVISION_KEYS = [^\n]*\nMERGE_RESULT\.properties\.provision = [^]*?\)\) \}\n/)[0]
-  return new Function(literal + '\n' + envLit + pick + 'return { MERGE_RESULT, ENV_OUTCOME }')()
+  return new Function(runForm(literal + '\n' + envLit + pick) + 'return { MERGE_RESULT, ENV_OUTCOME }')()
 }
 
 // ES17 (D18, PIN-18): the barrier's absorb-charge read runs the EXACT dispatched bash spelling against
