@@ -4,6 +4,7 @@
 import { test } from 'node:test'
 import {
   assert,
+  runForm,
   readFileSync,
   writeFileSync,
   mkdirSync,
@@ -847,7 +848,7 @@ test('#1940 — PIN-13 seed: a behavioural resume simulation, not a source-shape
   const m = src.match(/r\.task\.fixRounds = (Math\.max\([^\n]+\))/)
   assert.ok(m, 'src must contain the merge-slot fixRounds seed')
   // eslint-disable-next-line no-new-func
-  const seed = new Function('r', `return (${m[1]})`)
+  const seed = new Function('r', runForm(`return (${m[1]})`))
   // The wave ran in-process and the ace charged rounds: the merge slot must NOT lower it.
   assert.equal(seed({ task: { fixRounds: 4 }, round: 1 }), 4,
     'a wave-side ace charge survives the merge-slot seed — re-seeding to r.round is the clobber PIN-13 forbids')
