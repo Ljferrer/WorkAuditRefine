@@ -8011,6 +8011,15 @@ test('ace charges 5 and 6 dispatch on agents.worker.fix; charge 4 stays on agent
   assert.deepEqual(await aceAt(5), { model: 'opus', effort: 'high' }, 'charge 6 carries agents.worker.fix')
 })
 
+test('ace charge tiers: the subset, re-entry and polish ace workers all spawn through aceSpawn, and only the terminal pass keeps spawnWorker(\'ace\')', () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'workflow-template.js'), 'utf8')
+  const sites = [...src.matchAll(/label: aceLabel\(r, '(\w+)'\), schema: WORKER_RESULT, \.\.\.aceSpawn\(r\) \}\)/g)].map(m => m[1])
+  assert.deepEqual(sites.sort(), ['polish', 'reentry', 'subset'], 'exactly three ace sites spawn through aceSpawn')
+  const direct = src.split('\n').filter(l => l.includes("...spawnWorker('ace')"))
+  assert.equal(direct.length, 1, 'one direct ace-tier spawn is left')
+  assert.match(direct[0], /label: `terminal:phase-/, 'and it is the terminal pass')
+})
+
 // #2519 — a roster seat's own model/effort overrides the auditor tier for that seat only.
 test('#2519 — per-seat model: a seat with model/effort dispatches on it; a seat without one keeps the auditor tier', async () => {
   const roster = [{ lens: 'correctness', model: 'sonnet', effort: 'high' }, { lens: 'security' }, { lens: 'plan-faithfulness', effort: 'default' }]

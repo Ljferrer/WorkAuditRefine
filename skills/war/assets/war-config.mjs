@@ -55,7 +55,7 @@ export const DEFAULTS = {
   agents: {
     // worker.docs dispatches all-*.md tasks; worker.fix dispatches fix rounds and floor retries, and
     // --ace plus the terminal pass unless worker.ace is set (#2519; ace has no default, so an absent
-    // ace inherits fix). The worker tiers (base, docs, fix) are defaulted here; a preset may re-pin any of them (see PRESETS) and a config may
+    // ace inherits fix). Ace charges 5 and 6 always run on fix, and validate checks fix ranks >= ace. The worker tiers (base, docs, fix) are defaulted here; a preset may re-pin any of them (see PRESETS) and a config may
     // override any tier per run. Every prose surface that restates a value from this object is bound
     // to presetConfig() by DOC_TIER_PINS / the /war-room bullet parser in war-config.test.mjs — when
     // you add a restatement, add a pin row; when you cannot, write a pointer instead of the value.

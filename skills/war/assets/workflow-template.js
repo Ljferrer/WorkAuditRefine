@@ -6570,7 +6570,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
       // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
       // never agents.worker.fix or .ace. (The four fix-follow-up classes are tier-aware: fix: and add-test:|package-it:
-      // via spawnWorker('fix'), ace: and terminal: via spawnWorker('ace'); this one intentionally is not. The only other non-tiered base
+      // via spawnWorker('fix'), ace: via aceSpawn (the ace tier, the fix tier from charge 5) and terminal: via spawnWorker('ace'); this one intentionally is not. The only other non-tiered base
       // spawn is the fallback inside spawnWorker itself — the tier resolver, definitionally correct.)
       { agentType: NS + 'war-worker', phase: 'Work', label: `polish:phase-${ph.id}`, schema: WORKER_RESULT, ...spawn('worker') })
     } catch (err) {
