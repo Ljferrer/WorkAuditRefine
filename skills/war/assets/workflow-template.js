@@ -1466,7 +1466,7 @@ if (!reaOn && (targetArtifacts.length || droppedEvidenceRows.length)) log('REA A
 // --- Repo-derived provisioning (Part B) ------------------------------------
 // PROVISION_TREE_LINE (#2485 D15, PIN-15; the provision_red: precedent): the ONE marker sentence — the
 // writer line, the marker's file path (.war/provision_tree) and the reader comparison — interpolated at
-// every writer site (provisionStep, the polish-worktree provision, endstateProvisionClause) and reader
+// every writer site (provisionStep, tipWorktreeProvision (the polish-worktree and late-fix-worktree provisions), endstateProvisionClause) and reader
 // site (PROVISION_RERUN_CLAUSE, depClause). The writer also appends `.war/` to the worktree's
 // info/exclude, so the marker never dirties the tree (A3). Kept out of GATE_LOG_STAMP (its card twin is
 // merge-task step 9); the refiner card's merge-task step 1 carries it byte-equal (ES13 binds the pair).
@@ -1475,7 +1475,7 @@ const PROVISION_TREE_LINE = pt`PROVISION TREE MARKER (run inside the worktree): 
 // step that rewrites a tracked file (a lockfile an install rewrites) would leave the worktree dirty: in
 // the shared _refinery that makes the next `merge --no-ff --no-commit` refuse on overlapping paths, gates
 // a tree that differs from HEAD, and dies the next topology barrier on the dirty detached-holder arm.
-// Interpolated by provisionStep (task worktrees and _refinery), the polish-worktree provision and
+// Interpolated by provisionStep (task worktrees and _refinery), tipWorktreeProvision (the polish-worktree and late-fix-worktree provisions) and
 // PROVISION_RERUN_CLAUSE; the refiner card's merge-task step 1 carries it byte-equal. endstateProvisionClause
 // keeps its own `git -C` spelling (fail-open, every check still runs). depClause omits it: the worker's
 // own uncommitted edits live in that worktree, and `git checkout -- .` would discard them.

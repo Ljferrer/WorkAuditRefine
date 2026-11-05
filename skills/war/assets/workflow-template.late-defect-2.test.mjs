@@ -411,6 +411,14 @@ test('late-defect: charge — a relaunch rebuilds fixRounds from the barrier lat
   assert.equal(lateHolds(resumed.out)[0].fixRounds, 6)
   const barrier = resumed.calls.find(c => c.opts.dispatchKind === 'provision-barrier')
   assert.ok(barrier.prompt.includes('LATE-FIX CHARGE READ (per preMerged task)'), 'the recovery barrier asks for the read')
+  // The barrier prompt documents the bare task-id key, so the bare key seeds exactly like the p<phase>- key.
+  const bare = await run({ ok: true, preMerged: ['t1'], lateFixCharges: { t1: 5 } })
+  assert.ok(bare.logs.some(l => /late-fix charge: task t1 resumes at fixRounds 5/.test(l)), 'the bare key seeds')
+  assert.deepEqual(lateWorkers(bare.calls).map(labelOf), ['late-fix:t1:r6'], 'the bare key leaves one round')
+  // Mirror: another task's key never seeds this task.
+  const foreign = await run({ ok: true, preMerged: ['t1'], lateFixCharges: { t2: 5 } })
+  assert.ok(!foreign.logs.some(l => /late-fix charge: task t1 /.test(l)), 'a foreign key never seeds or logs for t1')
+  assert.equal(lateWorkers(foreign.calls)[0].opts.label, 'late-fix:t1:r1')
   // A malformed value (string, fraction, zero, null) never seeds, and the drop is logged.
   for (const bad of ['5', 2.5, 0, null]) {
     const m = await run({ ok: true, preMerged: ['t1'], lateFixCharges: { 'p3-t1': bad } })
