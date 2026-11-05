@@ -16,13 +16,14 @@
 //   stages, and a journal replay must see identical bytes even across a mid-run plugin upgrade — so
 //   it is left byte-untouched, its path printed, exit 0 (with --args, one stderr warning that the
 //   flag was ignored). A deliberate restage passes --force (the only path that overwrites an
-//   existing staged file, from a fresh comment-stripped substitution of the current shipped
+//   existing staged file, from a fresh comment- and indent-stripped substitution of the current shipped
 //   template) — that is also how changed args are re-embedded. An existing file over the scriptPath
 //   cap is the one reuse refused: it cannot dispatch, so the stager exits non-zero naming --force.
 //   Fail-loud: a missing OR duplicated anchor exits NON-ZERO with a named error (never a silent
 //   fork).
 //   Comment strip (#2099): step (0) of every stage blanks the shipped template's full-line code
-//   comments out of the staged copy (contract and mechanics: stripFullLineComments below). The
+//   comments out of the staged copy and drops the leading indent of its top-level code lines
+//   (contract and mechanics: stripFullLineComments below). The
 //   Workflow tool refuses a scriptPath over SCRIPT_BYTE_CAP bytes, and the shipped template alone
 //   crossed it at 0.21.11 (measured 525,209 bytes on 2026-09-06) — so a staged copy that would still
 //   exceed the cap after the strip exits NON-ZERO with a named error and writes nothing.
@@ -60,9 +61,12 @@ export const SCRIPT_BYTE_CAP = 524288
 // Blank out every full-line `//` comment that sits in CODE state — a line whose first non-blank bytes
 // are `//` and that is not inside a string, a template literal (any `${…}` nesting), a regex literal
 // or a block comment. Each stripped line becomes an empty line, so the staged copy keeps the shipped
-// template's line count (an --args stage then adds its two prelude lines after `meta`). Nothing else
-// moves: trailing comments, block comments and every non-comment byte pass through verbatim, and the
-// strip is idempotent. The scanner is adapted from the comment/string-skipping loop of
+// template's line count (an --args stage then adds its two prelude lines after `meta`). Also drop the
+// leading spaces and tabs of every line that STARTS in the top-level code frame (PIN-16); a line that
+// starts inside a string continuation, a template literal, a `${…}` body or a block comment keeps
+// every byte, and no line is ever removed (PIN-17). Nothing else moves: trailing comments, block
+// comments and every other byte pass through verbatim, and the strip is idempotent. The scanner is
+// adapted from the comment/string-skipping loop of
 // extractTopLevelTemplateLiterals in prompt-surface-budgets.test.mjs, with three deliberate
 // divergences: (1) the line-comment arm records a drop range instead of consuming the line; (2) the
 // string arm also stops at a newline, so a stray quote can never swallow the rest of the file; (3) a
@@ -78,11 +82,13 @@ export const SCRIPT_BYTE_CAP = 524288
 // `\`-escaped newline (a JS line continuation), the regex arm never crosses one (a regex cannot hold a
 // line terminator), and the block-comment arm spans lines by design. One misread is known: a `/`
 // after a closing `}` is read as a regex (an object literal divided is not real code). A misread of
-// that shape skips the rest of its line, so a template opener on that same line is missed and a
-// `//`-led line inside that template can be blanked; the nesting throw below catches the desync only
-// when the residual backtick count is odd. stage-workflow.test.mjs arm (p) is the arbiter — one or
-// more fixture lines per arm, each arm proven red under deletion, and a prompt-byte oracle over the
-// shipped template's pt spans.
+// that shape skips the rest of its line, so a template opener on that same line is missed: a
+// `//`-led line inside that template can be blanked and its indented lines can lose their indent; the
+// nesting throw below catches the desync only when the residual backtick count is odd.
+// stage-workflow.test.mjs arms (p) and (s) are the arbiters — fixture lines per arm, an
+// `indent-strip: mutant <branch>` row per branch, and four oracles over the shipped template: line for
+// line, prompt and template-literal bytes, idempotence with `node --check`, and the harness run of
+// the staged form.
 const REGEX_AFTER_WORD = new Set(['return', 'case', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'yield', 'await', 'do', 'else', 'throw'])
 const REGEX_AFTER_SIG = '(,=:[!&|?{};+-*%<>~^'
 export function stripFullLineComments(src) {
@@ -99,6 +105,18 @@ export function stripFullLineComments(src) {
     const c = src[i]
     const c2 = src[i + 1]
     if (ctx.type === 'code') {
+      // Indent strip (PIN-16): a line that starts in the TOP-LEVEL code frame loses its leading spaces
+      // and tabs. The scan reaches a line start in code only from a newline it read as code, so a line
+      // that starts inside a string continuation, a template literal, a `${…}` body (stack depth > 1)
+      // or a block comment is never visited here. A `//`-led line is left to the comment arm below,
+      // which blanks the whole line, indent included.
+      if (stack.length === 1 && (c === ' ' || c === '\t') && (i === 0 || src[i - 1] === '\n')) {
+        let j = i
+        while (j < n && (src[j] === ' ' || src[j] === '\t')) j++
+        if (!(src[j] === '/' && src[j + 1] === '/')) drop.push([i, j])
+        i = j
+        continue
+      }
       if (c === '/' && c2 === '/') {
         const nl = src.indexOf('\n', i)
         const end = nl === -1 ? n : nl
@@ -229,8 +247,10 @@ function replaceExactlyOnce(text, anchor, replacement, label) {
 // *comment* is fine (the shipped template already opens with one); a leading `const` is not.
 // Reproduced live 2026-07-27 while hand-embedding args into a staged copy.
 // ponytail: line-anchored, string-blind by construction — meta is a fixed { name, description,
-// phases } shape with no column-0 `}` inside it; no match throws a named error (fail-loud), never a
-// silent mis-insertion.
+// phases } shape, and in the indent-stripped copy this regex reads (every meta line sits at column 0
+// there, so indent is no guard) no line inside it is exactly `}`: a nested `}`-only line at any indent
+// in the shipped template would end the match early and land the prelude inside the object literal;
+// no match throws a named error (fail-loud), never a silent mis-insertion.
 const META_STATEMENT = /^export const meta\s*=\s*\{[\s\S]*?^\}$/m
 
 // Step (3) of the substitution order: inject the payload LAST, after every exactly-once count has
@@ -311,7 +331,7 @@ function main(argv) {
       process.exit(1)
     }
     if (existingBytes > SCRIPT_BYTE_CAP) {
-      process.stderr.write(`stage-workflow: existing staged file ${stagedPath} is ${existingBytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap — it cannot dispatch; restage it with --force (a fresh, comment-stripped substitution: any injected stage in the old file is lost and must be re-applied, and a resumeFromRunId journal recorded against the old bytes no longer matches)\n`)
+      process.stderr.write(`stage-workflow: existing staged file ${stagedPath} is ${existingBytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap — it cannot dispatch; restage it with --force (a fresh, comment- and indent-stripped substitution: any injected stage in the old file is lost and must be re-applied, and a resumeFromRunId journal recorded against the old bytes no longer matches)\n`)
       process.exit(1)
     }
     if (argsFile !== null) {
@@ -351,15 +371,15 @@ function main(argv) {
   let staged
   let strippedBytes = 0
   try {
-    // Step (0): strip the full-line code comments FIRST, so the prelude's own comment line (step 3)
-    // and every substituted literal survive untouched.
+    // Step (0): strip the full-line code comments and the top-level indent FIRST, so the prelude's
+    // own comment line (step 3) and every substituted literal survive untouched.
     staged = stripFullLineComments(template)
     strippedBytes = Buffer.byteLength(staged, 'utf8')
     staged = replaceExactlyOnce(staged, NAME_ANCHOR, `name: '${deriveName(planSlug, phaseId, campaignOrdinal)}'`, 'name')
     staged = replaceExactlyOnce(staged, DESCRIPTION_ANCHOR, deriveDescription(planSlug, phaseId, campaignOrdinal), 'description')
     // Steps (2)+(3), --args only: rewrite the fallback tail, THEN inject the payload. Without the
-    // flag neither runs: the staged copy is the comment-stripped substitution with no prelude and
-    // no fallback rewrite.
+    // flag neither runs: the staged copy is the comment- and indent-stripped substitution with no
+    // prelude and no fallback rewrite.
     if (embedded !== null) {
       staged = replaceExactlyOnce(staged, ARGS_FALLBACK_ANCHOR, ': (args || EMBEDDED_ARGS)', 'args fallback')
       staged = insertArgsPrelude(staged, embedded)
@@ -377,7 +397,7 @@ function main(argv) {
   const bytes = Buffer.byteLength(staged, 'utf8')
   if (bytes > SCRIPT_BYTE_CAP) {
     const argsBytes = embedded === null ? 0 : Buffer.byteLength(JSON.stringify(embedded), 'utf8')
-    process.stderr.write(`stage-workflow: staged script would be ${bytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap (comment-stripped template ${strippedBytes} bytes; embedded args ${argsBytes} bytes; the rest is substitution and prelude overhead) — nothing written; slim the --args payload, or the template's code\n`)
+    process.stderr.write(`stage-workflow: staged script would be ${bytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap (stripped template ${strippedBytes} bytes; embedded args ${argsBytes} bytes; the rest is substitution and prelude overhead) — nothing written; slim the --args payload, or the template's code\n`)
     process.exit(1)
   }
 

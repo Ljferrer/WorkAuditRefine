@@ -4,6 +4,7 @@
 import { test } from 'node:test'
 import {
   assert,
+  runForm,
   readFileSync,
   writeFileSync,
   mkdirSync,
@@ -2098,7 +2099,7 @@ test('#393 D1 — pinOrSentinel: extract-and-eval unit cases (hex passes, non-he
   const match = src.match(/const pinOrSentinel\s*=\s*(s\s*=>[\s\S]+?'\(integration_sha unrecorded\/malformed\)')/)
   assert.ok(match, "src must contain a 'const pinOrSentinel = s => …' arrow definition")
   // eslint-disable-next-line no-new-func
-  const pinOrSentinel = new Function(`return (${match[1]})`)()
+  const pinOrSentinel = new Function(runForm(`return (${match[1]})`))()
   const SENTINEL = '(integration_sha unrecorded/malformed)'
   assert.equal(pinOrSentinel('deadbeef'), 'deadbeef', 'valid short hex passes through')
   assert.equal(pinOrSentinel(undefined), SENTINEL, 'absent sha collapses to sentinel')
@@ -2361,7 +2362,7 @@ test('L3 T1 — blockedReason predicate is total: extract-and-eval all four case
   const match = src.match(/const blockedReason\s*=\s*(r\s*=>[\s\S]+?:\s*null\))/)
   assert.ok(match, 'src must contain a "const blockedReason = r => …" arrow definition')
   // eslint-disable-next-line no-new-func
-  const blockedReason = new Function(`return (${match[1]})`)()
+  const blockedReason = new Function(runForm(`return (${match[1]})`))()
   // Case 1: null/dead worker → 'worker returned no result'
   assert.equal(blockedReason(null), 'worker returned no result',
     'blockedReason(null) must return "worker returned no result"')
@@ -3438,7 +3439,7 @@ test('aceRelPath: fileless regress (#1815, #1813) — a FILELESS blocking findin
   // asserts below are the regression proof, and the row pins the end-to-end no-throw path.
   const relM = src.match(/^const aceRelPath = (p => .+)$/m)
   assert.ok(relM, 'the file-scope aceRelPath helper is locatable')
-  const aceRelPath = new Function('return ' + relM[1])()
+  const aceRelPath = new Function(runForm('return ' + relM[1]))()
   assert.equal(aceRelPath(undefined), undefined, 'aceRelPath(undefined) === undefined (a non-string passes through untouched)')
   assert.equal(aceRelPath(null), null, 'null passes through too')
   // Consumer pins (#1813): both culprit consumers admit strings only — the comment on aceRelPath
@@ -4080,7 +4081,7 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   const sliceEnd = src.indexOf('const aceEligible')
   assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the dispositionOf→demote engine slice is locatable')
   const harness = new Function('log', 'notes', 'minorsFiled', 'asks',
-    src.slice(sliceStart, sliceEnd) + '\nreturn { dispositionOf, parkAsk, demote }')
+    runForm(src.slice(sliceStart, sliceEnd) + '\nreturn { dispositionOf, parkAsk, demote }'))
   const logs = [], notes = [], minorsFiled = [], asks = []
   const { dispositionOf, parkAsk, demote } = harness(m => logs.push(m), notes, minorsFiled, asks)
   assert.equal(dispositionOf(askFinding()), 'ask', "dispositionOf classifies an explicit disposition:'ask' as ask")
@@ -5674,7 +5675,7 @@ test('intake normalization: auditor-supplied `merged` never corroborates — a f
   // read-site guard control (D9 class): an ENGINE-written malformed element still never throws at
   // the two deref sites. A seat can no longer deliver one (intake strips `merged`), so mergedRowsOf
   // is evaluated from its own source line and both deref sites are pinned to read through it.
-  const mergedRowsOf = new Function('return ' + windowOf(src, 'const mergedRowsOf = ', '\n'))()
+  const mergedRowsOf = new Function(runForm('return ' + windowOf(src, 'const mergedRowsOf = ', '\n')))()
   assert.deepEqual(mergedRowsOf({ merged: [null, 'junk', { title: 'ok' }] }), [{ title: 'ok' }], 'an engine-written merged: [null, junk, row] filters to the object rows — a bare x.seat deref never sees null')
   assert.deepEqual(mergedRowsOf({ merged: [null] }), [], 'an all-null engine list reads as empty (the additive handoff key is omitted)')
   assert.deepEqual(mergedRowsOf({}), [], 'an absent container reads as empty')
@@ -6281,7 +6282,7 @@ test('ask-routing (End state 23, #1693): a malformed task pin holds and the audi
   assert.equal(rxOf(arrowLine, 'auditShaOrSentinel'), rxOf(isShaLine, 'isSha'),
     'the sanctioned sibling copy\'s regex source equals isSha\'s — the copy cannot drift')
   // Extract-and-eval unit cases on the validator itself (the #393 convention).
-  const auditShaOrSentinel = new Function('return ' + arrowLine.replace(/^const auditShaOrSentinel = /, ''))()
+  const auditShaOrSentinel = new Function(runForm('return ' + arrowLine.replace(/^const auditShaOrSentinel = /, '')))()
   assert.equal(auditShaOrSentinel(null), null, 'null stays null (absence-tolerant)')
   assert.equal(auditShaOrSentinel('deadbeef'), 'deadbeef', 'a real hex sha passes verbatim')
   assert.equal(auditShaOrSentinel('HEAD~2'), '(audit_sha unrecorded/malformed)', 'a ref expression collapses to the sentinel')
@@ -11311,7 +11312,7 @@ test("barrier-list / filing-floor — dispositionOf's engine default reads the d
   const sliceEnd = src.indexOf('const aceEligible')
   // aceRelPath is declared INSIDE the slice (file scope, below askContentKey) — never injected.
   const { dispositionOf } = new Function('log', 'notes', 'minorsFiled', 'asks', 'BARRIER_TOKENS',
-    src.slice(sliceStart, sliceEnd) + '\nreturn { dispositionOf }')(() => {}, [], [], [], BARRIER_TOKENS)
+    runForm(src.slice(sliceStart, sliceEnd) + '\nreturn { dispositionOf }'))(() => {}, [], [], [], BARRIER_TOKENS)
   // probe ABSENT (null) — the old severity default stands (filing-floor: a failed probe keeps the old default)
   assert.equal(dispositionOf({ severity: 'Minor', title: 'in-diff specified', file: 'a.js', suggested_fix: 'do x' }, null), 'follow-up',
     'probe absent: the engine severity default holds for a fully specified Minor (fail-open, D4)')
@@ -11736,7 +11737,7 @@ test('ask-content-key (End state 6, D8 property floor both directions): the key 
   const sliceStart = src.indexOf('const dispositionOf')
   const sliceEnd = src.indexOf('const aceEligible')
   const harness = new Function('log', 'notes', 'minorsFiled', 'asks',
-    src.slice(sliceStart, sliceEnd) + '\nreturn { parkAsk, askContentKey }')
+    runForm(src.slice(sliceStart, sliceEnd) + '\nreturn { parkAsk, askContentKey }'))
   const logs = [], asks = []
   const { parkAsk, askContentKey } = harness(m => logs.push(m), [], [], asks)
   const mint = (over = {}) => ({ severity: 'Minor', task: 't1', title: 'mirror or point', disposition: 'ask',
@@ -12014,13 +12015,13 @@ test('ace-group-path (End state 8): aceGroups and the Ace-Subset trailer key on 
   // `const aceGroups`, injecting the helper as a parameter.
   const relM = src.match(/^const aceRelPath = (p => .+)$/m)
   assert.ok(relM, 'the file-scope aceRelPath helper is locatable')
-  const aceRelPath = new Function('return ' + relM[1])()
+  const aceRelPath = new Function(runForm('return ' + relM[1]))()
   const sliceStart = src.indexOf('const aceGroups')
   // citationOf is file-scope too now (D11, #1864 hoist) — the slice ends at the next wave-loop construct.
   const sliceEnd = src.indexOf('const unsoundReason')
   assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the aceGroups→aceHalve engine slice is locatable')
   const { aceGroups, aceHalve } = new Function('aceRelPath',
-    src.slice(sliceStart, sliceEnd) + '\nreturn { aceGroups, aceHalve }')(aceRelPath)
+    runForm(src.slice(sliceStart, sliceEnd) + '\nreturn { aceGroups, aceHalve }'))(aceRelPath)
   const pair = [{ file: './skills/x.js', title: 'dot form' }, { file: 'skills/x.js', title: 'bare form' }]
   const groups = aceGroups(pair)
   assert.equal(groups.length, 1, 'the ./-form and bare-form pair groups as ONE file (never split across subsets, D3)')
@@ -12692,11 +12693,11 @@ test('#1935/#1951 — the ace gate-check licenses only a green gate whose echoed
   const pmSrc = src.match(/const pinMismatch = (\(auditSha, pin\) => \{[\s\S]*?\n\})/)
   assert.ok(isShaSrc && pmSrc, 'src must contain isSha and pinMismatch')
   // eslint-disable-next-line no-new-func
-  const isSha = new Function(`return (${isShaSrc[1]})`)()
+  const isSha = new Function(runForm(`return (${isShaSrc[1]})`))()
   // eslint-disable-next-line no-new-func
-  const pinMismatch = new Function('isSha', `return (${pmSrc[1]})`)(isSha)
+  const pinMismatch = new Function('isSha', runForm(`return (${pmSrc[1]})`))(isSha)
   // eslint-disable-next-line no-new-func
-  const licenses = new Function('g', 'aceTipSha', 'isSha', 'pinMismatch', `return (${cond[1]})`)
+  const licenses = new Function('g', 'aceTipSha', 'isSha', 'pinMismatch', runForm(`return (${cond[1]})`))
   const TIP = 'abc1234def5678abc1234def5678abc1234def56'
   const run = g => !!licenses(g, TIP, isSha, pinMismatch)
   assert.equal(run({ gate_green: true, head_sha: TIP }), true, 'green gate echoing THIS tip licenses the transfer')
@@ -12726,13 +12727,13 @@ test('#1944 / demote-census — recordAcedTouched records aced only what the ace
   const relSet = src.match(/const aceRelSet = (arr => [^\n]+)/)
   assert.ok(relPath && relSet, 'src must contain aceRelPath and aceRelSet')
   // eslint-disable-next-line no-new-func
-  const aceRelPath = new Function(`return (${relPath[1]})`)()
+  const aceRelPath = new Function(runForm(`return (${relPath[1]})`))()
   // eslint-disable-next-line no-new-func
-  const aceRelSet = new Function('aceRelPath', `return (${relSet[1]})`)(aceRelPath)
+  const aceRelSet = new Function('aceRelPath', runForm(`return (${relSet[1]})`))(aceRelPath)
   const build = () => {
     const aced = [], demoted = []
     // eslint-disable-next-line no-new-func
-    const fn = new Function('aceRelSet', 'aceRelPath', 'demote', 'routeToSweep', 'recordAced', 'citationExtra', `return (${m[0].replace(/^\s*const recordAcedTouched = /, '')})`)(
+    const fn = new Function('aceRelSet', 'aceRelPath', 'demote', 'routeToSweep', 'recordAced', 'citationExtra', runForm(`return (${m[0].replace(/^\s*const recordAcedTouched = /, '')})`))(
       aceRelSet, aceRelPath,
       (f, to, why) => { throw new Error('demote() must never be reached from recordAcedTouched — an untouched file is a failed ATTEMPT, routed to the sweep (D13): ' + why) },
       (f, why) => demoted.push({ f, to: 'sweep', why }),
@@ -12848,7 +12849,7 @@ test('#1939 — the auditLog fixRounds stamp is ACE-FREE: filed-issue provenance
   const m = src.match(/auditLog\.push\(\{ task: r\.task\.id, verdict: r\.verdict,[^\n]*fixRounds: ([^}]+) \}\)/)
   assert.ok(m, 'src must contain the task auditLog.push carrying a fixRounds stamp')
   // eslint-disable-next-line no-new-func
-  const stamp = new Function('r', `return (${m[1].trim()})`)
+  const stamp = new Function('r', runForm(`return (${m[1].trim()})`))
   assert.equal(stamp({ preAceRounds: 2, task: { fixRounds: 5 } }), 2,
     'when the wave-side ace charged rounds, the stamp reports the PRE-ace count, not the ace-inclusive one')
   assert.equal(stamp({ task: { fixRounds: 3 } }), 3,
@@ -14798,7 +14799,7 @@ test('backward-chain: corrective-round helper and round-5 gate', async () => {
   assert.ok(start >= 0 && end > start, 'spentOf / correctiveRoundOf / chainDepthOf present in the template')
   const helperSrc = src.slice(start, end)
   // eslint-disable-next-line no-new-func
-  const { correctiveRoundOf, chainDepthOf } = new Function(helperSrc + '\nreturn { correctiveRoundOf, chainDepthOf }')()
+  const { correctiveRoundOf, chainDepthOf } = new Function(runForm(helperSrc + '\nreturn { correctiveRoundOf, chainDepthOf }'))()
   assert.ok(!/(^|[^.\w])absorbRounds\b/.test(helperSrc), 'the helper never reads the bare absorbRounds const (the run budget) — only task.absorbRounds')
   // In-loop sites: round + 1 + task.absorbRounds over the engine's 0-based round.
   assert.equal(correctiveRoundOf('fix', { absorbRounds: 0 }, 0), 1, 'the first fix dispatch is corrective round 1')
@@ -14934,7 +14935,7 @@ test('backward-chain: relation-tag regex matches the examples H2 set', () => {
   const literal = src.slice(at + head.length, src.indexOf('\n', at))
   assert.ok(!/export const RELATION_TAG_RE/.test(src) && !/^export\b/m.test(src), 'RELATION_TAG_RE is never an export (the template exports only meta)')
   // eslint-disable-next-line no-new-func
-  const re = new Function('return (' + literal + ')')()
+  const re = new Function(runForm('return (' + literal + ')'))()
   assert.ok(re instanceof RegExp, 'the const is a regex literal')
   const alternation = literal.match(/relation: \(([^)]+)\)/)
   assert.ok(alternation, 'the regex enumerates the tag vocabulary as a closed alternation after `relation: `')
