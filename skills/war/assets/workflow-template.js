@@ -3394,14 +3394,15 @@ const BACKWARD_CHAIN_WORK_CLAUSE = pt`\nBACKWARD-CHAIN WORK (canonical home: `
 
 // Evidence seat skeleton (REA D3, G7/G8): the two rule lines below are byte-identical to the card's
 // `ADR 0041 rung:` and `HOLD only on` lines in agents/war-evidence-auditor.md (same commit; the End-state
-// 22 test is the arbiter). The manifest path is manifestPathOf(task) (beside MANIFEST_PATH_TEMPLATE), the
-// same resolved path the worker's reaClauseOf(task) names, one manifest per cited artifact with `<sha12>`
+// 22 test is the arbiter). The manifest path is manifestPathOf(task.manifestTask || task) (beside
+// MANIFEST_PATH_TEMPLATE), the same resolved path the worker's reaClauseOf names (a late-fix pseudo task
+// stamps manifestTask: its origin, whose manifest the late-fix worker writes), one manifest per cited artifact with `<sha12>`
 // left for the seat to cut from each cited row's declared sha256 (D23; the worker clause names the same
 // declared digest); the rows are the Lead-threaded declared artifacts (path, digest, provider); the lens
 // name is the seat's own `lens` (never a literal), so an EVIDENCE_LENS rename cannot drift it.
 const EVIDENCE_SEAT_RUNG = pt`ADR 0041 rung: for the evidence seat only, the REA-reported subject sha256 matched against the digest manifest committed at \`audit_sha\` is rung 1 of its measurement.`
 const EVIDENCE_SEAT_HOLD = pt`HOLD only on a sha256 mismatch between the REA-reported subject and that artifact's manifest committed at \`audit_sha\`, on any cited artifact. Every other REA finding is SOFT, a cited artifact with no manifest included. REA unreachable is \`cannot-confirm\`, never a hold.`
-const evidenceSeatSkeleton = (task, lens) => pt`\nEVIDENCE SEAT (lens ${lens}; standing card agents/war-evidence-auditor.md, doctrine home skills/war-strategy/references/artifact-evidence.md): measure each cited artifact through your allowlisted REA tools and compare the REA-reported subject digest with that artifact's digest manifest at the pin — one manifest per cited artifact, read with git show <audit_sha>:` + manifestPathOf(task) + pt` (<sha12>: the first 12 hex of that artifact's declared sha256), never from the working tree. ` + EVIDENCE_SEAT_RUNG + pt` ` + EVIDENCE_SEAT_HOLD + pt` Declared target artifacts — ` + artifactRows(targetArtifacts) + pt`. ` + CITE_ONLY_LINE
+const evidenceSeatSkeleton = (task, lens) => pt`\nEVIDENCE SEAT (lens ${lens}; standing card agents/war-evidence-auditor.md, doctrine home skills/war-strategy/references/artifact-evidence.md): measure each cited artifact through your allowlisted REA tools and compare the REA-reported subject digest with that artifact's digest manifest at the pin — one manifest per cited artifact, read with git show <audit_sha>:` + manifestPathOf(task.manifestTask || task) + pt` (<sha12>: the first 12 hex of that artifact's declared sha256), never from the working tree. ` + EVIDENCE_SEAT_RUNG + pt` ` + EVIDENCE_SEAT_HOLD + pt` Declared target artifacts — ` + artifactRows(targetArtifacts) + pt`. ` + CITE_ONLY_LINE
 // D12 staleness line (plan-interview D12, G8): the regular seat's ONE gated line; its source is the doctrine home.
 const REA_STALENESS_LINE = pt`\nREA STALENESS (plan-interview D12; source: skills/war-strategy/references/artifact-evidence.md): a \`rea:\` claim is digest-bound, never re-measured, never a hold — read it as settled; the evidence seat measures the artifact, not the claim's prose.`
 function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound, agentType = 'war-auditor') {
@@ -3935,11 +3936,11 @@ const citationSoundnessClause = batch => {
 // row all append it, so the ace, polish and terminal commit messages carry the durable citation stamp
 // the schema comment promises (rule 6: one home for the clause). Empty when no citation stands.
 const citationStamp = f => { const c = citationOf(f); return c ? pt` [absorb-by-citation: row "${c.row}" — ${c.rationale}]` : '' }
-// queuedFindingRow: the numbered queued-finding prompt row the phase-close sweep build and the
-// terminal-pass build both render (rule 6: one home on the second hand copy — the two byte-identical
+// queuedFindingRow: the numbered queued-finding prompt row the phase-close sweep build, the
+// terminal-pass build and the late-fix pass build render (rule 6: one home on the second hand copy — the two byte-identical
 // inline copies drifted once when citationStamp reached only the sweep copy, #3f55b04). Bytes are
 // unchanged from the inline form; callers pass it straight to `.map`.
-// pt-tagged prompt-feeding row (sweep prompt and terminal-pass prompt, top-level-catch, fail-open
+// pt-tagged prompt-feeding row (sweep, terminal-pass and late-fix prompts, top-level-catch, fail-open
 // polish): f.severity is a required finding field (bare); title/task ?? absence-tolerant;
 // file/rationale/suggested_fix already guarded/defaulted.
 const queuedFindingRow = (f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}${citationStamp(f)}`
@@ -5883,15 +5884,17 @@ const lateFixQueue = []
 const gateHardOf = v => v.verdict === 'escalate' || (v.findings || []).some(f => (f.severity === 'Critical' || f.severity === 'Major') && blankText(f.suggested_fix))
 // One defect, one late fix: the queue key is remintKey with the task blanked, because the per-task,
 // integrated-tip and end-state seats stamp different task ids on the same file + title. A duplicate
-// drops (logged), its seat corroborated onto the survivor (mergeSeat, the dropDup idiom).
+// drops (logged), its seat corroborated onto the survivor (mergeSeat, the dropDup idiom). A fileless
+// row never dedups: a bare title cannot show that two tasks' rows are one defect, so it queues alone.
 const lateKeyOf = f => remintKey({ ...f, task: '' })
-// lateSrcOf: queue row → the seat findings it stands for (its own and each dropped duplicate's).
+// lateSrcOf: queue row → the seat findings it stands for (its own and each dropped duplicate's); the
+// late-fix worker prompt renders each copy whose rationale or suggested_fix differs.
 // lateFixed: one { id, srcs } row per defect the pass fixed — the handoff endState reads it.
 const lateSrcOf = new Map()
 const lateFixed = []
 const queueLateFix = (v, task, seat) => {
   for (const f of v.findings || []) if (f.severity === 'Critical' || f.severity === 'Major') {
-    const dup = lateFixQueue.find(q => lateKeyOf(q) === lateKeyOf(f))
+    const dup = blankText(f.file) ? null : lateFixQueue.find(q => lateKeyOf(q) === lateKeyOf(f))
     if (dup) {
       log('late-fix pass: [' + f.severity + '] "' + (f.title ?? '') + '" (' + seat + ') duplicates the row ' + dup.seat + ' already queued — the second copy is dropped, its seat corroborated onto the survivor (logged, never silent).')
       mergeSeat(dup, { ...f, task, seat })
@@ -6502,7 +6505,8 @@ const tipWorktreeProvision = (provWhat, provWorktree, provBranch) =>
 // late-fix worktree at the integrated tip; each round one spawnWorker('fix') commit carries the
 // trailer `Late-Fix: <task id>:<n>` (n = the origin's fixRounds after this round's charge; no chain
 // clause), the origin roster re-audits the new sha, and on unanimous approve the refiner fast-forwards
-// the branch in _refinery after the gate. Each round's re-audit Minor/Nit rows walk the shared
+// the branch in _refinery after the gate and a check that every fast-forwarded commit carries the
+// origin's Late-Fix trailer (a bare commit returns conflict, so resume never meets it unexplained). Each round's re-audit Minor/Nit rows walk the shared
 // disposition ladder under the origin task's id (routeReauditMinors with noReentry, the merge-slot
 // precedent): an ask parks, a follow-up files, a note notes, an absorb rides the sweep, and
 // remintBlock corroborates a re-raise across rounds; routeGateAuditRows ran before this pass, so
@@ -6542,7 +6546,7 @@ const lateFixPass = async () => {
     const id = 'p' + ph.id + '-latefix-' + (++lateFixSeq)
     const lfBranch = 'war/' + (planSlug || '<plan-slug>') + '/' + id
     const lfWorktree = (worktreeRoot || '<worktreeRoot>') + '/' + (runId || '<runId>') + '/' + id
-    const lfTask = { id, issue: origin.issue, title: 'late fix for task ' + origin.id, branch: lfBranch, worktree: lfWorktree, roster: origin.roster,
+    const lfTask = { id, issue: origin.issue, title: 'late fix for task ' + origin.id, branch: lfBranch, worktree: lfWorktree, roster: origin.roster, manifestTask: origin,
       planSlice: 'fix the late defect "' + (f.title ?? '') + '" of task ' + origin.id + ': ' + (f.suggested_fix ?? '') }
     // The re-audit rows route under the origin task's real id, never the late-fix pseudo id: the
     // origin's wave record when it has one (a preMerged task has none), else a fresh record on it.
@@ -6552,6 +6556,8 @@ const lateFixPass = async () => {
     const lfNoReentry = 'born at the late-fix re-audit of ' + id + ' for task ' + origin.id + ' — past the wave side, so re-entry can never dispatch; the phase-close sweep is the vehicle'
     let stop = holding.length ? 'the phase already holds (' + holding.join(', ') + '), so the late-fix pass never ran' : null
     let lfPrior = '', fixed = false, cut = false
+    const lfCopies = []
+    for (const s of lateSrcOf.get(f) || [f]) if (!lfCopies.some(c => c.rationale === s.rationale && c.suggested_fix === s.suggested_fix)) lfCopies.push(s)
     if (!stop && origin.fixRounds < roundLimit) {
       const prov = await dispatchSite(tipWorktreeProvision('LATE-FIX worktree ' + id + ' for WAR task ' + origin.id, lfWorktree, lfBranch),
         { agentType: NS + 'war-refiner', phase: 'Refine', label: 'late-fix-worktree:' + id, dispatchKind: 'late-fix-worktree', schema: ENV_OUTCOME, ...spawn('refiner') })
@@ -6565,7 +6571,7 @@ const lateFixPass = async () => {
         + intentClause
         + pt`Gate: ${plan.gate}\n`
         + pt`Fix the defect below, keep the gate green, and make ONE commit citing its title, its message ENDING with the trailer line \`Late-Fix: ${lfOriginId}:${lfRound}\` in one final trailer block. ${TRAILER_BLOCK_RULE} Task ${lfOriginId}'s roster re-audits the new sha. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${lfBranch}.\n`
-        + queuedFindingRow(f, 0) + pt`\n`
+        + lfCopies.map((s, i) => queuedFindingRow({ ...s, task: f.task }, i)).join('\n') + pt`\n`
         + (lfPrior ? pt`PRIOR ROUND: ${lfPrior}\n` : '')
         + pt`Task ${lfOriginId}'s plan slice: ${origin.planSlice ?? '(no slice)'}\n`
         + FIX_ROUND_DOCTRINE_CLAUSE
@@ -6594,6 +6600,7 @@ const lateFixPass = async () => {
         + reattachClause(refineryLandPath)
         + pt`  (a) REBASE in the LATE-FIX worktree: git -C ${lfWorktree} rebase ${ph.integrationBranch} (normally a no-op).\n`
         + PROVISION_RERUN_CLAUSE
+        + pt`  Before step (b), run git -C ${lfWorktree} log --format='%H %(trailers:key=Late-Fix,valueonly,separator=%x2C)' ${ph.integrationBranch}..${lfBranch}; if any line carries no ${lfOriginId}:<n> value, return conflict naming that commit and do not merge.\n`
         + pt`  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge --ff-only ${lfBranch}; if it is not a fast-forward, return conflict and do not merge. Push.\n`
         + pt`Run the gate (${plan.gate}) after the rebase in the late-fix worktree, with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Skip assert-test-in-diff.sh, assert-packaging-in-diff.sh and assert-done-when.sh (task-field-gated; the late-fix pseudo-task has no task fields). On gate failure return gate_failed (no classification); on conflict return conflict; never force.`
         + pt` Before step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${lfBranch} (BARE; exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }; exit 2 → status 'error') and assert-budget-raise-cited.sh ${ph.integrationBranch} ${lfBranch} (exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }; exit 2 → status 'error'); never merge on a non-zero exit.`

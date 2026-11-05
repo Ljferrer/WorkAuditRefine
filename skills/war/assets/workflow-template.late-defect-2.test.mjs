@@ -32,6 +32,10 @@ import {
   PROBE,
   polishPromptOf,
   demotionOf,
+  EVIDENCE_LENS,
+  EVIDENCE_SEAT,
+  REA_ON,
+  REA_RESOLVED_PATH,
 } from './workflow-template.test-harness.mjs'
 
 const labelOf = c => c.opts.label || ''
@@ -67,6 +71,8 @@ test('late-defect: gate-audit f65e7e37 replay — a Major with a full suggested_
   const merge = calls.find(c => labelOf(c) === 'merge:p3-latefix-1')
   assert.ok(merge && merge.prompt.includes('git merge --ff-only war/wtprov-a/p3-latefix-1; if it is not a fast-forward, return conflict and do not merge.'), 'the refiner fast-forwards the late-fix branch in _refinery, so no merge commit hides its Late-Fix trailer')
   assert.ok(!/git merge war\/wtprov-a\/p3-latefix-1\b/.test(merge.prompt), 'no plain git merge of the late-fix branch')
+  assert.ok(merge.prompt.includes('if any line carries no t1:<n> value, return conflict naming that commit and do not merge.'), 'every fast-forwarded commit must carry the origin Late-Fix trailer, so resume never meets a bare one')
+  assert.ok(merge.prompt.indexOf('Before step (b), run git -C /abs/repo/.claude/worktrees/run-2026/p3-latefix-1 log ') < merge.prompt.indexOf('(b) MERGE in _refinery'), 'the trailer check runs before the fast-forward')
   assert.ok(merge.prompt.includes('Run the gate (make gate'), 'the gate runs before the merge')
   const order = [prov, w, reaudit, merge, calls.find(isLand)].map(c => calls.indexOf(c))
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'provision, fix, re-audit, merge, then land')
@@ -156,11 +162,78 @@ test('late-defect: gate-audit dedup — one defect raised by several gate-audit 
   assert.equal(lateWorkers(distinct.calls).length, 1, 'presence guard: the tip-only defect runs once')
   const both = await runPhase(PROVISION_ARGS({ tasks: [PROVISION_ARGS().tasks[0]] }), lateFixImpl({ gaFindings: [GA_MAJOR(), GA_MAJOR({ title: 'other defect' })] }))
   assert.deepEqual(lateWorkers(both.calls).map(labelOf), ['late-fix:t1:r1', 'late-fix:t1:r2'], 'two distinct defects run two late fixes')
+  // Identical copies render once in the late-fix worker prompt.
+  const fixOnce = lateWorkers(two.calls)[0].prompt.split(GA_MAJOR().suggested_fix).length - 1
+  assert.equal(fixOnce, 1, 'an identical dropped copy adds no second row')
   // Red proof by mutation: without the duplicate check the per-task pair runs two late fixes.
-  const check = 'const dup = lateFixQueue.find(q => lateKeyOf(q) === lateKeyOf(f))'
+  const check = 'const dup = blankText(f.file) ? null : lateFixQueue.find(q => lateKeyOf(q) === lateKeyOf(f))'
   assert.ok(src.includes(check), 'the mutation target is the live duplicate check')
   const mutated = await runPhase(PROVISION_ARGS(), lateFixImpl(), {}, src.replace(check, 'const dup = null'))
   assert.equal(lateWorkers(mutated.calls).length, 2, 'the mutant runs the same defect twice')
+})
+
+// perSeatImpl: each per-task gate-audit seat returns its own findings (`byTask[<task id>]`).
+const perSeatImpl = byTask => {
+  const base = lateFixImpl()
+  return (p, o) => {
+    const m = /^gate-audit:(t\d):execution-evidence$/.exec(labelOf({ opts: o }))
+    return m ? gaSeat(o.label, byTask[m[1]] || []) : base(p, o)
+  }
+}
+
+test('late-defect: gate-audit dedup — a fileless title from two tasks queues twice, and a same-file copy with another fix rides the one late-fix prompt', async () => {
+  // A bare title cannot show that two tasks' rows are one defect, so each queues on its own.
+  const fileless = { t1: [GA_MAJOR({ file: undefined, line: undefined, suggested_fix: 'fix A in t1' })], t2: [GA_MAJOR({ file: '', line: undefined, suggested_fix: 'fix B in t2' })] }
+  const two = await runPhase(PROVISION_ARGS(), perSeatImpl(fileless))
+  assert.deepEqual(lateWorkers(two.calls).map(labelOf), ['late-fix:t1:r1', 'late-fix:t2:r1'], 'two late fixes, one per origin task')
+  assert.ok(lateWorkers(two.calls)[0].prompt.includes('fix A in t1') && lateWorkers(two.calls)[1].prompt.includes('fix B in t2'), 'each worker sees its own fix')
+  assert.ok(!two.logs.some(l => / duplicates the row /.test(l)), 'no drop is logged')
+  // Mirror: the same file + title with different fixes is one defect, and the one prompt carries both fixes.
+  const sameFile = { t1: [GA_MAJOR({ suggested_fix: 'fix A in t1' })], t2: [GA_MAJOR({ suggested_fix: 'fix B in t2', rationale: 'another reading' })] }
+  const one = await runPhase(PROVISION_ARGS(), perSeatImpl(sameFile))
+  assert.deepEqual(lateWorkers(one.calls).map(labelOf), ['late-fix:t1:r1'], 'one late fix')
+  const wp = lateWorkers(one.calls)[0].prompt
+  assert.ok(wp.includes('fix A in t1') && wp.includes('fix B in t2') && wp.includes('another reading'), 'the dropped copy fix and rationale reach the worker')
+  // Red proofs by mutation: the fileless guard and the copy render each go red on their own.
+  const guard = 'const dup = blankText(f.file) ? null : lateFixQueue'
+  assert.ok(src.includes(guard), 'the mutation target is the live fileless guard')
+  const noGuard = await runPhase(PROVISION_ARGS(), perSeatImpl(fileless), {}, src.replace(guard, 'const dup = lateFixQueue'))
+  assert.equal(lateWorkers(noGuard.calls).length, 1, 'without the guard the fileless pair collapses')
+  const render = "lfCopies.map((s, i) => queuedFindingRow({ ...s, task: f.task }, i)).join('\\n')"
+  assert.ok(src.includes(render), 'the mutation target is the live copy render')
+  const survivorOnly = await runPhase(PROVISION_ARGS(), perSeatImpl(sameFile), {}, src.replace(render, 'queuedFindingRow(f, 0)'))
+  assert.ok(!lateWorkers(survivorOnly.calls)[0].prompt.includes('fix B in t2'), 'without the render the dropped fix never reaches the worker')
+})
+
+test('late-defect: gate-audit evidence seat — the late-fix re-audit evidence seat reads the origin manifest the late-fix worker writes', async () => {
+  const tasks = [LATE_TASK({ roster: [{ lens: 'correctness' }, EVIDENCE_SEAT] })]
+  const { calls } = await runPhase(LATE_FIX_ARGS({ tasks, run: { evidence: true }, ...REA_ON }), lateFixImpl())
+  const seat = calls.find(c => labelOf(c) === 'audit:p3-latefix-1:' + EVIDENCE_LENS)
+  assert.ok(seat, 'presence guard: the origin roster evidence seat re-audits the late fix')
+  assert.ok(seat.prompt.includes('git show <audit_sha>:' + REA_RESOLVED_PATH), 'the seat reads the origin task manifest')
+  assert.ok(lateWorkers(calls)[0].prompt.includes(REA_RESOLVED_PATH), 'the worker writes the same path')
+  assert.ok(!seat.prompt.includes('p3-latefix-1.<sha12>.manifest.json'), 'never the pseudo task path no one writes')
+  // Red proof by mutation: without the stamp the seat reads the pseudo task path.
+  const stamp = 'roster: origin.roster, manifestTask: origin,'
+  assert.ok(src.includes(stamp), 'the mutation target is the live stamp')
+  const mutated = await runPhase(LATE_FIX_ARGS({ tasks: [LATE_TASK({ roster: [{ lens: 'correctness' }, EVIDENCE_SEAT] })], run: { evidence: true }, ...REA_ON }), lateFixImpl(), {}, src.replace(stamp, 'roster: origin.roster,'))
+  assert.ok(mutated.calls.find(c => labelOf(c) === 'audit:p3-latefix-1:' + EVIDENCE_LENS).prompt.includes('p3-latefix-1.<sha12>.manifest.json'), 'the mutant names the pseudo task manifest')
+})
+
+test('late-defect: gate-audit no origin — a fixable End-state blocker on a phase where nothing merged keeps the gate-evidence hold, and no late-fix worker runs', async () => {
+  const base = lateFixImpl()
+  const impl = (p, o) => labelOf({ opts: o }) === 'work:t1' ? { task_id: 't1', status: 'blocked', blocked_reason: 'forced block for test' } : base(p, o)
+  const run = code => runPhase(PROVISION_ARGS({ phase: ES_PHASE, tasks: [LATE_TASK({ requiresTest: false })] }), impl, {}, code)
+  const { out, calls, logs } = await run()
+  assert.ok(calls.some(c => labelOf(c) === 'gate-audit:phase-3:end-state'), 'presence guard: the end-state-only seat ran')
+  assert.deepEqual(gateHolds(out).map(e => e.task), ['phase-3-end-state'], 'one gate-evidence hold on the end-state pseudo task')
+  assert.equal(lateWorkers(calls).length, 0, 'no late-fix worker runs')
+  assert.ok(logs.some(l => /has no merged origin task — it keeps the gate-evidence hold/.test(l)), 'the route is logged')
+  // Red proof by mutation: a bare continue drops the defect with no record (a PIN-1 breach).
+  const push = "      escalated.push({ task: f.task, reason: 'gate-evidence', detail: f })\n      continue\n"
+  assert.ok(src.includes(push), 'the mutation target is the live hold')
+  const mutated = await run(src.replace(push, '      continue\n'))
+  assert.deepEqual(gateHolds(mutated.out), [], 'the mutant records nothing')
 })
 
 test('late-defect: gate-audit end-state handoff — a fixed End-state blocker lands unverified with a note, never unmet', async () => {
@@ -244,6 +317,27 @@ test('late-defect: hold — on a non-final phase a spent late fix lands the phas
   assert.match(row.carriedFrom.reason, /the fix budget is spent/)
 })
 
+test('late-defect: hold — a failed late-fix worktree provision stops the defect, which holds on the final phase and carries on a non-final one', async () => {
+  const failProv = () => { const base = lateFixImpl(); return (p, o) => o.dispatchKind === 'late-fix-worktree' ? { ok: false, stderrTail: 'boom' } : base(p, o) }
+  const { out, calls } = await runPhase(LATE_FIX_ARGS(), failProv())
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'late-fix-worktree'), 'presence guard: the provision ran')
+  assert.equal(lateWorkers(calls).length, 0, 'no worker runs in an unprovisioned worktree')
+  assert.equal(out.landDecision, 'held:escalation')
+  const held = lateHolds(out)
+  assert.equal(held.length, 1)
+  assert.match(held[0].detail, /the late-fix worktree did not provision \(boom\)/)
+  assert.doesNotMatch(held[0].detail, /stays unmerged/, 'no branch was cut, so none stays unmerged')
+  const carried = await runPhase(LATE_FIX_ARGS({ finalPhase: false }), failProv())
+  assert.equal(carried.out.landDecision, 'landed')
+  assert.equal(carried.out.carriedTasks.length, 1, 'a non-final phase carries the stopped defect')
+  assert.match(carried.out.carriedTasks[0].carriedFrom.reason, /did not provision \(boom\)/)
+  // Red proof by mutation: without the stop the worker runs in the unprovisioned worktree.
+  const stop = "      if (!cut) stop = 'the late-fix worktree did not provision ("
+  assert.ok(src.includes(stop), 'the mutation target is the live stop')
+  const mutated = await runPhase(LATE_FIX_ARGS(), failProv(), {}, src.replace(stop, "      if (false) stop = '("))
+  assert.ok(lateWorkers(mutated.calls).length > 0, 'the mutant dispatches a worker into the unprovisioned worktree')
+})
+
 test('late-defect: hold — a red late-fix gate takes another round, a conflict stops the pass, and a phase another hard reason holds never runs it', async () => {
   const red = await runPhase(LATE_FIX_ARGS({ run: { roundLimit: 2 } }), lateFixImpl({ mergeStatus: 'gate_failed' }))
   assert.equal(lateWorkers(red.calls).length, 2, 'gate_failed takes the next round')
@@ -320,14 +414,37 @@ test('late-defect: charge — the barrier read spelling, run through bash on a r
     const M = g('rev-parse', 'HEAD')
     put('src-a', 'fix 1'); g('commit', '-q', '-m', 'late fix 1\n\nLate-Fix: t1:2')
     put('other', 'x'); g('commit', '-q', '-m', 'sibling late fix\n\nLate-Fix: t2:8')
-    g('checkout', '-q', '-b', 'side'); put('side', 's'); g('commit', '-q', '-m', 'side')
+    g('checkout', '-q', '-b', 'side'); put('side', 's'); g('commit', '-q', '-m', 'side\n\nLate-Fix: t1:8')
     g('checkout', '-q', 'integration/wtprov-a/phase-3'); g('merge', '-q', '--no-ff', '-m', 'Merge side\n\nLate-Fix: t1:7', 'side')
     put('src-a', 'fix 3'); g('commit', '-q', '-m', 'late fix 3\n\nLate-Fix: t1:3')
     const filled = cmd.replace("<that task's repo>", dir).replace('<M>', M)
     const r = spawnSync('bash', ['-c', filled], { encoding: 'utf8', env })
     assert.equal(r.status, 0, r.stderr)
     const values = r.stdout.split('\n').map(s => s.trim()).filter(Boolean)
-    assert.equal(highestFor(values, 't1'), 3, 'single-parent first-parent commits after M only: the pre-merge t1:9 and the merge commit t1:7 never count, another task never counts')
+    assert.equal(highestFor(values, 't1'), 3, 'single-parent first-parent commits after M only: the pre-merge t1:9, the side-branch t1:8 and the merge commit t1:7 never count, another task never counts')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('late-defect: charge — the late-fix merge trailer check spelling, run through bash on a real repo, names a fast-forwarded commit with no Late-Fix trailer', async () => {
+  const { calls } = await runPhase(LATE_FIX_ARGS(), lateFixImpl())
+  const prompt = calls.find(c => labelOf(c) === 'merge:p3-latefix-1').prompt
+  const m = prompt.match(/Before step \(b\), run (git -C \S+ log --format='[^']+' \S+); if any line carries no t1:<n> value/)
+  assert.ok(m, 'the merge prompt carries the trailer check')
+  const dir = mkdtempSync(join(tmpdir(), 'late-fix-trailer-'))
+  const env = { ...process.env, HOME: dir, GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'F', GIT_AUTHOR_EMAIL: 'f@example.invalid', GIT_COMMITTER_NAME: 'F', GIT_COMMITTER_EMAIL: 'f@example.invalid' }
+  const g = (...a) => { const r = spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8', env }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  try {
+    g('init', '-q', '-b', 'integration/wtprov-a/phase-3'); g('commit', '-q', '--allow-empty', '-m', 'base')
+    g('checkout', '-q', '-b', 'war/wtprov-a/p3-latefix-1'); g('commit', '-q', '--allow-empty', '-m', 'late fix\n\nLate-Fix: t1:1')
+    const fix = g('rev-parse', 'HEAD')
+    g('commit', '-q', '--allow-empty', '-m', 'split')
+    const bare = g('rev-parse', 'HEAD')
+    const r = spawnSync('bash', ['-c', m[1].replace('/abs/repo/.claude/worktrees/run-2026/p3-latefix-1', dir)], { encoding: 'utf8', env })
+    assert.equal(r.status, 0, r.stderr)
+    const lines = new Map(r.stdout.split('\n').filter(Boolean).map(l => [l.slice(0, 40), l.slice(41).trim()]))
+    assert.equal(lines.size, 2, 'one line per commit in integration..lfBranch')
+    assert.equal(lines.get(fix), 't1:1', 'the trailered commit shows its bare value')
+    assert.equal(lines.get(bare), '', 'the bare commit shows no value, so the refiner can name it')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
