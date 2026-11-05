@@ -2074,21 +2074,33 @@ fi
 # The `-L` rows pin token shape only: git refuses `-L <abs dir>` as a range.
 _psha="$(git -C "$MAIN" rev-parse HEAD)"
 # git_runs <command>: the command runs under real git from the payload cwd and
-# exits 0 or 1 (a grep with no match, a diff with changes). Every row in this
+# exits 0, or 1 with no `error:` or `fatal:` line on stderr (a grep with no
+# match, a diff with changes; a warning is fine). A no-index diff that cannot
+# open a path also exits 1, but it prints `error:`, so it fails here. Every row in this
 # block must name a command git accepts (operator ruling 2026-11-05), except
 # the `-L` token-shape rows. prow <id> <command> runs a start and the Bash
 # payload, and records the command for the git_runs check after the rows.
-git_runs() { ( cd "$PCWD" && eval "$1" ) >/dev/null 2>&1; case $? in 0|1) return 0 ;; esac; return 1; }
+git_runs() {
+  ( cd "$PCWD" && eval "$1" ) >/dev/null 2>"$TMP/gr.err"; _gr=$?
+  [ "$_gr" = 0 ] && return 0
+  [ "$_gr" = 1 ] && ! grep -Eq '^(error|fatal):' "$TMP/gr.err"
+}
+# git_runs itself can fail: git refuses an unknown flag (exit 128), and a
+# no-index diff of a missing path exits 1 with an error.
+if ! git_runs "git -C $MAIN log --no-such-flag" && ! git_runs "git diff --no-index $TMP/no-such-a $TMP/no-such-b"; then pass "control: git_runs fails on a refused command and on a missing path"; else fail "control: git_runs passed a command git refuses"; fi
 _pq_cmds=""
 prow() { run "$(mk_start "$AUD" "$1")"; run "$(mk_bash "$AUD" "$1" "$2")"; _pq_cmds="$_pq_cmds$2
 "; }
 # Positive control: the same $TMP value walks the task worktrees when it is a
-# path (t34's form), so the empty touched sets below are not vacuous.
+# path, so the empty touched sets below are not vacuous. From wtC, git diffs
+# the folder $TMP against an empty folder (both outside wtC, so git implies
+# --no-index) and reads every task worktree under $TMP.
+mkdir "$TMP/pp0e"
 run "$(mk_start "$AUD" pp0)"
 PCWD="$TMP/wtC"
-run "$(mk_bash "$AUD" pp0 "git diff $TMP /dev/null")"
+run "$(mk_bash "$AUD" pp0 "git diff $TMP $TMP/pp0e")"
 PCWD="$MAIN"
-if touched_has pp0 "$WTB" && ( PCWD="$TMP/wtC"; git_runs "git diff $TMP /dev/null" ); then pass "control: a \$TMP path operand walks the task worktrees here"; else fail "control: \$TMP did not walk: |$(cat "$FP_ROOT/pp0/touched" 2>/dev/null)|"; fi
+if touched_has pp0 "$WTB" && ( PCWD="$TMP/wtC"; git_runs "git diff $TMP $TMP/pp0e" ); then pass "control: a \$TMP path operand walks the task worktrees here"; else fail "control: \$TMP did not walk or git refused it: |$(cat "$FP_ROOT/pp0/touched" 2>/dev/null | tr '\n' ' ')| git: $(head -c 300 "$TMP/gr.err" 2>/dev/null | tr '\n' ' ')"; fi
 _pi=0
 for _pcmd in \
   "git -C $MAIN grep -n -F -e '$TMP' $_psha -- x" \
@@ -2226,7 +2238,7 @@ $_pq_cmds
 EOF_PQ
 if [ -z "$_pq_bad" ]; then pass "git accepts every pq row command"; else fail "git refuses pq rows: $_pq_bad"; fi
 git -C "$MAIN" worktree remove --force "$MAIN/nest/wtP"
-rm -rf "$MAIN/nest" "$MAIN/-S" "$TMP/-S"
+rm -rf "$MAIN/nest" "$MAIN/-S" "$TMP/-S" "$TMP/pp0e" "$TMP/gr.err"
 
 # --- registration + conventions ---------------------------------------------
 if jq -e . "$HJSON" >/dev/null 2>&1; then pass "hooks.json parses"; else fail "hooks.json does not parse"; fi
