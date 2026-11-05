@@ -2,11 +2,12 @@
 name: dedup-registry-must-cover-every-queue-producer-and-every-resolver-consumer
 description: "A new dedup registry must stamp every push site of its queue, and every pre-existing lookup helper must search that queue too."
 metadata: 
+  promoted: dev/2026-09-03-2026-09-03-in-band-absorb-default@phase-5
   node_type: memory
   type: project
   provenance: code-verified
   slug: dedup-registry-must-cover-every-queue-producer-and-every-resolver-consumer
-  phase: 2026-08-27-in-run-finding-resolution/phase-1
+  phase: 2026-08-27-in-run-finding-resolution/phase-1 + 2026-11-04-late-defects-fixed-in-run/phase-4 (task 4.1, recurrence)
   keywords: 
     - dedup registry
     - queuedKeys
@@ -23,6 +24,9 @@ metadata:
     - p5-polish
     - in-band-absorb-default phase-5
     - registry expansion regresses same rule
+    - lateSrcRows
+    - late-fix queue
+    - temporal dead zone
   tags: 
     - workflow-template
     - engine-reliability
@@ -30,7 +34,7 @@ metadata:
     - registry-completeness
   created: 2026-08-27
   originSessionId: c878d5da-ed5a-4614-8006-47e692e60042
-  modified: 2026-09-04T19:18:55.056Z
+  modified: 2026-11-05T16:19:05.404Z
 ---
 
 # A new dedup registry can leave BOTH a producer and a consumer uncovered
@@ -147,3 +151,26 @@ re-mint logs instead of returning silently. The durable rule stands; only the in
 historical. Locate-cue now: the `liveTaskRecords` declaration directly above `corroborateSurvivor`.
 
 > archived 2026-10-30: resolved — moved to archive
+
+## Recurrence 3 — the late-fix queue, `2026-11-04-late-defects-fixed-in-run`/phase-4 (task 4.1), caught and fixed in-run
+
+Task 4.1 added the behavior-row sort, which moves rows off `phaseCloseQueue` into `lateFixQueue` through `queueLateRow`.
+The rows kept their `queuedKeys` stamp, and `lateFixPass` empties `lateFixQueue`.
+So a late-fix re-audit re-raise hit `remintBlock`, and `corroborateSurvivor` found no survivor.
+The re-raiser's seat attribution was lost (logged "no surviving record found", never silent).
+`carryLate` had the same gap for `carriedTasks[]` rows.
+
+Two seats raised it as a Nit `note` at the first audit sha, and a fix round closed it before land.
+The fix adds two lookups to `corroborateSurvivor`:
+- `lateSrcRows`, a flat list that `queueLateRow` appends to.
+- `carriedTasks`, searched under the raiser key (`raisedTask ?? task`), because `carryLate` re-keys the row to its origin task.
+
+**New gotcha: the temporal dead zone.** `lateFixQueue` is declared far below `corroborateSurvivor`'s wave-side callers.
+A lookup that read it directly would throw a TDZ `ReferenceError` on the wave side.
+So `lateSrcRows` is declared near the top of the file, with a comment that names this reason.
+If a new container is declared late in `workflow-template.js`, give its resolver a mirror list declared early.
+
+The rule still holds: a new backing container (third time here) needs both its producer stamp and a resolver lookup.
+Tests: `late-defect: exclusion late-fix corroboration` and `late-defect: exclusion corroboration` in `skills/war/assets/workflow-template.late-defect-3.test.mjs`.
+
+Locate-cue (phase 4): verify still present before acting — `const lateSrcRows = []` with its TDZ comment, the `lateSrcRows.find` and `carriedTasks.find` arms in `corroborateSurvivor`, and `lateSrcRows.push(row)` in `queueLateRow`, found @ phase 4 landed tip 28e74359 (the run's `_refinery` worktree at that HEAD).
