@@ -176,7 +176,22 @@ test('late-defect: exclusion late-fix re-audit — a behavior row born at a late
   assert.equal((demotionOf(final.out, born.title) || {}).demoteReason, 'demote:exclusion-set — raised after the late-fix pass (late-fix re-audit, final phase)')
 })
 
-test('late-defect: exclusion held phase — a held phase skips the sort: the behavior row rides carriedPhaseClose for the relaunch and runs no late fix', async () => {
+test('late-defect: exclusion late-fix corroboration — a late-fix re-audit re-raise of the sorted row finds it on the late-fix rows, never the unresolvable log', async () => {
+  const row = T52({ file: 'src/free.js' })
+  const seatsOf = label => /^audit:p3-latefix-/.test(label) ? { seat: label, lens: 'correctness', verdict: 'approve', findings: [row], confidence: 'high' } : null
+  const run = s => runPhase(SWEEP_ARGS({ finalPhase: false }), lateWrap(p4Base({ queued: [row], seatsOf })), {}, s)
+  const unresolved = logs => logs.some(l => typeof l === 'string' && l.includes('no surviving record found for re-mint "' + row.title + '"'))
+  const { calls, logs } = await run()
+  assert.equal(lateWorkers(calls).length, 1, 'presence guard: the sorted row took the late-fix pass')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-entry REFUSED: re-audit re-mint of "' + row.title + '"')), 'presence guard: the re-raise hits remintBlock')
+  assert.ok(!unresolved(logs), 'the re-raise corroborates onto the late-fix row')
+  // Red proof by mutation: without the lateSrcRows push the re-raise falls through to the unresolvable log.
+  const push = '  lateSrcRows.push(row)\n'
+  assert.ok(src.includes(push), 'the mutation target is the live push')
+  assert.ok(unresolved((await run(src.replace(push, ''))).logs), 'the mutant loses the corroboration')
+})
+
+test('late-defect: exclusion held phase —a held phase skips the sort: the behavior row rides carriedPhaseClose for the relaunch and runs no late fix', async () => {
   const impl = lateWrap(buildSeqImpl({ 'merge:t1': [{ mode: 'merge-task', status: 'conflict' }] }, p4Base({ queued: [T52()] })))
   const { out, calls, logs } = await runPhase(SWEEP_ARGS({ sweepExclude: [PLAN2('stacked')] }), impl)
   assert.notEqual(out.landDecision, 'landed', 'presence guard: the phase holds')

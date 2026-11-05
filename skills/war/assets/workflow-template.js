@@ -1084,9 +1084,9 @@ for (const t of (tasks || [])) {
 //       malformed launch, refused at entry naming the entry index and field — never coerced, never a
 //       guessed exclusion set. An absent mode reads 'parallel' (late-defects D19, PIN-19).
 if (A.sweepExclude !== undefined && A.sweepExclude !== null) {
-  if (!Array.isArray(A.sweepExclude)) problems.push('workflow-template: args.sweepExclude must be an array of { slug, files[] } entries or absent (got ' + typeof A.sweepExclude + ') (D2)')
+  if (!Array.isArray(A.sweepExclude)) problems.push('workflow-template: args.sweepExclude must be an array of { slug, files[], mode? } entries or absent (got ' + typeof A.sweepExclude + ') (D2)')
   else A.sweepExclude.forEach((e, i) => {
-    if (!e || typeof e !== 'object' || Array.isArray(e)) { problems.push('workflow-template: args.sweepExclude[' + i + '] must be an object { slug, files[] } (D2)'); return }
+    if (!e || typeof e !== 'object' || Array.isArray(e)) { problems.push('workflow-template: args.sweepExclude[' + i + '] must be an object { slug, files[], mode? } (D2)'); return }
     if (typeof e.slug !== 'string' || !e.slug) problems.push('workflow-template: args.sweepExclude[' + i + '].slug must be a non-empty string — the demotion reason names the owning plan by it (D2)')
     if (!Array.isArray(e.files) || !e.files.every(f => typeof f === 'string')) problems.push('workflow-template: args.sweepExclude[' + i + '].files must be an array of repo-relative path strings (D2)')
     if (e.mode !== undefined && e.mode !== 'stacked' && e.mode !== 'parallel') problems.push('workflow-template: args.sweepExclude[' + i + '].mode must be stacked or parallel, D19')
@@ -2148,6 +2148,10 @@ const seatRefOf = f => f.seat != null
 // producers that live on the task record, out of the module-level containers' reach — every router
 // that owns an r registers it here so corroborateSurvivor can search those two queues too.
 const liveTaskRecords = new Set()
+// Late-fix rows: queueLateRow appends each new queue row here, so a re-raise of a row the late-fix pass
+// took (fixed, carried or held) still corroborates. Declared here, not beside lateFixQueue, to keep
+// corroborateSurvivor's wave-side callers out of the temporal dead zone.
+const lateSrcRows = []
 // Seats-list merge (snipe: correctness): the dropped copy's raiser joins the survivor's seats list —
 // shared by corroborateSurvivor, the follow-up consolidation, and the in-batch duplicate drops (the
 // never-ran drain and the absorb tail's one cross-sink lookup, which serves the ace batch, the
@@ -2273,6 +2277,8 @@ const corroborateSurvivor = f => {
     || carriedPhaseClose.find(q => remintKey(q) === k)
     // a behavior row carryLate carried (PIN-21): its key is the raiser's, kept on raisedTask
     || carriedTasks.find(q => remintKey({ ...q, task: q.raisedTask ?? q.task }) === k)
+    // a row the behavior-row sort or the gate-audit family sent to the late-fix pass (its raiser key)
+    || lateSrcRows.find(q => remintKey(q) === k)
     // last: a resolved terminal row lives on aced/carried by then (#2069)
     || terminalQueue.find(q => remintKey(q) === k)
     || [...liveTaskRecords].flatMap(r => [...(Array.isArray(r.reentryQueue) ? r.reentryQueue : []), ...(r.task && Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs : [])]).find(q => remintKey(q) === k)
@@ -5911,6 +5917,7 @@ const queueLateRow = (f, task, seat, sha, why) => {
   const row = { ...f, task, seat, sha }
   lateSrcOf.set(row, [f])
   lateFixQueue.push(row)
+  lateSrcRows.push(row)
   log('late-fix pass: queued [' + f.severity + '] "' + (f.title ?? '') + '" (' + seat + ') — ' + why + '.')
 }
 const queueLateFix = (v, task, seat) => {
@@ -6517,7 +6524,7 @@ const tipWorktreeProvision = (provWhat, provWorktree, provBranch) =>
 // the branch in _refinery after the gate and a check that every fast-forwarded commit carries the
 // origin's Late-Fix trailer (a bare commit returns conflict, so resume never meets it unexplained). Each round's re-audit Minor/Nit rows walk the shared
 // disposition ladder under the origin task's id (routeReauditMinors with noReentry, the merge-slot
-// precedent): an ask parks, a follow-up files, a note notes, an absorb rides the sweep, and
+// precedent): an ask parks, a follow-up files, a note notes, a cosmetic or classless absorb rides the sweep and a behavior absorb carries or files (PIN-21), and
 // remintBlock corroborates a re-raise across rounds; routeGateAuditRows ran before this pass, so
 // nothing else reads these rows. A red gate takes another round; any other merge outcome
 // stops. A spent budget, or a stop, leaves the branch unmerged (the pre-fix tip lands) and routes the
