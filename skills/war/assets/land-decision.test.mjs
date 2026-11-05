@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { decideLand, HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS } from './land-decision.mjs'
+import { decideLand, HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS, FINDING_CLASSES } from './land-decision.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const readAsset = (rel) => readFileSync(join(HERE, rel), 'utf8')
@@ -106,6 +106,19 @@ test('demote-census — DEMOTE_REASONS is exactly the twelve canonical prefixes,
     assert.ok(!SOFT_ENV_REASONS.includes(t), `${t} is never a SOFT_ENV_REASONS member`)
     assert.ok(!KNOWN_LAND_DECISIONS.includes(t), `${t} is never a landDecision value`)
     assert.ok(!BARRIER_TOKENS.includes(t), `${t} is never a barrier token (a seat cites barriers; the engine cites demote prefixes)`)
+  }
+})
+
+// ---- FINDING_CLASSES (late-defects-fixed-in-run D7/D24, PIN-7/PIN-24) — the seat's finding class ----
+// Two members, the behavior/cosmetic pair; a finding-level tag, disjoint from every land-path,
+// barrier and demotion enum. The inline mirror lives in workflow-template.js.
+test('late-defect: class census — FINDING_CLASSES is exactly behavior then cosmetic, disjoint from every land-path, barrier and demote enum', () => {
+  assert.deepEqual(FINDING_CLASSES, ['behavior', 'cosmetic'], 'the canonical pair, in order (D7)')
+  for (const c of FINDING_CLASSES) {
+    for (const [name, en] of [['HARD_ESCALATION_REASONS', HARD_ESCALATION_REASONS], ['SOFT_ENV_REASONS', SOFT_ENV_REASONS],
+      ['KNOWN_LAND_DECISIONS', KNOWN_LAND_DECISIONS], ['BARRIER_TOKENS', BARRIER_TOKENS], ['DEMOTE_REASONS', DEMOTE_REASONS]]) {
+      assert.ok(!en.includes(c), `${c} is never a ${name} member`)
+    }
   }
 })
 

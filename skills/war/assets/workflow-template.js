@@ -134,6 +134,11 @@ const RELEASE_SLOT_FILES = ['.claude-plugin/plugin.json', '.claude-plugin/market
 // demote() validates each follow-up reason against it and on a miss prepends 'demote:unclassified'
 // (a member) with a loud log, never a throw. The `demote-census` mirror-registry row binds this copy.
 const DEMOTE_REASONS = ['demote:absorb-regressed', 'demote:absorb-blocked', 'demote:fileless', 'demote:task-unapproved', 'demote:sweep-skipped', 'demote:sweep-discarded', 'demote:terminal-pass', 'demote:exclusion-set', 'demote:release-slot', 'demote:floor-skipped', 'demote:ask-unruled-afk', 'demote:unclassified']
+// FINDING_CLASSES mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
+// The seat's `findingClass` enum (late-defects D7/D24, PIN-7/PIN-24): the AUDIT_VERDICT finding
+// schema, normalizeFinding and the dispatched DISPOSITION RULE read this ONE array; the
+// `finding-class` mirror-registry rows bind it and the auditor card sentence to the export.
+const FINDING_CLASSES = ['behavior', 'cosmetic']
 const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'findings', 'confidence'], properties: {
   // lessonsUsed: read by hooks/record-lesson-use.sh, never by the engine (ADR 0055).
   lessonsUsed: { type: 'array' },
@@ -154,6 +159,10 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
     // is never a barrier. barrier:trade-off is meant for ask (the intake floor reroutes it to ask when
     // the ask field is present). A barrierless seat follow-up is rerouted to absorb by the same floor.
     barrier: { enum: BARRIER_TOKENS },
+    // findingClass (late-defects D7, PIN-7): OPTIONAL, the seat's behavior/cosmetic call on a
+    // Minor/Nit, fed by the inline FINDING_CLASSES mirror. intakeFloor and the gate-audit floor pass
+    // route a behavior note absorb or ask; normalizeFinding drops a non-member, so it reads classless.
+    findingClass: { enum: FINDING_CLASSES },
     autoFixable: { type: 'boolean' },
     // ask (#1550, ADR 0013 amendment 2026-08-25): the question+fork field — MANDATORY on a
     // disposition:'ask' finding (the items-level if/then below, mirroring the top-level
@@ -1635,8 +1644,23 @@ const floorSkipLogged = new Set()
 // ABSENT (diff null) ⇒ the old default stands, the task's skip is logged once, and each seat row
 // filed for that task carries floorSkipped (rendered demote:floor-skipped on the issue-body prefix
 // line) — never demote:floor-skipped from the gate-audit pass, which has its own floor.
+// Behavior arm (late-defects D2/D7, PIN-2/PIN-7), ahead of the probe check so it holds with the probe
+// absent too: a seat row classed `behavior` whose route reads `note` never stays a note. With a fix on
+// a named file it is applied ('absorb': in-diff it joins the task's ace batch; out-of-diff, or with no
+// probe, it rides phaseClose:true to the sweep); any other behavior note parks as an ask. A cosmetic
+// or classless row skips this arm and keeps today's route.
 const intakeFloor = (f, d, diff) => {
   if (f.engineFiled === true) return d
+  if (d === 'note' && f.findingClass === 'behavior') {
+    if (typeof f.file === 'string' && f.file.length > 0 && !blankText(f.suggested_fix)) {
+      const inDiff = diff instanceof Set && diff.has(aceRelPath(f.file))
+      if (!inDiff) f.phaseClose = true
+      log('intake floor REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') behavior note with a fix → absorb' + (inDiff ? ' (in-diff: joins the task\'s ace batch)' : ' + phaseClose:true (out-of-diff or no probe: rides the sweep)') + ' — a behavior note never stays a note (PIN-2).')
+      return 'absorb'
+    }
+    log('intake floor REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') behavior note with no fix on a named file → ask (parked for the Checkpoint ruling) — a behavior note never stays a note (PIN-2).')
+    return 'ask'
+  }
   if (!(diff instanceof Set)) {
     if (f.task != null && !floorSkipLogged.has(f.task)) {
       floorSkipLogged.add(f.task)
@@ -2175,9 +2199,12 @@ const seatsListOf = f => (Array.isArray(f.seats) && f.seats.length) ? f.seats : 
 // seat-supplied pair would ride fileFollowUp into the filing row's `engine demote reason:` /
 // `drain cause:` cells and handoff.followUps[].drainCause as forged engine provenance, so both are
 // stripped here beside seats/merged (normalizeSeat's empty-content note stamps its own after this call).
+// findingClass (late-defects D7, PIN-7): a value outside the inline FINDING_CLASSES mirror is dropped,
+// so the row reads classless and keeps today's route — only a member reaches the behavior arms.
 const normalizeFinding = f => {
   const { seats, merged, drainCause, demoteReason, ...rest } = f
   if (typeof rest.file === 'string') rest.file = aceRelPath(rest.file)
+  if ('findingClass' in rest && !FINDING_CLASSES.includes(rest.findingClass)) delete rest.findingClass
   return rest
 }
 const askShaped = f => (f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask'
@@ -3147,18 +3174,20 @@ const pinMismatch = (auditSha, pin) => {
 }
 
 // DISPOSITION RULE clause (in-band-absorb-default D1/D15, PIN-17) — ONE shared const, rendered from
-// the inline BARRIER_TOKENS mirror. Appended to the roster-seat auditPrompt() AND to the three
-// gate-audit-family dispatches (per-task, integrated-tip, end-state), which sit outside auditPrompt():
-// routeGateAuditRows reads `disposition`, `barrier`, and `suggested_fix` off their rows, so the seats
-// must be told the rule the floor enforces (standing card + dispatched prompt, same commit, PIN-12).
-// The card sentence in agents/war-auditor.md byte-mirrors it (the `barrier-list` registry rows).
+// the inline BARRIER_TOKENS and FINDING_CLASSES mirrors. Appended to the roster-seat auditPrompt() AND
+// to the three gate-audit-family dispatches (per-task, integrated-tip, end-state), which sit outside
+// auditPrompt(): routeGateAuditRows reads `disposition`, `barrier`, `findingClass` and `suggested_fix`
+// off their rows, so the seats must be told the rule the floor enforces (standing card + dispatched
+// prompt, same commit, PIN-12). Its tail (late-defects PIN-2/PIN-7) asks for the class and keeps a
+// slice-pinned behavior defect a finding. The card sentence in agents/war-auditor.md byte-mirrors it
+// (the `barrier-list` and `finding-class` registry rows).
 // FINDING-PATH FORM (D12, verdict-integrity D2 — #1811, #2005): the repo-relative `file` mandate.
 // ONE shared const consumed by auditPrompt AND the three gate-audit-family seat builds (the same
 // four sites DISPOSITION_RULE_CLAUSE rides), mirrored verbatim on agents/war-auditor.md (same
 // commit; the `finding-path form` registry row binds every surface). The prompt mandate is belt;
 // normalizeSeat's aceRelPath pass at intake is braces.
 const FINDING_PATH_FORM_CLAUSE = pt`\nFINDING-PATH FORM: report every finding's \`file\` as a repo-relative path — never absolute, never \`./\`-prefixed; these values feed exact-string routing compares downstream.`
-const DISPOSITION_RULE_CLAUSE = pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue; a note that names a fix in a touched file is applied), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the \`ask\` field: \`question\` naming the decision needed plus \`fork\` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). A fully specified Minor/Nit defaults to absorb when its file is in the task diff, and to absorb + phaseClose:true when its file is outside the task diff — set that disposition yourself; the engine's diff-probe floor applies the same default when you omit it. On such a finding, follow-up is legal only with a barrier cited in the structured \`barrier\` field, one of ${BARRIER_TOKENS.join(', ')} (barrier:trade-off routes ask, never follow-up); a scope argument is never a barrier, and the why-not-absorbable prose stays free text. Omitted disposition defaults: a fully specified Minor/Nit becomes absorb, otherwise Minor becomes follow-up and Nit becomes note; ask is never a default.`
+const DISPOSITION_RULE_CLAUSE = pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue; a note that names a fix in a touched file is applied), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the \`ask\` field: \`question\` naming the decision needed plus \`fork\` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). A fully specified Minor/Nit defaults to absorb when its file is in the task diff, and to absorb + phaseClose:true when its file is outside the task diff — set that disposition yourself; the engine's diff-probe floor applies the same default when you omit it. On such a finding, follow-up is legal only with a barrier cited in the structured \`barrier\` field, one of ${BARRIER_TOKENS.join(', ')} (barrier:trade-off routes ask, never follow-up); a scope argument is never a barrier, and the why-not-absorbable prose stays free text. Omitted disposition defaults: a fully specified Minor/Nit becomes absorb, otherwise Minor becomes follow-up and Nit becomes note; ask is never a default. Set \`findingClass\` on each Minor/Nit to ${FINDING_CLASSES.join(' or ')}: behavior when the change does the wrong thing when it runs or a doc teaches a wrong rule, cosmetic when only wording, layout or naming is off. A behavior defect this task adds stays a finding even when the slice pins its mechanism, and routes absorb or ask, never note: a behavior note with a fix on a named file is applied, and any other behavior note parks as an ask.`
 
 // ---- BACKWARD-CHAIN DOCTRINE (plan 2026-09-11-backward-chain-doctrine, D1–D16, PIN-1..PIN-11) ----
 // Three `## The rules` blocks ride the dispatched prompts BYTE-EQUAL from their canonical homes under
@@ -3442,16 +3471,16 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // RELEASE-BASELINE RULE (D3) — verbatim-mirrored in agents/war-auditor.md (same commit). The literal
     // ${integrationBranch}...${task.branch} is escaped so the emitted prose byte-matches the static mirror.
     + pt`\nRELEASE-BASELINE RULE: judge a release/version-bump diff against the three-dot \`\${integrationBranch}...\${task.branch}\` merge-base set (exactly what this task added), never against a main checkout; an N-step main-lag when N stacked plans have not yet landed on main is the expected stacked-release lag, not a scope error.`
-    // STALE-LOOKING-BUT-CORRECT CALIBRATION (Task 1.4, ADR 0030) — the full four rule bodies live in
-    // the "### Stale-looking-but-correct calibration" subsection of agents/war-auditor.md (the standing
-    // card); this dispatched copy is a TOKEN SKELETON (prompt-surface simplification, spec §4.3/§4.4 —
+    // STALE-LOOKING-BUT-CORRECT CALIBRATION (Task 1.4, ADR 0030) — the full rule bodies live in
+    // skills/war/references/finding-class.md (evicted from the standing card's "### Stale-looking-but-
+    // correct calibration" subsection, late-defects Task 2.1, ADR 0042); this dispatched copy is a TOKEN SKELETON (prompt-surface simplification, spec §4.3/§4.4 —
     // the D4 tiered-copies precedent): it must keep the four CALIBRATION_RULE_ANCHORS mid-sentence
     // phrases IN ORDER, one "only when the live artifact confirms" qualifier per rule window, and stay
     // on ONE line (the qualifier-window tests in workflow-template.engine-1.test.mjs slice it as a single line).
-    // Reaches the inline gate-audit seats ONLY via the standing card (THIS clause is not emitted there;
+    // Reaches the inline gate-audit seats ONLY via the standing card's finding-class.md pointer (THIS clause is not emitted there;
     // adjudicationClause below and the EVIDENCE PRECEDENCE skeleton (ADR 0041) are the clauses that
     // also ride those seats directly).
-    + pt`\nSTALE-LOOKING-BUT-CORRECT CALIBRATION: four authoring patterns read as drifted but are correct-by-construction — each demotes only on live-artifact confirmation, never blanket amnesty (full rule bodies: the "### Stale-looking-but-correct calibration" subsection of agents/war-auditor.md, the auditor standing card): (1) a plan literal diverging from the candidate on a line range, a suite count or enumeration, or a version bump is a Nit at most — never a hold — only when the live artifact confirms the candidate correct (the enclosing construct, the \`resolveGate\` self-discovery gate, or the worktree release baseline; absent that confirmation, judge the divergence on its merits). (2) a reference dangling at a task tip is a defect only if the plan lacks the produced-in-Task-N cross-link; with it present, a Nit or note — a hold only when the live artifact confirms the referent genuinely absent at the landed tip. (3) a plan file-list naming a file the diff never touches is a finding only when the live artifact confirms the guard has no other real home — grep the sibling or precedent first. (4) a grep sweep is a floor, not a ceiling — a surviving sibling is the worker's omission only when the live artifact confirms the plan's same-scope manual title and comment survey covered it; a straggler outside the swept scope is a survey-derived correction, not a regression.`
+    + pt`\nSTALE-LOOKING-BUT-CORRECT CALIBRATION: four authoring patterns read as drifted but are correct-by-construction — each demotes only on live-artifact confirmation, never blanket amnesty (full rule bodies: skills/war/references/finding-class.md, behind the "### Stale-looking-but-correct calibration" pointer on agents/war-auditor.md, the auditor standing card): (1) a plan literal diverging from the candidate on a line range, a suite count or enumeration, or a version bump is a Nit at most — never a hold — only when the live artifact confirms the candidate correct (the enclosing construct, the \`resolveGate\` self-discovery gate, or the worktree release baseline; absent that confirmation, judge the divergence on its merits). (2) a reference dangling at a task tip is a defect only if the plan lacks the produced-in-Task-N cross-link; with it present, a Nit or note — a hold only when the live artifact confirms the referent genuinely absent at the landed tip. (3) a plan file-list naming a file the diff never touches is a finding only when the live artifact confirms the guard has no other real home — grep the sibling or precedent first. (4) a grep sweep is a floor, not a ceiling — a surviving sibling is the worker's omission only when the live artifact confirms the plan's same-scope manual title and comment survey covered it; a straggler outside the swept scope is a survey-derived correction, not a regression.`
     // CASCADING-IMPACT DOC CASCADE (D8/D9/D12/D6, ADR 0025) — full check bodies live on the
     // cascading-impact lens bullet in agents/war-auditor.md (the standing card); this dispatched copy
     // is a TOKEN SKELETON (prompt-surface simplification, spec §4.3/§4.4) that must keep every
@@ -6290,8 +6319,10 @@ if (mergedTasksForGateAudit.length > 0) {
 // barrier:trade-off follow-up with the ask field ⇒ ask, without it ⇒ keep follow-up with the
 // trade-off-without-ask log; any other barrier ⇒ filed as stated; a seat note whose suggested_fix is
 // non-empty and whose file is in phase_diff_files ⇒ absorb + phaseClose:true; phase_diff_files ABSENT
-// reads as an empty Set (#2058) ⇒ the note arm keeps every note, logged, while the follow-up arm
-// still reroutes, and NO demote:floor-skipped comes from this pass; an omitted-disposition fully
+// reads as an empty Set (#2058) ⇒ the note arm keeps every cosmetic or classless note, logged, while
+// the follow-up arm still reroutes, and NO demote:floor-skipped comes from this pass; a note classed
+// `behavior` (late-defects PIN-2/PIN-7) never stays a note: with a fix on a named file ⇒ absorb +
+// phaseClose:true, phase diff or not, else ⇒ ask (parked); an omitted-disposition fully
 // specified row reads absorb + phaseClose:true
 // (dispositionOf over an EMPTY Set, #2058 — gate-audit rows never join a task ace batch, so in-diff
 // membership has no meaning here, and the end-state-only arm never stamps phase_diff_files; PIN-17
@@ -6304,7 +6335,7 @@ const routeGateAuditRows = () => {
   // finds no file in it and keeps every note, the same way the omitted-disposition default already
   // classifies over an empty Set. The absent diff is still logged (never a silent fallback).
   const phaseDiff = phaseDiffFiles === null ? new Set() : phaseDiffFiles
-  if (phaseDiffFiles === null) log('gate-audit floor pass: phase_diff_files absent — the note arm matches nothing (a gate-audit note keeps its classification); the follow-up arm still reroutes (D15).')
+  if (phaseDiffFiles === null) log('gate-audit floor pass: phase_diff_files absent — the note arm matches nothing (a cosmetic or classless gate-audit note keeps its classification); the follow-up arm still reroutes (D15).')
   for (const f of gateAuditRows.splice(0)) {
     const fix = !blankText(f.suggested_fix)
     const barrier = BARRIER_TOKENS.includes(f.barrier) ? f.barrier : null
@@ -6322,6 +6353,18 @@ const routeGateAuditRows = () => {
     } else if (f.disposition === 'note' && fix && typeof f.file === 'string' && f.file && phaseDiff.has(aceRelPath(f.file))) {
       d = 'absorb'; f.phaseClose = true
       log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') note with a specified fix rerouted → absorb + phaseClose:true (its file is in phase_diff_files, D15).')
+    }
+    // Behavior arm (late-defects D2/D7, PIN-2/PIN-7) — intakeFloor's rule on the gate-audit lane: a
+    // behavior note with a fix on a named file rides the sweep whatever phase_diff_files says; any other
+    // behavior note parks as an ask. A cosmetic or classless note keeps the arm above.
+    if (d === 'note' && f.findingClass === 'behavior') {
+      if (fix && typeof f.file === 'string' && f.file) {
+        d = 'absorb'; f.phaseClose = true
+        log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') behavior note with a fix → absorb + phaseClose:true — a behavior note never stays a note (PIN-2).')
+      } else {
+        log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') behavior note with no fix on a named file → ask (parked) — a behavior note never stays a note (PIN-2).')
+        parkAsk(f); continue
+      }
     }
     // Content-key registries (the dedup-registry law): a per-task seat re-raising a finding the
     // roster panel already aced, filed, or queued on the same task is corroboration — merged onto

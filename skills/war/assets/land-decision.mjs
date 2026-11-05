@@ -97,3 +97,12 @@ export const RELEASE_SLOT_FILES = ['.claude-plugin/plugin.json', '.claude-plugin
 // keep in sync; the D2 mirror-registry `demote-census` row in workflow-template.engine-1.test.mjs and the F07
 // drift test in war-config.test.mjs bind the inline copy to this export.
 export const DEMOTE_REASONS = ['demote:absorb-regressed', 'demote:absorb-blocked', 'demote:fileless', 'demote:task-unapproved', 'demote:sweep-skipped', 'demote:sweep-discarded', 'demote:terminal-pass', 'demote:exclusion-set', 'demote:release-slot', 'demote:floor-skipped', 'demote:ask-unruled-afk', 'demote:unclassified']
+
+// FINDING_CLASSES (late-defects-fixed-in-run D7/D24, PIN-7/PIN-24): the auditor-owned `findingClass`
+// a seat sets on each Minor and Nit, orthogonal to severity and disposition. A `behavior` note never
+// stays a note (the intake floor routes it absorb or ask); a `cosmetic` row, and a row with no class,
+// keeps today's route. Docs point at this export and never list the values. MIRRORED inline in
+// ./workflow-template.js (the Workflow sandbox can't import) — keep in sync; the D2 mirror-registry
+// `finding-class` rows in workflow-template.engine-1.test.mjs and the F07 drift test in
+// war-config.test.mjs bind the inline copy to this export.
+export const FINDING_CLASSES = ['behavior', 'cosmetic']
