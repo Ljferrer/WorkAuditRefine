@@ -2106,12 +2106,12 @@ const carryPhaseClose = (f, why) => {
 }
 // Re-audit-born finding routing (D1/D2/D3, #1731 — replaces the retired "the ladder never opens
 // for fresh findings" demotions): fresh Minor/Nits raised at ANY re-audit (the plain batch
-// re-audit, a bisection subset's re-audit, a re-entry batch's own re-audit, or the merge-slot
-// pin-transfer MISMATCH re-audit) route by disposition; a fresh ELIGIBLE absorb queues on
+// re-audit, a bisection subset's re-audit, a re-entry batch's own re-audit, the merge-slot
+// pin-transfer MISMATCH re-audit, the merge-slot floor-fix re-audit, or the late-fix pass re-audit) route by disposition; a fresh ELIGIBLE absorb queues on
 // r.reentryQueue for budget-bounded RE-ENTRY (aceReentry dispatches it while absorbRounds <
 // run.absorbRounds). phaseClose absorbs route to the sweep (a release-slot absorb demotes at birth),
-// and so does EVERY absorb under the noReentry opt (the merge-slot caller, whose re-entry queue has
-// no drain left) or with run.ace off (D14). BOTH the follow-up and absorb arms consult the content-key registries
+// and so does EVERY absorb under the noReentry opt (the merge-slot pin-transfer and floor-fix callers and
+// the late-fix pass, none of which has a re-entry drain left) or with run.ace off (D14). BOTH the follow-up and absorb arms consult the content-key registries
 // (#1810 + the oscillation bound, A1): a re-mint of an already-aced finding is corroboration,
 // never a second (filed) record and never a re-queue; a re-mint of a FORWARD-REVERTED finding
 // never re-enters (its filed follow-up record in minorsFiled stands, whether the engine demoted it
@@ -2282,7 +2282,7 @@ const routeReauditMinors = (r, seats, opts) => {
   // noReentry (#1931): the caller is PAST the wave side, so r.reentryQueue has no drain left —
   // aceReentry is wave-side only. The absorb-eligible arm then routes to the phase-close sweep
   // instead of the re-entry queue, with the caller's reason. Every other arm is unchanged, so a
-  // merge-slot re-audit's findings walk the SAME disposition ladder every wave-side site uses.
+  // merge-slot or late-fix re-audit's findings walk the SAME disposition ladder every wave-side site uses.
   const noReentry = (opts && opts.noReentry) || null
   r.reentryQueue = r.reentryQueue || []
   const diff = diffFilesOf(r.task)

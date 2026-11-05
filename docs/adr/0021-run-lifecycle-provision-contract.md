@@ -38,6 +38,13 @@ their results (both were discarded). Rejected: rerouting provisioning to another
 ADR 0001 and the refiner-owned-worktree doctrine); a bare "you may also receive…" note that leaves the
 return shape unspecified — the half that caused the refusal.
 
+**Amendment (2026-11-05, plan `2026-11-04-late-defects-fixed-in-run` Task 3.1):** append-only. The
+mode gains a fourth dispatch flavor, the late-fix worktree (`dispatchKind: late-fix-worktree`,
+labelled `late-fix-worktree:p<phase>-latefix-<k>`). It runs the polish worktree's steps for one late
+defect and also returns the **env-outcome** shape. If it fails, that late defect stops, and the defect
+then carries to the next phase or holds the phase
+([late-fix-pass.md](../../skills/war/references/late-fix-pass.md)).
+
 ### (C) `env-blocked` is evidence-gated; everything else is a workflow error
 
 In `provisionStep`, an `ok:false` provision result classifies as the soft `env-blocked` escalation
