@@ -7998,6 +7998,28 @@ test('#2519 — ace tier: the terminal pass dispatches on agents.worker.ace when
     'ace absent ⇒ the terminal worker carries agents.worker.fix (unchanged from before the split)')
 })
 
+// Operator ruling 2026-11-05: ace charges 5 and 6 run on agents.worker.fix, the stronger tier; charges 1-4 stay on agents.worker.ace.
+test('ace charges 5 and 6 dispatch on agents.worker.fix; charge 4 stays on agents.worker.ace', async () => {
+  const aceAt = async (seeded) => {
+    const { calls } = await runPhase(ACE_ARGS({ agents: ACE_SPLIT }), withBarrier({ ok: true, absorbCharges: { t1: seeded } }, aceBase()))
+    const c = calls.find(x => (x.opts.label || '') === 'ace:polish:t1:a' + (seeded + 1))
+    assert.ok(c, 'charge ' + (seeded + 1) + ' dispatched (presence guard)')
+    return { model: c.opts.model, effort: c.opts.effort }
+  }
+  assert.deepEqual(await aceAt(3), { model: 'sonnet', effort: 'medium' }, 'charge 4 carries agents.worker.ace')
+  assert.deepEqual(await aceAt(4), { model: 'opus', effort: 'high' }, 'charge 5 carries agents.worker.fix')
+  assert.deepEqual(await aceAt(5), { model: 'opus', effort: 'high' }, 'charge 6 carries agents.worker.fix')
+})
+
+test('ace charge tiers: the subset, re-entry and polish ace workers all spawn through aceSpawn, and only the terminal pass keeps spawnWorker(\'ace\')', () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'workflow-template.js'), 'utf8')
+  const sites = [...src.matchAll(/label: aceLabel\(r, '(\w+)'\), schema: WORKER_RESULT, \.\.\.aceSpawn\(r\) \}\)/g)].map(m => m[1])
+  assert.deepEqual(sites.sort(), ['polish', 'reentry', 'subset'], 'exactly three ace sites spawn through aceSpawn')
+  const direct = src.split('\n').filter(l => l.includes("...spawnWorker('ace')"))
+  assert.equal(direct.length, 1, 'one direct ace-tier spawn is left')
+  assert.match(direct[0], /label: `terminal:phase-/, 'and it is the terminal pass')
+})
+
 // #2519 — a roster seat's own model/effort overrides the auditor tier for that seat only.
 test('#2519 — per-seat model: a seat with model/effort dispatches on it; a seat without one keeps the auditor tier', async () => {
   const roster = [{ lens: 'correctness', model: 'sonnet', effort: 'high' }, { lens: 'security' }, { lens: 'plan-faithfulness', effort: 'default' }]
@@ -9081,14 +9103,37 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // per-surface revert reds this row. Byte-equality of the rule itself is pinned by that fixture.
     { name: 'backgrounded gate — merge-task (D7, PIN-11, #2086): refiner card step 10 ↔ merge-task + environment-proceed dispatch prompts',
       surfaces: [['war-refiner.md', refinerMd], ['merge-task dispatch prompt', mergeP], ['environment-proceed re-merge prompt', epMergeP]],
-      anchors: [/run_in_background/, /gate_segment:\s*['"]incomplete['"]/, /FIRST line is `tip_sha:` of the sha being gated/, /LAST line is `exit_code:`/, /rerun into a FRESH unique artifact/, /never truncate or reuse a file/] },
+      anchors: [/run_in_background/, /gate_segment:\s*['"]incomplete['"]/, /FIRST line is `tip_sha:` of the sha being gated/, /LAST line is `exit_code:`/, /rerun into a FRESH unique artifact/, /never truncate or reuse a file/,
+                /can outrun one tool call \(600000 ms\)/, /poll that log with foreground calls in this same turn/, /your turn end kills the job/, /only if the job dies before it writes `?exit_code:/, /stops at 120000 ms unless you pass `?timeout/] },
+    // Same-turn poll, merge-task (#2617): the card-wide row above also matches the land bullet, so this
+    // row reads merge-task step 10 alone.
+    { name: 'same-turn poll — merge-task (#2617): refiner card step 10 ↔ merge-task dispatch prompt',
+      surfaces: [['war-refiner.md step 10', (refinerMd.split('10. **Backgrounded gate (tool-timeout survival):**')[1] || '').split('\n')[0]], ['merge-task dispatch prompt', mergeP]],
+      anchors: [/stops at 120000 ms unless you pass `?timeout/, /can outrun one tool call \(600000 ms\)/, /poll that log with foreground calls in this same turn/, /your turn end kills the job/, /only if the job dies before it writes `?exit_code:/] },
     // Backgrounded gate, land (D7, PIN-11): the card's segmented-land bullet and every land build (the
     // initial land — captured here — and the environment-proceed re-land; the baseline-proceed re-land
     // and the continuation ride the same segmentedLandClause, walked by the fixture above) carry
     // run_in_background, the land_segment return shape, the phase-keyed land gate log, and the rule.
     { name: 'backgrounded gate — land (D7, PIN-11, #2086): refiner card segmented-land bullet ↔ land + environment-proceed re-land prompts',
       surfaces: [['war-refiner.md', refinerMd], ['land dispatch prompt', landP], ['environment-proceed re-land prompt', epLandP]],
-      anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /git-excluded/, /rerun into a FRESH unique artifact/] },
+      anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /git-excluded/, /rerun into a FRESH unique artifact/,
+                /can outrun one tool call \(600000 ms\)/, /poll that log with foreground calls in this same turn/, /your turn end kills the job/, /only if the job dies before it writes `?exit_code:/] },
+    // Same-turn poll, land (#2617): the card-wide land row above matches step 10 too, so this row reads
+    // the segmented-land bullet alone against the land dispatch prompt.
+    { name: 'same-turn poll — land (#2617): refiner card segmented-land bullet ↔ land dispatch prompt',
+      surfaces: [['war-refiner.md segmented-land bullet', (refinerMd.split('- **Segmented land (tool-timeout survival):**')[1] || '').split('\n')[0]], ['land dispatch prompt', landP]],
+      anchors: [/can outrun one tool call \(600000 ms\)/, /poll that log with foreground calls in this same turn/, /your turn end kills the job/, /only if the job dies before it writes `?exit_code:/] },
+    // Shared-stash ban + dirty-tree arm on the pin-transfer probe (#2617): the refiner card's pin-transfer
+    // section and the dispatched probe prompt both forbid git stash and return status error naming the
+    // dirty paths before any rebase. `git stash` counted 0 on both surfaces at the task base.
+    { name: 'pin-transfer stash ban (#2617): refiner card pin-transfer section ↔ the dispatched pin-transfer prompt',
+      surfaces: [['war-refiner.md pin-transfer section', (refinerMd.split('## pin-transfer probe')[1] || '').split('\n1. ')[0]], ['pin-transfer dispatch prompt', pinTransferP]],
+      anchors: [/Never run `?git stash`?: every worktree and session shares the stash/, /status --porcelain --untracked-files=no`? prints anything, return/, /dirty task worktree: <those paths>/, /[Bb]efore any forward-revert or rebase/, /['"]error['"]`?,? ?(with `)?detail:? ?['"]dirty task worktree: </] },
+    // Merge-task stash ban (#2617): the refiner card's merge-task step 1 and every merge-task rebase site
+    // carry the dirty-tree stop. `git stash` counted 0 on both surfaces at the base faf52933.
+    { name: 'merge-task stash ban (#2617): refiner card merge-task step 1 ↔ merge-task dispatch prompt',
+      surfaces: [['war-refiner.md merge-task step 1', refinerMd.split('\n').find(l => l.includes('Rebase the task branch onto the current integration tip')) || ''], ['merge-task dispatch prompt', mergeP], ['environment-proceed re-merge prompt', epMergeP]],
+      anchors: [/(Never run|No) `?git stash`?/, /['"]error['"]`?,? ?(with `)?detail:? ?['"]dirty task worktree: </] },
     // Gate-log stamp (D8, PIN-12, #2094): the card's merge-task step 9 and every gateCaptureClause
     // carrier (the captureUses census is the arbiter of that site list) plus the land clause stamp
     // tip_sha: first and exit_code: last on the gate log, and the evidence dispatch's intraDep branch
@@ -9142,7 +9187,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/The boundary is two-sided/, /decision-forked blocking finding/, /mechanical blocking finding while fix budget remains ⇒ `request_changes`, never `escalate`/, /reads `escalate_reason` into the phase's escalation record/] },
   ]
-  assert.ok(REGISTRY.length >= 36, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt())')
+  assert.ok(REGISTRY.length >= 40, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) ')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -12211,6 +12256,8 @@ test('#2326 — the ace gate prompt carries the capture, the background rule and
   assert.ok(one.prompt.includes(evalPt('GATE_LOG_STAMP')), 'the first dispatch stamps its log')
   assert.ok(one.prompt.includes("gate_green: false, gate_segment: 'incomplete'"), 'the first dispatch names the return pair')
   assert.match(one.prompt, /run_in_background/, 'the first dispatch names the background rule')
+  assert.match(one.prompt, /poll that log with foreground calls in this same turn/, 'the ace gate check polls in the same turn (#2617)')
+  assert.match(one.prompt, /only if the job dies before it writes exit_code:/, 'the ace gate check returns the pair only if the job dies (#2617)')
   assert.match(one.prompt, /READ-ONLY[^\n]*git-excluded gate log/, 'the read-only opener admits the gate log, so a literal seat can follow the capture clause')
   assert.ok(two.prompt.startsWith('SEGMENTED-GATE CONTINUATION (ace-gate:t1:a1)'), 'the continuation leads with its header')
   assert.ok(two.prompt.includes('Prior gate_log_path: ' + path + '.'), 'the continuation carries the admitted log path')
@@ -15322,7 +15369,7 @@ test('segmented-gate: partial gate log reruns the gate — both arms (last line 
   // Both arms of the two-sided read, and the instruction each arm resolves to.
   assert.match(rule, /LAST line is `exit_code:`/, 'arm 1: the last line must be the exit_code: stamp')
   assert.match(rule, /FIRST line is `tip_sha:` of the sha being gated/, 'arm 2: the first line must be tip_sha: of the sha being gated (a complete log from an earlier tip never passes)')
-  assert.match(rule, /If absent, unstamped, partial or stale, wait for the known writer or rerun into a FRESH unique artifact/, 'partial/stale evidence needs completion or a fresh run')
+  assert.match(rule, /If absent, unstamped, partial or stale, rerun into a FRESH unique artifact/, 'partial/stale evidence needs a fresh run, because the turn end killed its writer (#2617)')
   assert.match(rule, /never truncate or reuse a file a prior background job may still write/, 'old writers cannot corrupt the new artifact')
   assert.match(rule, /fresh logical dispatch always allocates a fresh artifact, even at the same tip/, 'same-tip retries are distinct')
   // Standing card: the same sentence, byte-equal (the refiner executes the read; the engine never opens the log).
@@ -18710,4 +18757,159 @@ test('every agent card the engine dispatches is registered in plugin.json (an un
   const dispatched = [...new Set([...readFileSync('skills/war/assets/workflow-template.js', 'utf8').matchAll(/NS \+ '(war-[a-z-]+)'/g)].map(m => m[1]))]
   assert.ok(dispatched.includes('war-helper') && dispatched.includes('war-worker'), 'the scan sees the literals')
   for (const card of dispatched) assert.ok(manifest.agents.includes(`./agents/${card}.md`), `${card} is dispatched but plugin.json does not list it`)
+})
+
+// #2617: a workflow agent exits when its turn ends, so the worker card carries the one-turn rule.
+// Each anchor counted 0 on the card at the base faf52933, so dropping any rule reds this row.
+// Single layer by choice: the rule rides the worker card only, which loads on every war-worker spawn,
+// and the staged template has no byte room for a dispatched copy.
+test('#2617 one-turn rule: the worker card forbids ending a turn with work left, waiting, and git stash', () => {
+  const card = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../../agents/war-worker.md'), 'utf8')
+  const sec = (card.split('## One turn, no waiting')[1] || '').split('\n## ')[0]
+  assert.ok(sec, 'the card has a One turn, no waiting section')
+  for (const re of [/When your turn ends, you exit, and any background job dies with you/,
+    /Never end your turn with work left: commit and push, or return `blocked`/,
+    /Before you return, leave no uncommitted tracked edits: commit them or restore them/,
+    /One tool call runs at most 600000 ms, and stops at 120000 ms unless you set `timeout`/,
+    /start it with `run_in_background`, then poll its output with foreground calls in this same turn until it exits/,
+    /Never end your turn to wait for a notification or a monitor/,
+    /Never run `git stash`: every worktree and session shares the stash/,
+    /Fix a red you caused before you probe one you did not/]) assert.match(sec, re)
+})
+
+// #2617: no carrier may tell the refiner to return early because the gate outruns a tool timeout:
+// the turn end kills the backgrounded job, so the land would rerun from scratch every segment.
+test('#2617 no early-return example: the template never cites a tool-timeout overrun as a reason to return', () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'workflow-template.js'), 'utf8')
+  for (const [name, text] of [['workflow-template.js', src], ['war-refiner.md', refinerMd]]) {
+    assert.doesNotMatch(text, /outr[au]n(s)? (your |the )?tool timeout/, name + ' cites no tool-timeout overrun')
+    assert.doesNotMatch(text, /cannot finish inside this turn/, name + ' keeps no retired turn-bound wording')
+    assert.doesNotMatch(text, /outruns? the turn/, name + ' keeps no outruns-the-turn wording')
+  }
+})
+
+test('#2617 dirty task worktree: a pin-transfer probe that reports one holds the task before any merge-task dispatch, and keeps the paths', async () => {
+  const probe = (prompt, opts) => (opts.label || '') === 'pin-transfer:t1'
+    ? { status: 'error', detail: 'dirty task worktree: src/a.js' }
+    : NEW_SEAT_DEFAULTS['pin-transfer']
+  const { out, calls } = await runPhase(twoIndependentTasks(), defaultImpl, { 'pin-transfer': probe })
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
+  assert.ok(esc, 'the dirty task escalates (presence guard)')
+  assert.equal(esc.reason, 'escalate')
+  assert.match(esc.detail.note, /task worktree dirty at pin-transfer: dirty task worktree: src\/a\.js/, 'the hold keeps the dirty paths')
+  assert.ok(!calls.some(c => c.prompt.includes('Merge WAR task t1 (branch')), 'no merge-task runs on the dirty tree')
+  assert.ok(!out.landed.includes('t1'), 'the dirty task never merges')
+  assert.ok(out.landed.includes('t2'), 'the clean sibling still merges, so the hold is task-scoped')
+  assert.ok((out.auditLog || []).some(a => a.task === 't1' && a.verdict === 'pin-transfer:dirty-worktree'), 'the hold writes its auditLog verdict')
+  const p1 = calls.find(c => (c.opts.label || '') === 'pin-transfer:t1')
+  const pinStop = p1 ? p1.prompt.indexOf('dirty task worktree: <those paths>') : -1
+  assert.ok(pinStop >= 0 && pinStop < p1.prompt.indexOf('(1) BEFORE the rebase'), 'the probe stop comes before any forward-revert or rebase step')
+})
+
+test('#2617 dirty task worktree at merge-task: the stop rides every segmented merge, and its error holds the task (escalate) while the sibling merges', async () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'workflow-template.js'), 'utf8')
+  assert.match(src, /reconciledMerge\(DIRTY_TASK_STOP \+ prompt \+ segmentedGateClause/, 'every segmentedMerge site opens with the dirty-tree stop')
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:t1' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : defaultImpl(prompt, opts)
+  const { out, calls } = await runPhase(twoIndependentTasks(), impl)
+  const m1 = calls.find(c => (c.opts.label || '') === 'merge:t1')
+  const stopAt = m1 ? m1.prompt.indexOf('dirty task worktree: <those paths>') : -1
+  assert.ok(stopAt >= 0 && stopAt < m1.prompt.indexOf('(a) REBASE in the TASK worktree'), 'the stop comes before the rebase step')
+  assert.ok(m1 && m1.opts.schema && m1.opts.schema.properties.detail, 'MERGE_RESULT declares detail, so structured output keeps the stop the hold routes on')
+  assert.ok((out.auditLog || []).some(a => a.site === 'merge:t1' && a.verdict === 'git-confirmed:error'), 'Git confirms the reported stop against unchanged refs')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'a dirty stop skips Git reconciliation, which could clean the tree and merge')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
+  assert.ok(esc, 'the dirty task escalates (presence guard)')
+  assert.equal(esc.reason, 'escalate', 'a dirty merge-task holds on the hard reason, never a soft error')
+  assert.match(String(esc.detail && esc.detail.detail), /^dirty task worktree: src\/a\.js/, 'the hold keeps the paths')
+  assert.ok(!out.landed.includes('t1'), 'the dirty task never merges')
+  assert.ok(out.landed.includes('t2'), 'the clean sibling still merges')
+})
+
+test('#2617 dirty task worktree at merge-task, unconfirmed by Git: the stop keeps its paths and holds, with no reconciliation', async () => {
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:t1' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : defaultImpl(prompt, opts)
+  const { out, calls } = await runPhase(twoIndependentTasks(), impl, {
+    'merge-confirm': (p, o, w) => o.label === 'git-confirm:merge:t1' ? { remote_sha: '' } : NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w),
+  })
+  assert.ok((out.auditLog || []).some(a => a.site === 'merge:t1' && a.verdict === 'git-confirmation:unresolved'), 'Git did not confirm the stop')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'the unconfirmed dirty stop still skips reconciliation')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
+  assert.ok(esc, 'the dirty task escalates (presence guard)')
+  assert.equal(esc.reason, 'escalate', 'it holds on the hard reason')
+  assert.equal(String(esc.detail && esc.detail.detail), 'dirty task worktree: src/a.js; Git did not confirm', 'the hold keeps the paths and names the missing proof')
+  assert.ok(!out.landed.includes('t1') && out.landed.includes('t2'), 'the dirty task never merges, and the clean sibling does')
+})
+
+test('#2617 dirty stop at the polish sweep merge, unconfirmed by Git: it reconciles before its fail-open arm', async () => {
+  const base = sweepBase([queuedAbsorb()])
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:p3-polish' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : base(prompt, opts)
+  const { out, calls } = await runPhase(SWEEP_ARGS(), impl, {
+    'merge-confirm': (p, o, w) => o.label === 'git-confirm:merge:p3-polish' ? { remote_sha: '' } : NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w),
+  })
+  assert.ok(calls.some(c => (c.opts.label || '') === 'merge:p3-polish'), 'the polish merge runs (presence guard)')
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile' && (c.opts.label || '').startsWith('git-reconcile:merge:p3-polish')), 'an unconfirmed sweep stop reconciles Git before the discard')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
+  assert.equal(out.handoff.polish, 'discarded', 'after reconciliation the sweep takes its fail-open discard')
+})
+
+test('#2617 dirty stop at the terminal sweep merge, unconfirmed by Git: it reconciles, never holds, and the commit stays unmerged', async () => {
+  const base = terminalImpl()
+  const { out, calls } = await runPhase(SWEEP_ARGS(), (p, o) => (o.label || '') === 'merge:p3-terminal' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : base(p, o), {
+    'merge-confirm': (p, o, w) => o.label === 'git-confirm:merge:p3-terminal' ? { remote_sha: '' } : NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w),
+  })
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile' && (c.opts.label || '').startsWith('git-reconcile:merge:p3-terminal')), 'an unconfirmed terminal stop reconciles Git first')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
+  assert.ok(!(out.aced || []).some(a => a.sha === '7e4a1a10'), 'the terminal commit stays unmerged, fail-open')
+})
+
+test('#2617 dirty stop at the polish sweep merge, confirmed by Git: no reconciliation, no hold, and the sweep discards', async () => {
+  const base = sweepBase([queuedAbsorb()])
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:p3-polish' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : base(prompt, opts)
+  const { out, calls } = await runPhase(SWEEP_ARGS(), impl)
+  const pm = calls.find(c => (c.opts.label || '') === 'merge:p3-polish')
+  assert.ok(pm && pm.prompt.includes('git -C <rebase worktree> status'), 'the polish merge runs and its stop names the worktree it rebases in')
+  assert.ok((out.auditLog || []).some(a => a.site === 'merge:p3-polish' && a.verdict === 'git-confirmed:error'), 'Git confirms the stop')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'a confirmed sweep stop skips reconciliation')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
+  assert.equal(out.handoff.polish, 'discarded', 'the sweep takes its fail-open discard')
+})
+
+const DIRTY_MR = { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' }
+for (const [name, site, args, impl] of [
+  ['floor-retry', 'merge:t1:floor-retry:r1', () => PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 3 } }), floorRetryImpl],
+  ['environment-proceed', 'merge:t1:environment-proceed', () => CLS_ARGS(), () => clsImpl({ mergeResult: envMergeResult })],
+  ['baseline-proceed', 'merge:t1:baseline-proceed', () => CLS_ARGS(), () => clsImpl({ mergeResult: baselineMergeResult })],
+]) test('#2617 dirty task worktree at the ' + name + ' re-merge: routedMr holds it on escalate, with no reconciliation', async () => {
+  const base = impl()
+  const { out, calls } = await runPhase(args(), (p, o) => (o.label || '') === site ? DIRTY_MR : base(p, o))
+  assert.ok(calls.some(c => (c.opts.label || '') === site), 'the ' + name + ' re-merge runs (presence guard)')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'the dirty stop skips reconciliation')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.equal(esc && esc.reason, 'escalate', 'the stop holds on the hard reason, never a soft error')
+  assert.ok(!out.landed.includes('t1'), 'the dirty task never merges')
+})
+
+test('#2617 dirty stop at the terminal sweep merge, confirmed by Git: no reconciliation, no hold, and the commit stays unmerged', async () => {
+  const base = terminalImpl()
+  const { out, calls } = await runPhase(SWEEP_ARGS(), (p, o) => (o.label || '') === 'merge:p3-terminal' ? DIRTY_MR : base(p, o))
+  assert.ok(calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'the terminal merge runs (presence guard)')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'a confirmed sweep stop skips reconciliation')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
+  assert.ok(!(out.aced || []).some(a => a.sha === '7e4a1a10'), 'the terminal commit stays unmerged, fail-open')
+})
+
+test('#2617 the dirty stop comes before the --ace forward-revert in the pin-transfer probe and the merge prompt', async () => {
+  const fa = nit({ title: 'fa nit', file: 'skills/fa.js' }), fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove(), bRegress('zz.js')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],
+    'ace:subset:t1:a3': [bWorker('5ab00002')],
+  }, aceBase([fa, fb]))
+  const { calls } = await runPhase(ACE_ARGS(), impl)
+  for (const c of [calls.find(c => c.opts.dispatchKind === 'pin-transfer'), calls.find(isMergeTask)]) {
+    const rev = c ? c.prompt.indexOf('FORWARD-REVERT (--ace)') : -1
+    const stop = c ? c.prompt.indexOf('dirty task worktree: <those paths>') : -1
+    assert.ok(rev >= 0, (c && c.opts.label) + ' carries the forward-revert clause (presence guard)')
+    assert.ok(stop >= 0 && stop < rev, (c && c.opts.label) + ' puts the dirty stop before the forward-revert')
+  }
 })

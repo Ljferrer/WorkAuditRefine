@@ -524,8 +524,9 @@ can't own); a manual `git push` / `--force-with-lease` land that bypasses the gu
 when a land dispatch returns null or an unrecognized status, read skills/war/references/glossary-cold.md
 
 **Segmented land / segmented gate**:
-The tool-timeout survival shape for the refiner dispatches whose gate can outrun a turn. A land
-dispatch forced to return mid-run reports the in-band `land_segment` marker on its error status, and
+The tool-timeout survival shape for the refiner dispatches whose gate can outrun one tool call. The
+refiner backgrounds the gate and polls it in the same turn (#2617). A land dispatch whose gate job
+dies before `exit_code:` reports the in-band `land_segment` marker on its error status, and
 a merge-task reports `gate_segment` the same way — in-band fields riding the existing status, never
 a new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper each —
 `segmentedLand` on all three land sites (initial, environment-proceed, baseline-proceed) and
@@ -694,7 +695,7 @@ The two lines every captured gate log carries — `tip_sha:` first and `exit_cod
 `GATE_LOG_STAMP` and mirrored on the refiner card. Every logical gate allocates a fresh directory
 with `mktemp -d` under `_refinery/.war/`; this includes baseline retries, land and integrated-tip
 runs. Only a SEGMENTED continuation may reuse the returned absolute `gate_log_path`, after checking
-both stamps. A partial/stale log requires waiting for the known writer or a fresh artifact; never
+both stamps. A partial/stale log requires a fresh artifact, never a wait for its writer (#2617); never
 truncate a file an earlier background writer might still write. Auditors read only explicitly
 returned paths. Missing paths render `(gate_log_path unthreaded — no captured artifact)` and mean
 SOFT cannot-confirm; a conventional filename is never guessed, even at the same tip.
@@ -782,7 +783,8 @@ The optional distinct model/effort (`agents.worker.fix`) applied to fix-round an
 worker spawns, and to `--ace` and the terminal pass unless `agents.worker.ace` is set (#2519) —
 either direction, a stronger fixer than the first pass or a cheaper one (per-preset values: the
 `/war-room` preset bullets). Absent = fix work inherits the base worker config; an absent ace tier
-inherits the fix tier.
+inherits the fix tier. Ace charges 5 and 6 always run on the fix tier, so its model must rank at
+least the ace model (2026-11-05).
 _Avoid_: fix model (it's an optional override, not a standing role).
 
 **Helper**:

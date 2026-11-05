@@ -369,6 +369,21 @@ test('agents.worker.ace (#2519): no DEFAULTS value, absent from every preset, va
   assert.ok(!workerTierMatrix().some(r => r.tier === 'ace'), 'no preset emits an ace row')
 })
 
+test('agents.worker.fix must rank at least agents.worker.ace, because ace charges 5 and 6 run on the fix tier (operator ruling 2026-11-05)', () => {
+  const v = (fix, ace) => validate({ agents: { worker: { fix: { model: fix, effort: 'default' }, ace: { model: ace, effort: 'default' } } } })
+  assert.equal(v('fable', 'opus').valid, true, 'one rank up, the recommended split')
+  assert.equal(v('opus', 'opus').valid, true, 'an equal rank is allowed')
+  const low = v('sonnet', 'opus')
+  assert.equal(low.valid, false, 'a fix model below the ace model is refused')
+  assert.match(low.errors.join('\n'), /agents\.worker\.fix\.model must rank at least agents\.worker\.ace\.model/)
+  assert.match(low.errors.join('\n'), /recommended: fix one rank above ace/, 'the refusal names the recommended split')
+  assert.equal(validate({ agents: { worker: { fix: { model: 'haiku', effort: 'default' } } } }).valid, true, 'no ace tier, no rank check')
+  // An ace-only config meets the defaulted fix tier (opus), because validate checks the filled config.
+  assert.equal(validate({ agents: { worker: { ace: { model: 'fable', effort: 'default' } } } }).valid, false, 'an ace tier above the defaulted fix tier is refused')
+  assert.equal(validate({ agents: { worker: { ace: { model: 'opus', effort: 'default' } } } }).valid, true, 'an ace tier equal to the defaulted fix tier passes')
+  for (const preset of Object.keys(PRESETS)) assert.equal(validate(presetConfig(preset)).valid, true, preset + ' stays valid')
+})
+
 test('audit.roster seat model/effort (#2519): accepted when valid, refused when outside MODELS/EFFORTS', () => {
   assert.equal(validate({ audit: { roster: [{ lens: 'correctness', model: 'sonnet', effort: 'high' }, { lens: 'security' }] } }).valid, true)
   const bad = validate({ audit: { roster: [{ lens: 'correctness', model: 'gpt', effort: 'turbo' }] } })

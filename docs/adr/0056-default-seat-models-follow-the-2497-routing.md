@@ -21,6 +21,8 @@ model-rank test in `war-config.test.mjs` checks both.
 
 **Ace work gets its own tier.** `agents.worker.ace` drives the `--ace` dispatches and the terminal
 pass. It has no default: an absent ace tier uses the fix tier, so ace runs opus by default.
+(2026-11-05 amendment, operator ruling: ace charges 5 and 6 run on `agents.worker.fix`, and
+validation refuses a fix model ranked below the ace model. One rank up is the recommended split.)
 
 **A roster seat can carry its own `model` and `effort`.** They replace the auditor tier for that
 seat only. This is how the Lead keeps opus on a boundary-heavy seat (security, parsing, Git or

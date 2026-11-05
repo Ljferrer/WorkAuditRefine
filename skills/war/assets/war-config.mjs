@@ -55,7 +55,7 @@ export const DEFAULTS = {
   agents: {
     // worker.docs dispatches all-*.md tasks; worker.fix dispatches fix rounds and floor retries, and
     // --ace plus the terminal pass unless worker.ace is set (#2519; ace has no default, so an absent
-    // ace inherits fix). The worker tiers (base, docs, fix) are defaulted here; a preset may re-pin any of them (see PRESETS) and a config may
+    // ace inherits fix). Ace charges 5 and 6 always run on fix, and validate checks fix ranks >= ace. The worker tiers (base, docs, fix) are defaulted here; a preset may re-pin any of them (see PRESETS) and a config may
     // override any tier per run. Every prose surface that restates a value from this object is bound
     // to presetConfig() by DOC_TIER_PINS / the /war-room bullet parser in war-config.test.mjs — when
     // you add a restatement, add a pin row; when you cannot, write a pointer instead of the value.
@@ -346,6 +346,12 @@ export function validate(input) {
   if (isObj(worker)) {
     for (const tier of ['docs', 'fix', 'ace']) {
       if (Object.prototype.hasOwnProperty.call(worker, tier)) validateAgentTier(worker[tier], `agents.worker.${tier}`, errors)
+    }
+    // Ace charges 5 and 6 run on the fix tier (aceSpawn in workflow-template.js), so the fix model must
+    // rank at least the ace model. One rank above is the recommended split (operator ruling 2026-11-05).
+    const fx = worker.fix, ac = worker.ace
+    if (isObj(fx) && isObj(ac) && MODEL_RANK.indexOf(fx.model) < MODEL_RANK.indexOf(ac.model)) {
+      errors.push(`agents.worker.fix.model must rank at least agents.worker.ace.model (${MODEL_RANK.join(' < ')}): ace charges 5 and 6 run on the fix tier (got fix ${JSON.stringify(fx.model)}, ace ${JSON.stringify(ac.model)}; recommended: fix one rank above ace)`)
     }
   }
   if (isObj(c.agents.refiner) && Object.prototype.hasOwnProperty.call(c.agents.refiner, 'recovery')) validateAgentTier(c.agents.refiner.recovery, 'agents.refiner.recovery', errors)

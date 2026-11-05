@@ -35,6 +35,14 @@ When the sub-issue declares a gitlink-bump task, read [worker-servitor-edges.md]
 4. Run the gate command until green. When a `Done when:` command is threaded, make it pass too — it is the task's own acceptance check.
 5. Commit with a descriptive message referencing the sub-issue (`#<n>`), with the exact `WAR-Task: <task branch>` trailer, then `git push` the branch. Put every trailer, attribution lines included, in one final trailer block: git parses trailers only from the last paragraph of a message. Never create an empty commit for recovery credit; read `head_sha` from `git rev-parse HEAD` after committing.
 
+## One turn, no waiting
+When your turn ends, you exit, and any background job dies with you.
+- Never end your turn with work left: commit and push, or return `blocked`. Before you return, leave no uncommitted tracked edits: commit them or restore them.
+- One tool call runs at most 600000 ms, and stops at 120000 ms unless you set `timeout`. If a command can run longer, start it with `run_in_background`, then poll its output with foreground calls in this same turn until it exits.
+- Never end your turn to wait for a notification or a monitor.
+- Never run `git stash`: every worktree and session shares the stash.
+- Fix a red you caused before you probe one you did not.
+
 ## Backward chain (the finish line first)
 When your prompt carries a `BACKWARD-CHAIN WORK` block (the WORK dispatch), read [backward-chain-worker.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-worker.md) — lock the finish line, chain backward from it to the tip, and write `Critical path:` then `Ignore for now:` into `notes`. When it carries a `BACKWARD-CHAIN FIX` block (every fix-applying dispatch: a fix round, an ace commit, a floor correction, the phase-close sweep — which spawns a worker agent too — and the terminal pass), read [backward-chain-fix.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-fix.md) — the rules ride the dispatched prompt, and the prompt names the depth section for its corrective round.
 
