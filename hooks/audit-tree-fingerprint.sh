@@ -47,10 +47,13 @@
 #         operand, the value after `=` of a Bash `--<opt>=<path>` token,
 #         the text after the option letter of an attached short-option value
 #         (`-O<file>`, `-X<file>`), or after the first file-valued letter (O,
-#         X, S) of a short-option cluster (`-pO<file>`), or the next token of
-#         a space-form file-valued flag, else the payload cwd) and add each
-#         to the seat's touched set. An unquoted `~-` or `~<name>` Bash token
-#         (`-C` value or operand) is unresolved: the payload carries no
+#         X, and S as the blame revs file) of a short-option cluster
+#         (`-pO<file>`), or the next token of a space-form file-valued flag,
+#         else the payload cwd) and add each to the seat's touched set. A
+#         search pattern option and its value (`git grep -e <p>`, `log -S <p>`:
+#         see pat_opt) name no path and are never touched (#2604). An
+#         unquoted `~-` or `~<name>` Bash token (`-C` value or operand) is
+#         unresolved: the payload carries no
 #         OLDPWD, and a `~<name>` needs getpwnam, so the token goes into the
 #         touched set literal (see tilde). A directory
 #         operand that holds task worktrees adds each of them when the
@@ -767,6 +770,8 @@ outside_top() {
 # escalates the verdict). The two tokens are collected first and resolved only when
 # the count is exactly two: a one-token `diff A...B` or a third token
 # returns before any canon subshell (or base_top's rev-parse) runs.
+# git's own count skips only `-` tokens, so the value of `diff -S <p> A B`
+# counts as a path here as in git: pat_opt does not apply to this count.
 implied_noindex() {
   [ -n "$_base" ] || return 1
   _ip=1; _ic=0; _iw=0; _il=1; _in=0; _i1=""; _i2=""
@@ -813,36 +818,74 @@ touch_operand() {
   done
 }
 
-# pat_opt <subcommand> <token>: sets _pn to 1 when <token> is an option whose
-# value is a search pattern in the NEXT token, to 2 when <token> carries that
-# value itself, else to 0 (#2604). git reads a pattern as text, never as a
-# path, so the caller touches neither. Checked against git 2.54:
-# `git grep -e <p>` (grep has no `--regexp`, and `-f <file>` reads a file, so
-# it stays a path); `-S<p>` and `-G<p>` on log, show and diff, space or
-# attached form, also at the end of a short cluster (`-pS <p>`, `-sG<p>`);
-# `--grep`, `--author`, `--committer` and `--grep-reflog` on log and show,
-# space or `=` form. On blame `-S <file>` reads a revs file, so the arm is per
-# subcommand. A cluster counts only when every letter before the pattern
-# letter is a flag that takes no value (`_pk`): any other letter may take the
-# rest of the token as its own value, so the token stays a path (over-touch).
-pat_opt() {
-  _pn=0
+# Search patterns (#2604). git reads a pattern as text, never as a path, so
+# the Bash loop touches neither a pattern option nor its value. Checked
+# against git 2.54:
+#   grep        `-e <p>` (grep has no `--regexp`; `-f <file>` reads a file
+#               and stays a path).
+#   log, show   `-S<p>`, `-G<p>`, and `--grep`, `--author`, `--committer`,
+#               `--grep-reflog` (space or `=` form). log also takes `-L<r>`.
+#   diff        `-S<p>`, `-G<p>`.
+#   blame       `-L<r>` only: blame `-S <file>` reads a revs file.
+# A short pattern option takes the space or the attached form, also at the
+# end of a short cluster (`-pS <p>`, `-sG<p>`). An `-L` value is a line range
+# or a regex: git reads its `:file` part from commits, never from a worktree.
+# pat_sub <subcommand> sets the subcommand's no-value cluster letters (_pk),
+# its pattern letters (_pl) and whether the long forms apply (_plong).
+pat_sub() {
+  _pk=""; _pl=""; _plong=0
   case "$1" in
     grep) _pk=Fnilwc; _pl=e ;;
-    log|show)
-      _pk=pusRzatwbWrcm; _pl=SG
-      case "$2" in
-        --grep|--author|--committer|--grep-reflog) _pn=1; return 0 ;;
-        --grep=*|--author=*|--committer=*|--grep-reflog=*) _pn=2; return 0 ;;
-      esac ;;
+    log) _pk=pusRzatwbWrcm; _pl=SGL; _plong=1 ;;
+    show) _pk=pusRzatwbWrcm; _pl=SG; _plong=1 ;;
     diff) _pk=pusRzatwbWrcm; _pl=SG ;;
-    *) return 0 ;;
+    blame) _pl=L ;;
   esac
-  case "$2" in --*) return 0 ;; -?*) _pc="${2#-}" ;; *) return 0 ;; esac
+}
+# pk_strip <cluster>: sets _pc to <cluster> with its leading _pk letters cut.
+pk_strip() {
+  _pc="$1"
+  [ -n "$_pk" ] || return 0
   while [ -n "$_pc" ]; do
-    case "$_pc" in [$_pl]) _pn=1; return 0 ;; [$_pl]?*) _pn=2; return 0 ;; esac
     case "$_pc" in [$_pk]*) _pc="${_pc#?}" ;; *) return 0 ;; esac
   done
+}
+# pat_opt <token>: sets _pn to 1 when <token> is a pattern option whose value
+# is the NEXT token, to 2 when <token> carries that value itself, else to 0.
+# A cluster counts only when every letter before the pattern letter is in
+# _pk: any other letter may take the rest of the token as its own value, so
+# the token stays a path (over-touch).
+pat_opt() {
+  _pn=0
+  if [ "$_plong" = 1 ]; then
+    case "$1" in
+      --grep|--author|--committer|--grep-reflog) _pn=1; return 0 ;;
+      --grep=*|--author=*|--committer=*|--grep-reflog=*) _pn=2; return 0 ;;
+    esac
+  fi
+  [ -n "$_pl" ] || return 0
+  case "$1" in --*) return 0 ;; -?*) pk_strip "${1#-}" ;; *) return 0 ;; esac
+  case "$_pc" in [$_pl]) _pn=1 ;; [$_pl]?*) _pn=2 ;; esac
+}
+# pat_free <token>: sets _pok to 1 when git cannot take the NEXT token as the
+# value of <token>, else to 0. Only then may the next token be a pattern
+# option: in `diff -I -S <f>`, `-I` takes `-S` as its regex and git reads
+# <f>. Free: an operand, a `--<opt>=<value>` token, a listed no-value long
+# flag, and a short cluster of _pk letters only. Any other option may take
+# the next token, so a pattern option after it stays a path (over-touch).
+pat_free() {
+  _pok=0
+  case "$1" in
+    --*=*) _pok=1 ;;
+    --oneline|--stat|--numstat|--shortstat|--name-only|--name-status|--raw) _pok=1 ;;
+    --patch|--no-patch|--summary|--all|--reverse|--first-parent) _pok=1 ;;
+    --merges|--no-merges|--full-history|--no-renames|--no-color) _pok=1 ;;
+    --pickaxe-regex|--pickaxe-all|--cached|--staged|--no-index) _pok=1 ;;
+    --exit-code|--quiet|--check|--fixed-strings|--ignore-case) _pok=1 ;;
+    --word-regexp|--line-number|--count|--files-with-matches) _pok=1 ;;
+    -?*) case "$1" in --*) ;; *) pk_strip "${1#-}"; [ -n "$_pk" ] && [ -z "$_pc" ] && _pok=1 ;; esac ;;
+    *) _pok=1 ;;
+  esac
 }
 
 # ignored_dir <canonical dir>: returns 0 when the repository that holds <dir>
@@ -1222,8 +1265,9 @@ case "$event" in
     # a path as well; the cluster arm is skipped when the first letter is
     # itself file-valued, since the plain arm has that token (a non-path
     # tail resolves to the base), any other token that starts with `-` is
-    # a flag and costs no spawn, and EVERY other token (`../wtB/f`,
-    # `./x/f`, `a/../b/f`, `a/b/f`, `wtB`, `diff`,
+    # a flag and costs no spawn, a search pattern option and its value
+    # (pat_opt, before any `--`) are skipped, and EVERY other token
+    # (`../wtB/f`, `./x/f`, `a/../b/f`, `a/b/f`, `wtB`, `diff`,
     # `HEAD~1`, the value of a space-form `--contents <f>`) resolves
     # against the running base: the payload cwd, moved by each resolved
     # global `-C` in order. validate-auditor-git.sh admits `git diff
@@ -1263,7 +1307,7 @@ case "$event" in
       exit 0
     }
     quote_words "$_bc"
-    _found=0; _want=0; _base="$cwd"; _first=1; _sub=0; _noindex=0; _sn=""; _pv=0; _dd=0
+    _found=0; _want=0; _base="$cwd"; _first=1; _sub=0; _noindex=0; _pv=0; _dd=0; _pok=0
     for _tok in $_cmd; do
       [ "$_tok" = --no-index ] && _noindex=1
     done
@@ -1292,18 +1336,21 @@ case "$event" in
         _sub=1
         # The subcommand word is known and every global `-C` has moved
         # `_base`, so git's implied --no-index is decided here.
-        unquote "$_tok"; _sn="$_t"
+        unquote "$_tok"; pat_sub "$_t"; _pok=1
         if [ "$_noindex" != 1 ]; then
-          [ "$_sn" = diff ] && implied_noindex && _noindex=1
+          [ "$_t" = diff ] && implied_noindex && _noindex=1
         fi
       elif [ "$_pv" = 1 ]; then
-        _pv=0; continue
+        _pv=0; _pok=1; continue
       elif [ "$_dd" = 0 ]; then
         # A search pattern names no path (pat_opt), so neither the option
         # nor its value is touched. After `--` every token is a pathspec.
         [ "$_tok" = -- ] && _dd=1
-        pat_opt "$_sn" "$_tok"
-        case "$_pn" in 1) _pv=1; continue ;; 2) continue ;; esac
+        if [ "$_pok" = 1 ]; then
+          pat_opt "$_tok"
+          case "$_pn" in 1) _pv=1; continue ;; 2) continue ;; esac
+        fi
+        pat_free "$_tok"
       fi
       case "$_tok" in
         \"*|\'*) unquote "$_tok" ;;

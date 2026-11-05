@@ -2082,17 +2082,28 @@ for _pcmd in \
   "git -C $MAIN diff -S $TMP $_psha $_psha" \
   "git -C $MAIN log --grep=$TMP $_psha" \
   "git -C $MAIN log --grep $TMP $_psha" \
-  "git -C $MAIN log --author $TMP $_psha"
+  "git -C $MAIN log --author $TMP $_psha" \
+  "git -C $MAIN log --committer=$TMP $_psha" \
+  "git -C $MAIN log --grep-reflog $TMP $_psha" \
+  "git -C $MAIN grep -n -Fe $TMP $_psha -- x" \
+  "git -C $MAIN grep -n -F -e$TMP $_psha -- x" \
+  "git -C $MAIN log --oneline -S $TMP $_psha" \
+  "git -C $MAIN log $_psha -S $TMP" \
+  "git -C $MAIN log -S a -G $TMP $_psha" \
+  "git -C $MAIN log -L $TMP $_psha" \
+  "git -C $MAIN blame -L $TMP $_psha -- f"
 do
   _pi=$((_pi + 1))
   run "$(mk_start "$AUD" pp$_pi)"
   run "$(mk_bash "$AUD" pp$_pi "$_pcmd")"
   if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pp$_pi/touched" ]; then pass "a pattern value touches no worktree: $_pcmd"; else fail "a pattern value touched worktrees: $_pcmd (rc=$RC touched=|$(cat "$FP_ROOT/pp$_pi/touched" 2>/dev/null)|)"; fi
 done
-# An attached pattern is no path either: `-S../wtB/f` from wtA reads wtA only.
+# An attached pattern is no path either: from wtA, `-S../wtB/f` and the
+# clustered `-sGS../wtD/f` (the -G value is `S../wtD/f`, which the old cluster
+# arm read as the path `../wtD/f`) read wtA only.
 run "$(mk_start "$AUD" pq1)"
-run "$(mk_bash "$AUD" pq1 "git -C $TMP/wtA log -S../wtB/f -sG../wtD/f $_psha")"
-if touched_is pq1 "$WTA"; then pass "an attached -S or clustered -G pattern touches no sibling worktree"; else fail "an attached pattern touched a sibling: |$(cat "$FP_ROOT/pq1/touched" 2>/dev/null)|"; fi
+run "$(mk_bash "$AUD" pq1 "git -C $TMP/wtA log -S../wtB/f -sGS../wtD/f $_psha")"
+if touched_is pq1 "$WTA"; then pass "an attached -S or clustered attached -G pattern touches no sibling worktree"; else fail "an attached pattern touched a sibling: |$(cat "$FP_ROOT/pq1/touched" 2>/dev/null)|"; fi
 # The reported symptom: a sibling changes while the seat greps, and the
 # seat's approve stands.
 run "$(mk_start "$AUD" pq2)"
@@ -2100,10 +2111,12 @@ run "$(mk_bash "$AUD" pq2 "git -C $MAIN grep -n -F -e '$TMP' $_psha -- x")"
 printf 'sibling fix round\n' >> "$TMP/wtB/f"
 run "$(mk_verdict "$AUD" pq2)"
 if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ ! -e "$TAMPER_ROOT/pq2.json" ]; then pass "a sibling edit during a pattern grep leaves the approve standing"; else fail "a pattern grep still escalated (rc=$RC reason=|$(reason_of)|)"; fi
-# A path stays a path: after `--` a `-e` token is a pathspec, `grep -f` reads
-# a pattern file, and `blame -S` reads a revs file. Each row touches wtB.
+# A path stays a path: after `--` a `-e` token is a pathspec (the `x` before
+# it makes the token free, so only the `--` rule keeps it a path), `grep -f` reads
+# a pattern file, and `blame -S` reads a revs file. Each of these rows touches
+# wtB.
 run "$(mk_start "$AUD" pq3)"
-run "$(mk_bash "$AUD" pq3 "git -C $MAIN grep -F -e x $_psha -- -e $TMP/wtB/f")"
+run "$(mk_bash "$AUD" pq3 "git -C $MAIN grep -F -e x $_psha -- x -e $TMP/wtB/f")"
 if touched_is pq3 "$WTB"; then pass "a -e after -- stays a pathspec"; else fail "a -e after -- hid its path: |$(cat "$FP_ROOT/pq3/touched" 2>/dev/null)|"; fi
 run "$(mk_start "$AUD" pq4)"
 run "$(mk_bash "$AUD" pq4 "git -C $MAIN grep -F -f $TMP/wtB/f $_psha")"
@@ -2111,6 +2124,21 @@ if touched_is pq4 "$WTB"; then pass "a grep -f value stays a path"; else fail "a
 run "$(mk_start "$AUD" pq5)"
 run "$(mk_bash "$AUD" pq5 "git -C $MAIN blame -S $TMP/wtB/f $_psha -- f")"
 if touched_is pq5 "$WTB"; then pass "a blame -S value stays a path"; else fail "a blame -S value was not touched: |$(cat "$FP_ROOT/pq5/touched" 2>/dev/null)|"; fi
+# A value-taking letter before S keeps the cluster a path: in `-pOS/../../wtB/f`
+# the `O` takes `S/../../wtB/f` as its orderfile, which lands in wtB.
+run "$(mk_start "$AUD" pq6)"
+run "$(mk_bash "$AUD" pq6 "git -C $TMP/wtA diff -pOS/../../wtB/f $_psha $_psha")"
+if touched_is pq6 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "a value-taking letter before S keeps the cluster a path"; else fail "a -pOS cluster lost its orderfile: |$(cat "$FP_ROOT/pq6/touched" 2>/dev/null)|"; fi
+# An option that takes the next token as its value takes a following -S or
+# -G as that value, so the token after it is a path git reads: `-I` takes
+# `-S` as its regex, `--src-prefix` takes `-G` as its prefix, and both diffs
+# read wtB/f and wtD/f (git 2.54).
+run "$(mk_start "$AUD" pq7)"
+run "$(mk_bash "$AUD" pq7 "git -C $MAIN diff --no-index -I -S $TMP/wtB/f $TMP/wtD/f")"
+if touched_is pq7 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of -I stays no pattern option"; else fail "a -S after -I hid a path: |$(cat "$FP_ROOT/pq7/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" pq8)"
+run "$(mk_bash "$AUD" pq8 "git -C $MAIN diff --src-prefix -G $TMP/wtB/f $TMP/wtD/f")"
+if touched_is pq8 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -G taken as the value of --src-prefix stays no pattern option"; else fail "a -G after --src-prefix hid a path: |$(cat "$FP_ROOT/pq8/touched" 2>/dev/null)|"; fi
 
 # --- registration + conventions ---------------------------------------------
 if jq -e . "$HJSON" >/dev/null 2>&1; then pass "hooks.json parses"; else fail "hooks.json does not parse"; fi
