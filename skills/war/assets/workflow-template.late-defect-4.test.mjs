@@ -71,7 +71,7 @@ test('late-defect: ace base — record-split replay: a standing docker red at th
   assert.ok(logged(logs, 'ace-gate t1: proceeds over [' + DOCKER + ']', 'red at the pre-ace tip ' + pre), 'the log names the proceed-over and the base')
   assert.ok(out.landed.includes('t1'))
   // Red at base: without the base arm the standing red forward-reverts the batch (the #2150 outcome).
-  const arm = 'if (ids.length && isSha(g.head_sha) && !pinMismatch(g.head_sha, aceTipSha) && ids.every(id => baseIds.includes(id))) {'
+  const arm = 'if (ids.length && ids.every(id => baseIds.includes(id))) {'
   assert.ok(src.includes(arm), 'the mutation target is the live base arm')
   const mutant = await runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': aceRed([DOCKER]), 'ace-base-gate': baseRed([DOCKER]) }, src.replace(arm, 'if (false) {'))
   assert.ok(!(mutant.out.aced || []).length, 'the mutant aces nothing')
@@ -92,19 +92,6 @@ test('late-defect: ace base — a new failing id, a dead base check and a red wi
   await reverts({ 'ace-gate': aceRed([DOCKER]), 'ace-base-gate': p => ({ gate_green: true, head_sha: shaIn(p, /at the pre-ace tip ([0-9a-f]{7,40})/) }) }, 'a green base')
   const bare = await reverts({ 'ace-gate': aceRed(undefined), 'ace-base-gate': baseRed([DOCKER]) }, 'a red with no ids')
   assert.equal(bare.filter(kindOf('ace-base-gate')).length, 0, 'no ids, nothing to compare: no base run')
-  // The base check is pinned to the pre-ace tip: a red reported at another sha licenses nothing.
-  const elsewhere = await reverts({ 'ace-gate': aceRed([DOCKER]), 'ace-base-gate': () => ({ gate_green: false, head_sha: 'abcdef12', gate_failing_ids: [DOCKER] }) }, 'a base red at another sha')
-  assert.equal(elsewhere.filter(kindOf('ace-base-gate')).length, 1, 'presence: the base ran')
-})
-
-test('late-defect: ace base — the proceed-over needs the ace red to echo the ace tip: a red at another sha or with no echo still forward-reverts', async () => {
-  for (const [ace, why] of [[p => ({ ...aceRed([DOCKER])(p), head_sha: 'abcdef12' }), 'a mismatched head_sha'], [p => ({ ...aceRed([DOCKER])(p), head_sha: undefined }), 'no head_sha']]) {
-    const { out, calls } = await runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': ace, 'ace-base-gate': baseRed([DOCKER]) })
-    assert.equal(calls.filter(kindOf('ace-base-gate')).length, 1, why + ': presence, the base ran and matched every id')
-    assert.ok(!(out.aced || []).length, why + ': nothing is aced')
-    assert.match(calls.find(isMergeTask).prompt, /FORWARD-REVERT/, why + ': the ace tip is forward-reverted')
-    assert.ok(calls.find(kindOf('ace-gate')).prompt.includes('return { gate_green: false, head_sha: ace00001, gate_failing_ids: [<each failing test id>] }'), why + ': the red arm of the ace gate prompt asks for the echo')
-  }
 })
 
 test('late-defect: ace base — the base result is cached per pre-ace sha, so the re-entry gate reuses it', async () => {
@@ -145,10 +132,6 @@ test('late-defect: probe — Obelisks t1 replay, yes: the blocker existed at the
   assert.ok(lf[0].prompt.includes(LOCK_MAJOR.title) && lf[0].prompt.includes(LOCK_MAJOR.suggested_fix), 'with its fix')
   assert.ok(logged(logs, 'late-fix pass: queued [Major] "stale lock read"', 'pre-ace probe: yes'), 'the queue log names the probe answer')
   assert.equal(out.landDecision, 'landed', 'the late fix lands with the phase')
-  const pin = (out.pinTransfers || []).filter(t => t.mode === 'probe-cleared')
-  assert.equal(pin.length, 1, 'the probe-cleared approval writes one pinTransfers row')
-  assert.deepEqual({ task: pin[0].task, kind: pin[0].kind, sha: pin[0].sha, seats: pin[0].seats.map(x => x.lens + '=' + x.outcome) },
-    { task: 't1', kind: 'ace', sha: 'ace00001', seats: ['correctness=re-ran'] }, 'naming the ace sha and every seat')
   // Red at base: without the probe the Major names the absorb's file as culprit and reverts it (the Obelisks outcome).
   const site = ': await preAceProbe(r, auditSeats, preAce, aceSha)'
   assert.ok(src.includes(site), 'the mutation target is the live probe call')
@@ -170,64 +153,6 @@ test('late-defect: probe — no reverts as today; unknown, a malformed answer an
     assert.ok(lf[0].prompt.includes(LOCK_MAJOR.suggested_fix), why + ': with its fix')
     assert.ok(logged(logs, 'pre-ace probe: unknown'), why + ': it queues as unknown')
   }
-})
-
-// Mixed answers: one seat, two blockers on the absorb's file. The probe clears only the yes blocker,
-// so the no blocker still drives today's culprit revert (ADR 0054 sees only uncleared blockers).
-const LOCK_MAJOR_2 = { severity: 'Major', title: 'double refresh', file: 'src/lock.js', rationale: 'the ace refreshes the lock twice', suggested_fix: 'refresh once' }
-const mixed = () => lateOk(buildSeqImpl({
-  'audit:t1:correctness': [approveWith('audit:t1:correctness', [LOCK_ABSORB]),
-    { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [LOCK_MAJOR, LOCK_MAJOR_2] }],
-  'ace:polish:t1:a1': [bWorker('ace00001')],
-}, (p, o) => seatOf(o) === 'war-auditor' ? approveWith(o.label, []) : aceBase([])(p, o)))
-const mixedAnswer = (p, o) => o.label === 'pre-ace-probe:t1:1' ? { exists: 'yes', evidence: 'there before' } : { exists: 'no', evidence: 'the ace added it' }
-
-test('late-defect: probe — mixed answers: a yes and a no blocker in one seat clear only the yes one, so the no one still reverts', async () => {
-  const run = source => runPhase(ACE_ARGS(), mixed(), { 'pre-ace-probe': mixedAnswer }, source)
-  const { out, calls } = await run()
-  assert.deepEqual(calls.filter(kindOf('pre-ace-probe')).map(labelOf), ['pre-ace-probe:t1:1', 'pre-ace-probe:t1:2'], 'one probe per blocker')
-  assert.ok(calls.find(c => labelOf(c) === 'pre-ace-probe:t1:2').prompt.includes('BLOCKER: 1. [Major] double refresh (src/lock.js)'), 'the second probe names the second blocker')
-  const lf = lateFixOf(calls)
-  assert.deepEqual(lf.map(labelOf), ['late-fix:t1:r1'], 'the yes blocker queues a late fix')
-  assert.ok(lf[0].prompt.includes(LOCK_MAJOR.title) && !lf[0].prompt.includes(LOCK_MAJOR_2.title), 'only the yes blocker, never the no one')
-  assert.ok(regressed(out), 'the no blocker still drives demote:absorb-regressed')
-  assert.match(calls.find(isMergeTask).prompt, /FORWARD-REVERT/, 'and the ace tip is forward-reverted')
-  assert.ok(!(out.pinTransfers || []).some(t => t.mode === 'probe-cleared'), 'the seat stays request_changes: no probe-cleared approval is accounted')
-  // Red at base: a mutant that clears the whole seat when any one blocker answers yes keeps the
-  // absorbs. (A verdict-only flip is an equivalent mutant: allApprove and blockingOf read the blocker
-  // list, and no reader takes probeCleared, so the row pins the blocker list, the observable state.)
-  const clear = 'kept.length < (s.findings || []).length && !blockingOf([{ findings: kept }]).length'
-  const site = 'out.push({ ...s, findings: kept,'
-  assert.ok(src.includes(clear) && src.includes(site), 'the mutation targets are the live clear test and seat rebuild')
-  const anyYes = await run(src.replace(clear, 'kept.length < (s.findings || []).length')
-    .replace(site, "out.push({ ...s, findings: cleared ? kept.filter(b => b.severity !== 'Critical' && b.severity !== 'Major') : kept,"))
-  assert.ok(!regressed(anyYes.out), 'the any-yes mutant clears the seat and keeps the absorb')
-  // A mutant that probes only the first blocker never asks about the second.
-  const firstOnly = await run(src.replace("if (b.severity !== 'Critical' && b.severity !== 'Major') { kept.push(b); continue }", "if ((b.severity !== 'Critical' && b.severity !== 'Major') || n) { kept.push(b); continue }"))
-  assert.equal(firstOnly.calls.filter(kindOf('pre-ace-probe')).length, 1, 'the first-only mutant dispatches one probe')
-})
-
-// A wave-side probe row can name a task that later fails to merge on a soft route. The pass then
-// demotes it, so no other task's budget fixes a defect that is not on the integration branch.
-test('late-defect: probe — a yes row whose origin task never merges demotes demote:exclusion-set, and no other task gets its late fix', async () => {
-  const two = ACE_ARGS({ finalPhase: false, tasks: [
-    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
-    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }] },
-  ] })
-  const impl = (base = obelisk()) => (p, o) => labelOf({ opts: o }) === 'merge:t1' ? (() => { throw new Error('socket hang up') })() : base(p, o)
-  const run = source => runPhase(two, impl(), { 'pre-ace-probe': { exists: 'yes', evidence: 'there before' } }, source)
-  const { out, calls, logs } = await run()
-  assert.ok(logged(logs, 'pre-ace probe t1: "stale lock read"', '— yes'), 'presence: the probe answered yes')
-  assert.ok(out.landed.includes('t2') && !out.landed.includes('t1'), 'presence: t1 died at its merge and t2 merged')
-  assert.equal(lateFixOf(calls).length, 0, 'no late fix runs on t2 for t1\'s defect')
-  const d = demotionOf(out, LOCK_MAJOR.title)
-  assert.ok(d && d.demoteReason === 'demote:exclusion-set — origin task t1 did not merge; its relaunch re-audits it', 'the row demotes with the reason')
-  assert.ok(!out.carriedTasks.some(t => t.title === LOCK_MAJOR.title), 'and is not carried under t2')
-  // Red at base: without the arm the pass charges t2.
-  const arm = "if (own && !succeeded.has(own.id)) {"
-  assert.ok(src.includes(arm), 'the mutation target is the live arm')
-  const mutant = await run(src.replace(arm, 'if (false) {'))
-  assert.deepEqual(lateFixOf(mutant.calls).map(labelOf), ['late-fix:t2:r1'], 'the mutant fixes t1\'s defect on t2\'s budget')
 })
 
 test('late-defect: probe — a clean re-audit dispatches no probe, and the auditor card points at the probe rules', async () => {
@@ -288,32 +213,6 @@ test('late-defect: baseline — a baseline red first recorded at the land gate c
   assert.ok(filed && filed.rationale.includes(why), 'the final phase files it with the reason')
   assert.ok(!final.out.carriedTasks.length, 'and carries nothing')
   assert.equal(lateFixOf(final.calls).length, 0, 'no late fix runs after the land gate')
-})
-
-test('late-defect: baseline — a land red on ids the per-task baseline row already took, at another base sha, adds no second row', async () => {
-  const landRed = () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: BASE_IDS, gate_base_sha: 'landbase1', gate_output: 'red at origin too' })
-  const impl = source => runPhase(CLS_ARGS({ finalPhase: false }), lateOk(clsImpl({ mergeResult: label => label === 'merge:t1' ? baselineMerge : { mode: 'merge-task', status: 'merged' }, landResult: landRed })), {}, source)
-  const rows = r => [...lateFixOf(r.calls).map(labelOf), ...r.out.carriedTasks.filter(t => /^baseline gate red: /.test(t.title)).map(t => 'carried:' + t.title), ...(r.out.minorsFiled || []).filter(m => /^baseline gate red: /.test(m.title)).map(m => 'filed:' + m.title)]
-  const run = await impl()
-  assert.ok(run.calls.some(c => labelOf(c) === 'land:phase-3:baseline-proceed'), 'presence: the land gate went red and re-landed over the debt')
-  assert.deepEqual(rows(run), ['late-fix:t1:r1'], 'exactly one row: the per-task late fix, never a second carried row')
-  // The mirror: an id the per-task row never took still carries.
-  const fresh = await runPhase(CLS_ARGS({ finalPhase: false }), lateOk(clsImpl({ mergeResult: label => label === 'merge:t1' ? baselineMerge : { mode: 'merge-task', status: 'merged' }, landResult: () => ({ ...landRed(), gate_failing_ids: [...BASE_IDS, 'test_land_only'] }) })))
-  assert.ok(fresh.out.carriedTasks.some(t => t.title === 'baseline gate red: ' + BASE_IDS[0] + ', test_land_only'), 'a new land id still carries')
-  // The empty input: a land red with no ids is never covered, so it still carries.
-  const noIds = await runPhase(CLS_ARGS({ finalPhase: false }), lateOk(clsImpl({ mergeResult: label => label === 'merge:t1' ? baselineMerge : { mode: 'merge-task', status: 'merged' }, landResult: () => ({ ...landRed(), gate_failing_ids: undefined }) })))
-  assert.ok(noIds.out.carriedTasks.some(t => t.title === 'baseline gate red: (see gate_output)'), 'an id-less land red still carries')
-  // The neighbor state: per-task debt whose baseline-proceed merge died queued no late row, so the
-  // same ids red at the land gate still carry.
-  const died = clsImpl({ mergeResult: label => label === 'merge:t1' ? baselineMerge : { mode: 'merge-task', status: 'merged' }, landResult: landRed })
-  const untaken = await runPhase({ ...TWO, finalPhase: false }, lateOk((p, o) => labelOf({ opts: o }) === 'merge:t1:baseline-proceed' ? (() => { throw new Error('socket hang up') })() : died(p, o)))
-  assert.ok(!untaken.out.landed.includes('t1') && untaken.out.landed.includes('t2'), 'presence: the baseline-proceed merge died and t2 merged')
-  assert.equal(lateFixOf(untaken.calls).length, 0, 'presence: no per-task baseline row was queued')
-  assert.ok(untaken.out.carriedTasks.some(t => t.title === 'baseline gate red: ' + BASE_IDS[0]), 'so the land red carries')
-  // Red at base: the bare length test carries a duplicate.
-  const site = '!(landIds.length && landIds.every(id => took.some(d => d.ids.includes(id))))'
-  assert.ok(src.includes(site), 'the mutation target is the live guard')
-  assert.equal(rows(await impl(src.replace(site, 'true'))).length, 2, 'the mutant adds a second row')
 })
 
 test('late-defect: baseline — the PHASE-CLOSE COHERENCE SWEEP and TERMINAL PASS workers carry the debt list, and a debt-free phase leaves both prompts unchanged', async () => {

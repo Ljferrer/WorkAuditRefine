@@ -14,9 +14,7 @@ If another hard escalation already holds the phase, the pass does not run. Each 
 
 ## The origin task
 
-A row whose own task did not merge this phase (a wave-side pre-ace probe row) charges no task. It demotes `demote:exclusion-set`, like the behavior-row sort's unmerged-owner arm, and the task's relaunch re-audits it.
-
-Each other defect charges one origin task:
+Each defect charges one origin task:
 
 1. the row's own merged task (the per-task seat);
 2. else the merged task whose `Files:` hold the defect's file;

@@ -12977,7 +12977,7 @@ test('#1951 red-arm control — { gate_green: false } with no head_sha stays sch
   const red = (logs || []).find(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED'))
   assert.ok(red, 'the red gate is logged')
   assert.match(red, /FAIL: 1 test failed/, 'the reason is the gate output')
-  assert.ok(!/no usable head_sha/.test(red), 'the sha arm never fires on a red reply — the green arm\'s sha reason never names a red')
+  assert.ok(!/no usable head_sha/.test(red), 'the sha arm never fires on a red reply — the red arm stays sha-free')
 })
 
 test('#1956 — default-deny keyword census: every keyword in the evaluated schemas is one the vendored evaluator implements', () => {
@@ -13798,9 +13798,7 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   // sortOwned behavior row naming its owner, and a behavior row born at a late-fix re-audit, final phase only),
   // sweep-discarded ×1 more (a polish-panel behavior row, final phase only) and terminal-pass ×1 more
   // (a terminal-seat behavior row, final phase only) — each "raised after the late-fix pass" or owned.
-  // 29 → 30 (late-defects Task 5.1 ace): exclusion-set ×1 more (the late-fix pass demotes a queued row
-  // whose own task did not merge, e.g. a wave-side pre-ace probe row).
-  assert.equal(sites.length, 30, `the census domain is exactly THIRTY follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
+  assert.equal(sites.length, 29, `the census domain is exactly TWENTY-NINE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
   for (const s of sites) {
     const p = reasonPrefixOf(s.reason)
     assert.ok(p, `demote site @${s.index}: the reason leads with a literal prefix (got: ${s.reason.slice(0, 60)})`)
