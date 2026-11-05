@@ -1,6 +1,6 @@
 ---
 name: fix-round-uncommitted-leftover-is-stashed-by-pin-transfer-and-never-lands
-description: "A fix-round worker's uncommitted edits get stashed at pin-transfer and dropped, recorded only in free text"
+description: "SUPERSEDED (#2617): a dirty task worktree at pin-transfer or merge-task now holds the task (escalate); stash entries exist only from older runs"
 metadata:
   promoted: dev/2026-10-20-rea-artifact-evidence@phase-6
   node_type: memory

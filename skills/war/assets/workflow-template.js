@@ -2770,6 +2770,7 @@ ORIGINAL OPERATION (all requirements still apply):
 }
 // isDirty (#2617): a merge-task or pin-transfer stop on a dirty task worktree. It skips Git reconciliation,
 // because the reconciler may clean the tree and merge past the hold. routedMr and the pin-transfer arm hold it.
+// Unconfirmed by Git, a per-task stop keeps its prefix and holds (the Lead checks Git), and a sweep-family stop reconciles.
 const isDirty = r => r?.status === 'error' && /^dirty task worktree/.test(r.detail)
 const uncertainMerge = result => !!deathOf(result) || !result || result.status === 'error' && !isDirty(result) || !MERGE_RESULT.properties.status.enum.includes(result.status)
 const reconciledMerge = async (prompt, opts, context, invoke = dispatchSite) => {
@@ -2783,7 +2784,7 @@ const reconciledMerge = async (prompt, opts, context, invoke = dispatchSite) => 
     if (!uncertainMerge(result)) {
       const proof = await confirmMerge(result, opts, context, before)
       result = proof ? gitBoundGateSha(result, proof, context)
-        : { ...result, status: 'error', detail: 'Git did not confirm the reported merge outcome; automatic reconciliation required' }
+        : { ...result, status: 'error', detail: (context.kind === 'task' && isDirty(result) ? result.detail + '; ' : '') + 'Git did not confirm' }
     }
   }
   catch (err) { thrown = err; result = { mode: context.land ? 'land-phase' : 'merge-task', status: 'error', detail: 'lost merge dispatch: ' + String(err && err.message || err) } }
@@ -3090,8 +3091,8 @@ const segmentLoop = async (result, isSegment, redispatch) => {
 // (segmentedLand's shape; PIN-9's pair read: a merged result carrying a stray marker is a merge, a
 // marker-absent error is one dispatch that routes by its status). The continuation carries the FULL
 // merge prompt, PARTIAL_LOG_RULE included. Exhaustion returns the final still-incomplete result and
-// its ridden status ('error') routes at the call site. Git reconciliation runs first, so a sweep-family
-// site takes its fail-open arm only once Git proves the merge unmerged. Labels and log lines are
+// its ridden status ('error') routes at the call site. Git proof runs first (confirmation, or
+// reconciliation when that fails), so a sweep-family site takes its fail-open arm only once Git proves the merge unmerged. Labels and log lines are
 // concatenation-built.
 // A dispatch death enters Git reconciliation; only a proved-unmerged death reaches the merge slot. A
 // snapshot death, or TARGET_LOST or TARGET_LATE, returns before any merge dispatch.
@@ -5423,7 +5424,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         pinTransfers.push(probeRow('transferred'))
         log('pin-transfer ' + r.task.id + ': patch-ids and exact content identities EQUAL (' + (pinProbe.pre_rebase_patch_id || '(unrecorded)') + ') — the panel pin transfers to the rebased tip ' + (pinProbe.rebased_tip || '(unrecorded)') + '; no panel re-convenes in the lock.')
       } else {
-        log('pin-transfer ' + r.task.id + ': probe returned no usable status — the ordinary merge dispatch runs unchanged (fail-open).' + ' ' + (pinProbe?.detail || ''))
+        log('pin-transfer ' + r.task.id + ': probe returned no usable status — the ordinary merge dispatch runs unchanged (fail-open). ' + (pinProbe?.detail || ''))
       }
       pinProofBase = pinProof.local_sha
       const mr = routedMr(await segmentedMerge(

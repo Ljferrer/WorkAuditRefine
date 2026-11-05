@@ -178,7 +178,8 @@ sites: the four per-task sites and the two sweep-family merges, `merge:p<id>-pol
 `merge:p<id>-terminal` (#2189). Refiner card step 10 says the Workflow re-dispatches every
 merge-task, and that is now true at each site (#2183). The same pair read and `run.roundLimit`
 bound apply. A spent budget returns the final `status: 'error'` result. Git reconciliation then runs,
-as for every error result. Once Git proves the merge unmerged, each sweep-family site takes its own
+as for every error result. (2026-11-05, #2617: a `dirty task worktree` stop skips reconciliation when
+Git confirms it, and is the one exception.) Once Git proves the merge unmerged, each sweep-family site takes its own
 fail-open arm: the phase-close sweep discards, and the terminal commit stays unmerged.
 
 The shared background rule, which the merge and land clauses both carry, adds one sentence (#2155).

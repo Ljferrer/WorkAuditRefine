@@ -18739,6 +18739,8 @@ test('every agent card the engine dispatches is registered in plugin.json (an un
 
 // #2617: a workflow agent exits when its turn ends, so the worker card carries the one-turn rule.
 // Each anchor counted 0 on the card at the base faf52933, so dropping any rule reds this row.
+// Single layer by choice: the rule rides the worker card only, which loads on every war-worker spawn,
+// and the staged template has no byte room for a dispatched copy.
 test('#2617 one-turn rule: the worker card forbids ending a turn with work left, waiting, and git stash', () => {
   const card = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../../agents/war-worker.md'), 'utf8')
   const sec = (card.split('## One turn, no waiting')[1] || '').split('\n## ')[0]
@@ -18795,4 +18797,28 @@ test('#2617 dirty task worktree at merge-task: the stop rides every segmented me
   assert.match(String(esc.detail && esc.detail.detail), /^dirty task worktree: src\/a\.js/, 'the hold keeps the paths')
   assert.ok(!out.landed.includes('t1'), 'the dirty task never merges')
   assert.ok(out.landed.includes('t2'), 'the clean sibling still merges')
+})
+
+test('#2617 dirty task worktree at merge-task, unconfirmed by Git: the stop keeps its paths and holds, with no reconciliation', async () => {
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:t1' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : defaultImpl(prompt, opts)
+  const { out, calls } = await runPhase(twoIndependentTasks(), impl, {
+    'merge-confirm': (p, o, w) => o.label === 'git-confirm:merge:t1' ? { remote_sha: '' } : NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w),
+  })
+  assert.ok((out.auditLog || []).some(a => a.site === 'merge:t1' && a.verdict === 'git-confirmation:unresolved'), 'Git did not confirm the stop')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'the unconfirmed dirty stop still skips reconciliation')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
+  assert.ok(esc, 'the dirty task escalates (presence guard)')
+  assert.equal(esc.reason, 'escalate', 'it holds on the hard reason')
+  assert.equal(String(esc.detail && esc.detail.detail), 'dirty task worktree: src/a.js; Git did not confirm', 'the hold keeps the paths and names the missing proof')
+  assert.ok(!out.landed.includes('t1') && out.landed.includes('t2'), 'the dirty task never merges, and the clean sibling does')
+})
+
+test('#2617 dirty stop at the polish sweep merge, unconfirmed by Git: it loses the dirty prefix and reconciles before its fail-open arm', async () => {
+  const base = sweepBase([queuedAbsorb()])
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:p3-polish' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : base(prompt, opts)
+  const { calls } = await runPhase(SWEEP_ARGS(), impl, {
+    'merge-confirm': (p, o, w) => o.label === 'git-confirm:merge:p3-polish' ? { remote_sha: '' } : NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w),
+  })
+  assert.ok(calls.some(c => (c.opts.label || '') === 'merge:p3-polish'), 'the polish merge runs (presence guard)')
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile' && (c.opts.label || '').startsWith('git-reconcile:merge:p3-polish')), 'an unconfirmed sweep stop reconciles Git before the discard')
 })
