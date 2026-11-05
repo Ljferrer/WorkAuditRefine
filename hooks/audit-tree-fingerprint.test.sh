@@ -2071,7 +2071,15 @@ fi
 # worktree under it, so a sibling's fix round rewrote an approve to escalate.
 # Here the pattern is $TMP, the directory that holds every fixture worktree:
 # without the fix each row below walks them all. The base is $MAIN (no marker).
+# The `-L` rows pin token shape only: git refuses `-L <abs dir>` as a range.
 _psha="$(git -C "$MAIN" rev-parse HEAD)"
+# Positive control: the same $TMP value walks the task worktrees when it is a
+# path (t34's form), so the empty touched sets below are not vacuous.
+run "$(mk_start "$AUD" pp0)"
+PCWD="$TMP/wtC"
+run "$(mk_bash "$AUD" pp0 "git diff $TMP /dev/null")"
+PCWD="$MAIN"
+if touched_has pp0 "$WTB"; then pass "control: a \$TMP path operand walks the task worktrees here"; else fail "control: \$TMP did not walk: |$(cat "$FP_ROOT/pp0/touched" 2>/dev/null)|"; fi
 _pi=0
 for _pcmd in \
   "git -C $MAIN grep -n -F -e '$TMP' $_psha -- x" \
@@ -2088,7 +2096,7 @@ for _pcmd in \
   "git -C $MAIN grep -n -Fe $TMP $_psha -- x" \
   "git -C $MAIN log --oneline -S $TMP $_psha" \
   "git -C $MAIN log $_psha -S $TMP" \
-  "git -C $MAIN log -S a -G $TMP $_psha" \
+  "git -C $MAIN log -S a --grep $TMP $_psha" \
   "git -C $MAIN log -L $TMP $_psha" \
   "git -C $MAIN blame -L $TMP $_psha -- f" \
   "git -C $MAIN blame -w -L $TMP $_psha -- f" \
@@ -2111,7 +2119,10 @@ for _pcmd in \
   "git -C $MAIN show -I $TMP $_psha" \
   "git -C $MAIN show --word-diff-regex $TMP $_psha" \
   "git -C $MAIN diff -p -G $TMP $_psha $_psha" \
-  "git -C $MAIN diff -r -S $TMP $_psha $_psha"
+  "git -C $MAIN diff -r -S $TMP $_psha $_psha" \
+  "git -C $MAIN log --committer $TMP $_psha" \
+  "git -C $MAIN log --grep-reflog=$TMP $_psha" \
+  "git -C $MAIN grep -n -ilwcF -e $TMP $_psha -- x"
 do
   _pi=$((_pi + 1))
   run "$(mk_start "$AUD" pp$_pi)"
