@@ -91,7 +91,7 @@ Success evidence is mandatory: transferred requires a usable rebased tip, non-em
 
 5. **Fail closed.** Post-rebase diff EMPTY **and** (`N` is 0, **or** any `CHERRY` line starts `+`, **or** `PRE` is empty) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR → `status: "empty-unmatched"`, `detail` naming the failing leg. Never `already_upstream`, never a transfer: empty-equals-empty is not equality, and a zero-commit branch is vacuously an ancestor.
 6. **Otherwise compare patch-ids**, returning `rebased_tip`, `dispatch_base` (the pre-rebase `BASE`) and both ids either way: `PRE` non-empty and `PRE == POST` → `status: "transferred"` (a provisional claim; independent exact content identity must also match before the pin transfers); `PRE != POST` → `status: "mismatch"` (the Workflow re-audits the rebased tip full-panel, in the lock, before the merge).
-7. Any unclassifiable git/env error → `status: "error"` with `detail`. The engine checks actual post-probe Git state before choosing the ordinary fallback or full re-audit; a partial rebase is never inferred harmless from an error.
+7. Any unclassifiable git/env error, or a dirty task worktree before the rebase (`detail: "dirty task worktree: <paths>"`, which the engine holds, #2617) → `status: "error"` with `detail`. The engine checks actual post-probe Git state before choosing the ordinary fallback or full re-audit; a partial rebase is never inferred harmless from an error.
 
 ## Diff probe
 

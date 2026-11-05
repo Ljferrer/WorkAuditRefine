@@ -524,8 +524,9 @@ can't own); a manual `git push` / `--force-with-lease` land that bypasses the gu
 when a land dispatch returns null or an unrecognized status, read skills/war/references/glossary-cold.md
 
 **Segmented land / segmented gate**:
-The tool-timeout survival shape for the refiner dispatches whose gate can outrun a turn. A land
-dispatch forced to return mid-run reports the in-band `land_segment` marker on its error status, and
+The tool-timeout survival shape for the refiner dispatches whose gate can outrun one tool call. The
+refiner backgrounds the gate and polls it in the same turn (#2617). A land dispatch whose gate job
+dies before `exit_code:` reports the in-band `land_segment` marker on its error status, and
 a merge-task reports `gate_segment` the same way — in-band fields riding the existing status, never
 a new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper each —
 `segmentedLand` on all three land sites (initial, environment-proceed, baseline-proceed) and

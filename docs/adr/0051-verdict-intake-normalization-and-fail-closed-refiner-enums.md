@@ -133,6 +133,7 @@ sites route through `routedMr`, so the reason names the real cause instead of ri
 - 2026-09-07 · section 3 extended to the merge-task twin: `segmentedMerge`, the `gate_segment: 'incomplete'` marker on `status: 'error'` across the four per-task merge-task sites, same pair read and `roundLimit` bound · issue #2156
 - 2026-10-30 · section 3 extended to the ace gate check: `GATE_CHECK` carries `gate_segment`, an unfinished gate re-dispatches, and a spent bound never reads as a red gate · issues #2326, #2329
 - 2026-11-03 · section 3 extended to the two sweep-family merges, so `segmentedMerge` covers six merge-task sites, and the shared background rule says a continuation is never the one allowed re-run · issues #2189, #2183, #2155
+- 2026-11-05 · the shared background rule backgrounds a gate that can outrun one 600000 ms tool call and polls it in the same turn; the segment pair returns only if the job dies, because the turn end kills the job, and a partial log is rerun, never waited on · issue #2617
 
 ### 2026-09-09 finalization amendment: Git confirms every mutation result
 

@@ -290,7 +290,7 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   floor_route: { enum: ['budget-uncited'] },
   // land_segment (Phase 6 Task 1 (a), A6 REVISED): the in-band segmented-land marker — the literal
   // 'incomplete' riding status:'error' when the land dispatch is FORCED to return before the land
-  // completes (the gate outran the tool timeout). land-phase only, OPTIONAL. Orthogonal to status
+  // completes (e.g. the backgrounded gate job died before it wrote exit_code:). land-phase only, OPTIONAL. Orthogonal to status
   // exactly like gate_failure_class — NO status enum value, HARD_ESCALATION_REASONS member, or
   // KNOWN_LAND_DECISIONS member is added or changed (land-decision.mjs untouched, ADR 0005; unlike
   // floor_route, this marker mints no HARD_ESCALATION_REASONS member). The
@@ -3053,7 +3053,7 @@ const classificationClause = (refineryP, baseDesc) =>
 const GATE_LOG_STAMP = pt`Stamp the artifact: its FIRST line is \`tip_sha: <the sha the gate ran at>\` and its LAST line is \`exit_code: <the gate's exit code>\`, written after the gate exits — the stamp is what makes a partial or stale log decidable.`
 // The refiner reads only a continuation's returned artifact; every other logical attempt
 // allocates a fresh file. Byte-equal standing card twin (PIN-1); the engine never opens logs.
-const PARTIAL_LOG_RULE = pt`Only an explicitly marked SEGMENTED continuation may reuse its returned gate_log_path. Read only that supplied path, never a guessed conventional path: it is THIS logical dispatch's completed gate result only when its FIRST line is \`tip_sha:\` of the sha being gated AND its LAST line is \`exit_code:\`. If absent, unstamped, partial or stale, wait for the known writer or rerun into a FRESH unique artifact; never truncate or reuse a file a prior background job may still write. A fresh logical dispatch always allocates a fresh artifact, even at the same tip.`
+const PARTIAL_LOG_RULE = pt`Only an explicitly marked SEGMENTED continuation may reuse its returned gate_log_path. Read only that supplied path, never a guessed conventional path: it is THIS logical dispatch's completed gate result only when its FIRST line is \`tip_sha:\` of the sha being gated AND its LAST line is \`exit_code:\`. If absent, unstamped, partial or stale, rerun into a FRESH unique artifact; never truncate or reuse a file a prior background job may still write. A fresh logical dispatch always allocates a fresh artifact, even at the same tip.`
 // Missing paths are evidence absence, never permission to read a previous dispatch's file.
 const GATE_LOG_UNTHREADED = pt`(gate_log_path unthreaded — no captured artifact)`
 const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRST line is \`tip_sha:\` of the gated sha and its LAST line is \`exit_code:\` (the refiner's stamp); a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding. An unthreaded gate_log_path means no captured artifact: SOFT cannot-confirm, never guess a conventional path.`
@@ -3064,7 +3064,7 @@ const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRS
 // environment-proceed or baseline-proceed prompt allows, for the merge and land clauses alike. The ace
 // gate check carries it too, and no ace gate prompt allows such a re-run.
 const backgroundGateRule = shape =>
-  pt`BACKGROUNDED GATE (tool-timeout survival): if the gate can outrun one tool call (600000 ms), start it with run_in_background (teed to the stamped gate log), then poll that log with foreground calls in this same turn until its LAST line is exit_code: — your turn end kills the job. Return ${shape} only if the job dies before it writes exit_code: — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an environment-proceed or baseline-proceed prompt allows. ${PARTIAL_LOG_RULE}`
+  pt`BACKGROUNDED GATE (tool-timeout survival): a foreground call stops at 120000 ms unless you pass timeout (at most 600000). If the gate can outrun one tool call (600000 ms), start it with run_in_background (teed to the stamped gate log), then poll that log with foreground calls in this same turn until its LAST line is exit_code: — your turn end kills the job. Return ${shape} only if the job dies before it writes exit_code: — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an environment-proceed or baseline-proceed prompt allows. ${PARTIAL_LOG_RULE}`
 const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: '<the step you reached>' }`)
 // segmentLoop(result, isSegment, redispatch): the roundLimit bound every segmented gate shares.
 // redispatch takes the incomplete result and the next segment ordinal, and returns the admitted reply.
@@ -4023,7 +4023,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // approved pre-ace tip merges; it is never a fix loop and never a hold. Returns { green, died }:
   // a dispatch death (D21) is neither green nor red — `died` names the site and the caller abandons
   // the current subset with the existing abandon reason (the gate never judged the tip).
-  // A gate that outruns the turn (#2326, #2329) is also neither: the refiner backgrounds it and returns
+  // A gate that outruns one tool call (#2326, #2329, #2617) is also neither: the refiner backgrounds it, polls it in the same turn, and returns
   // the gate_segment pair, and the loop below re-dispatches, bounded by roundLimit. A spent bound takes
   // the `died` route, because nothing judged the tip: the ace tip forward-reverts and the rows reach the
   // sweep with a reason that names the unfinished gate, never a red one. This rule rides the dispatched
@@ -5192,7 +5192,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       if (deathOf(firstSnapshot)) { mergeDied(deathOf(firstSnapshot)); continue }
       pinBefore = firstSnapshot
       const runPinProbe = () => dispatchSite(
-        pt`PIN TRANSFER probe for WAR task ${r.task.id} (branch ${r.task.branch}) against ${ph.integrationBranch}. Rebase and measure only — do NOT merge, do NOT push the integration branch, do NOT run the gate or any floor. Never run git stash: every worktree and session shares the stash. If the TASK worktree has uncommitted changes, return { status: 'error', detail: 'dirty task worktree: <the paths>' } before any rebase.\n`
+        pt`PIN TRANSFER probe for WAR task ${r.task.id} (branch ${r.task.branch}) against ${ph.integrationBranch}. Rebase and measure only — do NOT merge, do NOT push the integration branch, do NOT run the gate or any floor. Never run git stash: every worktree and session shares the stash. If git -C ${r.task.worktree} status --porcelain --untracked-files=no prints anything, return { status: 'error', detail: 'dirty task worktree: <those paths>' } before any rebase.\n`
         + aceRevertClause
         + pt`  (1) BEFORE the rebase, all in the TASK worktree ${r.task.worktree} (git -C ${r.task.worktree}): BASE=merge-base ${ph.integrationBranch} ${r.task.branch}; N=rev-list --count $BASE..${r.task.branch} (the task's own commit count); PRE=diff $BASE..${r.task.branch} piped to git patch-id --stable, first field (an EMPTY diff prints NOTHING, so PRE is then empty); CHERRY=cherry ${ph.integrationBranch} ${r.task.branch} (leading - = a task commit already upstream by patch, + = unmatched; git cherry names TASK commits, never upstream equivalents). Return BASE as dispatch_base on every result that carries rebased_tip.\n`
         + pt`  (2) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. ${NEVER_MOVE_MERGED} Here that means: when \`git -C ${r.task.worktree} merge-base --is-ancestor ${r.task.branch} ${ph.integrationBranch}\` exits 0, skip the rebase and return { status: 'empty-unmatched', detail: 'already merged: the task tip is an ancestor of the integration tip' } — the engine fails closed and never re-merges it. The task branch is checked out there, so the rebase cannot run in _refinery. On CONFLICT: abort it and return { status: 'conflict', conflict_files: [...] } — never force, never resolve.\n`
@@ -5250,6 +5250,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       if (pinReasonOf(pinProof) === 'tree-mismatch') {
         if (pinMoves) targetMovedHold('the approved tree check failed', { probe: pinProbe, tipProbe: r.tipProbe ?? null, after: pinProof.proof })
         else escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'branch tip carries content committed after approval', probe: pinProbe, tipProbe: r.tipProbe ?? null } })
+        continue
+      }
+      // #2617: the probe found uncommitted tracked changes in the task worktree and stopped before any
+      // rebase. Hold the task with the paths: a merge-task there would refuse its rebase (and tempt a
+      // shared-stash workaround) or gate content that never merges.
+      if (probeStatus === 'error' && /^dirty task worktree/.test(String((pinProbe && pinProbe.detail) || ''))) {
+        escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'task worktree dirty at pin-transfer: ' + pinProbe.detail, probe: pinProbe } })
         continue
       }
       // After a move the probe's base can name an earlier rebase of the task, while the proof's base names
@@ -5409,7 +5416,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         pinTransfers.push(probeRow('transferred'))
         log('pin-transfer ' + r.task.id + ': patch-ids and exact content identities EQUAL (' + (pinProbe.pre_rebase_patch_id || '(unrecorded)') + ') — the panel pin transfers to the rebased tip ' + (pinProbe.rebased_tip || '(unrecorded)') + '; no panel re-convenes in the lock.')
       } else {
-        log('pin-transfer ' + r.task.id + ': probe returned no usable status — the ordinary merge dispatch runs unchanged (fail-open).')
+        log('pin-transfer ' + r.task.id + ': probe returned no usable status — the ordinary merge dispatch runs unchanged (fail-open).' + (pinProbe && pinProbe.detail ? ' Probe detail: ' + pinProbe.detail : ''))
       }
       pinProofBase = pinProof.local_sha
       const mr = routedMr(await segmentedMerge(
@@ -6912,7 +6919,7 @@ if (landDecision === 'landed') {
   // it to every land dispatch and owns the bounded re-dispatch loop (the FLOOR_STATUSES retry-loop
   // idiom — the merge-task floor sub-loop's shape).
   const segmentedLandClause =
-    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. `
+    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the backgrounded gate job dies before it writes exit_code: — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. `
     + backgroundGateRule(pt`{ mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }`)
   const landPrompt =
     pt`Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
