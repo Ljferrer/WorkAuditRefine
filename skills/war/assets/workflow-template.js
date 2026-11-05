@@ -229,7 +229,7 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
 const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties: {
   mode: { enum: ['merge-task', 'land-phase'] },
   status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'unpackaged', 'done-unmet', 'submodule-blocked', 'submodule-pr'] },
-  branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' },
+  branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' }, detail: { type: 'string' },
   // gate_sha (#2485 D12, PIN-12): the rebased task tip the merge-task gate ran at — the task merge
   // commit's second parent. integration_sha is the --no-ff merge commit itself (D8), so the two differ
   // on every task merge: landMerged reads gateHeadSha from gate_sha and the lastLandedTip tracker from
@@ -5424,7 +5424,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         pinTransfers.push(probeRow('transferred'))
         log('pin-transfer ' + r.task.id + ': patch-ids and exact content identities EQUAL (' + (pinProbe.pre_rebase_patch_id || '(unrecorded)') + ') — the panel pin transfers to the rebased tip ' + (pinProbe.rebased_tip || '(unrecorded)') + '; no panel re-convenes in the lock.')
       } else {
-        log('pin-transfer ' + r.task.id + ': probe returned no usable status — the ordinary merge dispatch runs unchanged (fail-open). ' + (pinProbe?.detail || ''))
+        log('pin-transfer ' + r.task.id + ': probe returned no usable status — the ordinary merge dispatch runs unchanged (fail-open).')
       }
       pinProofBase = pinProof.local_sha
       const mr = routedMr(await segmentedMerge(

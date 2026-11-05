@@ -154,11 +154,13 @@ can substitute for the proof. The normal resume pre-flight still reconciles unex
 A merge or land can push successfully and lose its response. It is still a mutation. The engine
 reads a Git snapshot before dispatch (retrying unavailable reads on the recovery tier). After a
 normal reply, a separate read-only `merge-confirm` refiner checks actual Git state before the
-engine routes that reply. Death, missing/error results (except a `dirty task worktree` stop, which
-confirmation alone proves unmerged, #2617), or unconfirmed replies dispatch a fresh
+engine routes that reply. Death, missing/error results, or unconfirmed replies dispatch a fresh
 refiner using `agents.refiner.recovery` (defaults/presets are defined in `war-config.mjs`). The
 ordinary refiner tier stays independent. Maintenance is bounded by `run.roundLimit`; auditors
 never acquire Git write permissions. This maintenance does not consume worker fix/absorb rounds.
+A `dirty task worktree` stop is the one exception (#2617). At the four per-task sites it never
+reconciles, even when Git does not confirm it: the task holds. A polish or terminal stop reconciles
+only when Git does not confirm it.
 
 Use the context's repository, source and target branches, including a submodule repository when
 specified. Resolve full commit SHAs and query origin's exact target ref; a failed remote query

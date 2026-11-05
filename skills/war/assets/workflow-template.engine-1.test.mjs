@@ -18779,6 +18779,9 @@ test('#2617 dirty task worktree: a pin-transfer probe that reports one holds the
   assert.ok(!out.landed.includes('t1'), 'the dirty task never merges')
   assert.ok(out.landed.includes('t2'), 'the clean sibling still merges, so the hold is task-scoped')
   assert.ok((out.auditLog || []).some(a => a.task === 't1' && a.verdict === 'pin-transfer:dirty-worktree'), 'the hold writes its auditLog verdict')
+  const p1 = calls.find(c => (c.opts.label || '') === 'pin-transfer:t1')
+  const pinStop = p1 ? p1.prompt.indexOf('dirty task worktree: <those paths>') : -1
+  assert.ok(pinStop >= 0 && pinStop < p1.prompt.indexOf('(1) BEFORE the rebase'), 'the probe stop comes before any forward-revert or rebase step')
 })
 
 test('#2617 dirty task worktree at merge-task: the stop rides every segmented merge, and its error holds the task (escalate) while the sibling merges', async () => {
@@ -18789,7 +18792,8 @@ test('#2617 dirty task worktree at merge-task: the stop rides every segmented me
   const m1 = calls.find(c => (c.opts.label || '') === 'merge:t1')
   const stopAt = m1 ? m1.prompt.indexOf('dirty task worktree: <those paths>') : -1
   assert.ok(stopAt >= 0 && stopAt < m1.prompt.indexOf('(a) REBASE in the TASK worktree'), 'the stop comes before the rebase step')
-  assert.ok(calls.some(c => c.opts.label === 'git-confirm:merge:t1'), 'Git confirms the reported stop against unchanged refs')
+  assert.ok(m1 && m1.opts.schema && m1.opts.schema.properties.detail, 'MERGE_RESULT declares detail, so structured output keeps the stop the hold routes on')
+  assert.ok((out.auditLog || []).some(a => a.site === 'merge:t1' && a.verdict === 'git-confirmed:error'), 'Git confirms the reported stop against unchanged refs')
   assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'a dirty stop skips Git reconciliation, which could clean the tree and merge')
   const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 'the dirty task escalates (presence guard)')
