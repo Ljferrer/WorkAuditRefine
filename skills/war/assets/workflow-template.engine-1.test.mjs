@@ -18838,3 +18838,44 @@ test('#2617 dirty stop at the polish sweep merge, confirmed by Git: no reconcili
   assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
   assert.equal(out.handoff.polish, 'discarded', 'the sweep takes its fail-open discard')
 })
+
+const DIRTY_MR = { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' }
+for (const [name, site, args, impl] of [
+  ['floor-retry', 'merge:t1:floor-retry:r1', () => PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 3 } }), floorRetryImpl],
+  ['environment-proceed', 'merge:t1:environment-proceed', () => CLS_ARGS(), () => clsImpl({ mergeResult: envMergeResult })],
+  ['baseline-proceed', 'merge:t1:baseline-proceed', () => CLS_ARGS(), () => clsImpl({ mergeResult: baselineMergeResult })],
+]) test('#2617 dirty task worktree at the ' + name + ' re-merge: routedMr holds it on escalate, with no reconciliation', async () => {
+  const base = impl()
+  const { out, calls } = await runPhase(args(), (p, o) => (o.label || '') === site ? DIRTY_MR : base(p, o))
+  assert.ok(calls.some(c => (c.opts.label || '') === site), 'the ' + name + ' re-merge runs (presence guard)')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'the dirty stop skips reconciliation')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.equal(esc && esc.reason, 'escalate', 'the stop holds on the hard reason, never a soft error')
+  assert.ok(!out.landed.includes('t1'), 'the dirty task never merges')
+})
+
+test('#2617 dirty stop at the terminal sweep merge, confirmed by Git: no reconciliation, no hold, and the commit stays unmerged', async () => {
+  const base = terminalImpl()
+  const { out, calls } = await runPhase(SWEEP_ARGS(), (p, o) => (o.label || '') === 'merge:p3-terminal' ? DIRTY_MR : base(p, o))
+  assert.ok(calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'the terminal merge runs (presence guard)')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'a confirmed sweep stop skips reconciliation')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
+  assert.ok(!(out.aced || []).some(a => a.sha === '7e4a1a10'), 'the terminal commit stays unmerged, fail-open')
+})
+
+test('#2617 the dirty stop comes before the --ace forward-revert in the pin-transfer probe and the merge prompt', async () => {
+  const fa = nit({ title: 'fa nit', file: 'skills/fa.js' }), fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove(), bRegress('zz.js')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],
+    'ace:subset:t1:a3': [bWorker('5ab00002')],
+  }, aceBase([fa, fb]))
+  const { calls } = await runPhase(ACE_ARGS(), impl)
+  for (const c of [calls.find(c => c.opts.dispatchKind === 'pin-transfer'), calls.find(isMergeTask)]) {
+    const rev = c ? c.prompt.indexOf('FORWARD-REVERT (--ace)') : -1
+    const stop = c ? c.prompt.indexOf('dirty task worktree: <those paths>') : -1
+    assert.ok(rev >= 0, (c && c.opts.label) + ' carries the forward-revert clause (presence guard)')
+    assert.ok(stop >= 0 && stop < rev, (c && c.opts.label) + ' puts the dirty stop before the forward-revert')
+  }
+})
