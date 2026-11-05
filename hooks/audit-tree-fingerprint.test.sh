@@ -2092,7 +2092,7 @@ for _pcmd in \
   "git -C $MAIN log --grep $TMP $_psha" \
   "git -C $MAIN log --author $TMP $_psha" \
   "git -C $MAIN log --committer=$TMP $_psha" \
-  "git -C $MAIN log --grep-reflog $TMP $_psha" \
+  "git -C $MAIN log --grep-reflog $TMP -g $_psha" \
   "git -C $MAIN grep -n -Fe $TMP $_psha -- x" \
   "git -C $MAIN log --oneline -S $TMP $_psha" \
   "git -C $MAIN log $_psha -S $TMP" \
@@ -2121,8 +2121,16 @@ for _pcmd in \
   "git -C $MAIN diff -p -G $TMP $_psha $_psha" \
   "git -C $MAIN diff -r -S $TMP $_psha $_psha" \
   "git -C $MAIN log --committer $TMP $_psha" \
-  "git -C $MAIN log --grep-reflog=$TMP $_psha" \
-  "git -C $MAIN grep -n -ilwcF -e $TMP $_psha -- x"
+  "git -C $MAIN log --grep-reflog=$TMP -g $_psha" \
+  "git -C $MAIN grep -n -ilwcF -e $TMP $_psha -- x" \
+  "git -C $MAIN log -g --grep-reflog $TMP $_psha" \
+  "git -C $MAIN log --walk-reflogs --grep-reflog $TMP $_psha" \
+  "git -C $MAIN show -g --grep-reflog $TMP $_psha" \
+  "git -C $MAIN show --walk-reflogs -S $TMP $_psha" \
+  "git -C $MAIN diff --color-words=$TMP $_psha $_psha" \
+  "git -C $MAIN log --color-words=$TMP $_psha" \
+  "git -C $MAIN show --color-words=$TMP $_psha" \
+  "git -C $MAIN log --color-words -S $TMP $_psha"
 do
   _pi=$((_pi + 1))
   run "$(mk_start "$AUD" pp$_pi)"
@@ -2181,6 +2189,14 @@ if touched_is pq10 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as 
 run "$(mk_start "$AUD" pq12)"
 run "$(mk_bash "$AUD" pq12 "git -C $MAIN diff -pO -S $TMP/wtB/f $TMP/wtD/f")"
 if touched_is pq12 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of the cluster -pO stays no pattern option"; else fail "a -S after -pO hid a path: |$(cat "$FP_ROOT/pq12/touched" 2>/dev/null)|"; fi
+# An attached pattern value carries its own value, so the token after it is
+# free and stays a path: both diffs read wtB/f and wtD/f (git 2.54).
+run "$(mk_start "$AUD" pq13)"
+run "$(mk_bash "$AUD" pq13 "git -C $MAIN diff --no-index --word-diff-regex=x $TMP/wtB/f $TMP/wtD/f")"
+if touched_is pq13 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a path after an attached long pattern value stays a path"; else fail "a path after --word-diff-regex=x was skipped: |$(cat "$FP_ROOT/pq13/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" pq14)"
+run "$(mk_bash "$AUD" pq14 "git -C $MAIN diff --no-index -Sx $TMP/wtB/f $TMP/wtD/f")"
+if touched_is pq14 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a path after an attached short pattern value stays a path"; else fail "a path after -Sx was skipped: |$(cat "$FP_ROOT/pq14/touched" 2>/dev/null)|"; fi
 # `--end-of-options` ends option parsing like `--`: in `diff --no-index
 # --end-of-options A -S ../wtB/f` git reads all three as paths.
 run "$(mk_start "$AUD" pq11)"

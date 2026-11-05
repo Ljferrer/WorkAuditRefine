@@ -828,8 +828,10 @@ touch_operand() {
 #   log, show   the diff options below, and `--grep`, `--author`,
 #               `--committer`, `--grep-reflog` (space or `=` form). log also
 #               takes `-L<r>`.
-#   diff        `-S<p>`, `-G<p>`, `-I<re>`, and `--ignore-matching-lines`,
-#               `--word-diff-regex` (space or `=` form).
+#   diff        `-S<p>`, `-G<p>`, `-I<re>`, `--ignore-matching-lines`,
+#               `--word-diff-regex` (space or `=` form), and
+#               `--color-words=<re>` (`=` form only: a bare `--color-words`
+#               takes no value).
 #   blame       `-L<r>` only: blame `-S <file>` reads a revs file.
 # A short pattern option takes the space or the attached form, also at the
 # end of a short cluster (`-pS <p>`, `-sG<p>`). Only a pattern option after a
@@ -844,8 +846,8 @@ pat_sub() {
   _pk=""; _p1=""; _pl=""; _plog=0; _pdif=0
   case "$1" in
     grep) _pk=Fnilwc; _pl=e ;;
-    log) _pk=pusRzawbW; _p1=iEFPrtmc; _pl=SGIL; _plog=1; _pdif=1 ;;
-    show) _pk=pusRzawbW; _p1=iEFPrtmc; _pl=SGI; _plog=1; _pdif=1 ;;
+    log) _pk=pusRzawbW; _p1=iEFPrtmcg; _pl=SGIL; _plog=1; _pdif=1 ;;
+    show) _pk=pusRzawbW; _p1=iEFPrtmcg; _pl=SGI; _plog=1; _pdif=1 ;;
     diff) _pk=pusRzawbW; _p1=rtmc; _pl=SGI; _pdif=1 ;;
     blame) _pk=bfnpctlswe; _pl=L ;;
   esac
@@ -874,7 +876,7 @@ pat_opt() {
   if [ "$_pdif" = 1 ]; then
     case "$1" in
       --ignore-matching-lines|--word-diff-regex) _pn=1; return 0 ;;
-      --ignore-matching-lines=*|--word-diff-regex=*) _pn=2; return 0 ;;
+      --ignore-matching-lines=*|--word-diff-regex=*|--color-words=*) _pn=2; return 0 ;;
     esac
   fi
   [ -n "$_pl" ] || return 0
@@ -899,6 +901,7 @@ pat_free() {
     --exit-code|--quiet|--check|--fixed-strings|--ignore-case) _pok=1 ;;
     --word-regexp|--line-number|--count|--files-with-matches) _pok=1 ;;
     --decorate|--no-decorate|--all-match|--invert-grep|--regexp-ignore-case) _pok=1 ;;
+    --walk-reflogs|--color-words) _pok=1 ;;
     --*) ;;
     -?*)
       case "${1#-}" in *[!0-9]*) ;; *) _pok=1; return 0 ;; esac
