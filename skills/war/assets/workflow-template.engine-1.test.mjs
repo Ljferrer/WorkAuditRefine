@@ -6725,10 +6725,13 @@ test("Task 1.1 (End state 4) — merge-site bounds: a baseline-proceed re-merge 
 test("#598 validation 5+6 — merge 'baseline' → ONE baseline-proceed re-merge, merge proceeds, ONE deduped source:'auto' backstop; two same-id tasks ⇒ one entry + debt threaded (no 2nd base re-run)", async () => {
   const IDS = ['pytest:test_legacy_a', 'ruff:E501:old.py']
   const impl = clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: IDS, gate_base_sha: 'base9999', gate_output: 'base RED with the same ids — pre-existing' }) })
-  const { out, calls } = await runPhase(CLS_ARGS({ tasks: [
+  // A non-final phase: the merged baseline red is now one behavior late defect (late-defects PIN-12),
+  // and this fixture's every merge stays red, so the late fix never lands and the row carries.
+  const { out, calls } = await runPhase(CLS_ARGS({ finalPhase: false, tasks: [
     { id: 't1', issue: 301, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
     { id: 't2', issue: 302, title: 'T2', planSlice: 's2', roster: [{ lens: 'correctness' }] },
   ] }), impl)
+  assert.equal(out.carriedTasks.filter(t => t.seat === 'baseline').length, 1, 'one baseline late defect per run, carried')
   const bp = calls.filter(c => isMergeTask(c) && /:baseline-proceed$/.test(c.opts.label || ''))
   assert.equal(bp.length, 2, 'one baseline-proceed re-merge dispatched per baseline-classified task (delete the baseline branch ⇒ 0 ⇒ this fails)')
   assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), 'both baseline tasks merged (baseline-proceed proceeded over the recorded debt)')
