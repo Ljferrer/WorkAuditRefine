@@ -29,6 +29,9 @@ import {
   rmSync,
   join,
   tmpdir,
+  PROBE,
+  polishPromptOf,
+  demotionOf,
 } from './workflow-template.test-harness.mjs'
 
 const labelOf = c => c.opts.label || ''
@@ -205,6 +208,85 @@ test('late-defect: charge — the barrier read spelling, run through bash on a r
     const values = r.stdout.split('\n').map(s => s.trim()).filter(Boolean)
     assert.equal(highestFor(values, 't1'), 3, 'single-parent first-parent commits after M only: the pre-merge t1:9 and the merge commit t1:7 never count, another task never counts')
   } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// The late-fix re-audit's own Minor/Nit rows (PIN-1: a late defect is never dropped). lateReauditImpl
+// answers the late-fix re-audit per round: `rows[i]` rides round i+1, request_changes (one Major) for
+// the first `rejects` rounds, approve after. Everything else rides lateFixImpl.
+const LF_SWEEP_ARGS = (over = {}) => LATE_FIX_ARGS({ audit: { roster: [{ lens: 'correctness' }] }, run: { ace: true }, ...over })
+const lfRow = (over = {}) => ({ severity: 'Minor', title: 'lf row', file: 'src/a.js', rationale: 'r', ...over })
+const LF_ASK = lfRow({ title: 'lf ask', disposition: 'ask', ask: { question: 'keep or drop the row?', fork: ['keep', 'drop'] } })
+const LF_FOLLOW_UP = lfRow({ title: 'lf follow-up', disposition: 'follow-up', barrier: 'barrier:underspecified' })
+const LF_NOTE = lfRow({ title: 'lf note', severity: 'Nit', disposition: 'note', findingClass: 'cosmetic' })
+const LF_ABSORB = lfRow({ title: 'lf absorb', disposition: 'absorb', suggested_fix: 'rename the row' })
+const lateReauditImpl = (rows, { rejects = 0 } = {}) => {
+  const base = lateFixImpl()
+  let round = 0
+  return (p, o) => {
+    if (!/^audit:p\d+-latefix-/.test(labelOf({ opts: o }))) return base(p, o)
+    const n = ++round
+    const minors = rows[n - 1] || []
+    return n <= rejects
+      ? { seat: o.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+          findings: [{ severity: 'Major', title: 'fix incomplete', file: 'src/a.js', rationale: 'r', suggested_fix: 'add the missing row' }, ...minors] }
+      : { seat: o.label, lens: 'correctness', verdict: 'approve', confidence: 'high', findings: minors }
+  }
+}
+const askOf = (out, title) => (out.asks || []).filter(a => a && a.finding && a.finding.title === title)
+const noteOf = (out, title) => (out.notes || []).filter(n => n && n.title === title)
+const isRouted = (out, title) => askOf(out, title).length > 0 || !!demotionOf(out, title) || noteOf(out, title).length > 0
+
+test('late-defect: hold — the late-fix re-audit Minor/Nit rows walk the shared ladder under the origin task: an ask parks, a follow-up files, a note notes, an absorb rides the sweep, and none stays only in auditLog', async () => {
+  const { out, calls, logs } = await runPhase(LF_SWEEP_ARGS(), lateReauditImpl([[LF_ASK, LF_FOLLOW_UP, LF_NOTE, LF_ABSORB]]), PROBE)
+  assert.equal(out.landDecision, 'landed')
+  const row = out.auditLog.find(e => e.verdict === 'late-fix:approve')
+  assert.deepEqual(row.findings.map(f => f.title), ['lf ask', 'lf follow-up', 'lf note', 'lf absorb'], 'the auditLog row still records the round')
+  const parked = askOf(out, 'lf ask')
+  assert.equal(parked.length, 1, 'the ask is parked for the Checkpoint ruling')
+  assert.equal(parked[0].task, 't1', 'under the origin task, never the latefix pseudo id')
+  assert.equal(parked[0].question, 'keep or drop the row?')
+  const filed = demotionOf(out, 'lf follow-up')
+  assert.ok(filed && filed.task === 't1' && filed.barrier === 'barrier:underspecified', 'the barrier follow-up is filed on the origin task')
+  assert.equal(noteOf(out, 'lf note').length, 1, 'the cosmetic note keeps its route (notes)')
+  assert.ok(polishPromptOf(calls).includes('lf absorb'), 'the absorb rides the phase-close sweep')
+  assert.ok(!demotionOf(out, 'lf absorb') && noteOf(out, 'lf absorb').length === 0 && askOf(out, 'lf absorb').length === 0, 'the absorb is neither filed, noted nor parked')
+  assert.ok(logs.some(l => /Re-entry routing: \[Minor\] "lf absorb" \(task t1\) → phaseClose sweep — born at the late-fix re-audit of p3-latefix-1 for task t1/.test(l)), 'the sweep route names the late-fix re-audit as the row\'s birthplace')
+  for (const t of ['lf ask', 'lf follow-up', 'lf note']) assert.ok(!polishPromptOf(calls).includes(t), `"${t}" never joins the sweep`)
+})
+
+test('late-defect: hold — a rejected late-fix round routes its Minor/Nit rows too, a re-raise in the next round corroborates the first record, and dropping the route call leaves every row unrouted', async () => {
+  // Round 1 rejects with the four rows; round 2 approves and raises the ask and the follow-up again.
+  const rows = [[LF_ASK, LF_FOLLOW_UP, LF_NOTE, LF_ABSORB], [LF_ASK, LF_FOLLOW_UP]]
+  const { out, calls, logs } = await runPhase(LF_SWEEP_ARGS(), lateReauditImpl(rows, { rejects: 1 }), PROBE)
+  assert.equal(out.landDecision, 'landed')
+  assert.deepEqual(lateWorkers(calls).map(labelOf), ['late-fix:t1:r1', 'late-fix:t1:r2'])
+  assert.equal(askOf(out, 'lf ask').length, 1, 'one parked ask survives both rounds')
+  assert.ok(logs.some(l => /ask collision merged as corroboration: "keep or drop the row\?" \(task t1\)/.test(l)), 'the round-2 re-raise is recorded as corroboration')
+  assert.equal((out.minorsFiled || []).filter(m => m && m.title === 'lf follow-up').length, 1, 'one filed follow-up, never a second record')
+  assert.ok(logs.some(l => /re-audit re-mint of "lf follow-up" \(task t1\)/.test(l)), 'the round-2 re-raise is logged as a re-mint')
+  assert.equal(noteOf(out, 'lf note').length, 1, 'the rejected round\'s note reaches notes')
+  assert.ok(polishPromptOf(calls).includes('lf absorb'), 'the rejected round\'s absorb rides the sweep')
+  // Red proof by mutation: the engine without the route call records the rows only in auditLog.
+  const call = 'if (!died) routeReauditMinors(lfRecord, seats, { noReentry: lfNoReentry })'
+  assert.ok(src.includes(call), 'the mutation target is the live route call')
+  const mutated = await runPhase(LF_SWEEP_ARGS(), lateReauditImpl([[LF_ASK, LF_FOLLOW_UP, LF_NOTE, LF_ABSORB]]), PROBE, src.replace(call, ''))
+  assert.equal(mutated.out.landDecision, 'landed', 'the mutant still lands, so a green land never proves the route')
+  assert.equal(mutated.out.auditLog.find(e => e.verdict === 'late-fix:approve').findings.length, 4, 'the mutant still records the rows in auditLog')
+  for (const t of ['lf ask', 'lf follow-up', 'lf note', 'lf absorb']) assert.ok(!isRouted(mutated.out, t) && !polishPromptOf(mutated.calls).includes(t), `without the route call "${t}" is dropped — the rows above prove the call`)
+})
+
+test('late-defect: hold — a preMerged origin task has no wave record, and the late-fix re-audit rows still route under it', async () => {
+  const args = PROVISION_ARGS({ phase: ES_PHASE, tasks: [LATE_TASK()], audit: { roster: [{ lens: 'correctness' }] }, recovery: { sanctioned: true } })
+  const base = lateReauditImpl([[LF_ASK, LF_FOLLOW_UP]])
+  const impl = (p, o) => o.dispatchKind === 'provision-barrier' ? { ok: true, preMerged: ['t1'] } : base(p, o)
+  const { out, calls } = await runPhase(args, impl)
+  assert.equal(out.landDecision, 'landed')
+  assert.ok(!calls.some(c => /^audit:t1:/.test(labelOf(c))), 'no wave audit ran, so the origin has no wave record')
+  assert.deepEqual(lateWorkers(calls).map(labelOf), ['late-fix:t1:r1'])
+  assert.equal(askOf(out, 'lf ask').length, 1, 'the ask parks under the preMerged origin')
+  assert.equal(askOf(out, 'lf ask')[0].task, 't1')
+  const filed = demotionOf(out, 'lf follow-up')
+  assert.ok(filed && filed.task === 't1', 'the follow-up files under the preMerged origin')
 })
 
 test('late-defect: hold — the docs name the pass, the hold, carriedTasks and the trailer, and point at land-decision.mjs for the reason list', () => {

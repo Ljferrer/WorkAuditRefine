@@ -18727,6 +18727,50 @@ test('2485/ES15 the gate-log preamble repeats the provision_tree marker line, an
 })
 
 
+test('floor re-audit Minor/Nit rows walk the shared ladder: an ask parks, a barrier follow-up files, an absorb rides the sweep, and dropping the route call leaves them only in auditLog (PIN-1 sibling of the late-fix re-audit)', async () => {
+  // no-test → add-test → re-audit(approve WITH rows) → re-merge(merged). The wave audit (first
+  // 'audit:t1:correctness' call) approves clean; the floor re-audit (second call) raises three rows.
+  const rows = [
+    { severity: 'Minor', title: 'floor ask', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'ask', ask: { question: 'which pattern?', fork: ['a', 'b'] } },
+    { severity: 'Minor', title: 'floor follow-up', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified' },
+    { severity: 'Minor', title: 'floor absorb', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'absorb', suggested_fix: 'rename it' },
+  ]
+  const impl = () => buildSeqImpl(
+    { 'merge:t1': [{ mode: 'merge-task', status: 'no-test' }],
+      'audit:t1:correctness': [approveWith('audit:t1:correctness', []), approveWith('audit:t1:correctness', rows)] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && (opts.phase === 'Provision' || opts.dispatchKind === 'polish-worktree')) return { ok: true }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
+      if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'deadbeef' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    })
+  const args = () => PROVISION_ARGS({ tasks: SINGLE_TASK, audit: { roster: [{ lens: 'correctness' }] }, run: { ace: true } })
+  const { out, calls, logs } = await runPhase(args(), impl(), PROBE)
+  assert.equal(out.landDecision, 'landed')
+  assert.ok(calls.some(c => /^add-test:t1:/.test(c.opts.label || '')), 'the floor sub-loop ran')
+  const parked = (out.asks || []).filter(a => a && a.finding && a.finding.title === 'floor ask')
+  assert.equal(parked.length, 1, 'the floor re-audit ask parks for the Checkpoint')
+  assert.equal(parked[0].task, 't1')
+  const filed = demotionOf(out, 'floor follow-up')
+  assert.ok(filed && filed.barrier === 'barrier:underspecified', 'the barrier follow-up files')
+  assert.ok(polishPromptOf(calls).includes('floor absorb'), 'the absorb rides the phase-close sweep')
+  assert.ok(!demotionOf(out, 'floor absorb'), 'the absorb is not filed')
+  assert.ok(logs.some(l => /"floor absorb" \(task t1\) → phaseClose sweep — floor-fix re-audit in the merge slot/.test(l)), 'the sweep route names the floor re-audit')
+  // Red proof by mutation: without the route call the rows sit only in auditLog.
+  const call = "routeReauditMinors(r, reSeats, { noReentry: 'floor-fix re-audit in the merge slot"
+  assert.ok(src.includes(call), 'the mutation target is the live route call')
+  const mutant = src.replace(/ *routeReauditMinors\(r, reSeats, \{ noReentry: 'floor-fix re-audit in the merge slot[^\n]*\n/, '')
+  assert.notEqual(mutant, src)
+  const m = await runPhase(args(), impl(), PROBE, mutant)
+  assert.equal(m.out.landDecision, 'landed', 'the mutant still lands, so a green land never proves the route')
+  for (const t of ['floor ask', 'floor follow-up', 'floor absorb']) {
+    assert.ok(!(m.out.asks || []).some(a => a && a.finding && a.finding.title === t) && !demotionOf(m.out, t) && !(m.out.notes || []).some(n => n && n.title === t) && !polishPromptOf(m.calls).includes(t), `without the route call "${t}" is dropped`)
+  }
+})
+
 test('every agent card the engine dispatches is registered in plugin.json (an unlisted card is not an agent type)', () => {
   const manifest = JSON.parse(readFileSync('.claude-plugin/plugin.json', 'utf8'))
   const dispatched = [...new Set([...readFileSync('skills/war/assets/workflow-template.js', 'utf8').matchAll(/NS \+ '(war-[a-z-]+)'/g)].map(m => m[1]))]

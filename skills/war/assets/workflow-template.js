@@ -5600,6 +5600,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           ;({ seats: reSeats, expected: reExpected, died: reDied } = await auditRound(r.task, null, null, floorFix && floorFix.head_sha))
           // D21: a dead floor re-audit seat is env-died, never audit-blocked
           if (reDied) { mergeDied(reDied); floorMr = null; reAuditFailed = true; break }
+          // The floor re-audit's own Minor/Nit rows walk the shared ladder on both verdict arms (the
+          // merge-slot pin-transfer and late-fix re-audit precedents): the auditLog rows below are
+          // records, not routes. The wave side is over, so an absorb rides the sweep (noReentry).
+          routeReauditMinors(r, reSeats, { noReentry: 'floor-fix re-audit in the merge slot — the wave side is over, so re-entry can never dispatch; the sweep is the vehicle' })
           const reVerdict = reSeats.length < reExpected ? 'audit-blocked'
             : reSeats.some(s => s.verdict === 'escalate') ? 'escalate'
             : allApprove(reSeats, reExpected) ? 'approve' : 'request_changes'
@@ -6477,7 +6481,11 @@ const tipWorktreeProvision = (provWhat, provWorktree, provBranch) =>
 // late-fix worktree at the integrated tip; each round one spawnWorker('fix') commit carries the
 // trailer `Late-Fix: <task id>:<n>` (n = the origin's fixRounds after this round's charge; no chain
 // clause), the origin roster re-audits the new sha, and on unanimous approve the refiner fast-forwards
-// the branch in _refinery after the gate. A red gate takes another round; any other merge outcome
+// the branch in _refinery after the gate. Each round's re-audit Minor/Nit rows walk the shared
+// disposition ladder under the origin task's id (routeReauditMinors with noReentry, the merge-slot
+// precedent): an ask parks, a follow-up files, a note notes, an absorb rides the sweep, and
+// remintBlock corroborates a re-raise across rounds; routeGateAuditRows ran before this pass, so
+// nothing else reads these rows. A red gate takes another round; any other merge outcome
 // stops. A spent budget, or a stop, leaves the branch unmerged (the pre-fix tip lands) and routes the
 // defect: a carriedTasks row on a non-final phase, a 'late-defect' hold on the final phase or on a
 // phase another hard escalation already holds (the pass never runs there). Never dropped (PIN-1).
@@ -6515,6 +6523,12 @@ const lateFixPass = async () => {
     const lfWorktree = (worktreeRoot || '<worktreeRoot>') + '/' + (runId || '<runId>') + '/' + id
     const lfTask = { id, issue: origin.issue, title: 'late fix for task ' + origin.id, branch: lfBranch, worktree: lfWorktree, roster: origin.roster,
       planSlice: 'fix the late defect "' + (f.title ?? '') + '" of task ' + origin.id + ': ' + (f.suggested_fix ?? '') }
+    // The re-audit rows route under the origin task's real id, never the late-fix pseudo id: the
+    // origin's wave record when it has one (a preMerged task has none), else a fresh record on it.
+    // dispositionOf then judges in-diff against the origin's own diff probe (the late-fix branch has
+    // no probe); with noReentry both arms of that judgment end at the sweep.
+    const lfRecord = [...liveTaskRecords].find(r => r.task === origin) || { task: origin }
+    const lfNoReentry = 'born at the late-fix re-audit of ' + id + ' for task ' + origin.id + ' — past the wave side, so re-entry can never dispatch; the phase-close sweep is the vehicle'
     let stop = holding.length ? 'the phase already holds (' + holding.join(', ') + '), so the late-fix pass never ran' : null
     let lfPrior = '', fixed = false, cut = false
     if (!stop && origin.fixRounds < roundLimit) {
@@ -6546,6 +6560,9 @@ const lateFixPass = async () => {
       const ok = !died && allApprove(seats, expected)
       auditLog.push({ task: origin.id, verdict: died ? 'env-died' : ok ? 'late-fix:approve' : 'late-fix:rejected', lateFix: id, sha: w.head_sha, fixRounds: lfRound,
         findings: seats.flatMap(s => s.findings || []), requested: expected, returned: seats.length, ...(died ? { blocked: died } : {}) })
+      // The round's own Minor/Nit rows walk the shared ladder on BOTH the approve and the reject arm
+      // (the ace re-audit precedent): the auditLog row above is a record, not a route (PIN-1).
+      if (!died) routeReauditMinors(lfRecord, seats, { noReentry: lfNoReentry })
       if (!ok) {
         lfPrior = 'round ' + lfRound + ' at ' + w.head_sha + ' — ' + (died || 'the re-audit did not approve: ' + blockingOf(seats).map(b => '[' + b.severity + '] ' + (b.title ?? '') + (b.suggested_fix ? ' → ' + b.suggested_fix : '')).join('; '))
         continue
