@@ -8,6 +8,8 @@ The pass runs after every post-merge gate-audit seat and before the engine compu
 
 Its queue holds late defects. A gate-audit-family seat (the per-task seat, the integrated-tip seat or the end-state-only seat) sends a Critical or Major with a non-blank `suggested_fix` to the queue. A fix-less blocker, or an `escalate` verdict, keeps the `gate-evidence` hold.
 
+One defect gets one late fix. If several seats raise the same file and title, the queue keeps the first row and logs each dropped copy. The dropped copy's seat is corroborated onto the kept row.
+
 If another hard escalation already holds the phase, the pass does not run. Each queued defect then rides a `late-defect` hold to the Lead, so it is never dropped.
 
 ## The origin task
@@ -28,6 +30,8 @@ The origin task lends its roster and its `fixRounds` budget under `run.roundLimi
 4. On approval the refiner runs the gate in the late-fix worktree and fast-forwards the branch in `_refinery` with `git merge --ff-only`. A non-fast-forward returns `conflict`. It skips the three task-field floors and runs the submodule floor and the Budget-Raise floor. A red gate takes another round. Any other merge outcome stops the defect.
 
 The loop ends on a merge, a stop, or `fixRounds >= run.roundLimit`.
+
+A merged late fix moves the integration tip. The engine records its `integration_sha` as the last landed tip, so a held phase's handoff `tipSha` names it. The handoff `endState` reads a condition whose only blockers the pass fixed as `unverified` with a note, because no seat re-attests after the late fix.
 
 ## A spent or stopped defect
 

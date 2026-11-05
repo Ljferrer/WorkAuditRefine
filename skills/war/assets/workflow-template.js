@@ -527,7 +527,8 @@ const aced = []
 const phaseCloseQueue = []
 const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha, gateLogPath, preMergeTip, mappedTests?, claimedEndStateIds?, baselineDebt?} for post-merge gate-audit pass (F04 R3)
 // #806: the last REAL integration_sha any landMerged() call recorded (incl. requiresTest:false tasks,
-// which never enter mergedTasksForGateAudit). Each gate-audit entry stamps the tracker's value from
+// which never enter mergedTasksForGateAudit), or a merged late fix's tip (lateFixPass, after every predTip
+// read). Each gate-audit entry stamps the tracker's value from
 // BEFORE its own task's update — its true immediate predecessor tip in serial merge order — so a
 // requiresTest:false interleave no longer over-populates the successor's --mapped diff range. A sentinel
 // integration_sha leaves the tracker at the last REAL sha (feeding the sentinel forward would poison the
@@ -5880,9 +5881,26 @@ const gateAuditRows = []
 // suggested_fix joins it; a fix-less one, or an `escalate` verdict, keeps the gate-evidence hold.
 const lateFixQueue = []
 const gateHardOf = v => v.verdict === 'escalate' || (v.findings || []).some(f => (f.severity === 'Critical' || f.severity === 'Major') && blankText(f.suggested_fix))
+// One defect, one late fix: the queue key is remintKey with the task blanked, because the per-task,
+// integrated-tip and end-state seats stamp different task ids on the same file + title. A duplicate
+// drops (logged), its seat corroborated onto the survivor (mergeSeat, the dropDup idiom).
+const lateKeyOf = f => remintKey({ ...f, task: '' })
+// lateSrcOf: queue row → the seat findings it stands for (its own and each dropped duplicate's).
+// lateFixed: one { id, srcs } row per defect the pass fixed — the handoff endState reads it.
+const lateSrcOf = new Map()
+const lateFixed = []
 const queueLateFix = (v, task, seat) => {
   for (const f of v.findings || []) if (f.severity === 'Critical' || f.severity === 'Major') {
-    lateFixQueue.push({ ...f, task, seat, sha: auditShaOrSentinel(v.audit_sha) })
+    const dup = lateFixQueue.find(q => lateKeyOf(q) === lateKeyOf(f))
+    if (dup) {
+      log('late-fix pass: [' + f.severity + '] "' + (f.title ?? '') + '" (' + seat + ') duplicates the row ' + dup.seat + ' already queued — the second copy is dropped, its seat corroborated onto the survivor (logged, never silent).')
+      mergeSeat(dup, { ...f, task, seat })
+      lateSrcOf.get(dup).push(f)
+      continue
+    }
+    const row = { ...f, task, seat, sha: auditShaOrSentinel(v.audit_sha) }
+    lateSrcOf.set(row, [f])
+    lateFixQueue.push(row)
     log('late-fix pass: queued [' + f.severity + '] "' + (f.title ?? '') + '" (' + seat + ') — a blocker with a fix, never a straight hold (PIN-5).')
   }
 }
@@ -6206,7 +6224,7 @@ if (mergedTasksForGateAudit.length > 0) {
         if (f.severity === 'Minor' || f.severity === 'Nit') gateAuditRows.push({ ...f, task: taskId, seat: 'gate-audit:' + taskId + ':execution-evidence', lens: 'execution-evidence', sha: auditShaOrSentinel(gateAuditVerdict.audit_sha) })
       }
       if (isHardGateEvidence) {
-        // HARD: a provably-unrun mapped test OR a finding-less escalate → push gate-evidence to escalated so the land is held.
+        // HARD (gateHardOf): a fix-less Critical/Major OR an escalate verdict → push gate-evidence to escalated so the land is held; a blocker with a suggested_fix joins the late-fix queue (PIN-5).
         escalated.push({ task: taskId, reason: 'gate-evidence', detail: gateAuditVerdict })
       } else if (!mismatch) queueLateFix(gateAuditVerdict, taskId, 'gate-audit:' + taskId + ':execution-evidence')
     }
@@ -6581,7 +6599,15 @@ const lateFixPass = async () => {
         + pt` Before step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${lfBranch} (BARE; exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }; exit 2 → status 'error') and assert-budget-raise-cited.sh ${ph.integrationBranch} ${lfBranch} (exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }; exit 2 → status 'error'); never merge on a non-zero exit.`
         + sweepDebtClause(),
         { agentType: NS + 'war-refiner', phase: 'Refine', label: 'merge:' + id, schema: MERGE_RESULT, ...spawn('refiner') }, { task: id, repo: refineryLandPath, source: lfBranch, target: ph.integrationBranch, seed: phaseGitSeed })
-      if (mr && mr.status === 'merged') { fixed = true; sweepDebtLog('late-fix pass merge:' + id, mr); break }
+      // A merged late fix moves the integration tip: the handoff tipSha fallback reads lastLandedTip
+      // (confirmMerge already bound integration_sha to Git), and the endState map reads lateFixed.
+      if (mr && mr.status === 'merged') {
+        fixed = true
+        if (isSha(mr.integration_sha)) lastLandedTip = mr.integration_sha
+        lateFixed.push({ id, srcs: lateSrcOf.get(f) || [f] })
+        sweepDebtLog('late-fix pass merge:' + id, mr)
+        break
+      }
       const mWhy = deathOf(mr) || (mr && mr.status) || 'no result'
       lfPrior = 'round ' + lfRound + ' at ' + w.head_sha + ' — the merge returned ' + mWhy
       if (!mr || mr.status !== 'gate_failed') stop = 'the late-fix merge returned ' + mWhy
@@ -7366,9 +7392,9 @@ if (landDecision === 'landed') {
 // The landed arm keeps its own landResult && … null-guard and the truthy-string check on working_sha
 // (no new SHA-shape validation).
 // tipSha: the landed working sha; degraded → the last confirmed merge tip; else null. The degraded
-// fallback reads lastLandedTip (#2485 D12): the last real integration_sha, the task merge commit, which
-// landMerged records for every merged task. A gateHeadSha is the gated task tip, the merge commit's
-// second parent, so it is never the integration tip.
+// fallback reads lastLandedTip (#2485 D12): the last real integration_sha — the task merge commit, which
+// landMerged records for every merged task, or a merged late fix's tip, which lateFixPass records. A
+// gateHeadSha is the gated task tip, the merge commit's second parent, so it is never the integration tip.
 const tipSha = (landResult && landResult.status === 'landed' && typeof landResult.working_sha === 'string' && landResult.working_sha)
   ? landResult.working_sha
   : (isSha(lastLandedTip) ? lastLandedTip : null)
@@ -7636,7 +7662,8 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
   // endState (D8, Task 3.2 — the FIVE-status set met | unmet | unverified | deferred | out-of-scope):
   // statuses keyed on the VERBATIM condition text, derived from TWO channels. Findings stay defect-only
   // (plan_ref-keyed; severity drives unmet/out-of-scope/deferred exactly as before) and rule first — a
-  // Critical/Major can never be laundered by a met attestation. Then the POSITIVE endStateAttestations
+  // Critical/Major can never be laundered by a met attestation (a blocker the late-fix pass fixed lands
+  // 'unverified' with a note, never 'met'). Then the POSITIVE endStateAttestations
   // channel: attested unmet > attested met > 'unverified'. A condition with NO attestation row from any
   // seat is 'unverified', NEVER a silent 'met'; a pin-mismatched per-task entry's rows are excluded
   // (the seat judged a different tree — its conditions fall to 'unverified'). Whole-pass absence stays
@@ -7703,6 +7730,19 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
       if (!gateAuditRan) return { condition, status: 'deferred' }
       const rel = gateFindings.filter(f => f && normRef(f.plan_ref) === normRef(condition))
       const att = gateAttestations.filter(a => a && normRef(a.condition) === normRef(condition))
+      // Late-fixed arm (late-defects D5, PIN-5): every Critical/Major on this condition, and every
+      // gate entry that attested it unmet, comes from a row the late-fix pass fixed. No seat
+      // re-attests after the late fix, so the condition is 'unverified' with a note, never 'unmet'
+      // and never 'met'. Any other blocker or unmet attestation falls through to the chain below.
+      const fixedOf = f => lateFixed.find(x => x.srcs.includes(f))
+      const hardRel = rel.filter(f => f.severity === 'Critical' || f.severity === 'Major')
+      const unmetFrom = gateEntries.filter(e => !e.pinMismatch && (Array.isArray(e.endStateAttestations) ? e.endStateAttestations : [])
+        .some(a => a && a.status === 'unmet' && normRef(a.condition) === normRef(condition)))
+      if (hardRel.length && hardRel.every(fixedOf)
+        && unmetFrom.every(e => (e.findings || []).some(f => fixedOf(f) && normRef(f.plan_ref) === normRef(condition)))) {
+        const ids = [...new Set(hardRel.map(f => fixedOf(f).id))].join(', ')
+        return { condition, status: 'unverified', note: 'fixed by the late-fix pass (' + ids + ') after the gate-audit; not re-attested' }
+      }
       // Five-status ternary chain (D8): finding arms first (severity is evaluated BEFORE the
       // out-of-scope title/rationale arm, #1082), then the attestation arms; the terminal arm is
       // 'unverified' — no attestation row from any seat maps there, never to 'met'.

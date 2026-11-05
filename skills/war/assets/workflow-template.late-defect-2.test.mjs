@@ -103,6 +103,95 @@ test('late-defect: gate-audit end-state seat — a fixable blocker belongs to th
   assert.deepEqual(lateWorkers(unowned.calls).map(labelOf), ['late-fix:3.2:r1'], 'an unowned file falls to the lowest-id merged task (3.2 < 3.10)')
 })
 
+// tipImpl: the evidence dispatch answers an integratedTipGate (the evidenceImpl shape), so the
+// integrated-tip seat runs on the intra-dep PROVISION_ARGS phase (t2 deps t1). That seat returns
+// `tip`; every per-task gate-audit seat returns `perTask`. Everything else rides lateFixImpl.
+const TIP_GATE = { gate_output: 'INTEGRATED TIP GATE: all suites passed', tip_sha: 'aaaa1111', gate_log_path: '/abs/repo/.claude/teams/run-2026/.war/gate-tip.log' }
+const gaSeat = (label, findings) => ({ seat: label, lens: 'execution-evidence', verdict: findings.length ? 'request_changes' : 'approve', findings, confidence: 'high' })
+const tipImpl = ({ tip = [GA_MAJOR()], perTask = [] } = {}) => {
+  const base = lateFixImpl()
+  return (p, o) => {
+    const label = labelOf({ opts: o })
+    if (/^evidence:/.test(label)) return { perTask: [], integratedTipGate: TIP_GATE }
+    if (label === 'gate-audit:phase-3:integrated-tip') return gaSeat(label, tip)
+    if (/^gate-audit:/.test(label)) return gaSeat(label, perTask)
+    return base(p, o)
+  }
+}
+const TIP_ROUTE = "      else queueLateFix(authVerdict, 'phase-' + ph.id + '-integrated-tip', 'gate-audit:phase-' + ph.id + ':integrated-tip')\n"
+
+test('late-defect: gate-audit integrated-tip seat — a fixable blocker joins the late-fix pass, a fix-less one holds gate-evidence', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS(), tipImpl())
+  assert.ok(calls.some(c => labelOf(c) === 'gate-audit:phase-3:integrated-tip'), 'presence guard: the integrated-tip seat ran')
+  assert.deepEqual(lateWorkers(calls).map(labelOf), ['late-fix:t1:r1'], 'the blocker joins the late-fix pass under the lowest-id merged task')
+  assert.deepEqual(gateHolds(out), [], 'a blocker with a fix never holds gate-evidence (PIN-5)')
+  assert.equal(out.landDecision, 'landed')
+  // Fix-less control: the same seat with a blank suggested_fix holds, and no late fix runs.
+  const fixless = await runPhase(PROVISION_ARGS(), tipImpl({ tip: [GA_MAJOR({ suggested_fix: '' })] }))
+  assert.equal(fixless.out.landDecision, 'held:escalation')
+  assert.deepEqual(gateHolds(fixless.out).map(e => e.task), ['phase-3-integrated-tip'], 'one gate-evidence hold on the integrated-tip pseudo task')
+  assert.equal(lateWorkers(fixless.calls).length, 0, 'no late-fix worker runs')
+  // Red proof by mutation: without the integrated-tip route the fixable blocker is neither held nor
+  // queued, and the phase lands with the defect unfixed (a PIN-1 breach the rows above catch).
+  assert.ok(src.includes(TIP_ROUTE), 'the mutation target is the live route line')
+  const mutated = await runPhase(PROVISION_ARGS(), tipImpl(), {}, src.replace(TIP_ROUTE, ''))
+  assert.equal(lateWorkers(mutated.calls).length, 0, 'the mutant runs no late fix')
+  assert.deepEqual(gateHolds(mutated.out), [], 'and holds nothing')
+  assert.equal(mutated.out.landDecision, 'landed', 'so it lands the defect unfixed')
+})
+
+test('late-defect: gate-audit dedup — one defect raised by several gate-audit seats runs one late fix, and distinct defects still run one each', async () => {
+  // Both per-task seats (t1, t2) raise the same Major: one late fix, and the drop is logged.
+  const two = await runPhase(PROVISION_ARGS(), lateFixImpl())
+  assert.equal(two.calls.filter(c => /^gate-audit:t\d:execution-evidence$/.test(labelOf(c))).length, 2, 'presence guard: both per-task seats ran')
+  assert.deepEqual(lateWorkers(two.calls).map(labelOf), ['late-fix:t1:r1'], 'exactly one late-fix worker')
+  assert.equal(two.out.landDecision, 'landed')
+  assert.ok(two.logs.some(l => /^late-fix pass: \[Major\] "mapped test never ran" \(gate-audit:t\d:execution-evidence\) duplicates the row gate-audit:t\d:execution-evidence already queued/.test(l)), 'the dropped copy is logged, never silent')
+  // The integrated-tip seat and both per-task seats raise it: still one late fix.
+  const three = await runPhase(PROVISION_ARGS(), tipImpl({ tip: [GA_MAJOR()], perTask: [GA_MAJOR()] }))
+  assert.deepEqual(lateWorkers(three.calls).map(labelOf), ['late-fix:t1:r1'], 'one late fix across the per-task and integrated-tip seats')
+  assert.equal(three.logs.filter(l => /^late-fix pass: .* duplicates the row /.test(l)).length, 2, 'two dropped copies, each logged')
+  // Mirror: distinct titles are distinct defects, so each runs its own late fix.
+  const distinct = await runPhase(PROVISION_ARGS(), tipImpl({ tip: [GA_MAJOR({ title: 'other defect' })], perTask: [] }))
+  assert.equal(lateWorkers(distinct.calls).length, 1, 'presence guard: the tip-only defect runs once')
+  const both = await runPhase(PROVISION_ARGS({ tasks: [PROVISION_ARGS().tasks[0]] }), lateFixImpl({ gaFindings: [GA_MAJOR(), GA_MAJOR({ title: 'other defect' })] }))
+  assert.deepEqual(lateWorkers(both.calls).map(labelOf), ['late-fix:t1:r1', 'late-fix:t1:r2'], 'two distinct defects run two late fixes')
+  // Red proof by mutation: without the duplicate check the per-task pair runs two late fixes.
+  const check = 'const dup = lateFixQueue.find(q => lateKeyOf(q) === lateKeyOf(f))'
+  assert.ok(src.includes(check), 'the mutation target is the live duplicate check')
+  const mutated = await runPhase(PROVISION_ARGS(), lateFixImpl(), {}, src.replace(check, 'const dup = null'))
+  assert.equal(lateWorkers(mutated.calls).length, 2, 'the mutant runs the same defect twice')
+})
+
+test('late-defect: gate-audit end-state handoff — a fixed End-state blocker lands unverified with a note, never unmet', async () => {
+  const cond = ES_PHASE.endState[0]
+  const tasks = [LATE_TASK({ requiresTest: false })]
+  const esImpl = (findings, extra = {}) => {
+    const base = lateFixImpl(extra)
+    return (p, o) => labelOf({ opts: o }) === 'gate-audit:phase-3:end-state'
+      ? { ...gaSeat(o.label, findings), endStateAttestations: [{ condition: cond, status: 'unmet', evidence: 'the mapped test never ran' }] }
+      : base(p, o)
+  }
+  const fixed = await runPhase(PROVISION_ARGS({ phase: ES_PHASE, tasks }), esImpl([GA_MAJOR({ plan_ref: cond })]))
+  assert.equal(fixed.out.landDecision, 'landed')
+  assert.deepEqual(lateWorkers(fixed.calls).map(labelOf), ['late-fix:t1:r1'], 'presence guard: the late fix ran')
+  assert.deepEqual(fixed.out.handoff.endState, [{ condition: cond, status: 'unverified', note: 'fixed by the late-fix pass (p3-latefix-1) after the gate-audit; not re-attested' }])
+  assert.ok(schemasMd.includes('`fixed by the late-fix pass (<id>) after the gate-audit; not re-attested`'), 'schemas.md restates the note the engine emits')
+  // Mirror: a spent late fix never merged, so the blocker stays unmet on the held phase.
+  const spent = await runPhase(PROVISION_ARGS({ phase: ES_PHASE, tasks, run: { roundLimit: 2 } }), esImpl([GA_MAJOR({ plan_ref: cond })], { rejects: 99 }))
+  assert.equal(spent.out.landDecision, 'held:escalation')
+  assert.equal(spent.out.handoff.endState[0].status, 'unmet', 'an unfixed blocker stays unmet')
+  // Mirror: the fixed blocker carries no plan_ref, so the seat's unmet attestation is not its row.
+  const unbound = await runPhase(PROVISION_ARGS({ phase: ES_PHASE, tasks }), esImpl([GA_MAJOR()]))
+  assert.equal(unbound.out.landDecision, 'landed')
+  assert.equal(unbound.out.handoff.endState[0].status, 'unmet', 'an unmet attestation no late-fixed row explains stays unmet')
+  // Red proof by mutation: without the late-fixed arm the fixed blocker reads unmet.
+  const arm = 'if (hardRel.length && hardRel.every(fixedOf)'
+  assert.ok(src.includes(arm), 'the mutation target is the live arm')
+  const mutated = await runPhase(PROVISION_ARGS({ phase: ES_PHASE, tasks }), esImpl([GA_MAJOR({ plan_ref: cond })]), {}, src.replace(arm, 'if (false'))
+  assert.equal(mutated.out.handoff.endState[0].status, 'unmet', 'the mutant marks the fixed End state unmet')
+})
+
 test('late-defect: hold — on the final phase a spent late fix holds held:escalation with reason late-defect, and the branch never merges', async () => {
   const { out, calls } = await runPhase(LATE_FIX_ARGS({ run: { roundLimit: 3 } }), lateFixImpl({ rejects: 99 }))
   assert.equal(out.landDecision, 'held:escalation')
@@ -117,6 +206,25 @@ test('late-defect: hold — on the final phase a spent late fix holds held:escal
   assert.ok(!calls.some(c => labelOf(c) === 'merge:p3-latefix-1'), 'an unapproved branch is never merged')
   assert.deepEqual(gateHolds(out), [])
   assert.deepEqual(out.carriedTasks, [], 'the final phase never carries')
+  // Two defects: the first late fix merges, the second spends the budget and holds. The handoff
+  // tipSha names the late-fix merge, which integration already carries, not t1's task merge commit.
+  const LF_SHA = '3'.repeat(40)
+  const implOf = () => {
+    const base = lateFixImpl({ gaFindings: [GA_MAJOR(), GA_MAJOR({ title: 'second defect', file: 'src/b.test.js' })] })
+    return (p, o) => /^audit:p3-latefix-2:/.test(labelOf({ opts: o }))
+      ? { seat: o.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'fix incomplete', file: 'src/a.js', rationale: 'r', suggested_fix: 'add the missing row' }] }
+      : base(p, o)
+  }
+  const two = await runPhase(LATE_FIX_ARGS({ run: { roundLimit: 3 } }), implOf())
+  assert.equal(two.out.landDecision, 'held:escalation')
+  assert.ok(two.calls.some(c => labelOf(c) === 'merge:p3-latefix-1'), 'presence guard: the first late fix merged')
+  assert.deepEqual(lateHolds(two.out).map(e => e.detail.includes('"second defect"')), [true], 'the second defect holds')
+  assert.equal(two.out.handoff.tipSha, LF_SHA, 'the handoff tipSha is the late-fix merge sha')
+  // Red proof by mutation: without the tracker update the handoff names the pre-late-fix merge commit.
+  const line = 'if (isSha(mr.integration_sha)) lastLandedTip = mr.integration_sha\n'
+  assert.ok(src.includes(line), 'the mutation target is the live tracker update')
+  const mutated = await runPhase(LATE_FIX_ARGS({ run: { roundLimit: 3 } }), implOf(), {}, src.replace(line, '\n'))
+  assert.ok(mutated.out.handoff.tipSha && mutated.out.handoff.tipSha !== LF_SHA, 'the mutant names a stale tip')
 })
 
 test('late-defect: hold — on a non-final phase a spent late fix lands the phase and returns one carriedTasks row', async () => {

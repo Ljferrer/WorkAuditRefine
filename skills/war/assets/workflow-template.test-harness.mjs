@@ -1075,7 +1075,7 @@ const crossTaskImpl = (prompt, opts) => {
 // #990 — the LANDED-TIP ANCHOR is hoisted above the Wrap-up gate and THREADED into the servitor
 // prompt. Same computation the handoff block used to own (the test above pins its semantics
 // unchanged); these three pin the RENDERED value at each rung of its fallback chain:
-// landed working_sha → lastLandedTip (the last task merge commit) → the named placeholder. The placeholder rung is the
+// landed working_sha → lastLandedTip (the last task merge commit or merged late-fix tip) → the named placeholder. The placeholder rung is the
 // ADR 0034 proof: `pt` throws on undefined, so the null case must be pre-resolved BEFORE interpolation.
 // ---------------------------------------------------------------------------
 const TIP_PLACEHOLDER = /landed tip unrecorded — ground via the gate-audit auditSha entries in your audit-log input/
@@ -3449,6 +3449,8 @@ const READER_CENSUS = [
   ['gate-audit seat prompt', /await parallel\(mergedTasksForGateAudit\.map\(\(\{ taskId, gateOutput|const pinStatusLine = pinStatus$|\? pt`\$\{pinStatus\}|the gate ran at gate-HEAD sha \$\{gateHeadSha\}|Gate-HEAD sha \(the rebased task tip the gate ran at|PIN STATUS: \$\{pinStatusLine\}|it should equal the observed tip \$\{observedHead \|\| gateHeadSha\}|the expected gate-HEAD sha \$\{gateHeadSha\}/, 8],
   ['gate-audit entry: pin and expectedPin', /const pin = observedHead \|\| gateHeadSha$|\.\.\.\(mismatch \? \{ pinMismatch: true, expectedPin: pin \} : \{\}\), gateHeadSha, auditSha/, 2],
   ['handoff tipSha fallback (lastLandedTip)', /: \(isSha\(lastLandedTip\) \? lastLandedTip : null\)$/, 1],
+  // late-defects Task 3.1: a merged late fix (a --ff-only merge, so integration_sha is the late-fix tip) moves the tracker.
+  ['lateFixPass: lastLandedTip from a merged late fix', /^\s+if \(isSha\(mr\.integration_sha\)\) lastLandedTip = mr\.integration_sha$/, 1],
   ["auditEvidenceOf's fallback (landedShaByTask)", /const g = auditLog\.find\(e => e && e\.task === t && e\.gateEvidence && typeof e\.gateHeadSha|sha: g \? g\.gateHeadSha : \(landedShaByTask\.get\(t\) \?\? 'unrecorded'\)/, 2],
 ]
 const readerCensusOf = source => {
