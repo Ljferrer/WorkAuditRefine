@@ -2097,7 +2097,15 @@ for _pcmd in \
   "git -C $MAIN log -i --grep $TMP $_psha" \
   "git -C $MAIN diff -I $TMP $_psha $_psha" \
   "git -C $MAIN diff --ignore-matching-lines $TMP $_psha $_psha" \
-  "git -C $MAIN diff --word-diff-regex=$TMP $_psha $_psha"
+  "git -C $MAIN diff --word-diff-regex=$TMP $_psha $_psha" \
+  "git -C $MAIN diff --word-diff-regex $TMP $_psha $_psha" \
+  "git -C $MAIN diff --ignore-matching-lines=$TMP $_psha $_psha" \
+  "git -C $MAIN show --grep $TMP $_psha" \
+  "git -C $MAIN log -I $TMP $_psha" \
+  "git -C $MAIN log --word-diff-regex $TMP $_psha" \
+  "git -C $MAIN log --format=x -S $TMP $_psha" \
+  "git -C $MAIN log --author=$TMP $_psha" \
+  "git -C $MAIN log -r -S $TMP $_psha"
 do
   _pi=$((_pi + 1))
   run "$(mk_start "$AUD" pp$_pi)"
@@ -2140,8 +2148,10 @@ if touched_is pq6 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "a value-taking 
 # -G as that value, so the token after it is a path git reads: `-I` takes
 # `-S` as its regex, `--src-prefix` takes `-G` as its prefix, `-O` takes `-S`
 # as its orderfile, and each diff reads wtB/f and wtD/f (git 2.54). `-I` is a
-# pattern option itself, so pq7 pins the token after a pattern value. pq8
-# and pq10 pin pat_free: neither `--src-prefix` nor `-O` is free.
+# pattern option itself, so pq7 pins this rule: a pattern value that starts
+# with `-` is still the value, never an option (the `_pv` skip runs before
+# pat_opt). pq8, pq10 and pq12 pin pat_free: neither `--src-prefix`, `-O`
+# nor the mixed cluster `-pO` is free (every cluster letter must be in _pk).
 run "$(mk_start "$AUD" pq7)"
 run "$(mk_bash "$AUD" pq7 "git -C $MAIN diff --no-index -I -S $TMP/wtB/f $TMP/wtD/f")"
 if touched_is pq7 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of -I stays no pattern option"; else fail "a -S after -I hid a path: |$(cat "$FP_ROOT/pq7/touched" 2>/dev/null)|"; fi
@@ -2151,6 +2161,9 @@ if touched_is pq8 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -G taken as t
 run "$(mk_start "$AUD" pq10)"
 run "$(mk_bash "$AUD" pq10 "git -C $MAIN diff -O -S $TMP/wtB/f $TMP/wtD/f")"
 if touched_is pq10 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of -O stays no pattern option"; else fail "a -S after -O hid a path: |$(cat "$FP_ROOT/pq10/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" pq12)"
+run "$(mk_bash "$AUD" pq12 "git -C $MAIN diff -pO -S $TMP/wtB/f $TMP/wtD/f")"
+if touched_is pq12 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of the cluster -pO stays no pattern option"; else fail "a -S after -pO hid a path: |$(cat "$FP_ROOT/pq12/touched" 2>/dev/null)|"; fi
 # `--end-of-options` ends option parsing like `--`: in `diff --no-index
 # --end-of-options A -S ../wtB/f` git reads all three as paths.
 run "$(mk_start "$AUD" pq11)"

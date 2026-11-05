@@ -52,8 +52,9 @@
 #         else the payload cwd) and add each to the seat's touched set. A
 #         search pattern option and its value (`git grep -e <p>`, `log -S <p>`:
 #         see pat_opt) name no path, so they are not touched when the token
-#         before them is free (see pat_free). After any other option they
-#         stay paths (over-touch, #2604). An
+#         before them is free (see pat_free) and no `--` or
+#         `--end-of-options` came before them. Otherwise they stay paths
+#         (over-touch, #2604). An
 #         unquoted `~-` or `~<name>` Bash token (`-C` value or operand) is
 #         unresolved: the payload carries no
 #         OLDPWD, and a `~<name>` needs getpwnam, so the token goes into the
@@ -832,18 +833,21 @@ touch_operand() {
 #               `--word-diff-regex` (space or `=` form).
 #   blame       `-L<r>` only: blame `-S <file>` reads a revs file.
 # A short pattern option takes the space or the attached form, also at the
-# end of a short cluster (`-pS <p>`, `-sG<p>`). An `-L` value is a line range
+# end of a short cluster (`-pS <p>`, `-sG<p>`). Only a pattern option after a
+# free token (pat_free) and before any `--` or `--end-of-options` is skipped.
+# Any other one stays a path (over-touch). An `-L` value is a line range
 # or a regex: git reads its `:file` part from commits, never from a worktree.
 # pat_sub <subcommand> sets the subcommand's no-value cluster letters (_pk),
-# the letters that are free only as a whole token (_p1), its pattern letters
-# (_pl), and whether the log (_plog) and diff (_pdif) long forms apply.
+# the no-value letters git reads only as a whole token (_p1: `-r` is free,
+# while `git log -rS x` exits 128), its pattern letters (_pl), and whether the
+# log (_plog) and diff (_pdif) long forms apply.
 pat_sub() {
   _pk=""; _p1=""; _pl=""; _plog=0; _pdif=0
   case "$1" in
     grep) _pk=Fnilwc; _pl=e ;;
-    log) _pk=pusRzatwbWrcm; _p1=iEFP; _pl=SGIL; _plog=1; _pdif=1 ;;
-    show) _pk=pusRzatwbWrcm; _p1=iEFP; _pl=SGI; _plog=1; _pdif=1 ;;
-    diff) _pk=pusRzatwbWrcm; _pl=SGI; _pdif=1 ;;
+    log) _pk=pusRzawbW; _p1=iEFPrtmc; _pl=SGIL; _plog=1; _pdif=1 ;;
+    show) _pk=pusRzawbW; _p1=iEFPrtmc; _pl=SGI; _plog=1; _pdif=1 ;;
+    diff) _pk=pusRzawbW; _p1=rtmc; _pl=SGI; _pdif=1 ;;
     blame) _pk=bfnpctlswe; _pl=L ;;
   esac
 }
