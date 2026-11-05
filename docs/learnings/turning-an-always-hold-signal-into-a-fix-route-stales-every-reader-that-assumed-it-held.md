@@ -16,9 +16,12 @@ metadata:
     - route change doc cascade
     - rides the sweep
     - behavior-row sort
+    - absolute rule exception
+    - ADR dated amendment
+    - pin-transfer.md stale
   provenance: code-verified
   slug: turning-an-always-hold-signal-into-a-fix-route-stales-every-reader-that-assumed-it-held
-  phase: 2026-11-04-late-defects-fixed-in-run/phase-3 (task 3.1) + phase-4 (task 4.1, recurrence)
+  phase: 2026-11-04-late-defects-fixed-in-run/phase-3 (task 3.1) + phase-4 (task 4.1, recurrence) + phase-5 (task 5.1, recurrence)
   tags:
     - gate-audit
     - handoff
@@ -26,7 +29,7 @@ metadata:
     - adr
   created: 2026-11-05
   originSessionId: f18978de-02f5-4ccd-9681-eb7dbaa3087b
-  modified: 2026-11-05T16:17:58.811Z
+  modified: 2026-11-05T23:47:58.187Z
 ---
 
 # Turning an always-hold signal into a fix route stales every reader that assumed it held
@@ -76,3 +79,29 @@ Judge each hit by the row class it describes.
 Include log strings and test literals, not only prose and comments.
 
 Locate-cue (phase 4): verify still present before acting — the PIN-21 sentence in `late-fix-pass.md` `## When it runs`, the "behavior-row sort (PIN-21)" text in `finding-class.md`, and the PIN-21 carve-out in `CONTEXT.md`, found @ phase 4 landed tip 28e74359 (the run's `_refinery` worktree at that HEAD).
+
+## Recurrence: an exception added to an absolute rule, phase 5 (task 5.1)
+
+Task 5.1 added three exceptions to rules that doctrine stated as absolute.
+
+- "No approval is ever accounted at a SHA the gate never passed." The ace base gate now proceeds over a red whose ids were all red at the pre-ace tip (PIN-10).
+- "Baseline gate debt never blocks." A baseline red now becomes one behavior late defect, and it can hold the final phase as `late-defect` (PIN-12).
+- "Never merge a task with an open Critical/Major." A probe-cleared Major now merges and rides the late-fix pass (PIN-11).
+
+Audit rounds found the absolute sentence in many surfaces: `schemas.md` GateCheck, `pin-transfer.md`, ADR 0049's first guardrail, ADR 0054, ADR 0019, `CONTEXT.md` "baseline gate debt", the ace-gate prompt, and `skills/war/SKILL.md`.
+The plan's ADR 0058 (task 6.2) amends ADR 0012, 0013, 0026 and 0054 only, so ADR 0019 and 0049 had no owner until audit seats named them.
+
+**A wrong deferral reason.** A fixer skipped ADR 0049 because "an ADR is a dated record, so it is not edited".
+That premise is false here: ADRs in this repo take a dated amendment bullet, and ADR 0049 already had one.
+Before land, ADR 0049 gained a dated amendment bullet, and its guardrail text stayed as written.
+ADR 0054 carries the same claim, and task 6.2 owns it.
+
+**At the landed tip.**
+- Fixed: `schemas.md` GateCheck, the ace-gate prompt, ADR 0019 (PIN-12 amendment), ADR 0049 (dated amendment), and `CONTEXT.md` "baseline gate debt".
+- STILL STALE: `skills/war/references/pin-transfer.md` still says no approval is "ever accounted at a SHA the task gate did not pass", with no qualifier.
+- STILL STALE: `skills/war/SKILL.md` still says "Never merge a task with an open Critical/Major finding" with no probe carve-out. Task 6.2 owns SKILL.md doctrine.
+
+Rule for an exception to an absolute rule: grep the absolute phrase ("never", "ever", "no approval") across references, ADRs, the glossary, cards and prompts before the first audit.
+Amend an ADR with a dated bullet. Never defer it as "a dated record".
+
+Locate-cue (phase 5): verify still present before acting — the unqualified sentence in `pin-transfer.md`, the `Never merge a task with an open` line in `SKILL.md`, the dated amendment in ADR 0049, and `aceBaseIds` in `skills/war/assets/workflow-template.js`, found @ phase 5 landed tip 86335b32 (the run's `_refinery` worktree at that HEAD).

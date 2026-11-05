@@ -17,9 +17,11 @@ metadata:
     - environment-class gate failure
     - held:escalation
     - plain sibling edit not caught beside odd names
+    - held:land-failed
+    - land-advance recovery
   provenance: agent-unverified
   slug: audit-tree-fingerprint-d8-row-can-red-under-gate-load-and-discard-a-docs-only-polish
-  phase: 2026-11-04-late-defects-fixed-in-run/phase-1 (task p1-polish), recurrence at phase-2 (task 2.1)
+  phase: 2026-11-04-late-defects-fixed-in-run/phase-1 (task p1-polish), recurrence at phase-2 (task 2.1) and phase-5 (land gate)
   tags:
     - war
     - gate
@@ -28,7 +30,7 @@ metadata:
     - hypothesis
   created: 2026-11-04
   originSessionId: f18978de-02f5-4ccd-9681-eb7dbaa3087b
-  modified: 2026-11-05T09:22:52.053Z
+  modified: 2026-11-05T23:48:47.146Z
 ---
 
 # The fingerprint test reds under heavy load (phase 1: mechanism is a hypothesis; phase 2: load is evidenced)
@@ -94,4 +96,14 @@ File the flake once against the suite, not per row. Issue #2615 holds the phase-
 
 Locate-cue: verify still present before acting. The 540 s default and the `WAR_FINGERPRINT_DEADLINE_SECONDS` clamp are in `hooks/audit-tree-fingerprint.sh`. The rows are in `hooks/audit-tree-fingerprint.test.sh`. Found at landed tip fc9cb08c, phase 2 of 2026-11-04-late-defects-fixed-in-run.
 
-Related: [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]], [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]], [[polish-discarded-auditlog-entry-carries-no-findings-critical-major-ride-polish-rejected-instead]].
+## Recurrence at phase 5: the land gate held, not a merge gate
+
+**Observed.** The phase-5 land gate at merge 86335b32 failed twice on row 166, at load 45-62, with a 640 s suite time.
+The refiner classed it environment: the diff touches nothing under `hooks/`, and a base rerun and a quiet tip rerun both passed 231/231.
+The environment-proceed retry got no green run, so the land site held `held:land-failed` and pushed nothing.
+
+**Recovery.** The land merge commit already existed in `_refinery`, so the Lead built nothing new.
+The Lead reran the full gate at that merge at load about 12 (36/36 green), then ran one `land-advance`.
+The engine skips the servitor wrap-up on `held:land-failed`, so the Lead dispatched the servitor by hand.
+
+Related: [[held-escalation-lead-manual-completion]], [[never-follow-resumefromrunid-hint-after-a-land-failure]], [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]], [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]], [[polish-discarded-auditlog-entry-carries-no-findings-critical-major-ride-polish-rejected-instead]].
