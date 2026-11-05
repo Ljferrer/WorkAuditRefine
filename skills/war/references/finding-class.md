@@ -13,7 +13,7 @@ Set `findingClass` on each Minor and Nit. The values are the `FINDING_CLASSES` e
 How the engine routes the class:
 
 - A behavior defect this task adds stays a finding even when the slice pins its mechanism. The latitude rule licenses the pinned mechanism, never a defect inside it. Route the finding `absorb` or `ask`, never `note`.
-- The intake floor turns a behavior `note` with a fix on a named file into `absorb`. In the task diff it joins the task's ace batch. Outside the diff, or with no diff probe, it rides `phaseClose:true` to the sweep. Any other behavior `note` parks as an ask for the Checkpoint ruling. The gate-audit floor pass applies the same rule, always through the sweep.
+- The intake floor turns a behavior `note` with a fix on a named file into `absorb`. In the task diff it joins the task's ace batch. Outside the diff, or with no diff probe, it rides `phaseClose:true` to the behavior-row sort (PIN-21), which sends it to the late-fix pass or demotes it naming the owner. Any other behavior `note` parks as an ask for the Checkpoint ruling. The gate-audit floor pass applies the same rule, always through the behavior-row sort.
 - A cosmetic row, or a row with no class, keeps today's route. Intake drops a value outside the export, so that row reads as classless.
 
 ## Moved from the auditor card
