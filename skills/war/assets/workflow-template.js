@@ -512,8 +512,8 @@ const asks = []
 // phase with nothing carried so absence is never ambiguous. The Lead threads it back as
 // args.seededPhaseClose at the relaunch.
 const carriedPhaseClose = []
-// carriedTasks (late-defects D9/D20, PIN-9/PIN-20): the late defects whose late-fix rounds ran out on a
-// non-final phase, one row each — the defect, its file and fix, its origin `task`, its findingClass,
+// carriedTasks (late-defects D9/D20/D21, PIN-9/PIN-20/PIN-21): the late defects whose late-fix rounds ran
+// out on a non-final phase, and the behavior rows raised after the late-fix pass (carryLate), one row each — the defect, its file and fix, its origin `task`, its findingClass,
 // the origin's spent fixRounds, planSlug and carriedFrom { phase, reason }. TOP-LEVEL at both return
 // sites, [] when nothing carried. The Lead threads it as the next launch's args.seededTasks.
 const carriedTasks = []
@@ -1080,14 +1080,16 @@ for (const t of (tasks || [])) {
 }
 //   (5) SWEEP-EXCLUDE class (in-band-absorb-default D2/D6) — args.sweepExclude is the Lead's campaign
 //       contention list: absent/null (no ledger — one log line at sweep time) or an array of
-//       { slug: string, files: string[] } entries. Any other shape is a malformed launch, refused at
-//       entry naming the entry index and field — never coerced, never a guessed exclusion set.
+//       { slug: string, files: string[], mode?: 'stacked' | 'parallel' } entries. Any other shape is a
+//       malformed launch, refused at entry naming the entry index and field — never coerced, never a
+//       guessed exclusion set. An absent mode reads 'parallel' (late-defects D19, PIN-19).
 if (A.sweepExclude !== undefined && A.sweepExclude !== null) {
   if (!Array.isArray(A.sweepExclude)) problems.push('workflow-template: args.sweepExclude must be an array of { slug, files[] } entries or absent (got ' + typeof A.sweepExclude + ') (D2)')
   else A.sweepExclude.forEach((e, i) => {
     if (!e || typeof e !== 'object' || Array.isArray(e)) { problems.push('workflow-template: args.sweepExclude[' + i + '] must be an object { slug, files[] } (D2)'); return }
     if (typeof e.slug !== 'string' || !e.slug) problems.push('workflow-template: args.sweepExclude[' + i + '].slug must be a non-empty string — the demotion reason names the owning plan by it (D2)')
     if (!Array.isArray(e.files) || !e.files.every(f => typeof f === 'string')) problems.push('workflow-template: args.sweepExclude[' + i + '].files must be an array of repo-relative path strings (D2)')
+    if (e.mode !== undefined && e.mode !== 'stacked' && e.mode !== 'parallel') problems.push('workflow-template: args.sweepExclude[' + i + '].mode must be stacked or parallel, D19')
   })
 }
 //   (6) SEEDED-PHASE-CLOSE class (in-band-absorb-default D3b, PIN-5) — args.seededPhaseClose is the
@@ -2269,6 +2271,8 @@ const corroborateSurvivor = f => {
     || (aced.find(a => a && a.finding && remintKey(a.finding) === k) || {}).finding
     || phaseCloseQueue.find(q => remintKey(q) === k)
     || carriedPhaseClose.find(q => remintKey(q) === k)
+    // a behavior row carryLate carried (PIN-21): its key is the raiser's, kept on raisedTask
+    || carriedTasks.find(q => remintKey({ ...q, task: q.raisedTask ?? q.task }) === k)
     // last: a resolved terminal row lives on aced/carried by then (#2069)
     || terminalQueue.find(q => remintKey(q) === k)
     || [...liveTaskRecords].flatMap(r => [...(Array.isArray(r.reentryQueue) ? r.reentryQueue : []), ...(r.task && Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs : [])]).find(q => remintKey(q) === k)
@@ -5880,7 +5884,8 @@ const gateAuditRows = []
 // lateFixQueue (late-defects D5/D13, PIN-5/PIN-13): the late defects the late-fix pass fixes before the
 // land decision, each row stamped with the seat and its `task` (a real task id, or a gate-audit
 // pseudo id that lateOriginOf resolves). A gate-audit-family seat's Critical/Major with a non-blank
-// suggested_fix joins it; a fix-less one, or an `escalate` verdict, keeps the gate-evidence hold.
+// suggested_fix joins it; a fix-less one, or an `escalate` verdict, keeps the gate-evidence hold. The
+// behavior-row sort adds each behavior phaseCloseQueue row on a stacked-owned or unowned file (PIN-21).
 const lateFixQueue = []
 const gateHardOf = v => v.verdict === 'escalate' || (v.findings || []).some(f => (f.severity === 'Critical' || f.severity === 'Major') && blankText(f.suggested_fix))
 // One defect, one late fix: the queue key is remintKey with the task blanked, because the per-task,
@@ -5893,20 +5898,23 @@ const lateKeyOf = f => remintKey({ ...f, task: '' })
 // lateFixed: one { id, srcs } row per defect the pass fixed — the handoff endState reads it.
 const lateSrcOf = new Map()
 const lateFixed = []
-const queueLateFix = (v, task, seat) => {
-  for (const f of v.findings || []) if (f.severity === 'Critical' || f.severity === 'Major') {
-    const dup = blankText(f.file) ? null : lateFixQueue.find(q => lateKeyOf(q) === lateKeyOf(f))
-    if (dup) {
-      log('late-fix pass: [' + f.severity + '] "' + (f.title ?? '') + '" (' + seat + ') duplicates the row ' + dup.seat + ' already queued — the second copy is dropped, its seat corroborated onto the survivor (logged, never silent).')
-      mergeSeat(dup, { ...f, task, seat })
-      lateSrcOf.get(dup).push(f)
-      continue
-    }
-    const row = { ...f, task, seat, sha: auditShaOrSentinel(v.audit_sha) }
-    lateSrcOf.set(row, [f])
-    lateFixQueue.push(row)
-    log('late-fix pass: queued [' + f.severity + '] "' + (f.title ?? '') + '" (' + seat + ') — a blocker with a fix, never a straight hold (PIN-5).')
+// queueLateRow: one row onto the queue with the dedup above. queueLateFix feeds it the gate-audit
+// family's blockers; the behavior-row sort (PIN-21) feeds it the phaseCloseQueue rows it sends here.
+const queueLateRow = (f, task, seat, sha, why) => {
+  const dup = blankText(f.file) ? null : lateFixQueue.find(q => lateKeyOf(q) === lateKeyOf(f))
+  if (dup) {
+    log('late-fix pass: [' + f.severity + '] "' + (f.title ?? '') + '" (' + seat + ') duplicates the row ' + dup.seat + ' already queued — the second copy is dropped, its seat corroborated onto the survivor (logged, never silent).')
+    mergeSeat(dup, { ...f, task, seat })
+    lateSrcOf.get(dup).push(f)
+    return
   }
+  const row = { ...f, task, seat, sha }
+  lateSrcOf.set(row, [f])
+  lateFixQueue.push(row)
+  log('late-fix pass: queued [' + f.severity + '] "' + (f.title ?? '') + '" (' + seat + ') — ' + why + '.')
+}
+const queueLateFix = (v, task, seat) => {
+  for (const f of v.findings || []) if (f.severity === 'Critical' || f.severity === 'Major') queueLateRow(f, task, seat, auditShaOrSentinel(v.audit_sha), 'a blocker with a fix, never a straight hold (PIN-5)')
 }
 
 // ---- LAND-BARRIER ENDSTATE-CHECK DISPATCH (D2/F5, precision-chain Task 3.2) ----
@@ -6533,7 +6541,8 @@ let lateFixSeq = 0
 const lateFixPass = async () => {
   if (!lateFixQueue.length) return
   const holding = escalated.filter(e => e && HARD_ESCALATION_REASONS.includes(e.reason)).map(e => e.reason + ':' + e.task)
-  const fence = [...new Set([...(Array.isArray(A.sweepExclude) ? A.sweepExclude.flatMap(e => e.files) : []),
+  // A mode:'stacked' entry's files stay out of the fence: no parallel branch edits them (D19, PIN-19).
+  const fence = [...new Set([...(Array.isArray(A.sweepExclude) ? A.sweepExclude.filter(e => e.mode !== 'stacked').flatMap(e => e.files) : []),
     ...tasks.filter(t => !succeeded.has(t.id)).flatMap(t => Array.isArray(t.files) ? t.files : []), ...RELEASE_SLOT_FILES].map(aceRelPath))]
   for (const f of lateFixQueue.splice(0)) {
     const origin = lateOriginOf(f)
@@ -6640,7 +6649,55 @@ const lateFixPass = async () => {
     }
   }
 }
+// ---- BEHAVIOR-ROW SORT (late-defects D19/D21, PIN-19/PIN-21) — before the late-fix pass and the land ----
+// decision. Each `behavior` row on phaseCloseQueue is judged by the owner of its file. No owner, or
+// only a mode:'stacked' args.sweepExclude entry (stack-and-plow: no parallel branch edits the file,
+// ADR 0011), sends the row to the late-fix pass, so it is fixed in this run. A parallel entry (an
+// absent mode reads parallel), a task not merged this phase, or the release slot owns the file: the
+// row demotes demote:exclusion-set naming why the pass cannot fix it here. Any such owner wins over a
+// stacked entry. Cosmetic and classless rows stay on the queue: the sweep and its exclusion set judge
+// them as before. A held phase, or one with no merged task, skips the sort: the held arm below
+// carries the whole queue and the relaunch sorts it again.
+{
+  const rows = phaseCloseQueue.some(f => f && f.findingClass === 'behavior')
+  const holds = escalated.some(e => e && HARD_ESCALATION_REASONS.includes(e.reason))
+  if (rows && (holds || !tasks.some(t => succeeded.has(t.id)))) log('behavior-row sort skipped: ' + (holds ? 'the phase holds' : 'nothing merged') + '; the queue carries (PIN-21).')
+  else if (rows) {
+    const owners = new Map(), stacked = new Set()
+    const claim = (p, o) => { const k = aceRelPath(p); if (k && !owners.has(k)) owners.set(k, o) }
+    for (const e of (Array.isArray(A.sweepExclude) ? A.sweepExclude : [])) for (const p of e.files) {
+      if (e.mode === 'stacked') stacked.add(aceRelPath(p))
+      else claim(p, 'plan ' + e.slug + ' (parallel: its branch edits it)')
+    }
+    for (const t of tasks) if (!succeeded.has(t.id)) for (const p of (Array.isArray(t.files) ? t.files : [])) claim(p, 'task ' + t.id + ' (not merged: its relaunch edits it)')
+    const kept = []
+    for (const f of phaseCloseQueue.splice(0)) {
+      if (!f || f.findingClass !== 'behavior') { kept.push(f); continue }
+      const file = typeof f.file === 'string' && f.file ? aceRelPath(f.file) : null
+      const owner = file === null ? null : (owners.get(file) ?? (isReleaseSlotFile(file) ? 'the release slot' : null))
+      if (owner === null) {
+        queueLateRow(f, f.task, f.seat, f.sha, 'a behavior row on ' + (file && stacked.has(file) ? 'a stacked' : 'an unowned') + ' file (PIN-21)')
+        continue
+      }
+      queuedKeys.delete(remintKey(f))
+      demote(f, 'follow-up', 'demote:exclusion-set — behavior row: ' + file + ' is owned by ' + owner + ', so no late fix here')
+    }
+    phaseCloseQueue.push(...kept)
+  }
+}
 await lateFixPass()
+// carryLate (late-defects D21, PIN-21): a behavior row first raised after the late-fix pass (the sweep
+// panel, the terminal seat, or a late-fix re-audit row the sort never saw) has no late-fix pass left
+// this phase. On a non-final phase it carries as a carriedTasks row under its origin task (lateOriginOf),
+// and the Lead threads it as the next launch's args.seededTasks. On the final phase each caller files it
+// "raised after the late-fix pass" instead (ADR 0012: the sweep never holds). Stamps queuedKeys, so a
+// later seat re-mint corroborates (corroborateSurvivor searches carriedTasks).
+const carryLate = (f, why) => {
+  const origin = lateOriginOf(f)
+  queuedKeys.add(remintKey(f))
+  log('carriedTasks: "' + f.title + '" — ' + why + ' (PIN-21).')
+  carriedTasks.push({ ...f, task: origin ? origin.id : f.task, raisedTask: f.task, findingClass: 'behavior', fixRounds: origin ? spentOf(origin.fixRounds) : 0, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
+}
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
@@ -6691,6 +6748,9 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
   // so this arm catches only a seeded/ruled-ask row). aceRelPath on BOTH sides. A queued absorb whose
   // file is in the set demotes to follow-up naming the owner (demote:exclusion-set / demote:release-slot);
   // the seat never decides exclusion. First owner wins per path (construction order is latitude).
+  // Behavior rows left the queue at the behavior-row sort (PIN-21), so this set judges cosmetic and
+  // classless rows; a mode:'stacked' entry still owns its files here. A behavior row born at a
+  // late-fix re-audit after the sort never reaches the sweep: it carries or files below.
   {
     const claim = (p, owner) => { const k = aceRelPath(p); if (typeof k === 'string' && k && !sweepExcl.has(k)) sweepExcl.set(k, owner) }
     if (Array.isArray(A.sweepExclude)) {
@@ -6705,6 +6765,14 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
     for (const p of RELEASE_SLOT_FILES) claim(p, 'the release slot')
     const kept = []
     for (const f of phaseCloseQueue.splice(0)) {
+      // A behavior row here was born at a late-fix re-audit, after the sort (PIN-21): the sweep never
+      // receives it. It carries (non-final) or files "raised after the late-fix pass" (final).
+      if (f.findingClass === 'behavior') {
+        if (!finalPhase) { carryLate(f, 'raised after the late-fix pass at a late-fix re-audit'); continue }
+        queuedKeys.delete(remintKey(f))
+        demote(f, 'follow-up', 'demote:exclusion-set — raised after the late-fix pass (late-fix re-audit, final phase)')
+        continue
+      }
       const owner = (typeof f.file === 'string' && f.file) ? (sweepExcl.get(aceRelPath(f.file)) ?? (isReleaseSlotFile(f.file) ? 'the release slot' : null)) : null
       if (owner === null) { kept.push(f); continue }
       queuedKeys.delete(remintKey(f))
@@ -6834,6 +6902,18 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       sweepApproved = allApprove(pSeats, pExpected)
       sweepMinors = minorsOf(pSeats).map(f => ({ task: polishTask.id, ...f }))
       auditLog.push({ task: polishTask.id, verdict: pDied ? 'env-died' : sweepApproved ? 'approve' : 'polish-rejected', findings: pSeats.flatMap(s => s.findings || []), requested: pExpected, returned: pSeats.length, ...(pDied ? { blocked: pDied } : {}) })
+      // Behavior rows (late-defects D21, PIN-21): a polish-panel behavior row that is not an explicit ask
+      // or follow-up was raised after the late-fix pass, so it leaves both arms below — carriedTasks
+      // (non-final) or filed (final). An ask still parks and a follow-up still files on those arms; a
+      // re-mint still corroborates. The seat's own disposition is read, so the #1550 census is unchanged.
+      sweepMinors = sweepMinors.filter(f => {
+        if (f.findingClass !== 'behavior' || f.disposition === 'ask' || f.disposition === 'follow-up') return true
+        const b = remintBlock(f)
+        if (b) { log('phase-close sweep: re-mint of "' + f.title + '" — ' + b); corroborateSurvivor(f) }
+        else if (!finalPhase) carryLate(f, 'raised after the late-fix pass by the polish panel')
+        else demote(f, 'follow-up', 'demote:sweep-discarded — raised after the late-fix pass (polish panel, final phase)')
+        return false
+      })
     }
     // 4. Re-approved → the refiner merges the polish branch at the serial merge queue's tail; the
     //    single land below then proceeds on the polished tip. Anything else → DISCARD (fail-open).
@@ -6883,8 +6963,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         recordAced(f, polishSha, citationExtra(f))
       }
       log('phase-close sweep: ' + terminalQueue.length + ' queued finding(s) diverted to the terminal queue (unlanded by the sweep commit); the rest recorded aced at ' + polishSha + '.')
-      // Merged-arm routing (#1377, D3a): sweep-raised Minor/Nits route by disposition — an absorb
-      // joins the terminal queue (the terminal pass is the sweep's successor; the eligibility filter
+      // Merged-arm routing (#1377, D3a): sweep-raised Minor/Nits route by disposition — a cosmetic or
+      // classless absorb (a behavior one left at the sweepMinors filter, PIN-21) joins the terminal queue (the terminal pass is the sweep's successor; the eligibility filter
       // below judges it). A sweep-raised ask still parks (#1550) — the Checkpoint gate is Lead-side.
       // A sweep-raised follow-up is stamped floorSkipped (no diff probe ran for the polish
       // pseudo-task; #2050-class, logged here so the stamp site is never silent).
@@ -6915,6 +6995,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // regression forward-reverts the terminal commit, then the rows carry (non-final) or demote
       // (final) — never a second pass. A fresh absorb the seat raises rides carriedPhaseClose on a
       // non-final phase and demotes demote:terminal-pass "raised on the terminal pass" on the final.
+      // A seat-raised behavior absorb or note instead carries on carriedTasks (non-final) or files
+      // "raised after the late-fix pass" (final), late-defects PIN-21.
       const terminalRows = []
       for (const f of terminalQueue) {
         if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless terminal-pass absorb takes the severity default (never ace-eligible)')
@@ -6937,10 +7019,13 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           // Registry consult (mirrors routeReauditMinors): the terminalRows were recorded aced on the
           // merged arm and demoted or carried on the regressed and unmerged arms (filedKeys / queuedKeys
           // stamped either way) — a seat re-mint of one of them corroborates, never a second record.
-          const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
+          const b = (d === 'follow-up' || d === 'absorb' || f.findingClass === 'behavior') ? remintBlock(f) : null
           if (d === 'ask') parkAsk(f)
           else if (b) { log('terminal pass: seat re-mint of "' + (f.title ?? '') + '" (task ' + polishTask.id + ') at ' + sha + ' — ' + b + '; not recorded again (logged, never silent).'); corroborateSurvivor(f) }
           else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f); log('terminal pass: seat-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped — no intake floor ran for the polish pseudo-task (the filed row carries demote:floor-skipped).') }
+          // A behavior absorb or note (late-defects D21, PIN-21) was raised after the late-fix pass.
+          else if (f.findingClass === 'behavior' && !finalPhase) carryLate(f, 'raised after the late-fix pass by the terminal seat at ' + sha)
+          else if (f.findingClass === 'behavior') demote(f, 'follow-up', 'demote:terminal-pass — raised after the late-fix pass (terminal seat at ' + sha + ', final phase)')
           else if (d === 'note') notes.push(f)
           else if (!finalPhase) carryPhaseClose(f, 'carried from phase ' + ph.id + ' terminal pass (raised by the terminal re-audit seat at ' + sha + ')')
           else demote(f, 'follow-up', 'demote:terminal-pass — raised on the terminal pass (at ' + sha + ') — the pass is one hop per phase and this is the final phase; no later round')
@@ -7116,8 +7201,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         if (!finalPhase && !sweepApproved) carryPhaseClose(f, 'phase-close sweep discarded (' + (sweepDrainCause || 'the polish branch never merged') + ') on a non-final phase; carried for the relaunch')
         else demote(f, 'follow-up', 'demote:sweep-discarded — ' + discardWhy)
       }
-      // Discard-arm routing (#1377, D3a): sweep-raised Minor/Nits route through the same ladder — an
-      // absorb has nothing to absorb into (the polish branch never merged), so it CARRIES on a
+      // Discard-arm routing (#1377, D3a): sweep-raised Minor/Nits route through the same ladder (a
+      // behavior absorb or note already left at the sweepMinors filter, PIN-21) — an absorb has nothing to absorb into (the polish branch never merged), so it CARRIES on a
       // non-final phase and DEMOTES naming the discard on the final. The approve trail (D15, #2087)
       // does not apply here: a sweep-raised absorb was never fixed on the polish branch, so the
       // D3a/D3b finality split stands even when sweepApproved. A blocked sweep (sweepWhy)

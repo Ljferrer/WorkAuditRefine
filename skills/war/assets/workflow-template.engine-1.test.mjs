@@ -13791,7 +13791,11 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   // returned no verdict, final phase only), sweep-discarded ×2 (the queue drain — the final phase, or
   // ANY phase on the approve trail of a panel-approved branch whose merge never landed (D15, #2087) —
   // and the sweep-raised absorb, final phase only).
-  assert.equal(sites.length, 25, `the census domain is exactly TWENTY-FIVE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
+  // 25 → 29 (late-defects Task 4.1, PIN-21): exclusion-set ×2 more (the behavior-row sort's owned-file
+  // demote, and the sweep-time drain of a behavior row born at a late-fix re-audit, final phase only),
+  // sweep-discarded ×1 more (a polish-panel behavior row, final phase only) and terminal-pass ×1 more
+  // (a terminal-seat behavior row, final phase only) — each "raised after the late-fix pass" or owned.
+  assert.equal(sites.length, 29, `the census domain is exactly TWENTY-NINE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
   for (const s of sites) {
     const p = reasonPrefixOf(s.reason)
     assert.ok(p, `demote site @${s.index}: the reason leads with a literal prefix (got: ${s.reason.slice(0, 60)})`)

@@ -2488,12 +2488,12 @@ const registrySlice = (runOverride = {}) => {
   // aceRelPath is declared inside the slice (file scope, below askContentKey); RELEASE_SLOT_FILES /
   // BARRIER_TOKENS / DEMOTE_REASONS / FINDING_CLASSES are the module-top mirrors — injected as the canonical exports
   // (the D2 registry rows deepEqual them).
-  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS', 'FINDING_CLASSES',
+  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'carriedTasks', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS', 'FINDING_CLASSES',
     runForm(src.slice(sliceStart, sliceEnd))
     + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, mergeSeat, seatsListOf, normalizeFinding, normalizeSeat, queuedKeys, liveTaskRecords, diffFilesByTask, dispositionOf, intakeFloor, demote }')
-  const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [] }
+  const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [], carriedTasks: [] }
   const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
-  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true, ...runOverride }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS, FINDING_CLASSES)
+  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, state.carriedTasks, minorsOf, { ace: true, ...runOverride }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS, FINDING_CLASSES)
   return { ...state, ...api }
 }
 
@@ -2674,6 +2674,8 @@ const p4Base = ({ queued = [], gate = [], evidence = null, worker = null, seatsO
   const seat = seatOf(opts), label = opts.label || ''
   if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
   if (seat === 'war-refiner' && /^polish-worktree:/.test(label)) return { ok: true }
+  // The late-fix worktree (late-defects PIN-13) shares the polish worktree's env-outcome provision.
+  if (seat === 'war-refiner' && opts.dispatchKind === 'late-fix-worktree') return { ok: true }
   if (seat === 'war-refiner' && /^evidence:/.test(label)) return evidence ?? { perTask: [] }
   if (seat === 'war-worker') {
     const w = worker && worker(label)

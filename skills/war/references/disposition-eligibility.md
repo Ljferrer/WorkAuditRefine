@@ -30,7 +30,9 @@ Three widenings, mirrored in the dispatched `auditPrompt` DISPOSITION WIDENINGS 
    (unspecified → `barrier:underspecified`, release-slot → `barrier:release-slot`; decision-shaped
    routes `ask` via `barrier:trade-off`); a finding whose file is outside the task diff routes
    `absorb` + `phaseClose:true`, and the engine exclusion set demotes a foreign-owned file naming
-   its owner.
+   its owner. A `behavior` row on a file that only a `stacked` campaign entry owns, or that nobody
+   owns, goes to the late-fix pass instead and is fixed in this run (late-defects PIN-21): set
+   `absorb`, never `note`. Only a `parallel`-owned, task-owned or release-slot file demotes it.
 2. **New-test eligibility (D4).** A fully-specified **new test** (or test-harness) addition in a
    task-owned test file is a legitimate `absorb`/ace-batch member — "needs a new test" is not by
    itself a why-not-absorbable reason. Adding only: the never-delete/never-weaken-tests law is
