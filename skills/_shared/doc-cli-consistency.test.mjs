@@ -232,6 +232,11 @@ const VERB_SCAN_EXCLUSIONS = [
   // agents/war-auditor.md (2026-10-27-memory-query-mcp-tool Task 1.3, ADR 0042); its only command
   // prose is read-only git (`git diff --name-only`, `git patch-id --stable`) — no scanned-module verb.
   'skills/war/references/pin-transfer.md',
+  // finding-class.md holds the born-cold finding-class doctrine and the stale-looking-but-correct
+  // calibration block evicted byte-identical from agents/war-auditor.md (2026-11-04-late-defects-fixed-
+  // in-run Task 2.1, ADR 0042); it names land-decision.mjs only beside its EXPORT `FINDING_CLASSES`
+  // and phrases no CLI command — no scanned-module verb.
+  'skills/war/references/finding-class.md',
   'skills/war/references/file-followups.md',        // no shell-out prose for the scanned modules (gh + gh-preflight.sh only)
   'skills/war/references/worker-servitor-edges.md', // no shell-out prose for the scanned modules
   // run-manifest.md holds the SKILL.md Run-manifest per-stamp field detail (evicted to byte-fund

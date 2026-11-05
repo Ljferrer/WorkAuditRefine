@@ -359,6 +359,9 @@ const QUALIFIED_HEADERS = [
   'pin-transfer.md',
   // #2545: the skills/war/SKILL.md retired-token sweep eviction destination, joined on creation.
   'retired-token-sweep.md',
+  // 2026-11-04-late-defects-fixed-in-run Task 2.1: the agents/war-auditor.md stale-looking-but-correct
+  // calibration block's eviction destination (byte-funding the card's findingClass sentences), joined on creation.
+  'finding-class.md',
 ];
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {
@@ -696,6 +699,29 @@ test('reference link integrity — the auditor-card pin-transfer block landed by
   assert.ok(auditorCard.includes(', read [pin-transfer.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/pin-transfer.md)'),
     'war-auditor.md carries the `when <trigger>, read [pin-transfer.md](${CLAUDE_PLUGIN_ROOT}/…)` pointer');
   for (const literal of ['**Seat-approval transfer.**', '**Rebase pin transfer.**', 'Two duties follow when you are a re-running seat']) {
+    assert.ok(!auditorCard.includes(literal), `war-auditor.md still carries the evicted body literal "${literal}" — the block lives in references/ only (a duplicated body drifts)`);
+  }
+});
+
+// --- Arm 7: the auditor-card calibration eviction (2026-11-04-late-defects-fixed-in-run Task 2.1) ----
+// The `### Stale-looking-but-correct calibration` block (heading through its trailing blank line,
+// 2,516 B, card @ cb7ce6c9) moved byte-identical from agents/war-auditor.md into finding-class.md to
+// fund the card's findingClass and slice-pin sentences (ADR 0042). The moved block ends the file, so
+// the digest pins the text from its heading to end-of-file; a sanctioned edit re-pins it here.
+test('late-defect: class eviction — the calibration block landed byte-identical in finding-class.md and the card keeps its heading over a trigger pointer, not the body', () => {
+  const text = readFileSync(join(REPO_ROOT, REFERENCES_DIR, 'finding-class.md'), 'utf8');
+  const heading = '### Stale-looking-but-correct calibration\n';
+  const at = text.indexOf(`\n${heading}`);
+  assert.ok(at >= 0, 'finding-class.md lost its `### Stale-looking-but-correct calibration` heading');
+  const block = text.slice(at + 1);
+  assert.equal(Buffer.byteLength(block, 'utf8'), 2516, 'the moved block is 2,516 B (heading through the trailing blank line)');
+  assert.equal(sha256(block), 'cbe737edc440924322b1653adb1489088cbdc29375f4808fbc7291b76cb13418',
+    'the moved block must be byte-identical to its pre-eviction card text (ADR 0042) — a sanctioned edit re-pins the digest here with its rationale');
+  const auditorCard = readFileSync(join(REPO_ROOT, 'agents/war-auditor.md'), 'utf8');
+  assert.ok(auditorCard.includes(heading), 'the card keeps the `### Stale-looking-but-correct calibration` heading');
+  assert.match(auditorCard, /When you set `findingClass` on a Minor or Nit, or a candidate finding reads as drifted[^\n]*, read \[finding-class\.md\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/finding-class\.md\)/,
+    'war-auditor.md carries the `when <trigger>, read [finding-class.md](${CLAUDE_PLUGIN_ROOT}/…)` pointer');
+  for (const literal of ['Five authoring patterns read as drifted', '**Literal-vs-candidate drift.**', '**Deliberately-unwired marker.**']) {
     assert.ok(!auditorCard.includes(literal), `war-auditor.md still carries the evicted body literal "${literal}" — the block lives in references/ only (a duplicated body drifts)`);
   }
 });

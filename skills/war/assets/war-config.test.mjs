@@ -11,7 +11,7 @@ import {
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
-import { HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS, decideLand } from './land-decision.mjs'
+import { HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS, FINDING_CLASSES, decideLand } from './land-decision.mjs'
 
 // Helper: read workflow-template.js as text relative to this test file.
 const __dir = dirname(fileURLToPath(import.meta.url))
@@ -2100,6 +2100,7 @@ test('node-test breadth: skills/ contains at least the expected set of *.test.mj
     'skills/war/assets/workflow-template.git-4.test.mjs',
     'skills/war/assets/workflow-template.git-5.test.mjs',
     'skills/war/assets/workflow-template.git-6.test.mjs',
+    'skills/war/assets/workflow-template.late-defect-1.test.mjs',
     'skills/war/assets/workflow-template.recovery.test.mjs',
     'skills/war/assets/workflow-template.submodule-1.test.mjs',
     'skills/war/assets/workflow-template.submodule-2.test.mjs',
@@ -3133,6 +3134,17 @@ test('drift-guard(F07): demote-census — inline DEMOTE_REASONS equals the canon
     'inline DEMOTE_REASONS must equal the canonical export exactly (no divergence)')
 })
 
+test('drift-guard(F07): finding-class — inline FINDING_CLASSES equals the canonical export exactly (late-defects D24)', () => {
+  // The seat's findingClass enum is canonical in land-decision.mjs with a hand-mirrored inline copy
+  // beside DEMOTE_REASONS; AUDIT_VERDICT, normalizeFinding and the DISPOSITION RULE read the inline
+  // copy. Exact equality, order-insensitive.
+  const m = templateText.match(/const\s+FINDING_CLASSES\s*=\s*(\[[^\]]+\])/)
+  assert.ok(m, 'FINDING_CLASSES not found in workflow-template.js')
+  const inline = JSON.parse(m[1].replace(/'/g, '"'))
+  assert.deepEqual([...inline].sort(), [...FINDING_CLASSES].sort(),
+    'inline FINDING_CLASSES must equal the canonical export exactly (no divergence)')
+})
+
 // ---------------------------------------------------------------------------
 // Classifying meta-guard (D3): every Keep-in-sync/Mirror-of marker is accounted for
 // ---------------------------------------------------------------------------
@@ -3144,6 +3156,7 @@ test('drift-guard(F07): demote-census — inline DEMOTE_REASONS equals the canon
 //   the BARRIER_TOKENS marker (in-band-absorb-default D1) → logic-mirror (its own inline-equality drift test)
 //   the RELEASE_SLOT_FILES marker (in-band-absorb-default D2) → logic-mirror (its own inline-equality drift test)
 //   the DEMOTE_REASONS marker (in-band-absorb-default D13) → logic-mirror (its own inline-equality drift test)
+//   the FINDING_CLASSES marker (late-defects D24) → logic-mirror (its own inline-equality drift test)
 //   the run.provision data-mirror marker → data-mirror (field names) — allowlisted, no behavioral test
 // A marker not in either registry → test fails.
 
@@ -3186,6 +3199,10 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     // → covered by its own inline-equality drift test (the D2 registry `demote-census` row in
     // workflow-template.engine-1.test.mjs binds the inline copy too). Registry count: 8 → 9.
     ['DEMOTE_REASONS mirrors', ['drift-guard(F07): demote-census — inline DEMOTE_REASONS']],
+    // Marker (late-defects D24): "FINDING_CLASSES mirrors land-decision.mjs export … Keep in sync"
+    // → covered by its own inline-equality drift test (the D2 registry `finding-class` rows in
+    // workflow-template.engine-1.test.mjs bind the inline copy and the card sentence too).
+    ['FINDING_CLASSES mirrors', ['drift-guard(F07): finding-class — inline FINDING_CLASSES']],
     // Marker (absorb-budget, D5): "Mirror of DEFAULTS.run.absorbRounds in war-config.mjs — keep in sync"
     // → covered by the absorbRounds fallback drift guard (the roundLimit-fallback idiom).
     ['Mirror of DEFAULTS.run.absorbRounds', ['drift-guard(F07): absorb-budget — absorbRounds fallback']],
@@ -3274,14 +3291,14 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     "DATA_MIRROR_ALLOWLIST must contain the anchored entry 'This is a MIRROR of'")
 })
 
-test('meta-guard(F07): sanity — exactly 9 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS; SOFT_ENV_REASONS; absorbRounds fallback; BARRIER_TOKENS; RELEASE_SLOT_FILES; DEMOTE_REASONS)', () => {
+test('meta-guard(F07): sanity — exactly 10 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS; SOFT_ENV_REASONS; absorbRounds fallback; BARRIER_TOKENS; RELEASE_SLOT_FILES; DEMOTE_REASONS; FINDING_CLASSES)', () => {
   // This test guards against silent marker addition (a new mirror that skips the registry).
   // Anchored by construct, not line number. If you add a new mirror, update BOTH the
   // registry/allowlist above AND bump this count. 7 → 9 (in-band-absorb-default Phase 4: the
-  // RELEASE_SLOT_FILES and DEMOTE_REASONS mirrors).
+  // RELEASE_SLOT_FILES and DEMOTE_REASONS mirrors); 9 → 10 (late-defects Task 2.1: FINDING_CLASSES).
   const count = templateText.split('\n').filter(line => /Keep in sync|Mirror of|MIRROR of/i.test(line)).length
-  assert.equal(count, 9,
-    `Expected exactly 9 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
+  assert.equal(count, 10,
+    `Expected exactly 10 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
     `If you added a new mirror, register it in the LOGIC_MIRROR_REGISTRY or DATA_MIRROR_ALLOWLIST and bump this count.`
   )
 })

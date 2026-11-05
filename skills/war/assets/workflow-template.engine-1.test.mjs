@@ -24,6 +24,7 @@ import {
   BARRIER_TOKENS,
   RELEASE_SLOT_FILES,
   DEMOTE_REASONS,
+  FINDING_CLASSES,
   spawnOpts,
   validateRoster,
   widenRoster,
@@ -46,6 +47,7 @@ import {
   here,
   auditorMd,
   gateAuditChecklistMd,
+  findingClassMd,
   auditorTeachMd,
   refinerMd,
   schemasMdForAbsorb,
@@ -4252,12 +4254,15 @@ test('calibration + cost-claim rules (spec §4.1/§4.2): the REBUTTAL-round audi
   assert.ok(rebuttal.prompt.includes(COST_CLAIM_SHARED), 'rebuttal-round auditPrompt carries the cost-claim rule')
 })
 
-test('stale-looking-but-correct calibration (Task 1.4): war-auditor.md AND auditPrompt carry all four rule anchors', async () => {
+// Standing surface (late-defects Task 2.1, ADR 0042): the rule bodies moved byte-identical from the
+// card to finding-class.md, so the standing asserts below read findingClassMd; the card keeps the
+// heading and the trigger pointer.
+test('stale-looking-but-correct calibration (Task 1.4): finding-class.md AND auditPrompt carry all four rule anchors', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const a = calls.find(isAuditor)
   assert.ok(a, 'an auditor was dispatched (presence guard)')
   for (const re of CALIBRATION_RULE_ANCHORS) {
-    assert.match(auditorMd, re, `war-auditor.md carries calibration rule ${re} (standing surface)`)
+    assert.match(findingClassMd, re, `finding-class.md carries calibration rule ${re} (standing surface)`)
     assert.match(a.prompt, re, `auditPrompt carries calibration rule ${re} (dispatched surface)`)
   }
 })
@@ -4267,11 +4272,11 @@ test('stale-looking-but-correct calibration (Task 1.4): the "only when the live 
   // qualifier on BOTH surfaces. A silent widening that drops the qualifier from ONE rule (unconditional
   // amnesty) turns that rule's window qualifier-missing — the retired aggregate occurrence count could
   // not see it: five real occurrences minus one silent drop still cleared the four-rule floor. The
-  // intro-line qualifier sits before anchor 1 on the standing card, so it is outside every window and
+  // intro-line qualifier sits before anchor 1 on the standing surface, so it is outside every window and
   // never pads a rule; the dispatched skeleton's intro carries no qualifier occurrence at all.
-  const standing = qualifierPerRuleWindows(auditorMd)
+  const standing = qualifierPerRuleWindows(findingClassMd)
   standing.forEach((r, i) => assert.equal(r.status, 'ok',
-    `war-auditor.md rule ${i + 1} window ${r.anchor} carries the confirmation qualifier (standing surface)`))
+    `finding-class.md rule ${i + 1} window ${r.anchor} carries the confirmation qualifier (standing surface)`))
   const dispatched = qualifierPerRuleWindows(calibrationLine(await capturedAuditPrompt()))
   dispatched.forEach((r, i) => assert.equal(r.status, 'ok',
     `auditPrompt rule ${i + 1} window ${r.anchor} carries the confirmation qualifier (dispatched surface)`))
@@ -4283,13 +4288,13 @@ test('stale-looking-but-correct calibration (Task 1.4): the per-rule qualifier l
   // assert the helper reports EXACTLY that rule qualifier-missing and the other three still ok. The
   // complement (other-three-stay-ok) is load-bearing (weak-test-assertion-passes-without-feature-being-
   // exercised): it proves the helper is not an all-missing stub, that window 4 cannot borrow a qualifier
-  // from trailing text, and that the standing card's intro-line qualifier (pre-anchor-1, outside every
+  // from trailing text, and that the standing surface's intro-line qualifier (pre-anchor-1, outside every
   // window; the dispatched skeleton carries none) can never rescue a rule. Initial-round capture only —
   // a deliberate scope cut matching the sibling anchor test;
   // the rebuttal-round base prompt is already covered by the CALIBRATION_SHARED rebuttal test.
   const QUALIFIER_ALL = /only when the live artifact confirms/gi
   const surfaces = [
-    ['war-auditor.md (standing)', auditorMd],
+    ['finding-class.md (standing)', findingClassMd],
     ['auditPrompt (dispatched)', calibrationLine(await capturedAuditPrompt())],
   ]
   for (const [label, text] of surfaces) {
@@ -8151,6 +8156,16 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
     { name: 'demote-census — inline DEMOTE_REASONS mirror', mode: 'deepEqual',
       canonical: DEMOTE_REASONS,
       extractInline: () => parseInlineArray(/const\s+DEMOTE_REASONS\s*=\s*(\[[^\]]+\])/) },
+    // FINDING_CLASSES (late-defects D7/D24, PIN-7/PIN-24, finding-class): the seat's `findingClass`
+    // enum, canonical in land-decision.mjs, hand-mirrored beside DEMOTE_REASONS; the AUDIT_VERDICT
+    // enum, normalizeFinding and the dispatched DISPOSITION RULE read the inline copy. The second row
+    // binds the pair the card's Disposition-rule sentence spells by hand.
+    { name: 'finding-class — inline FINDING_CLASSES mirror', mode: 'deepEqual',
+      canonical: FINDING_CLASSES,
+      extractInline: () => parseInlineArray(/const\s+FINDING_CLASSES\s*=\s*(\[[^\]]+\])/) },
+    { name: 'finding-class — war-auditor.md Disposition-rule sentence', mode: 'deepEqual',
+      canonical: FINDING_CLASSES,
+      extractInline: () => (windowOf(auditorMd, '**Disposition rule:**', '\n').match(/`findingClass` on each Minor\/Nit to ([a-z]+) or ([a-z]+):/) || []).slice(1) },
     { name: 'landDecision known set', mode: 'subset',
       canonical: KNOWN_LAND_DECISIONS,
       extractInline: extractLandDecisionLiterals },
@@ -11279,8 +11294,8 @@ test('barrier-list — AUDIT_VERDICT finding items carry the OPTIONAL `barrier` 
   assert.match(src, /barrier: \{ enum: BARRIER_TOKENS \}/, 'the schema field renders from the inline mirror, never a restated literal (source pin)')
   // default-deny census over the finding-item property list: a new key joins here or reds.
   assert.deepEqual(Object.keys(items.properties).sort(),
-    ['ask', 'autoFixable', 'barrier', 'citation', 'citationUnsound', 'disposition', 'file', 'line', 'phaseClose', 'plan_ref', 'rationale', 'severity', 'suggested_fix', 'title'],
-    'the AUDIT_VERDICT finding-item property census admits exactly the known keys plus barrier')
+    ['ask', 'autoFixable', 'barrier', 'citation', 'citationUnsound', 'disposition', 'file', 'findingClass', 'line', 'phaseClose', 'plan_ref', 'rationale', 'severity', 'suggested_fix', 'title'],
+    'the AUDIT_VERDICT finding-item property census admits exactly the known keys plus barrier and findingClass (late-defects D7)')
 })
 
 test('barrier-list — the dispatched DISPOSITION RULE renders the four BARRIER_TOKENS from the inline mirror, carries the in-diff absorb default, the out-of-diff absorb + phaseClose:true seat rule, and the `barrier` field clause, and byte-mirrors the card', async () => {
