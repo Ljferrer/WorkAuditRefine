@@ -18745,6 +18745,7 @@ test('#2617 one-turn rule: the worker card forbids ending a turn with work left,
   assert.ok(sec, 'the card has a One turn, no waiting section')
   for (const re of [/When your turn ends, you exit, and any background job dies with you/,
     /Never end your turn with work left: commit and push, or return `blocked`/,
+    /Before you return, leave no uncommitted tracked edits: commit them or restore them/,
     /One tool call runs at most 600000 ms, and stops at 120000 ms unless you set `timeout`/,
     /start it with `run_in_background`, then poll its output with foreground calls in this same turn until it exits/,
     /Never end your turn to wait for a notification or a monitor/,
@@ -18784,7 +18785,10 @@ test('#2617 dirty task worktree at merge-task: the stop rides every segmented me
   const impl = (prompt, opts) => (opts.label || '') === 'merge:t1' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : defaultImpl(prompt, opts)
   const { out, calls } = await runPhase(twoIndependentTasks(), impl)
   const m1 = calls.find(c => (c.opts.label || '') === 'merge:t1')
-  assert.ok(m1 && m1.prompt.indexOf('dirty task worktree: <those paths>') < m1.prompt.indexOf('(a) REBASE in the TASK worktree'), 'the stop comes before the rebase step')
+  const stopAt = m1 ? m1.prompt.indexOf('dirty task worktree: <those paths>') : -1
+  assert.ok(stopAt >= 0 && stopAt < m1.prompt.indexOf('(a) REBASE in the TASK worktree'), 'the stop comes before the rebase step')
+  assert.ok(calls.some(c => c.opts.label === 'git-confirm:merge:t1'), 'Git confirms the reported stop against unchanged refs')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'a dirty stop skips Git reconciliation, which could clean the tree and merge')
   const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 'the dirty task escalates (presence guard)')
   assert.equal(esc.reason, 'escalate', 'a dirty merge-task holds on the hard reason, never a soft error')

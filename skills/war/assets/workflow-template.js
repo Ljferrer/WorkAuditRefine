@@ -2768,7 +2768,10 @@ ORIGINAL OPERATION (all requirements still apply):
   }
   throw new Error('Uncertain Git mutation at ' + opts.label + ': automatic refiner reconciliation could not establish certainty after ' + roundLimit + ' attempts; hold before land' + (note ? ': ' + note : ''))
 }
-const uncertainMerge = result => !!deathOf(result) || !result || result.status === 'error' || !MERGE_RESULT.properties.status.enum.includes(result.status)
+// isDirty (#2617): a merge-task or pin-transfer stop on a dirty task worktree. It skips Git reconciliation,
+// because the reconciler may clean the tree and merge past the hold. routedMr and the pin-transfer arm hold it.
+const isDirty = r => r?.status === 'error' && /^dirty task worktree/.test(r.detail)
+const uncertainMerge = result => !!deathOf(result) || !result || result.status === 'error' && !isDirty(result) || !MERGE_RESULT.properties.status.enum.includes(result.status)
 const reconciledMerge = async (prompt, opts, context, invoke = dispatchSite) => {
   const capture = newGateCapture(context.repo, context.land ? 'land-' + context.task : context.task)
   const body = prompt + '\n' + capture.clause
@@ -2980,7 +2983,7 @@ const doneWhenLogOf = mr => (mr && typeof mr.done_when_log_path === 'string' && 
 // #2617 (operator ruling 2026-11-05): a merge-task that stops on a dirty task worktree holds like the
 // pin-transfer probe does: its error reads as the hard reason escalate at every routedMr site.
 const routedMr = mr => (mr && mr.status === 'no-test' && mr.floor_route === 'budget-uncited')
-  ? { ...mr, status: 'budget-uncited' } : mr?.status === 'error' && /^dirty task worktree/.test(mr.detail) ? { ...mr, status: 'escalate' } : mr
+  ? { ...mr, status: 'budget-uncited' } : isDirty(mr) ? { ...mr, status: 'escalate' } : mr
 const debtIds = ids => (Array.isArray(ids) ? ids : (ids ? [ids] : [])).map(String)
 // recordBaselineDebt: dedup by SUBSET-CONTAINMENT with an EMPTY-set carve-out (#798). A NON-EMPTY
 // id-set that is a subset (⊆) of some existing entry's ids at the SAME base sha is a no-op — already
@@ -3056,8 +3059,9 @@ const classificationClause = (refineryP, baseDesc) =>
 const GATE_LOG_STAMP = pt`Stamp the artifact: its FIRST line is \`tip_sha: <the sha the gate ran at>\` and its LAST line is \`exit_code: <the gate's exit code>\`, written after the gate exits — the stamp is what makes a partial or stale log decidable.`
 // The refiner reads only a continuation's returned artifact; every other logical attempt
 // allocates a fresh file. Byte-equal standing card twin (PIN-1); the engine never opens logs.
-// DIRTY_TASK_STOP (#2617): the pin-transfer probe and every merge-task rebase site stop on tracked edits;
-// the shared stash is never a workaround.
+// DIRTY_TASK_STOP (#2617): the pin-transfer probe and every segmentedMerge site stop on tracked edits;
+// the shared stash is never a workaround. The per-task sites hold (routedMr); the polish and terminal
+// sweep merges take their fail-open discard.
 const DIRTY_TASK_STOP = pt`Never run git stash: every worktree and session shares the stash. Before any forward-revert or rebase: if git -C <the TASK worktree> status --porcelain --untracked-files=no prints anything, return { status: 'error', detail: 'dirty task worktree: <those paths>' }.\n`
 const PARTIAL_LOG_RULE = pt`Only an explicitly marked SEGMENTED continuation may reuse its returned gate_log_path. Read only that supplied path, never a guessed conventional path: it is THIS logical dispatch's completed gate result only when its FIRST line is \`tip_sha:\` of the sha being gated AND its LAST line is \`exit_code:\`. If absent, unstamped, partial or stale, rerun into a FRESH unique artifact; never truncate or reuse a file a prior background job may still write. A fresh logical dispatch always allocates a fresh artifact, even at the same tip.`
 // Missing paths are evidence absence, never permission to read a previous dispatch's file.
@@ -5261,7 +5265,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // #2617: the probe found uncommitted tracked changes in the task worktree and stopped before any
       // rebase. Hold the task with the paths: a merge-task there would refuse its rebase (and tempt a
       // shared-stash workaround) or gate content that never merges.
-      if (probeStatus === 'error' && /^dirty task worktree/.test(pinProbe?.detail || '')) { escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'task worktree dirty at pin-transfer: ' + pinProbe.detail, probe: pinProbe } }); auditLog.push({ task: r.task.id, verdict: 'pin-transfer:dirty-worktree', findings: [] }); continue }
+      if (isDirty(pinProbe)) { escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'task worktree dirty at pin-transfer: ' + pinProbe.detail, probe: pinProbe } }); auditLog.push({ task: r.task.id, verdict: 'pin-transfer:dirty-worktree', findings: [] }); continue }
       // After a move the probe's base can name an earlier rebase of the task, while the proof's base names
       // the approved content, so only the proof's reading counts.
       if (!pinProof || (['transferred', 'mismatch', 'already_upstream'].includes(probeStatus) &&
