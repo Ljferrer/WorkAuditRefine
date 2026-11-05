@@ -8492,7 +8492,12 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
     { site: 'ace re-entry batch (ACE RE-ENTRY BATCH)', from: 'pt`ACE RE-ENTRY BATCH for WAR task', reachedBy: /^ace:reentry:/ },
     { site: 'ace advisory polish (ADVISORY POLISH (--ace))', from: 'pt`ADVISORY POLISH (--ace) for WAR task', reachedBy: /^ace:polish:/ },
     { site: 'FIX_NEEDED fix prompt', from: 'pt`FIX_NEEDED for WAR task', reachedBy: /^fix:/ },
-    { site: 'floor-fix prompt ladder (const fixPrompt)', from: 'const fixPrompt = isNoTest', reachedBy: /^(add-test|make-pass|package-it):/ },
+    // The four floor arms get one range each (round 2, #2617), so the rule cannot move between arms
+    // unseen. Each arm ends at the next arm's anchor. No fixture drives CITE_BUDGET (reachedBy null).
+    { site: 'floor ADD_TEST arm', from: 'pt`ADD_TEST for WAR task', to: 'pt`MAKE_DONE_PASS for WAR task', reachedBy: /^add-test:/ },
+    { site: 'floor MAKE_DONE_PASS arm', from: 'pt`MAKE_DONE_PASS for WAR task', to: 'pt`CITE_BUDGET for WAR task', reachedBy: /^make-pass:/ },
+    { site: 'floor CITE_BUDGET arm', from: 'pt`CITE_BUDGET for WAR task', to: 'pt`PACKAGE_IT for WAR task', reachedBy: null },
+    { site: 'floor PACKAGE_IT arm', from: 'pt`PACKAGE_IT for WAR task', reachedBy: /^package-it:/ },
     { site: 'phase-close coherence sweep (PHASE-CLOSE COHERENCE SWEEP)', from: 'pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase', reachedBy: /^polish:/ },
     { site: 'terminal pass (TERMINAL PASS)', from: 'pt`TERMINAL PASS for WAR phase', reachedBy: /^terminal:/ },
   ]
@@ -8500,9 +8505,9 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
     const start = censusSrc.indexOf(s.from)
     assert.ok(start >= 0, `dispatch-site anchor for "${s.site}" resolves in the template source`)
     assert.equal(censusSrc.indexOf(s.from, start + 1), -1, `dispatch-site anchor for "${s.site}" is unique`)
-    const end = censusSrc.indexOf('label:', start)
-    assert.ok(end > start, `dispatch-site "${s.site}" terminates at its own label: dispatch option`)
-    assert.ok(fixPrompts.some(c => s.reachedBy.test(c.opts.label || '')),
+    const end = censusSrc.indexOf(s.to || 'label:', start)
+    assert.ok(end > start, `dispatch-site "${s.site}" terminates at ${s.to ? 'the next arm' : 'its own label: dispatch option'}`)
+    if (s.reachedBy) assert.ok(fixPrompts.some(c => s.reachedBy.test(c.opts.label || '')),
       `dispatch-site "${s.site}" is fixture-reachable`)
     return { ...s, start, end }
   })
@@ -8511,8 +8516,8 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
       `the FIX_GATE_RULE interpolation at source index ${m.index} sits inside a fixture-reachable dispatch site`)
   }
   for (const r of ranges) {
-    assert.ok(census.some(m => m.index >= r.start && m.index < r.end),
-      `dispatch-site "${r.site}" owns at least one FIX_GATE_RULE interpolation`)
+    assert.equal(census.filter(m => m.index >= r.start && m.index < r.end).length, 1,
+      `dispatch-site "${r.site}" owns exactly one FIX_GATE_RULE interpolation (a rule moved between sites reds here)`)
   }
   // Default-deny over the card's trigger: every fix-applying dispatch carries a BACKWARD-CHAIN FIX block
   // (chainFixClause), so each chainFixClause call must sit in a site above. A new fix site that

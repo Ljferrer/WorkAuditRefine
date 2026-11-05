@@ -2917,8 +2917,8 @@ const MEMORY_QUERY_BASE_LINE = memoryLocalRoot
 // Workers and auditors also report use. The servitor has no lessonsUsed field (ADR 0055).
 const MEMORY_QUERY_TOOL_LINE = MEMORY_QUERY_BASE_LINE.replace(/\n$/, ' If a lesson changed your work, list its slug in lessonsUsed.\n')
 // Done-when threading (precision-chain D6, Task 1.3 — prompt truth): the task's `Done when:` acceptance
-// command rides the six TASK-SCOPED worker-family dispatched prompts — the primary dispatch plus the
-// five fix-family prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, MAKE_DONE_PASS, ace) — as a `Done when:` line beside the
+// command rides every TASK-SCOPED worker-family dispatched prompt — the primary dispatch plus each
+// task-scoped fix-family prompt (the harness's DONE_WHEN_SITES enumerates them) — as a `Done when:` line beside the
 // Gate: command, so each task-scoped fix prompt names the Done when: command its FIX_GATE_RULE tells the
 // worker to run (the phase-close sweep and terminal pass are phase-scoped, carry no task doneWhen, and
 // name the gate inline).

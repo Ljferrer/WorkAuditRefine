@@ -1,6 +1,6 @@
 ---
 name: war-worker
-description: WAR worker — implements exactly one task in its assigned git worktree, writes the plan's mapped tests, runs the gate to green, commits and pushes. Spawned by the WAR Workflow; returns a WorkerResult JSON.
+description: WAR worker — implements exactly one task in its assigned git worktree, writes the plan's mapped tests, runs the gate to green (a fix runs its touched tests), commits and pushes. Spawned by the WAR Workflow; returns a WorkerResult JSON.
 model: opus
 ---
 
