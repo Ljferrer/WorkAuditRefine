@@ -2086,12 +2086,18 @@ for _pcmd in \
   "git -C $MAIN log --committer=$TMP $_psha" \
   "git -C $MAIN log --grep-reflog $TMP $_psha" \
   "git -C $MAIN grep -n -Fe $TMP $_psha -- x" \
-  "git -C $MAIN grep -n -F -e$TMP $_psha -- x" \
   "git -C $MAIN log --oneline -S $TMP $_psha" \
   "git -C $MAIN log $_psha -S $TMP" \
   "git -C $MAIN log -S a -G $TMP $_psha" \
   "git -C $MAIN log -L $TMP $_psha" \
-  "git -C $MAIN blame -L $TMP $_psha -- f"
+  "git -C $MAIN blame -L $TMP $_psha -- f" \
+  "git -C $MAIN blame -w -L $TMP $_psha -- f" \
+  "git -C $MAIN log -1 -S $TMP $_psha" \
+  "git -C $MAIN log --graph -S $TMP $_psha" \
+  "git -C $MAIN log -i --grep $TMP $_psha" \
+  "git -C $MAIN diff -I $TMP $_psha $_psha" \
+  "git -C $MAIN diff --ignore-matching-lines $TMP $_psha $_psha" \
+  "git -C $MAIN diff --word-diff-regex=$TMP $_psha $_psha"
 do
   _pi=$((_pi + 1))
   run "$(mk_start "$AUD" pp$_pi)"
@@ -2125,20 +2131,35 @@ run "$(mk_start "$AUD" pq5)"
 run "$(mk_bash "$AUD" pq5 "git -C $MAIN blame -S $TMP/wtB/f $_psha -- f")"
 if touched_is pq5 "$WTB"; then pass "a blame -S value stays a path"; else fail "a blame -S value was not touched: |$(cat "$FP_ROOT/pq5/touched" 2>/dev/null)|"; fi
 # A value-taking letter before S keeps the cluster a path: in `-pOS/../../wtB/f`
-# the `O` takes `S/../../wtB/f` as its orderfile, which lands in wtB.
+# the `O` takes `S/../../wtB/f` as its orderfile, whose lexical reading lands
+# in wtB (the hook reads both ways, see task_worktree_of).
 run "$(mk_start "$AUD" pq6)"
 run "$(mk_bash "$AUD" pq6 "git -C $TMP/wtA diff -pOS/../../wtB/f $_psha $_psha")"
 if touched_is pq6 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "a value-taking letter before S keeps the cluster a path"; else fail "a -pOS cluster lost its orderfile: |$(cat "$FP_ROOT/pq6/touched" 2>/dev/null)|"; fi
 # An option that takes the next token as its value takes a following -S or
 # -G as that value, so the token after it is a path git reads: `-I` takes
-# `-S` as its regex, `--src-prefix` takes `-G` as its prefix, and both diffs
-# read wtB/f and wtD/f (git 2.54).
+# `-S` as its regex, `--src-prefix` takes `-G` as its prefix, `-O` takes `-S`
+# as its orderfile, and each diff reads wtB/f and wtD/f (git 2.54). `-I` is a
+# pattern option itself, so pq7 pins the token after a pattern value. pq8
+# and pq10 pin pat_free: neither `--src-prefix` nor `-O` is free.
 run "$(mk_start "$AUD" pq7)"
 run "$(mk_bash "$AUD" pq7 "git -C $MAIN diff --no-index -I -S $TMP/wtB/f $TMP/wtD/f")"
 if touched_is pq7 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of -I stays no pattern option"; else fail "a -S after -I hid a path: |$(cat "$FP_ROOT/pq7/touched" 2>/dev/null)|"; fi
 run "$(mk_start "$AUD" pq8)"
 run "$(mk_bash "$AUD" pq8 "git -C $MAIN diff --src-prefix -G $TMP/wtB/f $TMP/wtD/f")"
 if touched_is pq8 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -G taken as the value of --src-prefix stays no pattern option"; else fail "a -G after --src-prefix hid a path: |$(cat "$FP_ROOT/pq8/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" pq10)"
+run "$(mk_bash "$AUD" pq10 "git -C $MAIN diff -O -S $TMP/wtB/f $TMP/wtD/f")"
+if touched_is pq10 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of -O stays no pattern option"; else fail "a -S after -O hid a path: |$(cat "$FP_ROOT/pq10/touched" 2>/dev/null)|"; fi
+# `--end-of-options` ends option parsing like `--`: in `diff --no-index
+# --end-of-options A -S ../wtB/f` git reads all three as paths.
+run "$(mk_start "$AUD" pq11)"
+run "$(mk_bash "$AUD" pq11 "git -C $TMP/wtA diff --no-index --end-of-options A -S ../wtB/f")"
+if touched_is pq11 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "a -S after --end-of-options stays a path"; else fail "a -S after --end-of-options hid a path: |$(cat "$FP_ROOT/pq11/touched" 2>/dev/null)|"; fi
+# An attached -e pattern is no path: from wtA, `-e../wtB/f` reads wtA only.
+run "$(mk_start "$AUD" pq9)"
+run "$(mk_bash "$AUD" pq9 "git -C $TMP/wtA grep -n -F -e../wtB/f $_psha -- x")"
+if touched_is pq9 "$WTA"; then pass "an attached -e pattern touches no sibling worktree"; else fail "an attached -e pattern touched a sibling: |$(cat "$FP_ROOT/pq9/touched" 2>/dev/null)|"; fi
 
 # --- registration + conventions ---------------------------------------------
 if jq -e . "$HJSON" >/dev/null 2>&1; then pass "hooks.json parses"; else fail "hooks.json does not parse"; fi

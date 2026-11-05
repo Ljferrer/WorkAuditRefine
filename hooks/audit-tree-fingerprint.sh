@@ -51,7 +51,9 @@
 #         (`-pO<file>`), or the next token of a space-form file-valued flag,
 #         else the payload cwd) and add each to the seat's touched set. A
 #         search pattern option and its value (`git grep -e <p>`, `log -S <p>`:
-#         see pat_opt) name no path and are never touched (#2604). An
+#         see pat_opt) name no path, so they are not touched when the token
+#         before them is free (see pat_free). After any other option they
+#         stay paths (over-touch, #2604). An
 #         unquoted `~-` or `~<name>` Bash token (`-C` value or operand) is
 #         unresolved: the payload carries no
 #         OLDPWD, and a `~<name>` needs getpwnam, so the token goes into the
@@ -823,23 +825,26 @@ touch_operand() {
 # against git 2.54:
 #   grep        `-e <p>` (grep has no `--regexp`; `-f <file>` reads a file
 #               and stays a path).
-#   log, show   `-S<p>`, `-G<p>`, and `--grep`, `--author`, `--committer`,
-#               `--grep-reflog` (space or `=` form). log also takes `-L<r>`.
-#   diff        `-S<p>`, `-G<p>`.
+#   log, show   the diff options below, and `--grep`, `--author`,
+#               `--committer`, `--grep-reflog` (space or `=` form). log also
+#               takes `-L<r>`.
+#   diff        `-S<p>`, `-G<p>`, `-I<re>`, and `--ignore-matching-lines`,
+#               `--word-diff-regex` (space or `=` form).
 #   blame       `-L<r>` only: blame `-S <file>` reads a revs file.
 # A short pattern option takes the space or the attached form, also at the
 # end of a short cluster (`-pS <p>`, `-sG<p>`). An `-L` value is a line range
 # or a regex: git reads its `:file` part from commits, never from a worktree.
 # pat_sub <subcommand> sets the subcommand's no-value cluster letters (_pk),
-# its pattern letters (_pl) and whether the long forms apply (_plong).
+# the letters that are free only as a whole token (_p1), its pattern letters
+# (_pl), and whether the log (_plog) and diff (_pdif) long forms apply.
 pat_sub() {
-  _pk=""; _pl=""; _plong=0
+  _pk=""; _p1=""; _pl=""; _plog=0; _pdif=0
   case "$1" in
     grep) _pk=Fnilwc; _pl=e ;;
-    log) _pk=pusRzatwbWrcm; _pl=SGL; _plong=1 ;;
-    show) _pk=pusRzatwbWrcm; _pl=SG; _plong=1 ;;
-    diff) _pk=pusRzatwbWrcm; _pl=SG ;;
-    blame) _pl=L ;;
+    log) _pk=pusRzatwbWrcm; _p1=iEFP; _pl=SGIL; _plog=1; _pdif=1 ;;
+    show) _pk=pusRzatwbWrcm; _p1=iEFP; _pl=SGI; _plog=1; _pdif=1 ;;
+    diff) _pk=pusRzatwbWrcm; _pl=SGI; _pdif=1 ;;
+    blame) _pk=bfnpctlswe; _pl=L ;;
   esac
 }
 # pk_strip <cluster>: sets _pc to <cluster> with its leading _pk letters cut.
@@ -857,10 +862,16 @@ pk_strip() {
 # the token stays a path (over-touch).
 pat_opt() {
   _pn=0
-  if [ "$_plong" = 1 ]; then
+  if [ "$_plog" = 1 ]; then
     case "$1" in
       --grep|--author|--committer|--grep-reflog) _pn=1; return 0 ;;
       --grep=*|--author=*|--committer=*|--grep-reflog=*) _pn=2; return 0 ;;
+    esac
+  fi
+  if [ "$_pdif" = 1 ]; then
+    case "$1" in
+      --ignore-matching-lines|--word-diff-regex) _pn=1; return 0 ;;
+      --ignore-matching-lines=*|--word-diff-regex=*) _pn=2; return 0 ;;
     esac
   fi
   [ -n "$_pl" ] || return 0
@@ -869,21 +880,27 @@ pat_opt() {
 }
 # pat_free <token>: sets _pok to 1 when git cannot take the NEXT token as the
 # value of <token>, else to 0. Only then may the next token be a pattern
-# option: in `diff -I -S <f>`, `-I` takes `-S` as its regex and git reads
+# option: in `diff -O -S <f>`, `-O` takes `-S` as its orderfile and git reads
 # <f>. Free: an operand, a `--<opt>=<value>` token, a listed no-value long
-# flag, and a short cluster of _pk letters only. Any other option may take
-# the next token, so a pattern option after it stays a path (over-touch).
+# flag, a count (`-<digits>`), a short cluster of _pk letters only, and a
+# lone _p1 letter (`log -i`). Any other option may take the next token, so a
+# pattern option after it stays a path (over-touch).
 pat_free() {
   _pok=0
   case "$1" in
     --*=*) _pok=1 ;;
     --oneline|--stat|--numstat|--shortstat|--name-only|--name-status|--raw) _pok=1 ;;
-    --patch|--no-patch|--summary|--all|--reverse|--first-parent) _pok=1 ;;
-    --merges|--no-merges|--full-history|--no-renames|--no-color) _pok=1 ;;
+    --patch|--no-patch|--summary|--all|--reverse|--first-parent|--graph) _pok=1 ;;
+    --merges|--no-merges|--full-history|--no-renames|--no-color|--follow) _pok=1 ;;
     --pickaxe-regex|--pickaxe-all|--cached|--staged|--no-index) _pok=1 ;;
     --exit-code|--quiet|--check|--fixed-strings|--ignore-case) _pok=1 ;;
     --word-regexp|--line-number|--count|--files-with-matches) _pok=1 ;;
-    -?*) case "$1" in --*) ;; *) pk_strip "${1#-}"; [ -n "$_pk" ] && [ -z "$_pc" ] && _pok=1 ;; esac ;;
+    --decorate|--no-decorate|--all-match|--invert-grep|--regexp-ignore-case) _pok=1 ;;
+    --*) ;;
+    -?*)
+      case "${1#-}" in *[!0-9]*) ;; *) _pok=1; return 0 ;; esac
+      pk_strip "${1#-}"; [ -n "$_pk" ] && [ -z "$_pc" ] && _pok=1
+      [ -n "$_p1" ] && case "$1" in -[$_p1]) _pok=1 ;; esac ;;
     *) _pok=1 ;;
   esac
 }
@@ -1266,7 +1283,8 @@ case "$event" in
     # itself file-valued, since the plain arm has that token (a non-path
     # tail resolves to the base), any other token that starts with `-` is
     # a flag and costs no spawn, a search pattern option and its value
-    # (pat_opt, before any `--`) are skipped, and EVERY other token
+    # (pat_opt, after a free token (pat_free) and before any `--` or
+    # `--end-of-options`) are skipped, and EVERY other token
     # (`../wtB/f`, `./x/f`, `a/../b/f`, `a/b/f`, `wtB`, `diff`,
     # `HEAD~1`, the value of a space-form `--contents <f>`) resolves
     # against the running base: the payload cwd, moved by each resolved
@@ -1344,8 +1362,9 @@ case "$event" in
         _pv=0; _pok=1; continue
       elif [ "$_dd" = 0 ]; then
         # A search pattern names no path (pat_opt), so neither the option
-        # nor its value is touched. After `--` every token is a pathspec.
-        [ "$_tok" = -- ] && _dd=1
+        # nor its value is touched. After `--` or `--end-of-options` (git
+        # ends option parsing at either) no token is an option.
+        case "$_tok" in --|--end-of-options) _dd=1 ;; esac
         if [ "$_pok" = 1 ]; then
           pat_opt "$_tok"
           case "$_pn" in 1) _pv=1; continue ;; 2) continue ;; esac
