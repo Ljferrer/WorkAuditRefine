@@ -347,6 +347,12 @@ export function validate(input) {
     for (const tier of ['docs', 'fix', 'ace']) {
       if (Object.prototype.hasOwnProperty.call(worker, tier)) validateAgentTier(worker[tier], `agents.worker.${tier}`, errors)
     }
+    // Ace charges 5 and 6 run on the fix tier (aceSpawn in workflow-template.js), so the fix model must
+    // rank at least the ace model. One rank above is the recommended split (operator ruling 2026-11-05).
+    const fx = worker.fix, ac = worker.ace
+    if (isObj(fx) && isObj(ac) && MODEL_RANK.indexOf(fx.model) < MODEL_RANK.indexOf(ac.model)) {
+      errors.push(`agents.worker.fix.model must rank at least agents.worker.ace.model (${MODEL_RANK.join(' < ')}): ace charges 5 and 6 run on the fix tier (got fix ${JSON.stringify(fx.model)}, ace ${JSON.stringify(ac.model)})`)
+    }
   }
   if (isObj(c.agents.refiner) && Object.prototype.hasOwnProperty.call(c.agents.refiner, 'recovery')) validateAgentTier(c.agents.refiner.recovery, 'agents.refiner.recovery', errors)
   // agents.auditor.rebuttal: the rebuttal-round seat tier (defaulted; a hand-written config may omit it, and then

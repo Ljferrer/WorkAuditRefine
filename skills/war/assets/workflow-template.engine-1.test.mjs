@@ -7998,6 +7998,19 @@ test('#2519 — ace tier: the terminal pass dispatches on agents.worker.ace when
     'ace absent ⇒ the terminal worker carries agents.worker.fix (unchanged from before the split)')
 })
 
+// Operator ruling 2026-11-05: ace charges 5 and 6 run on agents.worker.fix, the stronger tier; charges 1-4 stay on agents.worker.ace.
+test('ace charges 5 and 6 dispatch on agents.worker.fix; charge 4 stays on agents.worker.ace', async () => {
+  const aceAt = async (seeded) => {
+    const { calls } = await runPhase(ACE_ARGS({ agents: ACE_SPLIT }), withBarrier({ ok: true, absorbCharges: { t1: seeded } }, aceBase()))
+    const c = calls.find(x => (x.opts.label || '') === 'ace:polish:t1:a' + (seeded + 1))
+    assert.ok(c, 'charge ' + (seeded + 1) + ' dispatched (presence guard)')
+    return { model: c.opts.model, effort: c.opts.effort }
+  }
+  assert.deepEqual(await aceAt(3), { model: 'sonnet', effort: 'medium' }, 'charge 4 carries agents.worker.ace')
+  assert.deepEqual(await aceAt(4), { model: 'opus', effort: 'high' }, 'charge 5 carries agents.worker.fix')
+  assert.deepEqual(await aceAt(5), { model: 'opus', effort: 'high' }, 'charge 6 carries agents.worker.fix')
+})
+
 // #2519 — a roster seat's own model/effort overrides the auditor tier for that seat only.
 test('#2519 — per-seat model: a seat with model/effort dispatches on it; a seat without one keeps the auditor tier', async () => {
   const roster = [{ lens: 'correctness', model: 'sonnet', effort: 'high' }, { lens: 'security' }, { lens: 'plan-faithfulness', effort: 'default' }]
@@ -18820,11 +18833,23 @@ test('#2617 dirty task worktree at merge-task, unconfirmed by Git: the stop keep
 test('#2617 dirty stop at the polish sweep merge, unconfirmed by Git: it loses the dirty prefix and reconciles before its fail-open arm', async () => {
   const base = sweepBase([queuedAbsorb()])
   const impl = (prompt, opts) => (opts.label || '') === 'merge:p3-polish' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : base(prompt, opts)
-  const { calls } = await runPhase(SWEEP_ARGS(), impl, {
+  const { out, calls } = await runPhase(SWEEP_ARGS(), impl, {
     'merge-confirm': (p, o, w) => o.label === 'git-confirm:merge:p3-polish' ? { remote_sha: '' } : NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w),
   })
   assert.ok(calls.some(c => (c.opts.label || '') === 'merge:p3-polish'), 'the polish merge runs (presence guard)')
   assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile' && (c.opts.label || '').startsWith('git-reconcile:merge:p3-polish')), 'an unconfirmed sweep stop reconciles Git before the discard')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
+  assert.equal(out.handoff.polish, 'discarded', 'after reconciliation the sweep takes its fail-open discard')
+})
+
+test('#2617 dirty stop at the terminal sweep merge, unconfirmed by Git: it reconciles, never holds, and the commit stays unmerged', async () => {
+  const base = terminalImpl()
+  const { out, calls } = await runPhase(SWEEP_ARGS(), (p, o) => (o.label || '') === 'merge:p3-terminal' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : base(p, o), {
+    'merge-confirm': (p, o, w) => o.label === 'git-confirm:merge:p3-terminal' ? { remote_sha: '' } : NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w),
+  })
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile' && (c.opts.label || '').startsWith('git-reconcile:merge:p3-terminal')), 'an unconfirmed terminal stop reconciles Git first')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
+  assert.ok(!(out.aced || []).some(a => a.sha === '7e4a1a10'), 'the terminal commit stays unmerged, fail-open')
 })
 
 test('#2617 dirty stop at the polish sweep merge, confirmed by Git: no reconciliation, no hold, and the sweep discards', async () => {

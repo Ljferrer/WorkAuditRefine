@@ -137,7 +137,8 @@ the engine owns, so nothing the engine controls could carry the trailer. The mer
 - **Extends [ADR 0021](0021-run-lifecycle-provision-contract.md)**: a merge-time provision re-run is a
   fourth place the refiner runs provision steps.
 - **Names two residuals** in [ADR 0013](0013-commanders-intent-and-disposition-routing.md) and
-  [ADR 0049](0049-pin-transfer-and-proportional-re-audit.md) as the only exceptions to never-hold.
+  [ADR 0049](0049-pin-transfer-and-proportional-re-audit.md) as exceptions to never-hold. A third, the
+  `dirty task worktree` hold, joined them on 2026-11-05 (#2617).
 - **Leaves [ADR 0005](0005-dead-phase-halts-the-dag.md) untouched**: no enum or status change.
 - [ADR 0042](0042-prompt-surface-budgets.md): the new card doctrine lands in
   `skills/war/references/merge-provenance.md` behind a trigger pointer.

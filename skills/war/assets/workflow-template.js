@@ -841,7 +841,7 @@ const helperOpts = (...words) => words.every(bareWord)
 const WORKER_TIER_DEFAULTS = { docs: { model: 'sonnet', effort: 'high' } }
 // spawnWorker(tier): worker spawn opts for a sub-tier ('docs'|'fix'|'ace') — the configured agents.worker[tier]
 // block when present, else WORKER_TIER_DEFAULTS[tier] (docs), else the base worker (fix absent ⇒ inherit;
-// a null/absent tier ⇒ base). ace (the --ace + terminal-pass tier, #2519) has no default: absent ⇒ the fix
+// a null/absent tier ⇒ base). ace (the --ace + terminal-pass tier, #2519; charges 5 and 6 take fix, see aceSpawn) has no default: absent ⇒ the fix
 // tier's opts, so a config without agents.worker.ace dispatches exactly as before the split. A partial tier block falls back to ITS tier's default model (docs ⇒ WORKER_TIER_DEFAULTS.docs),
 // matching war-config's fillDefaults deep-merge. Effort only when non-default (omit = inherit session).
 const spawnWorker = tier => {
@@ -2254,7 +2254,8 @@ const routeReauditMinors = (r, seats, opts) => {
   for (const f of minorsOf(seats).map(x => ({ task: r.task.id, ...x }))) {
     const d = intakeFloor(f, dispositionOf(f, diff), diff)
     const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
-    if (d === 'ask') parkAsk(f)                     // ask precedes the absorb chain (#1550, D7)
+    // ask precedes the absorb chain (#1550, D7)
+    if (d === 'ask') parkAsk(f)
     else if (d === 'follow-up') {
       if (b) { log('re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; not filed (logged, never silent).'); corroborateSurvivor(f) }
       else fileFollowUp(f)
@@ -3885,7 +3886,8 @@ const citationExtra = f => { const c = citationOf(f); return c ? { citation: c }
 // values aceFindingRow renders into the worker prompt/commit message) so the panel judges from
 // its own prompt, never from a commit message it is not directed to read.
 const citationSoundnessClause = batch => {
-  const cited = batch.map(f => ({ f, c: citationOf(f) })).filter(x => x.c)   // one citationOf call per finding
+  // one citationOf call per finding
+  const cited = batch.map(f => ({ f, c: citationOf(f) })).filter(x => x.c)
   return cited.length
     ? pt`\nCITATION SOUNDNESS (absorb-by-citation): this batch contains citation-resolved findings — verify each cited standing adjudication row covers the finding's NAMED trade-off, not merely its topic; ambiguity is NO-match. An unsound citation is a BLOCKING finding: set \`citationUnsound: true\` and name the mismatch in the rationale — the candidate cannot merge or resolve its parked ask; the existing reject/discard path preserves the question. The citation-resolved findings under judgment:\n`
       + cited.map(({ f, c }, i) => pt`${i + 1}. "${f.title ?? '(untitled)'}" cites row "${c.row}" — match rationale: ${c.rationale}`).join('\n')
@@ -3984,6 +3986,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // back (highest index). Reverts carry no charge trailer. Concatenation-built (census-safe).
   const aceLabel = (r, site) => 'ace:' + site + ':' + r.task.id + ':a' + (r.task.absorbRounds + 1)
   const aceChargeOf = r => r.task.id + ':' + (r.task.absorbRounds + 1)
+  // aceSpawn: ace charges 5 and 6 (the last two of the default budget) run on the fix tier, which
+  // war-config validate requires to rank at least the ace tier (operator ruling 2026-11-05).
+  const aceSpawn = r => spawnWorker(r.task.absorbRounds > 3 ? 'fix' : 'ace')
   // Shared refiner range revert (#2485 D17) before a bisection subset or re-entry worker: it used to
   // ride the worker prompt. A refiner reverts <approved>..HEAD (approved from the engine, HEAD from
   // Git) in phase Audit and reports the post-revert tip, which is that worker's pre-dispatch tip — so a
@@ -4281,7 +4286,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + chainFixClause(r.task, chainRound, 'ace subset', sub.findings.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...spawnWorker('ace') })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...aceSpawn(r) })
       // A subset worker death (D21) reads through deathOf FIRST — the site-named cause becomes the
       // abandon reason below, never a hold and never a content verdict. Dead or not, blocked or not,
       // the tip probe reads the branch next (#2485 D2): only a moved tip is a subset commit.
@@ -4351,7 +4356,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         else for (const f of sub.findings) { const ur = unsoundReason(subSeats, f); demote(f, 'follow-up', 'demote:absorb-regressed — failed absorb — subset regressed on re-audit at the depth/split floor; the subset commit is forward-reverted' + (ur ? '; ' + ur : ''), { reverted: true }) }
       }
     }
-    if (pendingRevert) registerRangeRevert(r, pendingRevert)   // final failed range not yet reverted in-loop
+    // final failed range not yet reverted in-loop
+    if (pendingRevert) registerRangeRevert(r, pendingRevert)
   }
   // ---- ACE RE-ENTRY (D1/D2, #1731 — the ladder RE-OPENS for fresh absorbs born at a re-audit) ----
   // Budget-bounded, NO new round type and NO new status member: each re-entry round is another
@@ -4433,10 +4439,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + chainFixClause(r.task, chainRound, 'ace re-entry', batch.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...spawnWorker('ace') })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...aceSpawn(r) })
       // a re-entry worker death (D21) takes the existing abandon arm, site-named
       const rwWhy = deathOf(rw) || blockedReason(rw)
-      const reProbe = await aceTipProbe(r, 'reentry', preRe)   // dead or not, blocked or not (#2485 D2)
+      // dead or not, blocked or not (#2485 D2)
+      const reProbe = await aceTipProbe(r, 'reentry', preRe)
       const reClass = tipClass(reProbe)
       if (reClass !== 'moved') {
         // No usable commit — uncharged; abandon (never hold): this batch and the queue route to the
@@ -4575,7 +4582,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
       for (const f of taskMinors) {
         const d = intakeFloor(f, dispositionOf(f, diff), diff)
-        if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
+        // ask precedes the absorb chain (#1550, D7)
+        if (d === 'ask') parkAsk(f)
         // stamps filedKeys (End state 6) — a later re-audit re-mint never also aces
         else if (d === 'follow-up') fileFollowUp(f)
         else if (d === 'note') notes.push(f)
@@ -4655,7 +4663,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + fixRoundFenceClause(polishFence)
           + POLISH_FILES_CLAUSE
           + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...spawnWorker('ace') })
+          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...aceSpawn(r) })
         recordIgnoreList('advisory polish', r.task.id, ace)
         // an ace worker death (D21) takes the existing failed-attempt arm, site-named
         const aceWhy = deathOf(ace) || blockedReason(ace)
@@ -5778,7 +5786,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       for (const f of taskMinors) {
         // no floor on the escalation arm: nothing lands this phase for the task
         const d = dispositionOf(f, null)
-        if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
+        // ask precedes the absorb chain (#1550, D7)
+        if (d === 'ask') parkAsk(f)
         else if (d === 'follow-up') { f.floorSkipped = true; filedKeys.add(remintKey(f)); minorsFiled.push(f); log('escalation arm: seat-raised follow-up "' + (f.title ?? '') + '" (task ' + r.task.id + ') files with floorSkipped — no intake floor ran on a task that never reached the approve branch (the filed row carries demote:floor-skipped).') }   // #2050: the stamp site is never silent
         else demote(f, 'follow-up', 'demote:task-unapproved — task never reached the approve branch (verdict: ' + r.verdict + ') — filed with the escalation')
       }
@@ -6656,7 +6665,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         // the polish pseudo-task has no diff probe — the old default
         const d = dispositionOf(f, null)
         const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
-        if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
+        // ask precedes the absorb chain (#1550, D7)
+        if (d === 'ask') parkAsk(f)
         else if (b) { log('phase-close sweep: polish-seat re-mint of "' + (f.title ?? '') + '" (task ' + polishTask.id + ') — ' + b + '; not recorded again (logged, never silent).'); corroborateSurvivor(f) }
         else if (d === 'follow-up') { f.floorSkipped = true; fileFollowUp(f); log('phase-close sweep: sweep-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped — no intake floor ran for the polish pseudo-task (the filed row carries demote:floor-skipped).') }
         else if (d === 'note') notes.push(f)
@@ -6888,7 +6898,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         const d = dispositionOf(f, null)
         // registry consult (mirrors routeTerminalMinors)
         const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
-        if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
+        // ask precedes the absorb chain (#1550, D7)
+        if (d === 'ask') parkAsk(f)
         else if (b) { log('phase-close sweep: polish-seat re-mint of "' + (f.title ?? '') + '" (task ' + polishTask.id + ') — ' + b + '; not recorded again (logged, never silent).'); corroborateSurvivor(f) }
         else if (d === 'follow-up') { f.floorSkipped = true; fileFollowUp(f); log('phase-close sweep: sweep-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped — no intake floor ran for the polish pseudo-task (the filed row carries demote:floor-skipped).') }
         else if (d === 'note') notes.push(f)
