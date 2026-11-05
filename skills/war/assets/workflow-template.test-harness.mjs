@@ -54,7 +54,7 @@ import { dirname, join, resolve as resolvePath } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS } from './land-decision.mjs'
+import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS, FINDING_CLASSES } from './land-decision.mjs'
 import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS, SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES, MODELS, MODEL_RANK, EFFORTS, AUDITOR_TIERS } from './war-config.mjs'
 import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS } from './assert-args-complete.mjs'
 import { MANIFEST_PATH_TEMPLATE, MANIFEST_KEYS } from './target-artifacts.mjs'
@@ -65,6 +65,10 @@ const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'ut
 // (auditor-evict, D16) the references home of the evicted `execution-evidence` gate-audit checklist —
 // every assert that reads a checklist DUTY reads this file; heading + trigger pointer stay on the card.
 const gateAuditChecklistMd = readFileSync(join(here, '../references/gate-audit-checklist.md'), 'utf8')
+// (late-defects Task 2.1, ADR 0042) the references home of the evicted stale-looking-but-correct
+// calibration block and the born-cold finding-class doctrine — the calibration asserts that read the
+// standing rule bodies read this file; the heading + trigger pointer stay on the card.
+const findingClassMd = readFileSync(join(here, '../references/finding-class.md'), 'utf8')
 // UNION surface (prompt-surface simplification, adjudication I): Task 3.1 evicted the guard-contract
 // teach prose from the card into this reference file — every OLD-absent key over the card scans it too.
 const auditorTeachMd = readFileSync(join(here, '../references/auditor-teach.md'), 'utf8')
@@ -789,7 +793,9 @@ const CALIBRATION_SHARED = 'judge on evidence only — never soften, downgrade, 
 const COST_CLAIM_SHARED = 'a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.'
 
 // Task 1.4 — Stale-looking-but-correct calibration (spec criterion 4/5, ADR 0030): the four rule
-// bodies live in agents/war-auditor.md AND are mirrored into auditPrompt(). Anchor on ONE
+// bodies live in skills/war/references/finding-class.md (evicted byte-identical from the
+// agents/war-auditor.md subsection, late-defects Task 2.1, ADR 0042) AND are mirrored into
+// auditPrompt(). The standing surface the asserts read is findingClassMd. Anchor on ONE
 // casing/position-stable MID-SENTENCE phrase per rule (never a quote/backtick-bearing byte literal —
 // shared-string-constant-quote-literal-byte-anchor-fragility) and assert it on BOTH surfaces, so the
 // test fails if EITHER surface drops a rule. Plus a floor-lock: each rule retains its
@@ -805,8 +811,9 @@ const CALIBRATION_RULE_ANCHORS = [
 // anchor i searched from anchor i-1's match end — so a rule REORDER surfaces as a distinct
 // 'anchor-missing' status (the out-of-order anchor is not found searching forward), never as a
 // mis-sliced window misread as qualifier drift. Window i = [anchor i start, anchor i+1 start); window
-// 4 runs to the first `\n#` heading after anchor 4, else end-of-text — so on the standing card window 4
-// deliberately spans rule 5's qualifier-free line (it stops before `## Verdict`), and on the isolated
+// 4 runs to the first `\n#` heading after anchor 4, else end-of-text — so on the standing surface
+// (finding-class.md, where the moved block ends the file) window 4 deliberately spans rule 5's
+// qualifier-free line to end-of-text, and on the isolated
 // dispatched line (no `\n#`) it stops at the clause end. Per rule the helper returns { status: 'ok' |
 // 'qualifier-missing' | 'anchor-missing', anchor, start, end }; the [start,end) offsets feed the
 // companion mutation test's window-scoped splice surgery. It never throws — anchor PRESENCE is the
@@ -2471,14 +2478,14 @@ const registrySlice = (runOverride = {}) => {
   const sliceEnd = src.indexOf('const allApprove')
   assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the dispositionOf→allApprove registry slice is locatable')
   // aceRelPath is declared inside the slice (file scope, below askContentKey); RELEASE_SLOT_FILES /
-  // BARRIER_TOKENS / DEMOTE_REASONS are the module-top mirrors — injected as the canonical exports
+  // BARRIER_TOKENS / DEMOTE_REASONS / FINDING_CLASSES are the module-top mirrors — injected as the canonical exports
   // (the D2 registry rows deepEqual them).
-  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS',
+  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS', 'FINDING_CLASSES',
     runForm(src.slice(sliceStart, sliceEnd))
     + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, mergeSeat, seatsListOf, normalizeFinding, normalizeSeat, queuedKeys, liveTaskRecords, diffFilesByTask, dispositionOf, intakeFloor, demote }')
   const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [] }
   const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
-  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true, ...runOverride }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
+  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true, ...runOverride }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS, FINDING_CLASSES)
   return { ...state, ...api }
 }
 
@@ -2589,9 +2596,10 @@ const grabSchema = (name) => {
   const j = src.indexOf('{', i)
   for (let k = j; k < src.length; k++) {
     if (src[k] === '{') d++
-    // The literal references the inline BARRIER_TOKENS mirror (barrier-list, D1) — bound here from the
-    // canonical export (the D2 mirror registry deepEquals the two).
-    if (src[k] === '}') { d--; if (d === 0) return new Function('BARRIER_TOKENS', 'return (' + runForm(src.slice(j, k + 1)) + ')')(BARRIER_TOKENS) }
+    // The literal references the inline BARRIER_TOKENS mirror (barrier-list, D1) and the inline
+    // FINDING_CLASSES mirror (finding-class, late-defects D24) — bound here from the canonical exports
+    // (the D2 mirror registry deepEquals each pair).
+    if (src[k] === '}') { d--; if (d === 0) return new Function('BARRIER_TOKENS', 'FINDING_CLASSES', 'return (' + runForm(src.slice(j, k + 1)) + ')')(BARRIER_TOKENS, FINDING_CLASSES) }
   }
   throw new Error('unbalanced ' + name)
 }
@@ -3566,6 +3574,7 @@ export {
   BARRIER_TOKENS,
   RELEASE_SLOT_FILES,
   DEMOTE_REASONS,
+  FINDING_CLASSES,
   spawnOpts,
   validateRoster,
   widenRoster,
@@ -3588,6 +3597,7 @@ export {
   here,
   auditorMd,
   gateAuditChecklistMd,
+  findingClassMd,
   auditorTeachMd,
   refinerMd,
   schemasMdForAbsorb,
