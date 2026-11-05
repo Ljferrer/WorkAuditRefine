@@ -998,7 +998,7 @@ ace-style batch on the same machinery (canonical: `aceReentry` in
 `skills/war/assets/workflow-template.js`), **never a new round type or status member**. The
 **Absorb budget** (`absorbRounds < run.absorbRounds`, the per-task ace meter separate from `fixRounds`)
 is their SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters, and
-neither do the merge-slot floor-fix re-audit and the late-fix pass re-audit: their absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), never
+neither do the merge-slot floor-fix re-audit and the late-fix pass re-audit: their absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), except a late-fix re-audit `behavior` absorb, which carries on `carriedTasks[]` (non-final) or files "raised after the late-fix pass" (final), PIN-21, never
 budget-gated. Budget spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
 sweep-discard ⇒ carried on `carriedPhaseClose` (non-final phase) or `follow-up` (final); a
 forward-reverted finding never re-enters (the oscillation bound); every demotion is logged.
@@ -1028,8 +1028,12 @@ _Avoid_: an ace-side commit that charges `fixRounds`; reading a revert as a char
 The phase-close sweep's union of foreign-owned files and release-slot files: the files of every
 `args.sweepExclude` entry (the Lead's slug-attributed campaign contention list) ∪ the `Files:` of every
 task whose status is not `merged` ∪ `RELEASE_SLOT_FILES`, both sides `aceRelPath`-normalized. A queued
-absorb whose file is in the set demotes to `follow-up` with a reason naming the owner — the entry's plan
-slug, the task id, or "the release slot" — and every demotion is logged. The seat never decides
+cosmetic or classless absorb whose file is in the set demotes to `follow-up` with a reason naming the
+owner — the entry's plan slug, the task id, or "the release slot" — and every demotion is logged. A
+`behavior` row never reaches this set: before the late-fix pass it is sorted (PIN-21). A file that only a
+`mode: 'stacked'` entry owns, or that nobody owns, sends it to the late-fix pass, and it is never filed or
+taught as a note. A `parallel` entry's file (an absent `mode` reads `parallel`), a not-`merged` task's file
+or a release-slot file demotes it `demote:exclusion-set` naming the owner and why no late fix runs. The seat never decides
 exclusion; the engine applies the set at sweep time. The sweep and terminal prompts name these
 files as the fix-round fence. ADVISORY POLISH builds its own fence from the same three sources at
 dispatch, less its task's own files, and sends a listed row in a fenced file to the sweep.
@@ -1114,7 +1118,9 @@ through `aceEligible`, land as ONE `Ace-Charge` commit at the post-polish tip, w
 of their defect class; a regression is
 forward-reverted, then the rows carry (non-final) or demote `demote:absorb-regressed` (final); an
 unlanded or seat-raised absorb demotes `demote:terminal-pass` (final); it
-convenes with `run.ace` off and never budget-blocks. Its second filter is the phase-scoped sweep
+convenes with `run.ace` off and never budget-blocks. A seat-raised `behavior` absorb or note was raised
+after the late-fix pass: it carries as a `carriedTasks[]` row (non-final) or files `demote:terminal-pass`
+"raised after the late-fix pass" (final), never a hold (ADR 0012). Its second filter is the phase-scoped sweep
 exclusion map: a row whose file the map owns demotes `demote:exclusion-set` and is never committed.
 _Avoid_: a second pass; reading its charge as a gate; a release-slot or exclusion-owned file in its commit.
 

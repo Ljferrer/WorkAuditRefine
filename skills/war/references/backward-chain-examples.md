@@ -231,8 +231,8 @@ Source: run history (110 of 186 sweep rows demoted by the sweep-time exclusion s
 Roles: auditor, fixer
 **A finding that the sweep-time exclusion set will demote is off-path by construction; filing it every round is the waste.**
 Over one run's history, 110 of 186 phase-close sweep rows were demoted at sweep time by the exclusion set (release slot files, sibling-owned files, already-aced keys). Seats re-filed the same rows round after round. None was on a chain a task could serve.
-Questions to ask: Would the sweep accept this row? If not, what is the disposition that does not re-file it?
-Closure: The `RELEASE_SLOT_FILES` demote at birth and the content-key registry; an off-path row is a note.
+Questions to ask: Would the sweep accept this row? If not, what is the disposition that does not re-file it? Is the row `behavior` and its sibling owner a `stacked` campaign entry?
+Closure: The `RELEASE_SLOT_FILES` demote at birth and the content-key registry; an off-path cosmetic row is a note. A `behavior` row on a stacked-owned file is never a note: it is an `absorb`, and the late-fix pass fixes it in this run (late-defects PIN-21).
 
 ## convergence
 

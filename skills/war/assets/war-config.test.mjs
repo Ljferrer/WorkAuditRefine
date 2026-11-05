@@ -2104,6 +2104,7 @@ test('node-test breadth: skills/ contains at least the expected set of *.test.mj
     'skills/war/assets/workflow-template.git-6.test.mjs',
     'skills/war/assets/workflow-template.late-defect-1.test.mjs',
     'skills/war/assets/workflow-template.late-defect-2.test.mjs',
+    'skills/war/assets/workflow-template.late-defect-3.test.mjs',
     'skills/war/assets/workflow-template.recovery.test.mjs',
     'skills/war/assets/workflow-template.submodule-1.test.mjs',
     'skills/war/assets/workflow-template.submodule-2.test.mjs',

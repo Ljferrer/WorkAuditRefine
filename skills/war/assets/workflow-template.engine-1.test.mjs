@@ -11895,7 +11895,7 @@ test('reaudit-sweep (queued registry): a finding already queued for the sweep or
   h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...f, seat: undefined }] }])
   assert.equal(h.phaseCloseQueue.length, 1, 'the re-mint never queues a second sweep record')
   assert.equal((r.reentryQueue || []).length, 0, 'the re-mint never re-queues for re-entry either')
-  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry, held for the next ace batch, or carried on carriedPhaseClose for the relaunch, this phase — the queued record stands')),
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry, held for the next ace batch, carried on carriedPhaseClose for the relaunch, queued for the late-fix pass, or carried on carriedTasks, this phase — the queued record stands')),
     'the refusal is logged with the queued-registry reason (never silent)')
   // Entry point 2 — the re-entry queue arm stamps too: a fresh eligible absorb queues once.
   const g = { severity: 'Nit', task: 't1', title: 'lagging comment', file: 'skills/b.js', disposition: 'absorb' }
@@ -13791,7 +13791,11 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   // returned no verdict, final phase only), sweep-discarded ×2 (the queue drain — the final phase, or
   // ANY phase on the approve trail of a panel-approved branch whose merge never landed (D15, #2087) —
   // and the sweep-raised absorb, final phase only).
-  assert.equal(sites.length, 25, `the census domain is exactly TWENTY-FIVE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
+  // 25 → 29 (late-defects Task 4.1, PIN-21): exclusion-set ×2 more (both in the sweep-time drain: a
+  // sortOwned behavior row naming its owner, and a behavior row born at a late-fix re-audit, final phase only),
+  // sweep-discarded ×1 more (a polish-panel behavior row, final phase only) and terminal-pass ×1 more
+  // (a terminal-seat behavior row, final phase only) — each "raised after the late-fix pass" or owned.
+  assert.equal(sites.length, 29, `the census domain is exactly TWENTY-NINE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
   for (const s of sites) {
     const p = reasonPrefixOf(s.reason)
     assert.ok(p, `demote site @${s.index}: the reason leads with a literal prefix (got: ${s.reason.slice(0, 60)})`)

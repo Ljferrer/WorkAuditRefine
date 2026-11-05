@@ -4294,7 +4294,7 @@ test('sweep-exclusion-pin — SKILL.md carries the ADR 0042 trigger pointer and 
     [/verb set is closed and stays so/, "the closed-verb-set clause (no new ledger CLI verb)"],
     [/import \{ extractFilesFromPlanFile \}|const \{ extractFilesFromPlanFile \} = await import\(/, 'the one-liner itself'],
     [/not this plan[^.]*not `landed`|\*\*not this plan\*\*[^.]*\*\*not `landed`\*\*/i, 'the entry filter (not this plan, not `landed`)'],
-    [/\[\{ slug, files\[\] \}\]/, 'the `[{ slug, files[] }]` entry shape'],
+    [/\[\{ slug, files\[\], mode \}\]/, 'the `[{ slug, files[], mode }]` entry shape (late-defects PIN-22)'],
     [/Stored ledger `files` are the contention record, not this input/, 'the stored-`files`-are-not-this-input clause'],
     [/`campaign contention set empty for <n> entries`/, 'the empty-union log line'],
     [/`no campaign contention set threaded`/, 'the absent-ledger log line'],
@@ -4339,6 +4339,31 @@ test('sweep-exclusion-pin — SKILL.md carries the ADR 0042 trigger pointer and 
     assert.ok(topLevel.includes(field), `the run-manifest.md MUST-carry sentence must list ${field} on its top-level list (#2485 D22, PIN-26)`)
   }
   assert.match(topLevel, /optional, null-tolerated/, 'the run-manifest.md top-level list must mark the plugin fields optional and null-tolerated (the `workflowRunId` posture; #2485 D22)')
+})
+
+// (late-defect: exclusion mode doc) PIN-22: the sweep-exclusion.md one-liner writes mode "stacked" on
+// every ledger entry, so a behavior row on a queued plan's file reaches the late-fix pass. The row reads
+// the one-liner's `.map(` line inside the fenced bash block, so a one-liner that drops `mode` reds here
+// even if the prose around it still names the mode.
+test('late-defect: exclusion mode doc — the sweep-exclusion.md one-liner emits mode "stacked" on every entry, and the prose names the stacked/parallel split (PIN-22, D19)', () => {
+  const block = sweepExclusionMd.match(/```bash\n([\s\S]*?)```/)
+  assert.ok(block, 'could not locate the fenced bash one-liner in sweep-exclusion.md — construct rotted')
+  assert.match(block[1], /console\.log\(JSON\.stringify\(out\)\)/, 'the bash block must span its console.log tail — extraction truncated (non-vacuity floor)')
+  const map = block[1].match(/^\s*\.map\(\(p\) => \(\{[^\n]*\}\)\)$/m)
+  assert.ok(map, 'could not locate the one-liner `.map((p) => ({ … }))` entry builder — construct rotted')
+  assert.match(map[0], /slug: p\.slug, files: extractFilesFromPlanFile\(p\.plan\)/, 'the entry builder keeps slug and files')
+  assert.match(map[0], /, mode: "stacked" \}\)\)$/, 'the entry builder must write mode: "stacked" on every entry (PIN-22)')
+  const sx = norm(sweepExclusionMd)
+  for (const [re, what] of [
+    [/Each entry also carries `mode`: `stacked` or `parallel`/, 'the mode field sentence'],
+    [/A `behavior` row on a stacked-owned file goes to the late-fix pass/, 'the stacked-owned behavior route'],
+    [/A `cosmetic` or classless row on any listed file, stacked included, still demotes `demote:exclusion-set`/, 'the cosmetic route'],
+    [/A hand-built entry with no `mode` reads `parallel`/, 'the absent-mode default'],
+  ]) assert.match(sx, re, `sweep-exclusion.md must carry ${what} (D19, PIN-19)`)
+  // Red proof by mutation: the same reads over a copy whose one-liner dropped mode.
+  const dropped = block[1].replace(', mode: "stacked" }))', ' }))')
+  assert.notEqual(dropped, block[1], 'the mutation target is the live one-liner')
+  assert.ok(!/, mode: "stacked" \}\)\)$/m.test(dropped), 'the mutant one-liner fails the mode read')
 })
 
 test('lead-carry-pin — resume-and-recovery.md carries the relaunch carry steps: carriedPhaseClose → args.seededPhaseClose, finalPhase at every launch, the absorbCharges override, the transcript re-derivation residual (End state 16, D3a/D3b, PIN-5)', () => {
