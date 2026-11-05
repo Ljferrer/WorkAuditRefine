@@ -813,6 +813,38 @@ touch_operand() {
   done
 }
 
+# pat_opt <subcommand> <token>: sets _pn to 1 when <token> is an option whose
+# value is a search pattern in the NEXT token, to 2 when <token> carries that
+# value itself, else to 0 (#2604). git reads a pattern as text, never as a
+# path, so the caller touches neither. Checked against git 2.54:
+# `git grep -e <p>` (grep has no `--regexp`, and `-f <file>` reads a file, so
+# it stays a path); `-S<p>` and `-G<p>` on log, show and diff, space or
+# attached form, also at the end of a short cluster (`-pS <p>`, `-sG<p>`);
+# `--grep`, `--author`, `--committer` and `--grep-reflog` on log and show,
+# space or `=` form. On blame `-S <file>` reads a revs file, so the arm is per
+# subcommand. A cluster counts only when every letter before the pattern
+# letter is a flag that takes no value (`_pk`): any other letter may take the
+# rest of the token as its own value, so the token stays a path (over-touch).
+pat_opt() {
+  _pn=0
+  case "$1" in
+    grep) _pk=Fnilwc; _pl=e ;;
+    log|show)
+      _pk=pusRzatwbWrcm; _pl=SG
+      case "$2" in
+        --grep|--author|--committer|--grep-reflog) _pn=1; return 0 ;;
+        --grep=*|--author=*|--committer=*|--grep-reflog=*) _pn=2; return 0 ;;
+      esac ;;
+    diff) _pk=pusRzatwbWrcm; _pl=SG ;;
+    *) return 0 ;;
+  esac
+  case "$2" in --*) return 0 ;; -?*) _pc="${2#-}" ;; *) return 0 ;; esac
+  while [ -n "$_pc" ]; do
+    case "$_pc" in [$_pl]) _pn=1; return 0 ;; [$_pl]?*) _pn=2; return 0 ;; esac
+    case "$_pc" in [$_pk]*) _pc="${_pc#?}" ;; *) return 0 ;; esac
+  done
+}
+
 # ignored_dir <canonical dir>: returns 0 when the repository that holds <dir>
 # ignores it by pattern, the way ripgrep decides it: `check-ignore
 # --no-index`, never plain `check-ignore`, which reads the index and calls a
@@ -1231,7 +1263,7 @@ case "$event" in
       exit 0
     }
     quote_words "$_bc"
-    _found=0; _want=0; _base="$cwd"; _first=1; _sub=0; _noindex=0
+    _found=0; _want=0; _base="$cwd"; _first=1; _sub=0; _noindex=0; _sn=""; _pv=0; _dd=0
     for _tok in $_cmd; do
       [ "$_tok" = --no-index ] && _noindex=1
     done
@@ -1260,10 +1292,18 @@ case "$event" in
         _sub=1
         # The subcommand word is known and every global `-C` has moved
         # `_base`, so git's implied --no-index is decided here.
+        unquote "$_tok"; _sn="$_t"
         if [ "$_noindex" != 1 ]; then
-          unquote "$_tok"
-          [ "$_t" = diff ] && implied_noindex && _noindex=1
+          [ "$_sn" = diff ] && implied_noindex && _noindex=1
         fi
+      elif [ "$_pv" = 1 ]; then
+        _pv=0; continue
+      elif [ "$_dd" = 0 ]; then
+        # A search pattern names no path (pat_opt), so neither the option
+        # nor its value is touched. After `--` every token is a pathspec.
+        [ "$_tok" = -- ] && _dd=1
+        pat_opt "$_sn" "$_tok"
+        case "$_pn" in 1) _pv=1; continue ;; 2) continue ;; esac
       fi
       case "$_tok" in
         \"*|\'*) unquote "$_tok" ;;

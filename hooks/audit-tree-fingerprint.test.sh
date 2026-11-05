@@ -1736,9 +1736,10 @@ rm -rf "$SHIM"
 # reason_of: the escalate_reason of the last run's updatedInput.
 reason_of() { printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null; }
 # The host fires neither post event for a call a hook denied, so a denied
-# ~<name> grep reaches the hook on PreToolUse alone.
+# ~<name> grep reaches the hook on PreToolUse alone. The token sits in the pathspec:
+# since #2604 an `-e` pattern value records nothing on any event.
 run "$(mk_start "$AUD" pb1)"
-run "$(mk_bash_pre "$AUD" pb1 'git grep -F -n -e ~<name> HEAD -- hooks')"
+run "$(mk_bash_pre "$AUD" pb1 'git grep -F -n -e x HEAD -- ~<name>')"
 _prc="$RC"
 run "$(mk_verdict "$AUD" pb1)"
 if [ "$_prc" = 0 ] && [ "$RC" = 0 ] && [ -z "$OUT" ] && [ ! -s "$FP_ROOT/pb1/touched" ] && [ ! -e "$TAMPER_ROOT/pb1.json" ]; then
@@ -1757,7 +1758,7 @@ printf 'edit after the failed call\n' >> "$TMP/wtB/f"
 run "$(mk_verdict "$AUD" pb3)"
 case "$(reason_of)" in "AUDIT-TAMPER: $WTB changed during the audit round"*) pass "a worktree a failed Bash call read still compares at the verdict" ;; *) fail "a failed Bash call's worktree did not compare: |$(reason_of)|" ;; esac
 run "$(mk_start "$AUD" pb4)"
-run "$(mk_bash_fail "$AUD" pb4 'git grep -F -e ~<name> HEAD')"
+run "$(mk_bash_fail "$AUD" pb4 'git grep -F -e x HEAD -- ~<name>')"
 run "$(mk_verdict "$AUD" pb4)"
 case "$(reason_of)" in *'unresolved Bash path ~<name>'*) pass "an unresolved token on a call that ran still escalates" ;; *) fail "an unresolved token on a call that ran did not escalate: |$(reason_of)|" ;; esac
 # Read, Glob and Grep record on PreToolUse alone, and the post arm is Bash only.
@@ -2063,6 +2064,53 @@ if [ "$_prc" != 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprin
 else
   fail "a killed Bash recording did not escalate (rc=$_prc reason=|$(reason_of)|)"
 fi
+
+# --- a search pattern is not a path (#2604) ----------------------------------
+# A seat ran `git grep -n -F -e '/Users' <sha> -- x`. The hook read the pattern
+# as an absolute directory operand, walked down, and touched every task
+# worktree under it, so a sibling's fix round rewrote an approve to escalate.
+# Here the pattern is $TMP, the directory that holds every fixture worktree:
+# without the fix each row below walks them all. The base is $MAIN (no marker).
+_psha="$(git -C "$MAIN" rev-parse HEAD)"
+_pi=0
+for _pcmd in \
+  "git -C $MAIN grep -n -F -e '$TMP' $_psha -- x" \
+  "git -C $MAIN grep -n -F -e $TMP $_psha -- x" \
+  "git -C $MAIN log -S $TMP $_psha" \
+  "git -C $MAIN log -pS $TMP $_psha" \
+  "git -C $MAIN show -G $TMP $_psha" \
+  "git -C $MAIN diff -S $TMP $_psha $_psha" \
+  "git -C $MAIN log --grep=$TMP $_psha" \
+  "git -C $MAIN log --grep $TMP $_psha" \
+  "git -C $MAIN log --author $TMP $_psha"
+do
+  _pi=$((_pi + 1))
+  run "$(mk_start "$AUD" pp$_pi)"
+  run "$(mk_bash "$AUD" pp$_pi "$_pcmd")"
+  if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pp$_pi/touched" ]; then pass "a pattern value touches no worktree: $_pcmd"; else fail "a pattern value touched worktrees: $_pcmd (rc=$RC touched=|$(cat "$FP_ROOT/pp$_pi/touched" 2>/dev/null)|)"; fi
+done
+# An attached pattern is no path either: `-S../wtB/f` from wtA reads wtA only.
+run "$(mk_start "$AUD" pq1)"
+run "$(mk_bash "$AUD" pq1 "git -C $TMP/wtA log -S../wtB/f -sG../wtD/f $_psha")"
+if touched_is pq1 "$WTA"; then pass "an attached -S or clustered -G pattern touches no sibling worktree"; else fail "an attached pattern touched a sibling: |$(cat "$FP_ROOT/pq1/touched" 2>/dev/null)|"; fi
+# The reported symptom: a sibling changes while the seat greps, and the
+# seat's approve stands.
+run "$(mk_start "$AUD" pq2)"
+run "$(mk_bash "$AUD" pq2 "git -C $MAIN grep -n -F -e '$TMP' $_psha -- x")"
+printf 'sibling fix round\n' >> "$TMP/wtB/f"
+run "$(mk_verdict "$AUD" pq2)"
+if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ ! -e "$TAMPER_ROOT/pq2.json" ]; then pass "a sibling edit during a pattern grep leaves the approve standing"; else fail "a pattern grep still escalated (rc=$RC reason=|$(reason_of)|)"; fi
+# A path stays a path: after `--` a `-e` token is a pathspec, `grep -f` reads
+# a pattern file, and `blame -S` reads a revs file. Each row touches wtB.
+run "$(mk_start "$AUD" pq3)"
+run "$(mk_bash "$AUD" pq3 "git -C $MAIN grep -F -e x $_psha -- -e $TMP/wtB/f")"
+if touched_is pq3 "$WTB"; then pass "a -e after -- stays a pathspec"; else fail "a -e after -- hid its path: |$(cat "$FP_ROOT/pq3/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" pq4)"
+run "$(mk_bash "$AUD" pq4 "git -C $MAIN grep -F -f $TMP/wtB/f $_psha")"
+if touched_is pq4 "$WTB"; then pass "a grep -f value stays a path"; else fail "a grep -f value was not touched: |$(cat "$FP_ROOT/pq4/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" pq5)"
+run "$(mk_bash "$AUD" pq5 "git -C $MAIN blame -S $TMP/wtB/f $_psha -- f")"
+if touched_is pq5 "$WTB"; then pass "a blame -S value stays a path"; else fail "a blame -S value was not touched: |$(cat "$FP_ROOT/pq5/touched" 2>/dev/null)|"; fi
 
 # --- registration + conventions ---------------------------------------------
 if jq -e . "$HJSON" >/dev/null 2>&1; then pass "hooks.json parses"; else fail "hooks.json does not parse"; fi
