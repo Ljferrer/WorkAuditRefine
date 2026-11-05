@@ -6569,7 +6569,8 @@ const lateFixPass = async () => {
     // The re-audit rows route under the origin task's real id, never the late-fix pseudo id: the
     // origin's wave record when it has one (a preMerged task has none), else a fresh record on it.
     // dispositionOf then judges in-diff against the origin's own diff probe (the late-fix branch has
-    // no probe); with noReentry both arms end at the sweep, or for a behavior row at carryLate (non-final) or a final-phase file (PIN-21).
+    // no probe); with noReentry both arms end at the sweep, or, for a behavior row, at carryLate
+    // (non-final) or a filed follow-up "raised after the late-fix pass" (final), PIN-21.
     const lfRecord = [...liveTaskRecords].find(r => r.task === origin) || { task: origin }
     const lfNoReentry = 'born at the late-fix re-audit of ' + id + ' for task ' + origin.id + ' — past the wave side, so re-entry can never dispatch; the phase-close sweep is the vehicle'
     let stop = holding.length ? 'the phase already holds (' + holding.join(', ') + '), so the late-fix pass never ran' : null
