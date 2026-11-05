@@ -8462,6 +8462,18 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
     await runPhase(ACE_ARGS({ tasks: [dwTask()] }), reentryImpl()),
     await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()])),
     await runPhase(SWEEP_ARGS(), terminalImpl()),   // terminal-pass (D3a): the one-hop pass after the merged sweep
+    // CITE_BUDGET (round 3): every Refine merge returns the budget-uncited route, so one cite-budget
+    // worker dispatches before the roundLimit 1 budget is spent.
+    await runPhase(NO_TEST_ARGS({ tasks: [dwTask()], run: { roundLimit: 1 } }), (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
+      if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }
+      if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    }),
   ]
   const calls = runs.flatMap(r => r.calls)
   for (const c of calls) {
@@ -8469,7 +8481,7 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
       `prompt "${c.opts.label}" no longer says keep the gate green (#2617: the engine gate is the only full gate)`)
   }
   const fixPrompts = calls.filter(c => (c.prompt || '').includes(rule))
-  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^ace:subset:/, /^ace:reentry:/, /^ace:polish:/, /^polish:/, /^terminal:/]) {
+  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^cite-budget:/, /^ace:subset:/, /^ace:reentry:/, /^ace:polish:/, /^polish:/, /^terminal:/]) {
     assert.ok(fixPrompts.some(c => cls.test(c.opts.label || '')),
       `a fix-applying prompt of class ${cls} carries FIX_GATE_RULE (anti-vacuity floor)`)
   }
@@ -8493,10 +8505,10 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
     { site: 'ace advisory polish (ADVISORY POLISH (--ace))', from: 'pt`ADVISORY POLISH (--ace) for WAR task', reachedBy: /^ace:polish:/ },
     { site: 'FIX_NEEDED fix prompt', from: 'pt`FIX_NEEDED for WAR task', reachedBy: /^fix:/ },
     // The four floor arms get one range each (round 2, #2617), so the rule cannot move between arms
-    // unseen. Each arm ends at the next arm's anchor. No fixture drives CITE_BUDGET (reachedBy null).
+    // unseen. Each arm ends at the next arm's anchor.
     { site: 'floor ADD_TEST arm', from: 'pt`ADD_TEST for WAR task', to: 'pt`MAKE_DONE_PASS for WAR task', reachedBy: /^add-test:/ },
     { site: 'floor MAKE_DONE_PASS arm', from: 'pt`MAKE_DONE_PASS for WAR task', to: 'pt`CITE_BUDGET for WAR task', reachedBy: /^make-pass:/ },
-    { site: 'floor CITE_BUDGET arm', from: 'pt`CITE_BUDGET for WAR task', to: 'pt`PACKAGE_IT for WAR task', reachedBy: null },
+    { site: 'floor CITE_BUDGET arm', from: 'pt`CITE_BUDGET for WAR task', to: 'pt`PACKAGE_IT for WAR task', reachedBy: /^cite-budget:/ },
     { site: 'floor PACKAGE_IT arm', from: 'pt`PACKAGE_IT for WAR task', reachedBy: /^package-it:/ },
     { site: 'phase-close coherence sweep (PHASE-CLOSE COHERENCE SWEEP)', from: 'pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase', reachedBy: /^polish:/ },
     { site: 'terminal pass (TERMINAL PASS)', from: 'pt`TERMINAL PASS for WAR phase', reachedBy: /^terminal:/ },
@@ -8507,7 +8519,7 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
     assert.equal(censusSrc.indexOf(s.from, start + 1), -1, `dispatch-site anchor for "${s.site}" is unique`)
     const end = censusSrc.indexOf(s.to || 'label:', start)
     assert.ok(end > start, `dispatch-site "${s.site}" terminates at ${s.to ? 'the next arm' : 'its own label: dispatch option'}`)
-    if (s.reachedBy) assert.ok(fixPrompts.some(c => s.reachedBy.test(c.opts.label || '')),
+    assert.ok(fixPrompts.some(c => s.reachedBy.test(c.opts.label || '')),
       `dispatch-site "${s.site}" is fixture-reachable`)
     return { ...s, start, end }
   })
