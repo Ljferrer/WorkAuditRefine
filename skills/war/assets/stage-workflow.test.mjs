@@ -1141,20 +1141,42 @@ test('indent-strip: harness runs the staged form', () => {
 // WAR_TEMPLATE_STRIPPED=1. It is EMPTY: every such test passes on the staged form, because `src`
 // stays raw for the source-reading tests and only execution runs staged. The row is default-deny on
 // two signals: the flag may be read in exactly one place (the harness's STAGED_RUN line), and no
-// `{ skip:` option or `.skip(` call may sit within three lines of a `runForm` or `STAGED_RUN` read
+// `{ skip:` option or `.skip(` call may sit within SKIP_WINDOW lines of a `runForm` or `STAGED_RUN` read
 // (a skip keyed on `runForm(src) !== src` names no flag). A test that starts skipping on either
-// signal reds here until it joins this census with its own `indent-strip: census …` row.
+// signal reds here until it joins this census with its own `indent-strip: census …` row. The skip
+// scan is a helper over `[file, lines]` pairs, so its red proofs run on synthetic sources: at the
+// pin no live test file carries a `.skip(` or `{ skip:` at all, and the live assertion alone is a
+// match against an empty result.
 const STAGED_SKIP_CENSUS = []
+const SKIP_WINDOW = 3
+const skipsNearStaged = (sources) => sources.flatMap(([f, lines]) => lines.flatMap((line, i) =>
+  (/\{\s*skip\s*:|\.skip\(/.test(line) && lines.slice(Math.max(0, i - SKIP_WINDOW), i + SKIP_WINDOW + 1).some((l) => /runForm|STAGED_RUN/.test(l))) ? [`${f}:${i + 1}: ${line.trim()}`] : []))
 test('indent-strip: census of tests skipped on the staged form is closed', () => {
   const files = readdirSync(HERE).filter((f) => /^workflow-template\..+\.test\.mjs$/.test(f) || f === 'workflow-template.test-harness.mjs').sort()
   assert.ok(files.length > 10, `non-vacuity: ${files.length} template test files scanned`)
   const sources = files.map((f) => [f, readFileSync(join(HERE, f), 'utf8').split('\n')])
   const reads = sources.flatMap(([f, lines]) => lines.filter((line) => line.includes('WAR_TEMPLATE_STRIPPED') && !/^\s*\/\//.test(line)).map((line) => `${f}: ${line.trim()}`))
   assert.deepEqual(reads, ["workflow-template.test-harness.mjs: const STAGED_RUN = process.env.WAR_TEMPLATE_STRIPPED === '1'"], 'the flag is read only by the harness switch, so no test skips under it')
-  const skipsNearStaged = sources.flatMap(([f, lines]) => lines.flatMap((line, i) =>
-    (/\{\s*skip\s*:|\.skip\(/.test(line) && lines.slice(Math.max(0, i - 3), i + 4).some((l) => /runForm|STAGED_RUN/.test(l))) ? [`${f}:${i + 1}: ${line.trim()}`] : []))
-  assert.deepEqual(skipsNearStaged, [], 'no `{ skip:` or `.skip(` sits within three lines of a runForm or STAGED_RUN read, so no test skips on another staged-form signal')
+  assert.deepEqual(skipsNearStaged(sources), [], `no \`{ skip:\` or \`.skip(\` sits within ${SKIP_WINDOW} lines of a runForm or STAGED_RUN read, so no test skips on another staged-form signal`)
   assert.deepEqual(STAGED_SKIP_CENSUS, [], 'no test is skipped on the staged form')
+})
+// Red proofs for the skip scan on synthetic sources, one per arm the scan branches on: the `{ skip:`
+// option beside a STAGED_RUN read, the `.skip(` call under a runForm call at the window's last line
+// and one line past it (the boundary, zero hits), the same pair with the runForm call under the skip
+// (the window reads both ways), a skip with no signal near it (zero hits, so the skip pattern alone
+// is not a hit), and a signal with no skip near it (zero hits).
+test('indent-strip: skip-signal scan lists a skip near a staged-form signal and nothing past the window', () => {
+  const pad = (n) => Array.from({ length: n }, (_, k) => `  const pad${k} = ${k}`)
+  const optionSkip = ['f.mjs', ["test('x', { skip: STAGED_RUN }, () => {})"]]
+  assert.deepEqual(skipsNearStaged([optionSkip]), ["f.mjs:1: test('x', { skip: STAGED_RUN }, () => {})"], 'a `{ skip: STAGED_RUN }` option on the same line as the signal is one hit')
+  const skipUnder = (gap) => ['g.mjs', ['const fn = runForm(src)', ...pad(gap - 1), "test.skip('y', () => {})"]]
+  assert.deepEqual(skipsNearStaged([skipUnder(SKIP_WINDOW)]), [`g.mjs:${SKIP_WINDOW + 1}: test.skip('y', () => {})`], `a \`.skip(\` call ${SKIP_WINDOW} lines under a runForm call is one hit, the window's last line`)
+  assert.deepEqual(skipsNearStaged([skipUnder(SKIP_WINDOW + 1)]), [], `a \`.skip(\` call ${SKIP_WINDOW + 1} lines under a runForm call is zero hits, the window boundary`)
+  const skipOver = (gap) => ['j.mjs', ["test.skip('y', () => {})", ...pad(gap - 1), 'const fn = runForm(src)']]
+  assert.deepEqual(skipsNearStaged([skipOver(SKIP_WINDOW)]), ["j.mjs:1: test.skip('y', () => {})"], `a \`.skip(\` call ${SKIP_WINDOW} lines over a runForm call is one hit, the window reads forward too`)
+  assert.deepEqual(skipsNearStaged([skipOver(SKIP_WINDOW + 1)]), [], `a \`.skip(\` call ${SKIP_WINDOW + 1} lines over a runForm call is zero hits, the forward boundary`)
+  assert.deepEqual(skipsNearStaged([['h.mjs', [...pad(2), "test.skip('z', () => {})", ...pad(2)]]]), [], 'a `.skip(` call with no signal within the window is zero hits')
+  assert.deepEqual(skipsNearStaged([['i.mjs', ['const fn = runForm(src)', ...pad(SKIP_WINDOW + 2)]]]), [], 'a signal with no skip near it is zero hits')
 })
 
 // (q) Size floor (#2099). Matchers anchor on narrow fragments built from the imported constant
