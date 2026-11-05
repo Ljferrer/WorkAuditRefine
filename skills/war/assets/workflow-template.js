@@ -303,7 +303,7 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   land_segment: { enum: ['incomplete'] },
   // gate_segment (D7, PIN-11, A4, #2086): the merge-task twin of land_segment — the literal
   // 'incomplete' riding status:'error' when a merge-task dispatch is FORCED to return before its
-  // gate finishes (the gate was backgrounded with run_in_background). merge-task only, OPTIONAL.
+  // gate finishes (its backgrounded gate job died before it wrote exit_code:). merge-task only, OPTIONAL.
   // The land_segment pin's shape: NO status enum value, HARD_ESCALATION_REASONS member, or
   // KNOWN_LAND_DECISIONS member is added or changed (PIN-2). segmentedMerge re-dispatches the
   // merge-task while the marker rides its contracted status:'error' pair, bounded by roundLimit;
@@ -319,7 +319,7 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
 // sha-free. Fail-CLOSED on the evidence (absent/malformed ⇒ not green) and fail-OPEN on the task
 // (a red gate forward-reverts the ace tip and the approved pre-ace tip still merges, PIN-2).
 // gate_segment (#2326): the MERGE_RESULT marker's ace twin. The literal 'incomplete' rides
-// gate_green:false when the gate outran the turn, so an unfinished gate never reads as a failed one.
+// gate_green:false when the backgrounded gate job died before it wrote exit_code:, so an unfinished gate never reads as a failed one.
 // aceGateGreen re-dispatches on that pair, bounded by roundLimit. A gate_green:true reply with a
 // stray marker is a green reply.
 const GATE_CHECK = { type: 'object', required: ['gate_green'], properties: {
@@ -2977,8 +2977,10 @@ const doneWhenLogOf = mr => (mr && typeof mr.done_when_log_path === 'string' && 
 // (`merge:p<id>-terminal`) — are deliberately unwrapped: a budget-uncited there fail-open DISCARDS that
 // sweep (#1744). 'budget-uncited' is a HARD_ESCALATION_REASONS member (D6, ADR 0005), so a normalized result
 // escalates as hard as the raw 'no-test' did, under its real name.
+// #2617 (operator ruling 2026-11-05): a merge-task that stops on a dirty task worktree holds like the
+// pin-transfer probe does: its error reads as the hard reason escalate at every routedMr site.
 const routedMr = mr => (mr && mr.status === 'no-test' && mr.floor_route === 'budget-uncited')
-  ? { ...mr, status: 'budget-uncited' } : mr
+  ? { ...mr, status: 'budget-uncited' } : mr?.status === 'error' && /^dirty task worktree/.test(mr.detail) ? { ...mr, status: 'escalate' } : mr
 const debtIds = ids => (Array.isArray(ids) ? ids : (ids ? [ids] : [])).map(String)
 // recordBaselineDebt: dedup by SUBSET-CONTAINMENT with an EMPTY-set carve-out (#798). A NON-EMPTY
 // id-set that is a subset (⊆) of some existing entry's ids at the SAME base sha is a no-op — already
@@ -3056,7 +3058,7 @@ const GATE_LOG_STAMP = pt`Stamp the artifact: its FIRST line is \`tip_sha: <the 
 // allocates a fresh file. Byte-equal standing card twin (PIN-1); the engine never opens logs.
 // DIRTY_TASK_STOP (#2617): the pin-transfer probe and every merge-task rebase site stop on tracked edits;
 // the shared stash is never a workaround.
-const DIRTY_TASK_STOP = pt`Never run git stash: every worktree and session shares the stash. Before any forward-revert or rebase, in the TASK worktree: if git status --porcelain --untracked-files=no prints anything, return { status: 'error', detail: 'dirty task worktree: <those paths>' }.\n`
+const DIRTY_TASK_STOP = pt`Never run git stash: every worktree and session shares the stash. Before any forward-revert or rebase: if git -C <the TASK worktree> status --porcelain --untracked-files=no prints anything, return { status: 'error', detail: 'dirty task worktree: <those paths>' }.\n`
 const PARTIAL_LOG_RULE = pt`Only an explicitly marked SEGMENTED continuation may reuse its returned gate_log_path. Read only that supplied path, never a guessed conventional path: it is THIS logical dispatch's completed gate result only when its FIRST line is \`tip_sha:\` of the sha being gated AND its LAST line is \`exit_code:\`. If absent, unstamped, partial or stale, rerun into a FRESH unique artifact; never truncate or reuse a file a prior background job may still write. A fresh logical dispatch always allocates a fresh artifact, even at the same tip.`
 // Missing paths are evidence absence, never permission to read a previous dispatch's file.
 const GATE_LOG_UNTHREADED = pt`(gate_log_path unthreaded — no captured artifact)`
@@ -3091,7 +3093,7 @@ const segmentLoop = async (result, isSegment, redispatch) => {
 // snapshot death, or TARGET_LOST or TARGET_LATE, returns before any merge dispatch.
 const segmentedMerge = async (prompt, opts, context) => {
   const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
-  return reconciledMerge(prompt + segmentedGateClause, opts, context, async (body, opts, capture) => {
+  return reconciledMerge(DIRTY_TASK_STOP + prompt + segmentedGateClause, opts, context, async (body, opts, capture) => {
     const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
       log('Phase ' + ph.id + ': segmented gate — the merge dispatch ' + opts.label + ' returned the in-band gate_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the merge-task to run to completion (segment ' + segment + ', bounded by roundLimit ' + roundLimit + ').')
       return admitGateResult(await dispatchSite(
@@ -4027,7 +4029,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // approved pre-ace tip merges; it is never a fix loop and never a hold. Returns { green, died }:
   // a dispatch death (D21) is neither green nor red — `died` names the site and the caller abandons
   // the current subset with the existing abandon reason (the gate never judged the tip).
-  // A gate that outruns one tool call (#2326, #2329, #2617) is also neither: the refiner backgrounds it, polls it in the same turn, and returns
+  // A gate that outruns one tool call (#2326, #2329, #2617) is also neither: the refiner backgrounds it, polls it in the same turn, and only if that job dies returns
   // the gate_segment pair, and the loop below re-dispatches, bounded by roundLimit. A spent bound takes
   // the `died` route, because nothing judged the tip: the ace tip forward-reverts and the rows reach the
   // sweep with a reason that names the unfinished gate, never a red one. This rule rides the dispatched
@@ -5204,7 +5206,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`  (4) ARM ORDER — already_upstream FIRST. Post-rebase diff EMPTY and N > 0 and EVERY CHERRY line starting '-' and PRE non-empty: return { status: 'already_upstream', rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST, already_upstream_commits: [the task commit SHAs CHERRY listed] } — the engine independently checks the final tree before deciding whether approval transfers or a full content re-audit is required. The consumer REFUSES an already_upstream whose fields contradict it (rebased_tip equal to dispatch_base, a non-empty POST, or an empty already_upstream_commits) — never report already_upstream to carry a different true result; the fields are read as returned.\n`
         + pt`  (5) Post-rebase diff EMPTY AND (N is 0, OR any CHERRY line starts '+', OR PRE is EMPTY) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR: return { status: 'empty-unmatched', detail: '<which leg failed>' } — fail closed; never already_upstream, never a transfer.\n`
         + pt`  (6) Otherwise compare patch-ids, returning rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST either way: PRE non-empty and PRE == POST → status 'transferred'; PRE != POST → status 'mismatch' (the full panel re-audits the rebased tip before the merge).\n`
-        + pt`Success evidence is mandatory: transferred requires a usable rebased tip, non-empty equal patch IDs and independently equal exact content identities; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. An error, missing or unknown status retains the ordinary merge fallback only for independently verified unchanged approved content or independently equal patch and exact content identities; changed content gets the full re-audit.\n`
+        + pt`Success evidence is mandatory: transferred requires a usable rebased tip, non-empty equal patch IDs and independently equal exact content identities; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. Any other error, missing or unknown status retains the ordinary merge fallback only for independently verified unchanged approved content or independently equal patch and exact content identities; changed content gets the full re-audit.\n`
         + pt`  (7) Any git/env error you cannot classify → { status: 'error', detail: '<the error>' }; the engine independently checks actual Git content before fallback or full re-audit.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-transfer',
           label: 'pin-transfer:' + r.task.id, schema: PIN_TRANSFER, ...spawn('refiner') })   // concatenation-built (census-safe)
@@ -5417,7 +5419,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         pinTransfers.push(probeRow('transferred'))
         log('pin-transfer ' + r.task.id + ': patch-ids and exact content identities EQUAL (' + (pinProbe.pre_rebase_patch_id || '(unrecorded)') + ') — the panel pin transfers to the rebased tip ' + (pinProbe.rebased_tip || '(unrecorded)') + '; no panel re-convenes in the lock.')
       } else {
-        log('pin-transfer ' + r.task.id + ': probe returned no usable status — the ordinary merge dispatch runs unchanged (fail-open).' + (pinProbe?.detail ? ' Detail: ' + pinProbe.detail : ''))
+        log('pin-transfer ' + r.task.id + ': probe returned no usable status — the ordinary merge dispatch runs unchanged (fail-open).' + ' ' + (pinProbe?.detail || ''))
       }
       pinProofBase = pinProof.local_sha
       const mr = routedMr(await segmentedMerge(
@@ -5425,7 +5427,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + aceRevertClause
         + reattachClause(refineryPath)
         + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
-        + DIRTY_TASK_STOP + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test, no other signal (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
+        + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test, no other signal (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
         + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch)
         + pt`CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
         + pt`rebase --onto does NOT dodge this constraint — it is equally refused.\n`
@@ -5581,7 +5583,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
-            + DIRTY_TASK_STOP + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test, no other signal (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
+            + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test, no other signal (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
             + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch)
             + pt`CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
             + pt`rebase --onto does NOT dodge this constraint — it is equally refused.\n`
@@ -5681,7 +5683,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             pt`ENVIRONMENT-PROCEED re-merge for WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`The prior merge-task gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce at the task tip in a fresh environment, NOT a defect introduced by this task. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
-            + DIRTY_TASK_STOP + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
+            + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
             + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch) + '\n'
             + PROVISION_RERUN_CLAUSE
             + pt`  (b) Run the gate (${plan.gate}) in a FRESH shell with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'merge-task', status: 'gate_failed' } classifying it afresh in gate_failure_class, and do NOT merge.\n`
@@ -5722,7 +5724,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             pt`BASELINE-PROCEED re-merge for WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`The prior merge-task gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the phase integration base, NOT introduced by this task: ${(mr.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
-            + DIRTY_TASK_STOP + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
+            + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
             + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch) + '\n'
             + PROVISION_RERUN_CLAUSE
             + pt`  (b) Run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that pre-existing set is a real regression → return { mode: 'merge-task', status: 'gate_failed' } classifying the NEW failure, and do NOT merge.\n`

@@ -37,7 +37,7 @@ When the sub-issue declares a gitlink-bump task, read [worker-servitor-edges.md]
 
 ## One turn, no waiting
 When your turn ends, you exit, and any background job dies with you.
-- Never end your turn with work left: commit and push, or return `blocked`.
+- Never end your turn with work left: commit and push, or return `blocked`. Before you return, leave no uncommitted tracked edits: commit them or restore them.
 - One tool call runs at most 600000 ms, and stops at 120000 ms unless you set `timeout`. If a command can run longer, start it with `run_in_background`, then poll its output with foreground calls in this same turn until it exits.
 - Never end your turn to wait for a notification or a monitor.
 - Never run `git stash`: every worktree and session shares the stash.

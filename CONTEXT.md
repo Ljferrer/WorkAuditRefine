@@ -695,7 +695,7 @@ The two lines every captured gate log carries — `tip_sha:` first and `exit_cod
 `GATE_LOG_STAMP` and mirrored on the refiner card. Every logical gate allocates a fresh directory
 with `mktemp -d` under `_refinery/.war/`; this includes baseline retries, land and integrated-tip
 runs. Only a SEGMENTED continuation may reuse the returned absolute `gate_log_path`, after checking
-both stamps. A partial/stale log requires a fresh artifact, because the turn end killed its writer (#2617); never
+both stamps. A partial/stale log requires a fresh artifact, never a wait for its writer (#2617); never
 truncate a file an earlier background writer might still write. Auditors read only explicitly
 returned paths. Missing paths render `(gate_log_path unthreaded — no captured artifact)` and mean
 SOFT cannot-confirm; a conventional filename is never guessed, even at the same tip.

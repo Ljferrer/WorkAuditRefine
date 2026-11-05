@@ -9106,12 +9106,12 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // dirty paths before any rebase. `git stash` counted 0 on both surfaces at the task base.
     { name: 'pin-transfer stash ban (#2617): refiner card pin-transfer section ↔ the dispatched pin-transfer prompt',
       surfaces: [['war-refiner.md pin-transfer section', (refinerMd.split('## pin-transfer probe')[1] || '').split('\n1. ')[0]], ['pin-transfer dispatch prompt', pinTransferP]],
-      anchors: [/Never run `?git stash`?: every worktree and session shares the stash/, /status --porcelain --untracked-files=no`? prints anything, return/, /dirty task worktree: <those paths>/, /[Bb]efore any forward-revert or rebase/] },
+      anchors: [/Never run `?git stash`?: every worktree and session shares the stash/, /status --porcelain --untracked-files=no`? prints anything, return/, /dirty task worktree: <those paths>/, /[Bb]efore any forward-revert or rebase/, /['"]error['"]`?,? ?(with `)?detail:? ?['"]dirty task worktree: </] },
     // Merge-task stash ban (#2617): the refiner card's merge-task step 1 and every merge-task rebase site
     // carry the dirty-tree stop. `git stash` counted 0 on both surfaces at the base faf52933.
     { name: 'merge-task stash ban (#2617): refiner card merge-task step 1 ↔ merge-task dispatch prompt',
       surfaces: [['war-refiner.md merge-task step 1', refinerMd.split('\n').find(l => l.includes('Rebase the task branch onto the current integration tip')) || ''], ['merge-task dispatch prompt', mergeP], ['environment-proceed re-merge prompt', epMergeP]],
-      anchors: [/(Never run|No) `?git stash`?/, /dirty task worktree: </, /status:? ?['"]error['"]/] },
+      anchors: [/(Never run|No) `?git stash`?/, /['"]error['"]`?,? ?(with `)?detail:? ?['"]dirty task worktree: </] },
     // Gate-log stamp (D8, PIN-12, #2094): the card's merge-task step 9 and every gateCaptureClause
     // carrier (the captureUses census is the arbiter of that site list) plus the land clause stamp
     // tip_sha: first and exit_code: last on the gate log, and the evidence dispatch's intraDep branch
@@ -18759,6 +18759,7 @@ test('#2617 no early-return example: the template never cites a tool-timeout ove
   for (const [name, text] of [['workflow-template.js', src], ['war-refiner.md', refinerMd]]) {
     assert.doesNotMatch(text, /outr[au]n(s)? (your |the )?tool timeout/, name + ' cites no tool-timeout overrun')
     assert.doesNotMatch(text, /cannot finish inside this turn/, name + ' keeps no retired turn-bound wording')
+    assert.doesNotMatch(text, /outruns? the turn/, name + ' keeps no outruns-the-turn wording')
   }
 })
 
@@ -18775,4 +18776,19 @@ test('#2617 dirty task worktree: a pin-transfer probe that reports one holds the
   assert.ok(!out.landed.includes('t1'), 'the dirty task never merges')
   assert.ok(out.landed.includes('t2'), 'the clean sibling still merges, so the hold is task-scoped')
   assert.ok((out.auditLog || []).some(a => a.task === 't1' && a.verdict === 'pin-transfer:dirty-worktree'), 'the hold writes its auditLog verdict')
+})
+
+test('#2617 dirty task worktree at merge-task: the stop rides every segmented merge, and its error holds the task (escalate) while the sibling merges', async () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'workflow-template.js'), 'utf8')
+  assert.match(src, /reconciledMerge\(DIRTY_TASK_STOP \+ prompt \+ segmentedGateClause/, 'every segmentedMerge site opens with the dirty-tree stop')
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:t1' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : defaultImpl(prompt, opts)
+  const { out, calls } = await runPhase(twoIndependentTasks(), impl)
+  const m1 = calls.find(c => (c.opts.label || '') === 'merge:t1')
+  assert.ok(m1 && m1.prompt.indexOf('dirty task worktree: <those paths>') < m1.prompt.indexOf('(a) REBASE in the TASK worktree'), 'the stop comes before the rebase step')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
+  assert.ok(esc, 'the dirty task escalates (presence guard)')
+  assert.equal(esc.reason, 'escalate', 'a dirty merge-task holds on the hard reason, never a soft error')
+  assert.match(String(esc.detail && esc.detail.detail), /^dirty task worktree: src\/a\.js/, 'the hold keeps the paths')
+  assert.ok(!out.landed.includes('t1'), 'the dirty task never merges')
+  assert.ok(out.landed.includes('t2'), 'the clean sibling still merges')
 })

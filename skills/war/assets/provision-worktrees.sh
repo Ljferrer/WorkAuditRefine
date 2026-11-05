@@ -1637,7 +1637,7 @@ cmd_ensure_refinery_worktree() {
       # modifications only (-uno); untracked files (e.g. .war-task) are safe.
       if [ -n "$(git -C "$wt_path" status --porcelain -uno 2>/dev/null)" ]; then
         # (d) DIRTY tree -> FAIL LOUD. Never reset, never destroy work.
-        die "ensure-refinery-worktree: worktree at '$wt_path' is not on the integration branch '$int_branch' and has uncommitted tracked-file changes — refusing to switch (would destroy work). Clean or stash changes first." "$EX_WRONG_BRANCH"
+        die "ensure-refinery-worktree: worktree at '$wt_path' is not on the integration branch '$int_branch' and has uncommitted tracked-file changes — refusing to switch (would destroy work). Commit or restore the changes first (never git stash: every worktree shares it)." "$EX_WRONG_BRANCH"
       fi
       # (c) CLEAN tree, detached or on a different branch -> re-attach.
       git -C "$wt_path" switch "$int_branch" >/dev/null 2>&1 \
@@ -1753,7 +1753,7 @@ cmd_ensure_publication_worktree() {
       # modifications only (-uno); untracked files (e.g. .war-task) are safe.
       if [ -n "$(git -C "$wt_path" status --porcelain -uno 2>/dev/null)" ]; then
         # (d) DIRTY tree -> FAIL LOUD. Never reset, never destroy work.
-        die "ensure-publication-worktree: worktree at '$wt_path' is not on the working branch '$work_branch' and has uncommitted tracked-file changes — refusing to switch (would destroy work). Clean or stash changes first." "$EX_WRONG_BRANCH"
+        die "ensure-publication-worktree: worktree at '$wt_path' is not on the working branch '$work_branch' and has uncommitted tracked-file changes — refusing to switch (would destroy work). Commit or restore the changes first (never git stash: every worktree shares it)." "$EX_WRONG_BRANCH"
       fi
       # (c) CLEAN tree, detached or on a different branch -> re-attach.
       git -C "$wt_path" switch "$work_branch" >/dev/null 2>&1 \
