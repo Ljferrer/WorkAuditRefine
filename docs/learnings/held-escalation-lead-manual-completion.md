@@ -2,6 +2,7 @@
 name: held-escalation-lead-manual-completion
 description: "held:escalation + 1 Major = Lead manual complete"
 metadata:
+  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-10
   node_type: memory
   type: project
   keywords:
@@ -16,12 +17,16 @@ metadata:
     - fixRounds 0
     - panel split
     - D17
+    - environment-class escalation
+    - gate flake under load
+    - approved task unmerged
+    - seeded phase-close rows carry
   provenance: code-verified
   slug: held-escalation-lead-manual-completion
-  phase: "memsub/p1 + 2026-09-06-engine-and-audit-verdict-integrity/phase-10 (task 10.1, recurrence)"
+  phase: "memsub/p1 + 2026-09-06-engine-and-audit-verdict-integrity/phase-10 (task 10.1, recurrence) + 2026-11-04-late-defects-fixed-in-run/phase-2 (task 2.1, recurrence)"
   originSessionId: 9c57c14a-92ed-4fc9-92d1-27be3d4dbad5
   created: 2026-09-08
-  modified: 2026-09-08T17:14:23.094Z
+  modified: 2026-11-05T09:23:24.104Z
 ---
 
 When a WAR phase returns `held:escalation` with N−1 tasks already landed to the integration branch and one task escalated on a **real** Major (first verify it against the actual task-branch diff, not the audit log — [[audit-log-finding-can-be-stale-by-land-time]]), the Lead under `--afk` can complete the phase **manually** rather than re-run a whole phase for a trivial fix. `skills/war/references/resume-and-recovery.md` ("Escalation-completion land") names this lesson as the canonical recipe:
@@ -37,3 +42,25 @@ When a WAR phase returns `held:escalation` with N−1 tasks already landed to th
 **How to apply:** only for an implementation defect where the Major is genuinely small + fully understood. A plan-shaped escalation (`PLAN-DEFECT:`, or a seat's `escalate_reason`) goes to a `/red-team` plan amendment instead. Escalate to the operator only if unresolvable ([[afk-self-adjudicate-escalate-only-if-unresolvable]]).
 
 **The round-0 gap is fixed.** Task 10.1 of `2026-09-06-engine-and-audit-verdict-integrity` escalated at round 0 on a 3-Minor/1-Major panel split, and the Lead used this recipe. Details: [[audit-panel-unanimity-beats-majority-and-round0-escalation-is-a-known-pre-phase-11-gap]]. The engine now runs a rebuttal round, then a fix round when all surviving blockers carry a concrete `suggested_fix`, then a full-roster re-audit (PIN-29). So a fix-having Major no longer needs this recipe. It still applies when a fix-less blocker, an unchanged survivor after a fix round, or round-budget exhaustion holds the task.
+
+## Recurrence: an environment-class escalation needs no fix (2026-11-04-late-defects-fixed-in-run, phase 2, task 2.1)
+
+**The recipe also fits a held task with an approved, defect-free diff.**
+Task 2.1 had three unanimous approvals on one pinned SHA and no open blocker.
+Its merge gate failed twice on a timing suite under heavy machine load, so the engine hard-escalated and the phase held.
+See [[audit-tree-fingerprint-d8-row-can-red-under-gate-load-and-discard-a-docs-only-polish]] for the load evidence.
+
+**What the Lead did, and what each step needs.**
+1. Skip step 1: there is nothing to fix. Check that the held task's branch diff touches nothing the failing suite covers.
+2. Make the task merge commit with the `WAR-Task` trailer as in step 2.
+3. Build the land merge and run the full gate once. Run it on a quiet machine. Check `uptime` first: a load above about 20 repeats the failure.
+4. Land with one `land-advance` call, as in step 4.
+In this run the single gate came back 36/36 green, and the End state 3 check passed.
+
+**Two side effects to expect after a manual land.**
+- The post-merge gate-audit had run against the integration tip that lacked the unmerged task. It filed a Critical "End state 3 unmet" at the base-side sha cb7ce6c9. That finding is most likely a topology artifact (not proven), so re-run the End state check at the land merge before you trust it.
+- The phase-close coherence sweep runs only on a landed phase. Rows seeded for it (here, 7 doc-attribution rows from phase 1) never ran and carry to the next phase. List them in the next phase's plan or sweep input.
+
+**Cost lesson.** Do not retry the unchanged gate under the same load. The first environment-proceed retry is the only free one.
+
+Locate-cue: verify still present before acting. `skills/war/references/resume-and-recovery.md` ("Escalation-completion land") and the `land-advance` verb in `skills/war/assets/provision-worktrees.sh`. Found at landed tip fc9cb08c, phase 2 of 2026-11-04-late-defects-fixed-in-run.
