@@ -303,7 +303,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
 ```jsonc
 { version: 1, profile: "balanced" | "thorough" | "economy" | "<custom>",
   agents: {                                  // model ∈ opus|sonnet|haiku|fable; effort ∈ default|low|medium|high|xhigh|max ("default" = inherit session)
-    worker:   { model, effort },             // worker config also drives fix-workers (unless agents.worker.fix / .ace is set, below)
+    worker:   { model, effort },             // worker config also drives fix-workers when agents.worker.fix is absent; ace work runs on agents.worker.ace (below)
     auditor:  { model, effort },             // optional auditor.rebuttal { model, effort }: the rebuttal-round seat tier, above a seat's own model/effort too; defaulted one model above the auditor; an omitted block ⇒ each seat keeps its usual tier. Optional auditor.high / auditor.low { model, effort } (#2534): the tier a seat's tier 'high' / 'low' resolves; high is defaulted, low is not, and a high model below the auditor model resolves to the auditor tier (an absent low ⇒ the auditor model and effort; a seat with no tier runs low)
     refiner:  { model, effort },
     servitor: { model, effort },

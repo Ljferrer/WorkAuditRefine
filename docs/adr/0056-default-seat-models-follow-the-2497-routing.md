@@ -15,7 +15,7 @@ config.
 base and fix worker tiers run opus, docs-only tasks run sonnet, and auditors run sonnet. The
 values live in `war-config.mjs` and the `/war-room` preset bullets, never restated here.
 
-**`thorough` pins its worker tiers at fable**, so it stays at or above `balanced` on every tier.
+**`thorough` pins its base, docs and fix worker tiers at fable**, so it stays at or above `balanced` on every tier.
 **`economy` moves its docs tier to sonnet**, so `balanced` stays at or above it. The
 model-rank test in `war-config.test.mjs` checks both.
 
