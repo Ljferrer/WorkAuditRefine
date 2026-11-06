@@ -2217,8 +2217,8 @@ test('doc-contract: the Gate 2 learnings-publication.md step has the append-if-a
 })
 
 // Pointer byte-identity (#656, D4): the ratified "Durable engineering lessons live" pointer line is
-// duplicated across three canonical surfaces (CLAUDE.md, the /war SKILL, the lessons-learned migration
-// reference). CLAUDE.md calls it "ratified and byte-identical across surfaces — never reword it", but the
+// duplicated across three canonical surfaces (CLAUDE.md, the /war learnings-publication.md reference,
+// moved from SKILL.md at #2635, and the lessons-learned migration reference). CLAUDE.md calls it "ratified and byte-identical across surfaces — never reword it", but the
 // #534 duty test above only asserts PRESENCE — a reworded copy on one surface still passes it
 // (`gate-can-assert-mirrored-clause-presence-without-asserting-byte-identity`). This binds all three to
 // each other byte-for-byte. Scope is these three surfaces ONLY — never a changelog/release-blurb, whose
@@ -2256,7 +2256,7 @@ test('pointer byte-identity: the ratified pointer line is byte-identical across 
 // Servitor learnings write path doc contracts (#584, End-state 6)
 // Token-anchored + case-tolerant (`prompt-only-clause-grep-guard-must-tolerate-sentence-case`);
 // the three existing Gate-2 locks above (render-index --local AND --repo, the pointer duty,
-// prefetch --repo) stay green unmodified.
+// prefetch --repo) stay green. Since #2635 the pointer-duty lock reads learnings-publication.md.
 // ---------------------------------------------------------------------------
 
 // Slice Setup step 4 (the "two memory roots" item) from its anchor to the seed-render sub-bullet.
@@ -2321,7 +2321,7 @@ test('doc-contract: SKILL.md Gate 2 carries the files_written reconciliation ass
   )
 })
 
-test('doc-contract: SKILL.md Gate 2 names the p<N>-publication worktree and the crash-heal scan (#584)', () => {
+test('doc-contract: Gate 2 (SKILL.md + learnings-publication.md) names the p<N>-publication worktree and the crash-heal scan (#584)', () => {
   const section = gate2Section()
   assert.ok(
     section.includes('p<N>-publication'),
@@ -2338,7 +2338,7 @@ test('doc-contract: SKILL.md Gate 2 names the p<N>-publication worktree and the 
   )
 })
 
-test('doc-contract: SKILL.md Gate 2 carries the retry-once CAS rule (#584)', () => {
+test('doc-contract: Gate 2 (SKILL.md + learnings-publication.md) carries the retry-once CAS rule (#584)', () => {
   const section = gate2Section().toLowerCase()
   assert.ok(
     section.includes('retry once') && section.includes('escalate'),
@@ -2346,7 +2346,7 @@ test('doc-contract: SKILL.md Gate 2 carries the retry-once CAS rule (#584)', () 
   )
 })
 
-test('doc-contract: SKILL.md Gate 2 carries the copy-with-marker / marker-after-push rule (#584)', () => {
+test('doc-contract: Gate 2 (SKILL.md + learnings-publication.md) carries the copy-with-marker / marker-after-push rule (#584)', () => {
   const section = gate2Section()
   const lc = section.toLowerCase()
   assert.ok(section.includes('metadata.promoted'), 'Gate 2 must name the `metadata.promoted:` marker shape')
@@ -2360,7 +2360,7 @@ test('doc-contract: SKILL.md Gate 2 carries the copy-with-marker / marker-after-
   )
 })
 
-test('doc-contract: SKILL.md Gate 2 carries the overwrite-on-promote rule (#584)', () => {
+test('doc-contract: Gate 2 (SKILL.md + learnings-publication.md) carries the overwrite-on-promote rule (#584)', () => {
   const section = gate2Section().toLowerCase()
   assert.ok(
     section.includes('overwrite-on-promote') || (section.includes('overwrit') && section.includes('same-slug')),

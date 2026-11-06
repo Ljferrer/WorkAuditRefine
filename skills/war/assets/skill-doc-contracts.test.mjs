@@ -4667,6 +4667,11 @@ test('learnings-publication-evict (a) — each evicted Gate 2 block is in learni
     )
   }
 })
+test('learnings-publication-evict (c) — the eviction file header sends a reader to Gate 2 steps 0 and 1 first and step 3 after (#2635)', () => {
+  const header = publicationMd.slice(0, publicationMd.indexOf('\n## '))
+  assert.match(header, /run Gate 2 steps 0 and 1 in `skills\/war\/SKILL\.md` first[^.]*, and step 3 \(render-index\) after\./,
+    'a reader who reaches learnings-publication.md from the router must learn that steps 0, 1 and 3 stay in SKILL.md')
+})
 test('learnings-publication-evict (b) — SKILL.md no longer carries the moved blocks and points at them with a trigger (#2635)', () => {
   for (const row of PUBLICATION_EVICTIONS) {
     // Every non-empty moved line, trimmed of its indent, is absent, so no re-inlined bullet hides.
