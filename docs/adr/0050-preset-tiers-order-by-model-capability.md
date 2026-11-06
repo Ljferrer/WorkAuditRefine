@@ -29,7 +29,7 @@ why the effort axis is deliberately *not* monotone across presets and is not an 
 **`economy` means cheaper models and a shorter fix budget, not a weaker rule set.** It pins its
 own worker (base and docs), auditor, refiner, servitor, red-team and trial tiers and its skill seats
 (`SKILL_SEATS`), each at or below
-`balanced`'s `MODEL_RANK`, and the fix tier, the refiner recovery tier, the audit rebuttal and high tiers, snipe and its low tier, and the helper tier inherit `DEFAULTS`; the values are the
+`balanced`'s `MODEL_RANK`, and the fix and ace tiers, the refiner recovery tier, the audit rebuttal and high tiers, snipe and its low tier, and the helper tier inherit `DEFAULTS`; the values are the
 `/war-room` economy bullet. `roundLimit: 4` and `redteamRoundLimit: 2` are pinned. `rosterPolicy`
 inherits `auto` on purpose: a config cannot predict what a task will entail, so the Lead composes
 each task's seats from the lens catalog, and the preset's four-lens roster serves as the
