@@ -99,7 +99,10 @@ git** rather than self-reported. Immediately before the push it captures the **p
 into the first-land carve-out), and it refuses a **phantom land** (exit 3) when `<merge-sha>` equals
 that pre-push origin tip **and** the local follower already sits at it; the post-push readback still
 confirms origin advanced to `<merge-sha>`, with one re-read after 2 s and a loud exit 3 on a second
-miss. `<merge-sha>` resolves to its full SHA first. Immediately before that push — and deliberately *after* the
+miss. A server-side `[remote rejected]` push is pushed again, at most 3 times after 10, 20 and 40 s,
+only while a fresh read still shows the pre-push origin tip (#2626). A retry that lands exits 0 through
+the normal readback, a retry that meets `[rejected]` exits 2, and spent retries, a moved origin or a
+failed read exit 3. `<merge-sha>` resolves to its full SHA first. Immediately before that push — and deliberately *after* the
 early-return arms, so already-landed reconciliation stays cwd-independent — it also asserts
 `HEAD == <merge-sha>`: the push source is `HEAD:`, so a wrong-cwd invocation dies with the catalogued
 `EX_WRONG_BRANCH` (6) naming both SHAs and the expected cwd (normally the detached `_refinery`) rather

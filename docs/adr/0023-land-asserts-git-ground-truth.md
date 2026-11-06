@@ -219,3 +219,19 @@ its die. A post-push read that fails or differs waits 2 s and reads origin once 
 dies with exit 3, names both SHAs and the `sync-follower` hint, and leaves the follower unmoved. The
 pre-push read gets no retry, because a failed read there stops before any push. Exit codes do not
 change, and a land still reports success only after origin proves the advance.
+
+## Amendment (2026-11-05): a server-side `[remote rejected]` push is retried
+
+Issue #2626 recorded three pushes that GitHub refused with `[remote rejected] ... (fatal error in
+commit_refs_rules)` while origin did not move. That line does not carry the `[rejected]` token, so
+`cmd_land_advance` died with exit 3 and never retried, although a second push was safe.
+
+**Decision, extended.** After a non-zero push whose output carries `[remote rejected]`,
+`cmd_land_advance` reads origin with a fresh `ls-remote`. If origin still reads the pre-push tip, it
+runs the same push again, at most 3 times, after 10, 20 and 40 s. The read runs before each wait. If
+origin moves during the wait, the non-force retry cannot overwrite it: git refuses a non-fast-forward
+(`[rejected]`, exit 2), and any other outcome ends through the readback or the exit 3 die. A retry that lands ends through
+the existing post-push readback and follower CAS. A moved origin, a failed read or spent retries die
+with exit 3 and leave the follower unmoved. `[rejected]` still exits 2 with no retry, and no push uses
+`--force`. The 0/1/2/3/6 exit codes do not change. A permanent decline (a pre-receive hook) also
+prints `[remote rejected]`, so it now waits 70 s before the same exit 3.
