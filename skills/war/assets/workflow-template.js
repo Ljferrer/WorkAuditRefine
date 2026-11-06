@@ -762,6 +762,17 @@ const adjudicationClause = adjudications.length
   ? pt`\nVERSION-PRECEDENCE RULE: the authoritative version is task instruction > red-team adjudication > plan body literal. Before scoring a version/release-slot mismatch as a defect, consult the adjudicated rows below; a value matching the adjudication is correct even when it differs from the plan body literal.\nADJUDICATION-MATCH RULE: a finding whose substance matches an adjudicated row below is a confirmation note, never an escalation — cite the matching row; the delta is pre-adjudicated and not re-litigable this run. A candidate that deviates from BOTH the plan and the adjudicated row is not a match — judge it normally.\n`
     + adjudications.map(r => pt`- ${adjRow(r)}`).join('\n') + '\n'
   : ''
+// The ALREADY-PROVISIONED worktree line of the polish, fix and floor-fix prompts — one builder, so every
+// dispatched copy is byte-identical.
+const provisionedLine = task => pt`Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+// EVIDENCE PRECEDENCE SKELETON (ADR 0041) — the full four claim-shape ladders live in the
+// "## Evidence precedence" section of agents/war-auditor.md (standing/dispatched split, progressive
+// disclosure: skeleton only in the hot path). ONE const, concatenated at auditPrompt AND each of the
+// three gate-audit-family seats (they sit OUTSIDE auditPrompt and inherit nothing from it), so every
+// dispatched copy is byte-identical; the five-surface evidence-precedence registry row in
+// workflow-template.engine-1.test.mjs anchors the shared tokens on the card + all four dispatched
+// surfaces, so a one-sided edit REDs.
+const EVIDENCE_PRECEDENCE_CLAUSE = pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
 // Prior-lessons memory (spec §4.5): the Lead prefetches per-seat lesson blocks (one batched
 // `war-memory query --queries` invocation at phase launch) and threads a map here as args.memory —
 // `{ byTask: {<id>: {worker, seats: {<lens>: block}}}, servitor }`. The template FOLLOWS the
@@ -3597,14 +3608,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // grounding / verify-and-close / git show <audit_sha>:<path> / advisory only / git grep). git show and
     // git log are read-only allowlisted; since D21 git grep -F -e <token> is the one admitted search form.
     + pt`\nCOMMITTED-TREE GROUNDING (verify-and-close / already-done no-op claims): ground the claim against the pinned audit_sha, NOT the mutable working tree — read the blob with \`git show <audit_sha>:<path>\`, and pick the history verb per claim shape (\`git log -S<token>\` for "when did the occurrence count change", \`git log -G<regex>\` for content-pattern change; presence at the tip is git show, never -S). A working-tree grep is ADVISORY ONLY, never the sole basis for approving a no-op claim; git show/log are read-only allowlisted, and git grep -F -e <token> is the one admitted search form (D21). Full paragraph: the Committed-tree grounding section of agents/war-auditor.md.`
-    // EVIDENCE PRECEDENCE SKELETON (ADR 0041) — the full four claim-shape ladders live in the
-    // "## Evidence precedence" section of agents/war-auditor.md (same commit; standing/dispatched
-    // split, progressive disclosure: skeleton only in the hot path). The identical skeleton line is
-    // ALSO inlined at each of the three gate-audit-family seats below (they sit OUTSIDE auditPrompt
-    // and inherit nothing from it); the five-surface evidence-precedence registry row in
-    // workflow-template.engine-1.test.mjs anchors the shared tokens on the card + all four dispatched
-    // surfaces, so a one-sided edit of any single copy REDs.
-    + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
+    // EVIDENCE PRECEDENCE SKELETON (ADR 0041) — the shared const, also concatenated at each of the
+    // three gate-audit-family seats below.
+    + EVIDENCE_PRECEDENCE_CLAUSE
     // VERSION-PRECEDENCE + ADJUDICATION-MATCH RULES (Task 1.5, ADR 0032) — appended alongside intentClause;
     // both sentence bodies are mirrored VERBATIM in agents/war-auditor.md (standing surface, same commit);
     // the both-surfaces test anchors a mid-sentence phrase from each on both. This clause ALSO rides the
@@ -4883,7 +4889,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
         const chainRound = correctiveRoundOf('ace', r.task)
         const ace = await dispatchSite(
-          pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+          pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. ` + provisionedLine(r.task)
           // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
           // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
           + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
@@ -5228,7 +5234,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         const chainRound = correctiveRoundOf('fix', task, round)
         chainRecordAudit(task, chainRound, seats)
         const fix = await dispatchAgent(
-          pt`FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+          pt`FIX_NEEDED for WAR task ${task.id}. ` + provisionedLine(task)
           // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
           // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
           + pt`Gate: ${plan.gate}${doneWhenClause(task)}\n`
@@ -5683,11 +5689,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         log('pin-transfer ' + r.task.id + ': probe returned no usable status — the ordinary merge dispatch runs unchanged (fail-open).')
       }
       pinProofBase = pinProof.local_sha
-      const mr = routedMr(await segmentedMerge(
-        pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
-        + aceRevertClause
-        + reattachClause(refineryPath)
-        + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
+      // The two-worktree split steps (a) + (b) + the gate line: ONE string shared by this primary merge
+      // and the floor-retry re-merge below, so both dispatched copies stay byte-identical.
+      const mergeSplitClause = pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
         + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test, no other signal (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
         + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch)
         + pt`CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
@@ -5695,6 +5699,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + PROVISION_RERUN_CLAUSE
         + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` — one --no-ff merge commit of the now-rebased task branch, carrying the exact WAR-Task trailer; never a fast-forward, and no hook runs on it. Push.\n`
         + pt`Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
+      const mr = routedMr(await segmentedMerge(
+        pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
+        + aceRevertClause
+        + reattachClause(refineryPath)
+        + mergeSplitClause
         + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
         + baselineDebtClause()
         + pt`Populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at (the merge commit's second parent), so the gate-audit pass can confirm the gate ran at the merged content.`
@@ -5766,26 +5775,25 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             : ''
           // Prompt truth (D6): all floor-fix prompts carry the gate command + the task's Done when:
           // clause (absent ⇒ '' — legacy byte-identity, End state 9).
+          // The worktree + gate lines every floor-fix prompt carries — one string, byte-identical at all four.
+          const floorFixHead = provisionedLine(r.task)
+            + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
           const fixPrompt = isNoTest
             ? pt`ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
-              + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
-              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+              + floorFixHead
               + pt`Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice ?? '<unset>'}), keep the gate green, commit and push.`
               + nearMissClause
             : isDoneUnmet
             ? pt`MAKE_DONE_PASS for WAR task ${r.task.id}. The refiner's merge-task check (assert-done-when.sh) ran the task's own Done when: acceptance command and it exited red (or timed out). `
-              + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
-              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+              + floorFixHead
               + pt`Make this command pass: fix the implementation for the slice described in: ${r.task.planSlice ?? '<unset>'} until the Done when: command above exits 0 — never weaken, skip, or delete a test to force it green. Keep the gate green, commit and push.`
               + doneWhenLogClause
             : isBudgetUncited
             ? pt`CITE_BUDGET for WAR task ${r.task.id}. The refiner's merge-task check (assert-budget-raise-cited.sh) found a hard:/advisory: ceiling RAISE in skills/war/assets/prompt-surface-budgets.test.mjs with no Budget-Raise trailer in the range (the budget-uncited route). `
-              + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
-              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+              + floorFixHead
               + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. PREFER un-raising the ceiling and funding the growth under it (ADR 0042 — evict cold prose to references/ behind a trigger pointer); a ceiling change is an operator act via the re-baseline pass (skills/war/references/budget-rebaseline.md), and a sanctioned raise must carry a commit trailer of the exact form \`Budget-Raise: ADR-0042 <surface> +<bytes>\` — never raise a ceiling silently. Commit and push, keeping the gate green.`
             : pt`PACKAGE_IT for WAR task ${r.task.id}. The refiner's merge-task check (assert-packaging-in-diff.sh) flagged an added/renamed file a Dockerfile's enumerated COPYs miss. `
-              + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
-              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+              + floorFixHead
               + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
           const floorFix = await dispatchSite(
             fixPrompt
@@ -5847,14 +5855,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           floorMr = routedMr(await segmentedMerge(
             pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
-            + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
-            + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test, no other signal (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
-            + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch)
-            + pt`CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
-            + pt`rebase --onto does NOT dodge this constraint — it is equally refused.\n`
-            + PROVISION_RERUN_CLAUSE
-            + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` — one --no-ff merge commit of the now-rebased task branch, carrying the exact WAR-Task trailer; never a fast-forward, and no hook runs on it. Push.\n`
-            + pt`Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
+            + mergeSplitClause
                 + pt`Populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at (the merge commit's second parent), so the gate-audit pass can confirm the gate ran at the merged content. `
             + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
             + baselineDebtClause()
@@ -6354,7 +6355,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + endStateBlock + intentClause + adjudicationClause + MEMORY_QUERY_TOOL_LINE
       // Evidence-precedence skeleton (ADR 0041) rides this seat directly, same as adjudicationClause
       // — this seat sits outside auditPrompt(); the five-surface registry row anchors it here.
-      + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
+      + EVIDENCE_PRECEDENCE_CLAUSE
       // DISPOSITION RULE (D15, PIN-17) rides this seat directly — its Minor/Nit rows route through
       // routeGateAuditRows, so the seat is told the rule the floor enforces (shared const, same commit).
       + DISPOSITION_RULE_CLAUSE
@@ -6480,7 +6481,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + endStateBlock + intentClause + adjudicationClause + MEMORY_QUERY_TOOL_LINE
       // Evidence-precedence skeleton (ADR 0041) rides this AUTHORITATIVE seat directly, same as
       // adjudicationClause — outside auditPrompt(); the five-surface registry row anchors it here.
-      + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
+      + EVIDENCE_PRECEDENCE_CLAUSE
       // DISPOSITION RULE (D15, PIN-17) rides this seat directly — its Minor/Nit rows route through
       // routeGateAuditRows, so the seat is told the rule the floor enforces (shared const, same commit).
       + DISPOSITION_RULE_CLAUSE
@@ -6533,7 +6534,7 @@ if (mergedTasksForGateAudit.length > 0) {
     + endStateBlock + intentClause + adjudicationClause + MEMORY_QUERY_TOOL_LINE
     // Evidence-precedence skeleton (ADR 0041) rides this seat directly, same as adjudicationClause
     // — outside auditPrompt(); the five-surface registry row anchors it here.
-    + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
+    + EVIDENCE_PRECEDENCE_CLAUSE
     // DISPOSITION RULE (D15, PIN-17) rides this seat directly — same reason as the two seats above.
     + DISPOSITION_RULE_CLAUSE
     + FINDING_PATH_FORM_CLAUSE,
@@ -7458,6 +7459,10 @@ if (polishStatus !== 'merged') log('terminal pass: phase ' + ph.id + ' — no me
 // (in-flow, baseline-proceed re-land, environment-proceed re-land) cannot drift from each other. A resolved
 // transient returns 'landed' — NO new status/enum member — so the existing servitorResult gate fires.
 const landErrorArm = pt`return { mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' }`
+// The detach (1) and push-first CAS (3) steps both bounded re-land prompts share — one string each,
+// byte-identical at the environment-proceed and baseline-proceed re-lands.
+const RELAND_DETACH = pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
+const RELAND_CAS = pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); on any exit but 0 or 2, ` + landErrorArm + pt`. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
 const relandDiscrimination = (working) =>
   pt`     - On the FINAL failed CAS attempt (after roundLimit rejected pushes), before returning land_stale, discriminate a contender-less transient from a real divergence: run \`git fetch origin ${working} && git rev-list --left-right --count <merge-sha>...origin/${working}\` — the merge sha the loop just tried to push vs. the freshly-fetched origin tip, NEVER the local follower refs/heads/${working} (it lags). Right count 0 (contender-less transient: every commit on the fetched origin tip is already contained in the merge sha, so no competing commit exists and the rejection cannot be a lost CAS) buys exactly one extra push-first attempt beyond roundLimit exhaustion (an explicit +1, once — not a slot inside roundLimit): re-fetch, re-detach at origin/${working}, re-merge --no-ff, re-gate, land-advance; if that extra attempt also fails, return { mode: 'land-phase', status: 'land_stale' } (topology exhaustion / CAS failure, NOT a content conflict). If that attempt exits anything but 0 or 2, ` + landErrorArm + pt`, never land_stale. Otherwise a nonzero right count (real contender commits on origin) is a real divergence: return { mode: 'land-phase', status: 'land_stale' } immediately, with no extra attempt. A transient that resolves returns status: 'landed' — no new status, so the servitor wrap-up fires automatically.\n`
 
@@ -7587,9 +7592,9 @@ if (landDecision === 'landed') {
       pt`ENVIRONMENT-PROCEED re-land for WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff. mode=land-phase.\n`
       + reattachClause(refineryLandPath)
       + pt`The prior land gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce in a fresh environment, NOT a defect introduced by this phase. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
-      + pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
+      + RELAND_DETACH
       + pt`  2. Merge --no-ff ${ph.integrationBranch}.\n` + PROVISION_RERUN_CLAUSE + pt`     Then run the gate (${plan.gate}) in a FRESH shell with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'land-phase', status: 'gate_failed' } classifying it afresh in gate_failure_class.\n`
-      + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); on any exit but 0 or 2, ` + landErrorArm + pt`. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
+      + RELAND_CAS
       + relandDiscrimination(ph.workingBranch)
       + submodLandNote,
       { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
@@ -7648,9 +7653,9 @@ if (landDecision === 'landed') {
       pt`BASELINE-PROCEED re-land for WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff. mode=land-phase.\n`
       + reattachClause(refineryLandPath)
       + pt`The prior land gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the detached origin/${ph.workingBranch} tip, NOT introduced by this phase: ${(landResult.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
-      + pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
+      + RELAND_DETACH
       + pt`  2. Merge --no-ff ${ph.integrationBranch}.\n` + PROVISION_RERUN_CLAUSE + pt`     Then run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that set is a real regression → return { mode: 'land-phase', status: 'gate_failed' } classifying the NEW failure.\n`
-      + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); on any exit but 0 or 2, ` + landErrorArm + pt`. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
+      + RELAND_CAS
       + relandDiscrimination(ph.workingBranch)
       + submodLandNote,
       { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
