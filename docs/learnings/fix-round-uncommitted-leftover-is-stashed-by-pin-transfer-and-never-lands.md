@@ -1,6 +1,6 @@
 ---
 name: fix-round-uncommitted-leftover-is-stashed-by-pin-transfer-and-never-lands
-description: "A fix-round worker's uncommitted edits get stashed at pin-transfer and dropped, recorded only in free text"
+description: "SUPERSEDED (#2617): a dirty task worktree at pin-transfer or merge-task now holds the task (escalate); stash entries exist only from older runs"
 metadata:
   promoted: dev/2026-10-20-rea-artifact-evidence@phase-6
   node_type: memory
@@ -32,6 +32,8 @@ metadata:
 ---
 
 # Uncommitted work left by an ace fixer never reaches the pin or the land
+
+**SUPERSEDED (#2617, 2026-11-05).** The refiner no longer stashes a leftover. A pin-transfer probe or a per-task merge-task that finds uncommitted tracked edits returns `error` with `detail: "dirty task worktree: <paths>"`, and the engine holds the task with reason `escalate`. For the recovery, read the `dirty at pin-transfer` bullet in `skills/war/references/resume-and-recovery.md`. The stash steps below apply only to entries an older run left.
 
 **What happened.** At task 6.2's pin-transfer, the refiner found uncommitted edits to `hooks/audit-tree-fingerprint.sh` and `hooks/audit-tree-fingerprint.test.sh` in the task worktree. Git refuses a rebase over a dirty tree. The refiner stashed the edits with the message `refiner-p6-6.2-uncommitted-ace-leftover-pintransfer` and did not apply them back. The verdict was still `pin-transfer:git-verified` with equal pre and post patch-id and content-id, because the audited pin was committed.
 

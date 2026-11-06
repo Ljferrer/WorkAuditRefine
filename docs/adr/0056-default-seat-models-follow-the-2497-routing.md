@@ -15,12 +15,15 @@ config.
 base and fix worker tiers run opus, docs-only tasks run sonnet, and auditors run sonnet. The
 values live in `war-config.mjs` and the `/war-room` preset bullets, never restated here.
 
-**`thorough` pins its worker tiers at fable**, so it stays at or above `balanced` on every tier.
+**`thorough` pins its base, docs and fix worker tiers at fable**, so it stays at or above `balanced` on every tier.
 **`economy` moves its docs tier to sonnet**, so `balanced` stays at or above it. The
 model-rank test in `war-config.test.mjs` checks both.
 
 **Ace work gets its own tier.** `agents.worker.ace` drives the `--ace` dispatches and the terminal
-pass. It has no default: an absent ace tier uses the fix tier, so ace runs opus by default.
+pass. At first it had no default, so an absent ace tier used the fix tier. The 2026-11-05
+#2619 amendment below gives ace its own default.
+(2026-11-05 amendment, operator ruling: ace charges 5 and 6 run on `agents.worker.fix`, and
+validation refuses a fix model ranked below the ace model. One rank up is the recommended split.)
 
 **A roster seat can carry its own `model` and `effort`.** They replace the auditor tier for that
 seat only. This is how the Lead keeps opus on a boundary-heavy seat (security, parsing, Git or
@@ -71,6 +74,14 @@ quiet lens is one with only Nits or nothing, and a
 named lens steps down but stops at low at neighbors. Every preset steps down the same way, and `thorough` starts from a
 higher budget. The default config runs no fable audit seat. The values live in `war-config.mjs` and the
 `/war-room` preset bullets, never restated here.
+
+**Amended 2026-11-05 (#2619): ace has its own default.** By operator ruling, `DEFAULTS` sets
+`agents.worker.ace` to opus at `default` effort, and every preset inherits it. An unset ace tier
+now runs on that default, never on the fix tier. The engine's `WORKER_TIER_DEFAULTS` carries the
+same value for a config that reaches it unfilled. Ace charges 5 and 6 still run on the fix tier,
+and validate still refuses a fix model ranked below the ace model. So a config that sets the fix
+tier below opus must also set an ace tier at or below it. Run `a5fc17cc` showed the cost of the
+old fallback: a fable fix tier ran a 32-minute ace polish of Minor and Nit fixes (#2617).
 
 ## Consequences
 

@@ -353,10 +353,14 @@ test('agents.worker.fix: DEFAULTS value, per-preset table, and tier validation w
   assert.match(rk.errors.join('\n'), /\/war-room/)
 })
 
-test('agents.worker.ace (#2519): no DEFAULTS value, absent from every preset, validated like the other worker tiers when present', () => {
-  // Absent by design: the engine falls back to the fix tier, so a config without it dispatches as before the split.
-  assert.equal(DEFAULTS.agents.worker.ace, undefined, 'DEFAULTS carries no ace tier (absent ⇒ the fix tier)')
-  for (const preset of Object.keys(PRESETS)) assert.equal(presetConfig(preset).agents.worker.ace, undefined, `${preset} carries no ace tier`)
+test('agents.worker.ace (#2519, #2619): DEFAULTS sets opus/default, every preset resolves it, validated like the other worker tiers', () => {
+  // #2619 (operator ruling 2026-11-05): ace has its own default, so an unset ace never runs on the fix tier.
+  assert.deepEqual(DEFAULTS.agents.worker.ace, { model: 'opus', effort: 'default' }, 'DEFAULTS carries the ace tier')
+  for (const preset of Object.keys(PRESETS)) {
+    assert.deepEqual(presetConfig(preset).agents.worker.ace, { model: 'opus', effort: 'default' }, `${preset} resolves ace to opus/default`)
+    assert.equal(validate(presetConfig(preset)).valid, true, `${preset} passes the fix-ranks-at-least-ace rule`)
+  }
+  assert.equal(presetConfig('thorough').agents.worker.fix.model, 'fable', 'thorough keeps fix one rank above ace')
   assert.equal(validate({ agents: { worker: { ace: { model: 'opus', effort: 'default' } } } }).valid, true)
   // Delete-the-feature: drop 'ace' from the worker-tier validation loop and these validate.
   const re = validate({ agents: { worker: { ace: { model: 'gpt', effort: 'default' } } } })
@@ -365,8 +369,27 @@ test('agents.worker.ace (#2519): no DEFAULTS value, absent from every preset, va
   const rk = validate({ agents: { worker: { ace: { model: 'opus', effort: 'high', extra: 1 } } } })
   assert.equal(rk.valid, false)
   assert.match(rk.errors.join('\n'), /agents\.worker\.ace\.extra/)
-  // A configured ace tier joins workerTierMatrix only when present.
-  assert.ok(!workerTierMatrix().some(r => r.tier === 'ace'), 'no preset emits an ace row')
+  // Every preset now emits an ace row in workerTierMatrix.
+  for (const preset of Object.keys(PRESETS)) {
+    assert.ok(workerTierMatrix().some(r => r.preset === preset && r.tier === 'ace' && r.model === 'opus'), `${preset} emits an ace row`)
+  }
+})
+
+test('agents.worker.fix must rank at least agents.worker.ace, because ace charges 5 and 6 run on the fix tier (operator ruling 2026-11-05)', () => {
+  const v = (fix, ace) => validate({ agents: { worker: { fix: { model: fix, effort: 'default' }, ace: { model: ace, effort: 'default' } } } })
+  assert.equal(v('fable', 'opus').valid, true, 'one rank up, the recommended split')
+  assert.equal(v('opus', 'opus').valid, true, 'an equal rank is allowed')
+  const low = v('sonnet', 'opus')
+  assert.equal(low.valid, false, 'a fix model below the ace model is refused')
+  assert.match(low.errors.join('\n'), /agents\.worker\.fix\.model must rank at least agents\.worker\.ace\.model/)
+  assert.match(low.errors.join('\n'), /recommended: fix one rank above ace/, 'the refusal names the recommended split')
+  // Operator ruling 2026-11-05 (#2619): the check reads the filled config, so a fix tier below the default ace is refused.
+  assert.equal(validate({ agents: { worker: { fix: { model: 'haiku', effort: 'default' } } } }).valid, false, 'a fix tier below the default ace tier is refused')
+  assert.equal(validate({ agents: { worker: { fix: { model: 'sonnet', effort: 'default' }, ace: { model: 'sonnet', effort: 'high' } } } }).valid, true, 'a low fix tier passes once ace is set at or below it')
+  // An ace-only config meets the defaulted fix tier (opus), because validate checks the filled config.
+  assert.equal(validate({ agents: { worker: { ace: { model: 'fable', effort: 'default' } } } }).valid, false, 'an ace tier above the defaulted fix tier is refused')
+  assert.equal(validate({ agents: { worker: { ace: { model: 'opus', effort: 'default' } } } }).valid, true, 'an ace tier equal to the defaulted fix tier passes')
+  for (const preset of Object.keys(PRESETS)) assert.equal(validate(presetConfig(preset)).valid, true, preset + ' stays valid')
 })
 
 test('audit.roster seat model/effort (#2519): accepted when valid, refused when outside MODELS/EFFORTS', () => {
@@ -378,10 +401,11 @@ test('audit.roster seat model/effort (#2519): accepted when valid, refused when 
 })
 
 // --- workerTierMatrix (T1.1): sibling canonical export the doc-honesty lens consults -------------
-// Mirrors the agentMatrix pattern: base + docs + fix rows per preset — docs and fix are both defaulted
-// in DEFAULTS (fix flipped from absent-by-default once /war-room began asking for the fix-worker tier).
+// Mirrors the agentMatrix pattern: base + docs + fix + ace rows per preset — docs, fix and ace are all
+// defaulted in DEFAULTS (fix flipped from absent-by-default once /war-room began asking for the fix-worker
+// tier, and ace since #2619).
 
-test('workerTierMatrix: base + docs + fix row per preset; fix now defaulted; exact tier values pinned elsewhere (fix + red-team asks)', () => {
+test('workerTierMatrix: base + docs + fix + ace row per preset; fix and ace defaulted; exact tier values pinned elsewhere (fix + red-team asks)', () => {
   const matrix = workerTierMatrix()
   const presets = Object.keys(PRESETS)
   for (const preset of presets) {
@@ -400,8 +424,8 @@ test('workerTierMatrix: base + docs + fix row per preset; fix now defaulted; exa
   // push stays isObj(w.fix)-guarded, so an unset fix would omit its row — the derivation is real).
   assert.ok(presets.every(p => matrix.some(r => r.preset === p && r.tier === 'fix')),
     'fix is defaulted in DEFAULTS, so every preset must emit a fix row')
-  // Total rows: base + docs + fix per preset (3 × |PRESETS|), no phantom tier.
-  assert.equal(matrix.length, presets.length * 3, `workerTierMatrix must have base+docs+fix per preset = ${presets.length}×3 rows`)
+  // Total rows: base + docs + fix + ace per preset (4 × |PRESETS|, ace defaulted since #2619), no phantom tier.
+  assert.equal(matrix.length, presets.length * 4, `workerTierMatrix must have base+docs+fix+ace per preset = ${presets.length}×4 rows`)
   // Every row's model/effort is a valid enum value (an out-of-enum tier literal goes red here).
   for (const r of matrix) {
     assert.ok(MODELS.includes(r.model), `workerTierMatrix (${r.preset}, ${r.tier}).model ${JSON.stringify(r.model)} must be a valid model`)
@@ -1584,8 +1608,9 @@ const DOC_TIER_PINS = [
   ['README.md', /^By default WAR runs (\w+) workers on `(\w+)` effort and/m, 'balanced', 'worker'],
   ['README.md', /^By default WAR runs \w+ workers on `\w+` effort and (\w+) auditors on `(\w+)`/m, 'balanced', 'auditor'],
   ['README.md', /built-in `DEFAULTS`: (\w+) workers on `(\w+)` effort/, 'balanced', 'worker'],
-  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base and fix tiers, with docs-only tasks on \w+\/`\w+`\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
-  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base and fix tiers, with docs-only tasks on (\w+)\/`(\w+)`\)/, 'balanced', 'worker.docs'],
+  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, fix and ace tiers, with docs-only tasks on \w+\/`\w+`\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
+  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, fix and ace tiers, with docs-only tasks on (\w+)\/`(\w+)`\)/, 'balanced', 'worker.docs'],
+  ['README.md', /built-in `DEFAULTS`: (\w+) workers on `(\w+)` effort \(base, fix and ace tiers/, 'balanced', 'worker.ace'],
   // ADR 0050's effort-compensation example names the economy auditor seat.
   ['docs/adr/0050-preset-tiers-order-by-model-capability.md', /for example (\w+) auditors on `(\w+)`\)/, 'economy', 'auditor'],
 ]
@@ -1614,7 +1639,7 @@ const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetCo
 // Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
 // SKILL_SEAT_PATHS: every agents.<skill>.<seat> tier (ADR 0056). The skill block itself is a seat map, not a tier.
 const SKILL_SEAT_PATHS = Object.entries(SKILL_SEATS).flatMap(([skill, seats]) => seats.map(seat => `${skill}.${seat}`))
-const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'auditor.rebuttal', 'auditor.high', 'snipe.low', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', 'helper', ...SKILL_SEAT_PATHS]
+const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'worker.ace', 'auditor', 'auditor.rebuttal', 'auditor.high', 'snipe.low', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', 'helper', ...SKILL_SEAT_PATHS]
 test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
   // A new agents.<tier> in DEFAULTS, or a new object-valued worker sub-tier, must join both lists.
   const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -1671,7 +1696,7 @@ test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig
 // once, no unknown label (the label group is open, so a stray `planner opus/`high`` token reaches the
 // census and fails it), every value equal to presetConfig(). A new preset without a bullet, a bullet
 // that drops a tier, or a reworded token all red here.
-const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', 'rebuttal-tier': 'auditor.rebuttal', 'audit-high-tier': 'auditor.high', 'snipe-low-tier': 'snipe.low', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial', 'helper-tier': 'helper' }
+const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', 'ace-tier': 'worker.ace', auditors: 'auditor', 'rebuttal-tier': 'auditor.rebuttal', 'audit-high-tier': 'auditor.high', 'snipe-low-tier': 'snipe.low', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial', 'helper-tier': 'helper' }
 // OPTIONAL_BULLET_LABELS: a tier with no DEFAULTS value (auditor.low, #2534). Its token sits in a preset's
 // bullet exactly when that preset sets the tier, and then equals presetConfig().
 const OPTIONAL_BULLET_LABELS = { 'audit-low-tier': 'auditor.low' }

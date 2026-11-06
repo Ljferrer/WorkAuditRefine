@@ -53,16 +53,16 @@ export const DEFAULTS = {
   version: 1,
   profile: 'balanced',
   agents: {
-    // worker.docs dispatches all-*.md tasks; worker.fix dispatches fix rounds and floor retries, and
-    // --ace plus the terminal pass unless worker.ace is set (#2519; ace has no default, so an absent
-    // ace inherits fix). The worker tiers (base, docs, fix) are defaulted here; a preset may re-pin any of them (see PRESETS) and a config may
+    // worker.docs dispatches all-*.md tasks; worker.fix dispatches fix rounds and floor retries; worker.ace
+    // dispatches --ace and the terminal pass (#2519). Ace has its own default (#2619), so an unset ace never
+    // runs on fix. Ace charges 5 and 6 always run on fix, and validate checks fix ranks >= ace. The worker tiers (base, docs, fix, ace) are defaulted here; a preset may re-pin any of them (see PRESETS) and a config may
     // override any tier per run. Every prose surface that restates a value from this object is bound
     // to presetConfig() by DOC_TIER_PINS / the /war-room bullet parser in war-config.test.mjs — when
     // you add a restatement, add a pin row; when you cannot, write a pointer instead of the value.
     // Seat models follow the #2497 / #2519 routing (ADR 0056): opus for bounded worker, fix and ace work,
     // sonnet for docs-only tasks and routine audit seats. The Lead picks each roster seat's tier (#2534), and
     // a boundary-heavy seat takes auditor.high.
-    worker:   { model: 'opus',   effort: 'default', docs: { model: 'sonnet', effort: 'high' }, fix: { model: 'opus', effort: 'default' } },
+    worker:   { model: 'opus',   effort: 'default', docs: { model: 'sonnet', effort: 'high' }, fix: { model: 'opus', effort: 'default' }, ace: { model: 'opus', effort: 'default' } },
     // auditor.rebuttal: the rebuttal-round seat tier, one model above the auditor (capped at fable).
     // auditor.high: the tier a seat with tier 'high' runs on (#2534). auditor.low has no default, so a seat
     // with no tier or tier 'low' runs the base auditor model and effort unless a config sets low.
@@ -294,16 +294,16 @@ export function agentMatrix() {
 // Enumerated (preset, tier, model, effort) worker-tier matrix — the worker-role sibling of
 // agentMatrix() (ADR 0025 drift-guard discipline). One row per (preset × PRESENT worker tier):
 // 'base' (the worker role's own model/effort), 'docs' (defaulted in DEFAULTS — the all-*.md tier),
-// and 'fix' (the fix-round + --ace tier — now defaulted in DEFAULTS too, so every preset emits a fix
-// row). Reuses presetConfig()'s merge and iterates the live PRESETS, so a new preset or tier is
+// 'fix' (the fix-round tier) and 'ace' (the --ace + terminal-pass tier, #2619) — both defaulted in DEFAULTS
+// too, so every preset emits a fix and an ace row). Reuses presetConfig()'s merge and iterates the live PRESETS, so a new preset or tier is
 // enumerated automatically. The doc-honesty lens consults it to prove documented tier values (the
-// docs and fix tiers per preset) match this canonical source, not a hand-copied literal.
+// docs, fix and ace tiers per preset) match this canonical source, not a hand-copied literal.
 export function workerTierMatrix() {
   return Object.keys(PRESETS).flatMap(preset => {
     const w = presetConfig(preset).agents.worker
-    // base + docs are always effective (both defaulted in DEFAULTS); fix is likewise defaulted in
-    // DEFAULTS now, so every preset emits a fix row. The push stays guarded on isObj(w.fix), so a
-    // hand-written config that drops the fix tier simply omits its row (never a fabricated tautology).
+    // base + docs are always effective (both defaulted in DEFAULTS); fix and ace are likewise defaulted
+    // in DEFAULTS now, so every preset emits both rows. The pushes stay guarded on isObj, so a config
+    // that nulls a tier simply omits its row (never a fabricated tautology).
     const tiers = [['base', w], ['docs', w.docs]]
     if (isObj(w.fix)) tiers.push(['fix', w.fix])
     if (isObj(w.ace)) tiers.push(['ace', w.ace])
@@ -339,13 +339,18 @@ export function validate(input) {
     if (!EFFORTS.includes(a.effort)) errors.push(`agents.${role}.effort must be one of ${EFFORTS.join('|')} (got ${JSON.stringify(a.effort)})`)
   }
   // Worker tiers: agents.worker.docs (all-*.md dispatch tier), agents.worker.fix (fix-round + floor-retry
-  // tier, both defaulted in DEFAULTS) and agents.worker.ace (--ace + terminal-pass tier, no default:
-  // absent ⇒ fix). Each a { model, effort } tier validated like a role when present (unknown sub-keys
-  // rejected); a hand-written config may still omit any of them, which validates fine.
+  // tier) and agents.worker.ace (--ace + terminal-pass tier, #2619), all three defaulted in DEFAULTS. Each a
+  // { model, effort } tier validated like a role when present (unknown sub-keys rejected).
   const worker = c.agents.worker
   if (isObj(worker)) {
     for (const tier of ['docs', 'fix', 'ace']) {
       if (Object.prototype.hasOwnProperty.call(worker, tier)) validateAgentTier(worker[tier], `agents.worker.${tier}`, errors)
+    }
+    // Ace charges 5 and 6 run on the fix tier (aceSpawn in workflow-template.js), so the fix model must
+    // rank at least the ace model. One rank above is the recommended split (operator ruling 2026-11-05).
+    const fx = worker.fix, ac = worker.ace
+    if (isObj(fx) && isObj(ac) && MODEL_RANK.indexOf(fx.model) < MODEL_RANK.indexOf(ac.model)) {
+      errors.push(`agents.worker.fix.model must rank at least agents.worker.ace.model (${MODEL_RANK.join(' < ')}): ace charges 5 and 6 run on the fix tier (got fix ${JSON.stringify(fx.model)}, ace ${JSON.stringify(ac.model)}; recommended: fix one rank above ace)`)
     }
   }
   if (isObj(c.agents.refiner) && Object.prototype.hasOwnProperty.call(c.agents.refiner, 'recovery')) validateAgentTier(c.agents.refiner.recovery, 'agents.refiner.recovery', errors)

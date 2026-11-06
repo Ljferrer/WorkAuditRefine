@@ -61,7 +61,7 @@ export const meta = {
 //                                     // overrides.ghUser; string, default '' — gh-preflight.sh's documented no-op)
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
 //                                     // auditor may also carry { rebuttal?, high?, low? } { model, effort } sub-tiers (#2534: high defaulted, low not).
-//                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (defaulted in war-config DEFAULTS), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
+//                                     // worker may also carry { docs?, fix?, ace? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (defaulted in war-config DEFAULTS), fix = the fix-round tier (absent ⇒ inherit worker), ace = the --ace + terminal-pass tier (absent ⇒ its default).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
 //     absorbCharges?,                 // optional { <task>: n } Lead override of the barrier's Ace-Charge read at a relaunch — read unconditionally
 //                                     // (no recovery gate); wins over the barrier map, logged; a non-object map is logged and ignored.
@@ -240,7 +240,7 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
 const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties: {
   mode: { enum: ['merge-task', 'land-phase'] },
   status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'unpackaged', 'done-unmet', 'submodule-blocked', 'submodule-pr'] },
-  branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' },
+  branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' }, detail: { type: 'string' },
   // gate_sha (#2485 D12, PIN-12): the rebased task tip the merge-task gate ran at — the task merge
   // commit's second parent. integration_sha is the --no-ff merge commit itself (D8), so the two differ
   // on every task merge: landMerged reads gateHeadSha from gate_sha and the lastLandedTip tracker from
@@ -301,7 +301,7 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   floor_route: { enum: ['budget-uncited'] },
   // land_segment (Phase 6 Task 1 (a), A6 REVISED): the in-band segmented-land marker — the literal
   // 'incomplete' riding status:'error' when the land dispatch is FORCED to return before the land
-  // completes (the gate outran the tool timeout). land-phase only, OPTIONAL. Orthogonal to status
+  // completes (e.g. the backgrounded gate job died before it wrote exit_code:). land-phase only, OPTIONAL. Orthogonal to status
   // exactly like gate_failure_class — NO status enum value, HARD_ESCALATION_REASONS member, or
   // KNOWN_LAND_DECISIONS member is added or changed (land-decision.mjs untouched, ADR 0005; unlike
   // floor_route, this marker mints no HARD_ESCALATION_REASONS member). The
@@ -314,7 +314,7 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   land_segment: { enum: ['incomplete'] },
   // gate_segment (D7, PIN-11, A4, #2086): the merge-task twin of land_segment — the literal
   // 'incomplete' riding status:'error' when a merge-task dispatch is FORCED to return before its
-  // gate finishes (the gate was backgrounded with run_in_background). merge-task only, OPTIONAL.
+  // gate finishes (its backgrounded gate job died before it wrote exit_code:). merge-task only, OPTIONAL.
   // The land_segment pin's shape: NO status enum value, HARD_ESCALATION_REASONS member, or
   // KNOWN_LAND_DECISIONS member is added or changed (PIN-2). segmentedMerge re-dispatches the
   // merge-task while the marker rides its contracted status:'error' pair, bounded by roundLimit;
@@ -332,7 +332,7 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
 // fail-OPEN on the task (a red gate with a new id forward-reverts the ace tip and the approved pre-ace
 // tip still merges, PIN-2).
 // gate_segment (#2326): the MERGE_RESULT marker's ace twin. The literal 'incomplete' rides
-// gate_green:false when the gate outran the turn, so an unfinished gate never reads as a failed one.
+// gate_green:false when the backgrounded gate job died before it wrote exit_code:, so an unfinished gate never reads as a failed one.
 // aceGateGreen re-dispatches on that pair, bounded by roundLimit. A gate_green:true reply with a
 // stray marker is a green reply.
 // gate_failing_ids (late-defects D10, PIN-10): the red arm's failing test ids, which aceGateGreen
@@ -356,7 +356,8 @@ const PRE_ACE_PROBE = { type: 'object', required: ['exists'], properties: { exis
 // re-audit, today's behaviour, PIN-1), 'already_upstream' (empty post-rebase diff whose pre-rebase task
 // listed non-merge commits cherry-match upstream, with final-tree proof checked separately, PIN-16), 'empty-unmatched' (empty diff with zero task commits,
 // unmatched patches, or an empty pre-rebase patch-id — fails CLOSED to a hard escalation, #1895),
-// 'conflict', and 'error' (fail-open: the ordinary merge dispatch runs unchanged). dispatch_base (D4,
+// 'conflict', and 'error' (fail-open: the ordinary merge dispatch runs unchanged; an error whose detail
+// starts 'dirty task worktree' holds the task, #2617). dispatch_base (D4,
 // PIN-8, #1973): the merge-base the probe measured PRE from — returned so the consumer can refuse an
 // already_upstream whose rebased_tip is that base (the contradiction signature). Success evidence
 // is checked by the consumer before recording it; the API rejects top-level schema combinators.
@@ -874,23 +875,22 @@ const bareWord = w => /^[\w./=:,@^~%+-]+$/.test(w)
 const shq = w => bareWord(w) ? w : "'" + w.split("'").join("'\\''") + "'"
 const helperOpts = (...words) => words.every(bareWord)
   ? { agentType: NS + 'war-helper', ...spawn('helper') } : { agentType: NS + 'war-refiner', ...spawn('refiner') }
-// Worker sub-tier SANDBOX fallbacks. docs is bound to DEFAULTS.agents.worker.docs by the D2 registry
-// row in workflow-template.engine-1.test.mjs. fix (the fix-round + floor-retry tier) is NOT listed
+// Worker sub-tier SANDBOX fallbacks. docs and ace (#2619) are bound to DEFAULTS.agents.worker by the D2
+// registry row in workflow-template.engine-1.test.mjs. fix (the fix-round + floor-retry tier) is NOT listed
 // here even though DEFAULTS/presets now default it: its authoring default is applied by fillDefaults
 // BEFORE the resolved config reaches this sandbox, so at this layer an absent fix ⇒ inherit the base
 // worker (the correct fallback for a partial/hand-passed config — nothing to bind).
-const WORKER_TIER_DEFAULTS = { docs: { model: 'sonnet', effort: 'high' } }
+const WORKER_TIER_DEFAULTS = { docs: { model: 'sonnet', effort: 'high' }, ace: { model: 'opus', effort: 'default' } }
 // spawnWorker(tier): worker spawn opts for a sub-tier ('docs'|'fix'|'ace') — the configured agents.worker[tier]
-// block when present, else WORKER_TIER_DEFAULTS[tier] (docs), else the base worker (fix absent ⇒ inherit;
-// a null/absent tier ⇒ base). ace (the --ace + terminal-pass tier, #2519) has no default: absent ⇒ the fix
-// tier's opts, so a config without agents.worker.ace dispatches exactly as before the split. A partial tier block falls back to ITS tier's default model (docs ⇒ WORKER_TIER_DEFAULTS.docs),
+// block when present, else WORKER_TIER_DEFAULTS[tier] (docs, ace), else the base worker (fix absent ⇒ inherit;
+// a null/absent tier ⇒ base). ace (the --ace + terminal-pass tier, #2519; charges 5 and 6 take fix, see aceSpawn) has its
+// own default (#2619): absent ⇒ WORKER_TIER_DEFAULTS.ace, never the fix tier. A partial tier block falls back to ITS tier's default model,
 // matching war-config's fillDefaults deep-merge. Effort only when non-default (omit = inherit session).
 const spawnWorker = tier => {
   if (!tier) return spawn('worker')
   const w = agents.worker || {}
   const dflt = WORKER_TIER_DEFAULTS[tier]
   const cfg = w[tier], isBlock = cfg && typeof cfg === 'object' && !Array.isArray(cfg)
-  if (tier === 'ace' && !isBlock) return spawnWorker('fix')
   const a = isBlock ? cfg : (dflt || w)
   const model = a.model || (dflt && dflt.model) || ROLE_MODEL.worker
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
@@ -1612,7 +1612,7 @@ async function provisionStep(task, purpose = pt`for WAR task ${task.id} before i
 // Prompt fragment threaded into the worker AND fix-worker: both run in the SAME worktree, so both
 // must be told the pinned provision list (idempotent — re-running it is safe; D-Validation).
 const provisionClause = provisionList.length
-  ? pt`\nThis worktree was provisioned with (source: ${provisionSource}); re-run them if the env looks unset before you drive the gate:\n`
+  ? pt`\nThis worktree was provisioned with (source: ${provisionSource}); re-run them if the env looks unset before you run tests:\n`
     // pt-tagged prompt-feeding row builder (threaded into worker/fix/ace/polish prompts); ${c ?? '<step>'}
     // absence-tolerant (this clause is built at init — top-level-catch context; placeholder over a throw).
     + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n')
@@ -1978,6 +1978,8 @@ const NEVER_MOVE_LITERAL = 'never move a version literal or the CHANGELOG head h
 // them. ONE const (the NEVER_MOVE_LITERAL precedent) interpolated at the four ace builds and the chain
 // clause; agents/war-worker.md step 5 carries it verbatim (the `2485/ES11 card mirror` row).
 const TRAILER_BLOCK_RULE = 'Put every trailer, attribution lines included, in one final trailer block: git parses trailers only from the last paragraph of a message.'
+// FIX_GATE_RULE (#2617): fix dispatches skip the full gate. The engine gates the new tip, and agents/war-worker.md carries this text verbatim.
+const FIX_GATE_RULE = 'Before you commit, run only the tests you touched and any Done when: command. The engine runs the full gate at your new tip, and a red there fails this attempt.'
 const releaseSlotAceClause = t => isReleaseTask(t)
   ? pt`\nRELEASE TASK: version-slots.test.mjs in the gate is the merge guard — a slot moved out of lock-step reds it; the CHANGELOG head entry and the README \`## Status\` blurb are twins that move together or not at all; ${NEVER_MOVE_LITERAL} or the \`## Status\` version token (plugin.json/marketplace.json are refused by basename, never edited here).`
   : ''
@@ -2892,7 +2894,11 @@ ORIGINAL OPERATION (all requirements still apply):
   }
   throw new Error('Uncertain Git mutation at ' + opts.label + ': automatic refiner reconciliation could not establish certainty after ' + roundLimit + ' attempts; hold before land' + (note ? ': ' + note : ''))
 }
-const uncertainMerge = result => !!deathOf(result) || !result || result.status === 'error' || !MERGE_RESULT.properties.status.enum.includes(result.status)
+// isDirty (#2617): a merge-task or pin-transfer stop on a dirty task worktree. It skips Git reconciliation,
+// because the reconciler may clean the tree and merge past the hold. routedMr and the pin-transfer arm hold it.
+// Unconfirmed by Git, a per-task stop keeps its prefix and holds (the Lead checks Git), and a sweep-family stop reconciles.
+const isDirty = r => r?.status === 'error' && /^dirty task worktree/.test(r.detail)
+const uncertainMerge = result => !!deathOf(result) || !result || result.status === 'error' && !isDirty(result) || !MERGE_RESULT.properties.status.enum.includes(result.status)
 const reconciledMerge = async (prompt, opts, context, invoke = dispatchSite) => {
   const capture = newGateCapture(context.repo, context.land ? 'land-' + context.task : context.task)
   const body = prompt + '\n' + capture.clause
@@ -2904,7 +2910,7 @@ const reconciledMerge = async (prompt, opts, context, invoke = dispatchSite) => 
     if (!uncertainMerge(result)) {
       const proof = await confirmMerge(result, opts, context, before)
       result = proof ? gitBoundGateSha(result, proof, context)
-        : { ...result, status: 'error', detail: 'Git did not confirm the reported merge outcome; automatic reconciliation required' }
+        : { ...result, status: 'error', detail: (context.kind === 'task' && isDirty(result) ? result.detail + '; ' : '') + 'Git did not confirm' }
     }
   }
   catch (err) { thrown = err; result = { mode: context.land ? 'land-phase' : 'merge-task', status: 'error', detail: 'lost merge dispatch: ' + String(err && err.message || err) } }
@@ -3039,11 +3045,12 @@ const MEMORY_QUERY_BASE_LINE = memoryLocalRoot
 // Workers and auditors also report use. The servitor has no lessonsUsed field (ADR 0055).
 const MEMORY_QUERY_TOOL_LINE = MEMORY_QUERY_BASE_LINE.replace(/\n$/, ' If a lesson changed your work, list its slug in lessonsUsed.\n')
 // Done-when threading (precision-chain D6, Task 1.3 — prompt truth): the task's `Done when:` acceptance
-// command rides the six TASK-SCOPED worker-family dispatched prompts — the primary dispatch plus the
-// five fix-family prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, MAKE_DONE_PASS, ace) — as a `Done when:` line beside the
-// Gate: command, so no task-scoped prompt says keep-the-gate-green without carrying the commands that
-// define green (the phase-close sweep is phase-scoped, carries no task doneWhen, and already names the
-// gate inline). Absent/null/empty
+// command rides every TASK-SCOPED worker-family dispatched prompt — the primary dispatch plus each
+// task-scoped fix-family prompt (the harness's DONE_WHEN_SITES enumerates them) — as a `Done when:` line beside the
+// Gate: command, so each task-scoped fix prompt names the Done when: command its FIX_GATE_RULE tells the
+// worker to run (the phase-close sweep and terminal pass are phase-scoped, carry no task doneWhen, and
+// name the gate inline).
+// Absent/null/empty
 // ⇒ '' (the set-minus pattern): a legacy plan with no `Done when:` bullets dispatches prompts
 // byte-identical to a doneWhen-less run (End state 9). Prompt truth only — the floor that EXECUTES the
 // command at merge is the assert-done-when.sh floor (refiner-side; doneWhenFloorClause below), never this clause.
@@ -3106,8 +3113,10 @@ const doneWhenLogOf = mr => (mr && typeof mr.done_when_log_path === 'string' && 
 // (`merge:p<id>-terminal`) — are deliberately unwrapped: a budget-uncited there fail-open DISCARDS that
 // sweep (#1744). 'budget-uncited' is a HARD_ESCALATION_REASONS member (D6, ADR 0005), so a normalized result
 // escalates as hard as the raw 'no-test' did, under its real name.
+// #2617 (operator ruling 2026-11-05): a merge-task that stops on a dirty task worktree holds like the
+// pin-transfer probe does: its error reads as the hard reason escalate at every routedMr site.
 const routedMr = mr => (mr && mr.status === 'no-test' && mr.floor_route === 'budget-uncited')
-  ? { ...mr, status: 'budget-uncited' } : mr
+  ? { ...mr, status: 'budget-uncited' } : isDirty(mr) ? { ...mr, status: 'escalate' } : mr
 const debtIds = ids => (Array.isArray(ids) ? ids : (ids ? [ids] : [])).map(String)
 // recordBaselineDebt: dedup by SUBSET-CONTAINMENT with an EMPTY-set carve-out (#798). A NON-EMPTY
 // id-set that is a subset (⊆) of some existing entry's ids at the SAME base sha is a no-op — already
@@ -3193,7 +3202,11 @@ const classificationClause = (refineryP, baseDesc) =>
 const GATE_LOG_STAMP = pt`Stamp the artifact: its FIRST line is \`tip_sha: <the sha the gate ran at>\` and its LAST line is \`exit_code: <the gate's exit code>\`, written after the gate exits — the stamp is what makes a partial or stale log decidable.`
 // The refiner reads only a continuation's returned artifact; every other logical attempt
 // allocates a fresh file. Byte-equal standing card twin (PIN-1); the engine never opens logs.
-const PARTIAL_LOG_RULE = pt`Only an explicitly marked SEGMENTED continuation may reuse its returned gate_log_path. Read only that supplied path, never a guessed conventional path: it is THIS logical dispatch's completed gate result only when its FIRST line is \`tip_sha:\` of the sha being gated AND its LAST line is \`exit_code:\`. If absent, unstamped, partial or stale, wait for the known writer or rerun into a FRESH unique artifact; never truncate or reuse a file a prior background job may still write. A fresh logical dispatch always allocates a fresh artifact, even at the same tip.`
+// DIRTY_TASK_STOP (#2617): the pin-transfer probe and every segmentedMerge site stop on tracked edits;
+// the shared stash is never a workaround. The per-task sites hold (routedMr); the polish and terminal
+// sweep merges take their fail-open discard.
+const DIRTY_TASK_STOP = pt`Never run git stash: every worktree and session shares the stash. Before any forward-revert or rebase: if git -C <rebase worktree> status --porcelain --untracked-files=no prints anything, return { status: 'error', detail: 'dirty task worktree: <those paths>' }.\n`
+const PARTIAL_LOG_RULE = pt`Only an explicitly marked SEGMENTED continuation may reuse its returned gate_log_path. Read only that supplied path, never a guessed conventional path: it is THIS logical dispatch's completed gate result only when its FIRST line is \`tip_sha:\` of the sha being gated AND its LAST line is \`exit_code:\`. If absent, unstamped, partial or stale, rerun into a FRESH unique artifact; never truncate or reuse a file a prior background job may still write. A fresh logical dispatch always allocates a fresh artifact, even at the same tip.`
 // Missing paths are evidence absence, never permission to read a previous dispatch's file.
 const GATE_LOG_UNTHREADED = pt`(gate_log_path unthreaded — no captured artifact)`
 const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRST line is \`tip_sha:\` of the gated sha and its LAST line is \`exit_code:\` (the refiner's stamp); a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding. An unthreaded gate_log_path means no captured artifact: SOFT cannot-confirm, never guess a conventional path.`
@@ -3204,7 +3217,7 @@ const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRS
 // environment-proceed or baseline-proceed prompt allows, for the merge and land clauses alike. The ace
 // gate check and its pre-ace base check carry it too, and no ace gate prompt allows such a re-run.
 const backgroundGateRule = shape =>
-  pt`BACKGROUNDED GATE (tool-timeout survival): if the gate cannot finish inside this turn, start it with run_in_background (teed to the stamped gate log) and return ${shape} — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an environment-proceed or baseline-proceed prompt allows. ${PARTIAL_LOG_RULE}`
+  pt`BACKGROUNDED GATE (tool-timeout survival): a foreground call stops at 120000 ms unless you pass timeout. If the gate can outrun one tool call (600000 ms), start it with run_in_background (teed to the stamped gate log), then poll that log with foreground calls in this same turn until its LAST line is exit_code: — your turn end kills the job. Return ${shape} only if the job dies before it writes exit_code: — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an environment-proceed or baseline-proceed prompt allows. ${PARTIAL_LOG_RULE}`
 const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: '<the step you reached>' }`)
 // segmentLoop(result, isSegment, redispatch): the roundLimit bound every segmented gate shares.
 // redispatch takes the incomplete result and the next segment ordinal, and returns the admitted reply.
@@ -3220,14 +3233,14 @@ const segmentLoop = async (result, isSegment, redispatch) => {
 // (segmentedLand's shape; PIN-9's pair read: a merged result carrying a stray marker is a merge, a
 // marker-absent error is one dispatch that routes by its status). The continuation carries the FULL
 // merge prompt, PARTIAL_LOG_RULE included. Exhaustion returns the final still-incomplete result and
-// its ridden status ('error') routes at the call site. Git reconciliation runs first, so a sweep-family
-// site takes its fail-open arm only once Git proves the merge unmerged. Labels and log lines are
+// its ridden status ('error') routes at the call site. Git proof runs first (confirmation, or
+// reconciliation when that fails), so a sweep-family site takes its fail-open arm only once Git proves the merge unmerged. Labels and log lines are
 // concatenation-built.
 // A dispatch death enters Git reconciliation; only a proved-unmerged death reaches the merge slot. A
 // snapshot death, or TARGET_LOST or TARGET_LATE, returns before any merge dispatch.
 const segmentedMerge = async (prompt, opts, context) => {
   const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
-  return reconciledMerge(prompt + segmentedGateClause, opts, context, async (body, opts, capture) => {
+  return reconciledMerge(DIRTY_TASK_STOP + prompt + segmentedGateClause, opts, context, async (body, opts, capture) => {
     const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
       log('Phase ' + ph.id + ': segmented gate — ' + opts.label + ' returned gate_segment:\'incomplete\' (' + (result.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
       return admitGateResult(await dispatchSite(
@@ -4159,12 +4172,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // the task's absorbRounds (`ace:<site>:<task>:a<n>` — site is `polish` for the batch ace, `subset`
   // for a bisection subset, `reentry` for a re-entry batch; n = the slot this commit would charge;
   // the ace-gate label keeps `ace-gate:<task>:a<n>`, no site segment).
-  // The site segment (verdict-integrity D14, PIN-18, #2085) lets the keep-green reachability floor tell the three
+  // The site segment (verdict-integrity D14, PIN-18, #2085) lets the fix-gate reachability floor tell the three
   // dispatch sites apart by label alone. Every ace-side COMMIT carries the `Ace-Charge: <task>:<n>`
   // trailer, n = absorbRounds AFTER the charge — the git-derived relaunch seed the barrier reads
   // back (highest index). Reverts carry no charge trailer. Concatenation-built (census-safe).
   const aceLabel = (r, site) => 'ace:' + site + ':' + r.task.id + ':a' + (r.task.absorbRounds + 1)
   const aceChargeOf = r => r.task.id + ':' + (r.task.absorbRounds + 1)
+  // aceSpawn: ace charges 5 and 6 (the last two of the default budget) run on the fix tier, which
+  // war-config validate requires to rank at least the ace tier (operator ruling 2026-11-05).
+  const aceSpawn = r => spawnWorker(r.task.absorbRounds > 3 ? 'fix' : 'ace')
   // Shared refiner range revert (#2485 D17) before a bisection subset or re-entry worker: it used to
   // ride the worker prompt. A refiner reverts <approved>..HEAD (approved from the engine, HEAD from
   // Git) in phase Audit and reports the post-revert tip, which is that worker's pre-dispatch tip — so a
@@ -4216,7 +4232,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // approved pre-ace tip merges; it is never a fix loop and never a hold. Returns { green, died }:
   // a dispatch death (D21) is neither green nor red — `died` names the site and the caller abandons
   // the current subset with the existing abandon reason (the gate never judged the tip).
-  // A gate that outruns the turn (#2326, #2329) is also neither: the refiner backgrounds it and returns
+  // A gate that outruns one tool call (#2326, #2329, #2617) is also neither: the refiner backgrounds it, polls it in the same turn, and only if that job dies returns
   // the gate_segment pair, and aceSegments re-dispatches, bounded by roundLimit. A spent bound takes
   // the `died` route, because nothing judged the tip: the ace tip forward-reverts and the rows reach the
   // sweep with a reason that names the unfinished gate, never a red one. The refiner card's Gate
@@ -4515,7 +4531,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         pt`ACE BISECTION SUBSET for WAR task ${r.task.id} (a regressed --ace batch re-applied in subsets). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match (a subset's trailer value can be a strict prefix of a later, wider sibling's); on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
         + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-        + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer lines \`Ace-Subset: ${trailer}\` and \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (The panel re-audits the new sha; a regression is forward-reverted.)\n`
+        + pt`Apply the smallest mechanical fix for EACH finding below and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer lines \`Ace-Subset: ${trailer}\` and \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (The panel re-audits the new sha; a regression is forward-reverted.) ${FIX_GATE_RULE}\n`
         // pt-tagged prompt-feeding rows (subset prompt, top-level-catch): f.severity is construction-
         // guaranteed (sub.findings ⊆ aceable); the shared aceFindingRow builder is absence-tolerant.
         + sub.findings.map(aceFindingRow).join('\n') + '\n'
@@ -4523,7 +4539,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + chainFixClause(r.task, chainRound, 'ace subset', sub.findings.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...spawnWorker('ace') })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...aceSpawn(r) })
       // A subset worker death (D21) reads through deathOf FIRST — the site-named cause becomes the
       // abandon reason below, never a hold and never a content verdict. Dead or not, blocked or not,
       // the tip probe reads the branch next (#2485 D2): only a moved tip is a subset commit.
@@ -4673,13 +4689,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         pt`ACE RE-ENTRY BATCH for WAR task ${r.task.id} (fresh absorb findings born at a re-audit — the ladder re-opens, budget-bounded). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + pt`PREFLIGHT (resume idempotency): scan the range (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${reentryRange}\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match; on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
         + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-        + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale (an absorb-by-citation row's cited row-id + match rationale included), its message ENDING with the trailer lines \`Ace-Subset: ${trailer}\` and \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (The panel re-audits the new sha; a regression is forward-reverted.)\n`
+        + pt`Apply the smallest mechanical fix for EACH finding below and make EXACTLY ONE commit citing each finding's title + rationale (an absorb-by-citation row's cited row-id + match rationale included), its message ENDING with the trailer lines \`Ace-Subset: ${trailer}\` and \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (The panel re-audits the new sha; a regression is forward-reverted.) ${FIX_GATE_RULE}\n`
         + batch.map(aceFindingRow).join('\n') + '\n'
         + FIX_ROUND_DOCTRINE_CLAUSE
         + chainFixClause(r.task, chainRound, 'ace re-entry', batch.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...spawnWorker('ace') })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...aceSpawn(r) })
       // a re-entry worker death (D21) takes the existing abandon arm, site-named
       const rwWhy = deathOf(rw) || nullDied(rw, aceLabel(r, 'reentry')) || blockedReason(rw)
       // dead or not, blocked or not (#2485 D2)
@@ -4890,22 +4906,22 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         const chainRound = correctiveRoundOf('ace', r.task)
         const ace = await dispatchSite(
           pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. ` + provisionedLine(r.task)
-          // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
+          // Prompt truth (D6): fix prompts carry the gate command + the task's
           // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
           + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-          + pt`This task is ALREADY APPROVED. These are auditor-flagged absorb-disposition Minor/Nit findings — apply the smallest mechanical fix for EACH, keep the gate green, and make EXACTLY ONE commit whose message cites each finding's title + rationale:\n`
+          + pt`This task is ALREADY APPROVED. These are auditor-flagged absorb-disposition Minor/Nit findings — apply the smallest mechanical fix for EACH and make EXACTLY ONE commit whose message cites each finding's title + rationale:\n`
           // pt-tagged prompt-feeding rows (ace prompt, top-level-catch): f.severity is construction-guaranteed (aceable =
           // minorsOf/absorb → Minor/Nit only, bare); the shared aceFindingRow builder is absence-tolerant
           // (and renders a citation-resolved row's row-id + match rationale, D6).
           + aceable.map(aceFindingRow).join('\n') + '\n'
-          + pt`Make ONE commit only, its message ENDING with the trailer line \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (The panel re-audits it at the new sha; on regression it is forward-reverted.) Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
+          + pt`Make ONE commit only, its message ENDING with the trailer line \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (The panel re-audits it at the new sha; on regression it is forward-reverted.) Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}. ${FIX_GATE_RULE}`
           + chainFixClause(r.task, chainRound, 'ace advisory polish', aceable.map(relationTagOf))
           + FIX_ROUND_DOCTRINE_CLAUSE
           + FIX_ROUND_SCOPE_CLAUSE
           + fixRoundFenceClause(polishFence)
           + POLISH_FILES_CLAUSE
           + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...spawnWorker('ace') })
+          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...aceSpawn(r) })
         recordIgnoreList('advisory polish', r.task.id, ace)
         // an ace worker death (D21) takes the existing failed-attempt arm, site-named
         const aceWhy = deathOf(ace) || blockedReason(ace)
@@ -5235,10 +5251,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         chainRecordAudit(task, chainRound, seats)
         const fix = await dispatchAgent(
           pt`FIX_NEEDED for WAR task ${task.id}. ` + provisionedLine(task)
-          // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
+          // Prompt truth (D6): fix prompts carry the gate command + the task's
           // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
           + pt`Gate: ${plan.gate}${doneWhenClause(task)}\n`
-          + pt`Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
+          + pt`${FIX_GATE_RULE}\nResolve ALL of these blocking findings, commit and push:\n`
           // pt-tagged prompt-feeding rows (fix prompt, thunk-catch): f.severity is construction-guaranteed (b =
           // blockingOf → Critical/Major only, bare); title/file/rationale are schema-optional → ?? '' absence-tolerant.
           // A multi-line rationale (its `relation: <tag>` last line) rides through indentLines, and suggested_fix
@@ -5431,6 +5447,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // reverts twice; a staged index (INDEX-DIRTY) or a reverted index that is not the approved tree
       // (TREE-MISMATCH) makes no commit and the refiner stops with status 'error', so no content a
       // panel never judged is committed or merged. Ace never turns a mergeable task into a hold.
+      // DIRTY_TASK_STOP runs first at both sites, so a staged index there holds as a dirty task
+      // worktree (escalate, #2617) before the revert can print INDEX-DIRTY.
       const revertRange = rangeRevertOf(r)
       const aceRevertClause = revertRange
         ? pt`FORWARD-REVERT (--ace): the commits above the last approved tip ${revertRange.approved} are not approved (the pre-revert tip ${revertRange.tip || 'was never read from Git'}). BEFORE the rebase step (a), in the TASK worktree, run exactly: `
@@ -5468,7 +5486,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       if (deathOf(firstSnapshot)) { mergeDied(deathOf(firstSnapshot)); continue }
       pinBefore = firstSnapshot
       const runPinProbe = () => dispatchSite(
-        pt`PIN TRANSFER probe for WAR task ${r.task.id} (branch ${r.task.branch}) against ${ph.integrationBranch}. Rebase and measure only — do NOT merge, do NOT push the integration branch, do NOT run the gate or any floor.\n`
+        pt`PIN TRANSFER probe for WAR task ${r.task.id} (branch ${r.task.branch}) against ${ph.integrationBranch}. Rebase and measure only — do NOT merge, do NOT push the integration branch, do NOT run the gate or any floor.\n` + DIRTY_TASK_STOP
         + aceRevertClause
         + pt`  (1) BEFORE the rebase, all in the TASK worktree ${r.task.worktree} (git -C ${r.task.worktree}): BASE=merge-base ${ph.integrationBranch} ${r.task.branch}; N=rev-list --count $BASE..${r.task.branch} (the task's own commit count); PRE=diff $BASE..${r.task.branch} piped to git patch-id --stable, first field (an EMPTY diff prints NOTHING, so PRE is then empty); CHERRY=cherry ${ph.integrationBranch} ${r.task.branch} (leading - = a task commit already upstream by patch, + = unmatched; git cherry names TASK commits, never upstream equivalents). Return BASE as dispatch_base on every result that carries rebased_tip.\n`
         + pt`  (2) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. ${NEVER_MOVE_MERGED} Here that means: when \`git -C ${r.task.worktree} merge-base --is-ancestor ${r.task.branch} ${ph.integrationBranch}\` exits 0, skip the rebase and return { status: 'empty-unmatched', detail: 'already merged: the task tip is an ancestor of the integration tip' } — the engine fails closed and never re-merges it. The task branch is checked out there, so the rebase cannot run in _refinery. On CONFLICT: abort it and return { status: 'conflict', conflict_files: [...] } — never force, never resolve.\n`
@@ -5476,7 +5494,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`  (4) ARM ORDER — already_upstream FIRST. Post-rebase diff EMPTY and N > 0 and EVERY CHERRY line starting '-' and PRE non-empty: return { status: 'already_upstream', rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST, already_upstream_commits: [the task commit SHAs CHERRY listed] } — the engine independently checks the final tree before deciding whether approval transfers or a full content re-audit is required. The consumer REFUSES an already_upstream whose fields contradict it (rebased_tip equal to dispatch_base, a non-empty POST, or an empty already_upstream_commits) — never report already_upstream to carry a different true result; the fields are read as returned.\n`
         + pt`  (5) Post-rebase diff EMPTY AND (N is 0, OR any CHERRY line starts '+', OR PRE is EMPTY) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR: return { status: 'empty-unmatched', detail: '<which leg failed>' } — fail closed; never already_upstream, never a transfer.\n`
         + pt`  (6) Otherwise compare patch-ids, returning rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST either way: PRE non-empty and PRE == POST → status 'transferred'; PRE != POST → status 'mismatch' (the full panel re-audits the rebased tip before the merge).\n`
-        + pt`Success evidence is mandatory: transferred requires a usable rebased tip, non-empty equal patch IDs and independently equal exact content identities; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. An error, missing or unknown status retains the ordinary merge fallback only for independently verified unchanged approved content or independently equal patch and exact content identities; changed content gets the full re-audit.\n`
+        + pt`Success evidence is mandatory: transferred requires a usable rebased tip, non-empty equal patch IDs and independently equal exact content identities; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. Any other error, missing or unknown status retains the ordinary merge fallback only for independently verified unchanged approved content or independently equal patch and exact content identities; changed content gets the full re-audit.\n`
         + pt`  (7) Any git/env error you cannot classify → { status: 'error', detail: '<the error>' }; the engine independently checks actual Git content before fallback or full re-audit.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-transfer',
           // concatenation-built (census-safe)
@@ -5529,6 +5547,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         else escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'branch tip carries content committed after approval', probe: pinProbe, tipProbe: r.tipProbe ?? null } })
         continue
       }
+      // #2617: the probe found uncommitted tracked changes in the task worktree and stopped before any
+      // rebase. Hold the task with the paths: a merge-task there would refuse its rebase (and tempt a
+      // shared-stash workaround) or gate content that never merges.
+      if (isDirty(pinProbe)) { escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'task worktree dirty at pin-transfer: ' + pinProbe.detail, probe: pinProbe } }); auditLog.push({ task: r.task.id, verdict: 'pin-transfer:dirty-worktree', findings: [] }); continue }
       // After a move the probe's base can name an earlier rebase of the task, while the proof's base names
       // the approved content, so only the proof's reading counts.
       if (!pinProof || (['transferred', 'mismatch', 'already_upstream'].includes(probeStatus) &&
@@ -5781,20 +5803,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           const fixPrompt = isNoTest
             ? pt`ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
               + floorFixHead
-              + pt`Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice ?? '<unset>'}), keep the gate green, commit and push.`
+              + pt`Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice ?? '<unset>'}), commit and push. ${FIX_GATE_RULE}`
               + nearMissClause
             : isDoneUnmet
             ? pt`MAKE_DONE_PASS for WAR task ${r.task.id}. The refiner's merge-task check (assert-done-when.sh) ran the task's own Done when: acceptance command and it exited red (or timed out). `
               + floorFixHead
-              + pt`Make this command pass: fix the implementation for the slice described in: ${r.task.planSlice ?? '<unset>'} until the Done when: command above exits 0 — never weaken, skip, or delete a test to force it green. Keep the gate green, commit and push.`
+              + pt`Make this command pass: fix the implementation for the slice described in: ${r.task.planSlice ?? '<unset>'} until the Done when: command above exits 0 — never weaken, skip, or delete a test to force it green. Commit and push. ${FIX_GATE_RULE}`
               + doneWhenLogClause
             : isBudgetUncited
             ? pt`CITE_BUDGET for WAR task ${r.task.id}. The refiner's merge-task check (assert-budget-raise-cited.sh) found a hard:/advisory: ceiling RAISE in skills/war/assets/prompt-surface-budgets.test.mjs with no Budget-Raise trailer in the range (the budget-uncited route). `
               + floorFixHead
-              + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. PREFER un-raising the ceiling and funding the growth under it (ADR 0042 — evict cold prose to references/ behind a trigger pointer); a ceiling change is an operator act via the re-baseline pass (skills/war/references/budget-rebaseline.md), and a sanctioned raise must carry a commit trailer of the exact form \`Budget-Raise: ADR-0042 <surface> +<bytes>\` — never raise a ceiling silently. Commit and push, keeping the gate green.`
+              + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. PREFER un-raising the ceiling and funding the growth under it (ADR 0042 — evict cold prose to references/ behind a trigger pointer); a ceiling change is an operator act via the re-baseline pass (skills/war/references/budget-rebaseline.md), and a sanctioned raise must carry a commit trailer of the exact form \`Budget-Raise: ADR-0042 <surface> +<bytes>\` — never raise a ceiling silently. Commit and push. ${FIX_GATE_RULE}`
             : pt`PACKAGE_IT for WAR task ${r.task.id}. The refiner's merge-task check (assert-packaging-in-diff.sh) flagged an added/renamed file a Dockerfile's enumerated COPYs miss. `
               + floorFixHead
-              + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
+              + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Commit and push. ${FIX_GATE_RULE}`
           const floorFix = await dispatchSite(
             fixPrompt
             // Backward chain (PIN-6): the floor family carries the fixer block at corrective round 1 by
@@ -5803,7 +5825,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + chainFixClause(r.task, correctiveRoundOf('floor', r.task), 'floor family (add-test, make-pass, cite-budget, package-it)', [])
             + workerMemClause(r.task.id) + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
             // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
-            // the fix:/ace: fix-follow-up classes (absent agents.worker.fix ⇒ inherit-base — byte-identical).
+            // the fix: class (absent agents.worker.fix ⇒ inherit-base — byte-identical); ace: runs via aceSpawn.
             { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
           // Dead floor-fix worker (D21, PIN-25): env-died SOFT naming the site — never the floor's own
           // blocked verdict, never a done-unmet/no-test/unpackaged/budget-uncited exhaustion.
@@ -6781,7 +6803,7 @@ const lateFixPass = async () => {
         pt`LATE-FIX PASS for WAR task ${lfOriginId}: a defect found after the task merged. Work in the ALREADY-PROVISIONED late-fix worktree at ${lfWorktree} (branch ${lfBranch}, cut at the integrated tip of ${ph.integrationBranch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
         + intentClause
         + pt`Gate: ${plan.gate}\n`
-        + pt`Fix the defect below, keep the gate green, and make ONE commit citing its title, its message ENDING with the trailer line \`Late-Fix: ${lfOriginId}:${lfRound}\` in one final trailer block. ${TRAILER_BLOCK_RULE} Task ${lfOriginId}'s roster re-audits the new sha. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${lfBranch}.\n`
+        + pt`Fix the defect below and make ONE commit citing its title, its message ENDING with the trailer line \`Late-Fix: ${lfOriginId}:${lfRound}\` in one final trailer block. ${TRAILER_BLOCK_RULE} Task ${lfOriginId}'s roster re-audits the new sha. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${lfBranch}. ${FIX_GATE_RULE}\n`
         + lfCopies.map((s, i) => queuedFindingRow({ ...s, task: f.task }, i)).join('\n') + pt`\n`
         + (lfPrior ? pt`PRIOR ROUND: ${lfPrior}\n` : '')
         + pt`Task ${lfOriginId}'s plan slice: ${origin.planSlice ?? '(no slice)'}\n`
@@ -7075,7 +7097,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     sweep = await dispatchAgent(
       pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase ${ph.id} "${ph.title}". Work in the ALREADY-PROVISIONED polish worktree at ${polishWorktree} (branch ${polishBranch}, cut at the post-merge integrated tip of ${ph.integrationBranch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
       + intentClause
-      + pt`Fix ONLY the queued findings below and each sibling site of their defect class — NO ad-hoc seam hunting (the bounded, enumerated scope is what makes discard-on-reject a sufficient guard), ${NEVER_MOVE_LITERAL}, make EXACTLY ONE commit whose message cites each finding's title, keep the gate (${plan.gate}) green, and push ${polishBranch}.\n`
+      + pt`Fix ONLY the queued findings below and each sibling site of their defect class — NO ad-hoc seam hunting (the bounded, enumerated scope is what makes discard-on-reject a sufficient guard), ${NEVER_MOVE_LITERAL}, make EXACTLY ONE commit whose message cites each finding's title, and push ${polishBranch}. Gate: ${plan.gate}. ${FIX_GATE_RULE}\n`
       + sweepWorkerDebtClause()
       + pt`Queued findings (verbatim):\n`
       // Interpolation-guard rationale for these rows lives on queuedFindingRow's header comment.
@@ -7094,7 +7116,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
       // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
       // never agents.worker.fix or .ace. (The four fix-follow-up classes are tier-aware: fix: and add-test:|package-it:
-      // via spawnWorker('fix'), ace: and terminal: via spawnWorker('ace'); this one intentionally is not. The only other non-tiered base
+      // via spawnWorker('fix'), ace: via aceSpawn (the ace tier, the fix tier from charge 5) and terminal: via spawnWorker('ace'); this one intentionally is not. The only other non-tiered base
       // spawn is the fallback inside spawnWorker itself — the tier resolver, definitionally correct.)
       { agentType: NS + 'war-worker', phase: 'Work', label: `polish:phase-${ph.id}`, schema: WORKER_RESULT, ...spawn('worker') })
     } catch (err) {
@@ -7271,7 +7293,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           + intentClause
           + pt`Gate: ${plan.gate}\n`
           + sweepWorkerDebtClause()
-          + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Charge: ${terminalCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (One re-audit seat judges the new sha; a regression is forward-reverted.) Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${polishBranch}.\n`
+          + pt`Apply the smallest mechanical fix for EACH finding below and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Charge: ${terminalCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (One re-audit seat judges the new sha; a regression is forward-reverted.) Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${polishBranch}. ${FIX_GATE_RULE}\n`
           // citationStamp (#1873-class): a citation absorb the sweep never touched rides this pass, so
           // the terminal commit message carries the same stamp its recordAced arm records below.
           + terminalRows.map(queuedFindingRow).join('\n') + pt`\n`
@@ -7486,7 +7508,7 @@ if (landDecision === 'landed') {
   // it to every land dispatch and owns the bounded re-dispatch loop (the FLOOR_STATUSES retry-loop
   // idiom — the merge-task floor sub-loop's shape).
   const segmentedLandClause =
-    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. `
+    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. its gate job died — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. `
     + backgroundGateRule(pt`{ mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }`)
   const landPrompt =
     pt`Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
@@ -7513,7 +7535,7 @@ if (landDecision === 'landed') {
   // retry-loop idiom). The pair is the read: a status:'landed' result carrying a stray marker is a
   // landed land (never re-dispatched), and a marker-absent status:'error' is one dispatch that routes
   // by its status below (held:land-failed). Applied to the initial land, the environment-proceed
-  // re-land and the baseline-proceed re-land — every site whose gate can outrun the tool timeout.
+  // re-land and the baseline-proceed re-land — every site whose gate can outrun one tool call.
   // Exhaustion falls through to the caller's routing chain, where the final still-incomplete result
   // routes by its RIDDEN status ('error' → held:land-failed — the Lead re-runs the land per SKILL.md
   // §4.3). Continuation labels and log lines are concatenation-built (census-safe — #931).
@@ -7525,7 +7547,7 @@ if (landDecision === 'landed') {
       const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
         log('Phase ' + ph.id + ': segmented land — ' + opts.label + ' returned land_segment:\'incomplete\' (' + (result.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
         return admitGateResult(await dispatchSite(
-          pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
+          pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate job died before exit_code:). Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
           { ...opts, label: opts.label + ':segment-' + segment }), capture)
       })
       if (isSegment(result)) {

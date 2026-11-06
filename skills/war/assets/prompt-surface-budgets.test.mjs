@@ -46,7 +46,10 @@ const FILE_BUDGETS = {
   // RAISED +1,024 B (36,864 → 37,888) at the operator's direction (#2126, 2026-10-31): the ruling keeps
   // "Delete or weaken a test." inline in the card's Never section, tier-1 merge doctrine, and the card
   // had 3 B of headroom. Trailer: Budget-Raise: ADR-0042 agents/war-refiner.md +1024
-  'agents/war-refiner.md': { hard: 37888, advisory: 30720 },
+  // RAISED +1,024 B (37,888 → 38,912) at the operator's direction (#2617, 2026-11-05): an eviction pass
+  // found no stale card text to move, and merge-task step 1 must name the exact dirty-tree status command,
+  // tier-1 merge doctrine. The card had 0 B of headroom. Trailer: Budget-Raise: ADR-0042 agents/war-refiner.md +1024
+  'agents/war-refiner.md': { hard: 38912, advisory: 30720 },
   // post-shrink 15,531 B @ c6a05fb → hard ×1.25 ceil-KB = 19,456; advisory ×1.10 ceil-KB = 17,408
   'agents/war-servitor.md': { hard: 19456, advisory: 17408 },
   // No shrink task targeted this surface (adjudication M: unchanged is not failed) —

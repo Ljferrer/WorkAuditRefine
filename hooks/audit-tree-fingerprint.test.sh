@@ -1736,9 +1736,10 @@ rm -rf "$SHIM"
 # reason_of: the escalate_reason of the last run's updatedInput.
 reason_of() { printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null; }
 # The host fires neither post event for a call a hook denied, so a denied
-# ~<name> grep reaches the hook on PreToolUse alone.
+# ~<name> grep reaches the hook on PreToolUse alone. The token sits in the pathspec:
+# since #2604 an `-e` pattern value records nothing on any event.
 run "$(mk_start "$AUD" pb1)"
-run "$(mk_bash_pre "$AUD" pb1 'git grep -F -n -e ~<name> HEAD -- hooks')"
+run "$(mk_bash_pre "$AUD" pb1 'git grep -F -n -e x HEAD -- ~<name>')"
 _prc="$RC"
 run "$(mk_verdict "$AUD" pb1)"
 if [ "$_prc" = 0 ] && [ "$RC" = 0 ] && [ -z "$OUT" ] && [ ! -s "$FP_ROOT/pb1/touched" ] && [ ! -e "$TAMPER_ROOT/pb1.json" ]; then
@@ -1757,7 +1758,7 @@ printf 'edit after the failed call\n' >> "$TMP/wtB/f"
 run "$(mk_verdict "$AUD" pb3)"
 case "$(reason_of)" in "AUDIT-TAMPER: $WTB changed during the audit round"*) pass "a worktree a failed Bash call read still compares at the verdict" ;; *) fail "a failed Bash call's worktree did not compare: |$(reason_of)|" ;; esac
 run "$(mk_start "$AUD" pb4)"
-run "$(mk_bash_fail "$AUD" pb4 'git grep -F -e ~<name> HEAD')"
+run "$(mk_bash_fail "$AUD" pb4 'git grep -F -e x HEAD -- ~<name>')"
 run "$(mk_verdict "$AUD" pb4)"
 case "$(reason_of)" in *'unresolved Bash path ~<name>'*) pass "an unresolved token on a call that ran still escalates" ;; *) fail "an unresolved token on a call that ran did not escalate: |$(reason_of)|" ;; esac
 # Read, Glob and Grep record on PreToolUse alone, and the post arm is Bash only.
@@ -2063,6 +2064,181 @@ if [ "$_prc" != 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprin
 else
   fail "a killed Bash recording did not escalate (rc=$_prc reason=|$(reason_of)|)"
 fi
+
+# --- a search pattern is not a path (#2604) ----------------------------------
+# A seat ran `git grep -n -F -e '/Users' <sha> -- x`. The hook read the pattern
+# as an absolute directory operand, walked down, and touched every task
+# worktree under it, so a sibling's fix round rewrote an approve to escalate.
+# Here the pattern is $TMP, the directory that holds every fixture worktree:
+# without the fix each row below walks them all. The base is $MAIN (no marker).
+# The `-L` rows pin token shape only: git refuses `-L <abs dir>` as a range.
+_psha="$(git -C "$MAIN" rev-parse HEAD)"
+# git_runs <command>: the command runs under real git from the payload cwd and
+# exits 0, or 1 with no `error:` or `fatal:` line on stderr (a grep with no
+# match, a diff with changes; a warning is fine). A no-index diff that cannot
+# open a path also exits 1, but it prints `error:`, so it fails here. Every row in this
+# block must name a command git accepts (operator ruling 2026-11-05), except
+# the `-L` token-shape rows. prow <id> <command> runs a start and the Bash
+# payload, and records the command for the git_runs check after the rows.
+git_runs() {
+  ( cd "$PCWD" && eval "$1" ) >/dev/null 2>"$TMP/gr.err"; _gr=$?
+  [ "$_gr" = 0 ] && return 0
+  [ "$_gr" = 1 ] && ! grep -Eq '^(error|fatal):' "$TMP/gr.err"
+}
+# git_runs itself can fail: git refuses an unknown flag (exit 128), and a
+# no-index diff of a missing path exits 1 with an error.
+if ! git_runs "git -C $MAIN log --no-such-flag" && ! git_runs "git diff --no-index $TMP/no-such-a $TMP/no-such-b"; then pass "control: git_runs fails on a refused command and on a missing path"; else fail "control: git_runs passed a command git refuses"; fi
+_pq_cmds=""
+prow() { run "$(mk_start "$AUD" "$1")"; run "$(mk_bash "$AUD" "$1" "$2")"; _pq_cmds="$_pq_cmds$2
+"; }
+# Positive control: the same $TMP value walks the task worktrees when it is a
+# path, so the empty touched sets below are not vacuous. From wtC, git diffs
+# the folder $TMP against an empty folder (both outside wtC, so git implies
+# --no-index) and reads every task worktree under $TMP.
+mkdir "$TMP/pp0e"
+run "$(mk_start "$AUD" pp0)"
+PCWD="$TMP/wtC"
+run "$(mk_bash "$AUD" pp0 "git diff $TMP $TMP/pp0e")"
+PCWD="$MAIN"
+if touched_has pp0 "$WTB" && ( PCWD="$TMP/wtC"; git_runs "git diff $TMP $TMP/pp0e" ); then pass "control: a \$TMP path operand walks the task worktrees here"; else fail "control: \$TMP did not walk or git refused it: |$(cat "$FP_ROOT/pp0/touched" 2>/dev/null | tr '\n' ' ')| git: $(head -c 300 "$TMP/gr.err" 2>/dev/null | tr '\n' ' ')"; fi
+_pi=0
+for _pcmd in \
+  "git -C $MAIN grep -n -F -e '$TMP' $_psha -- x" \
+  "git -C $MAIN grep -n -F -e $TMP $_psha -- x" \
+  "git -C $MAIN log -S $TMP $_psha" \
+  "git -C $MAIN log -pS $TMP $_psha" \
+  "git -C $MAIN show -G $TMP $_psha" \
+  "git -C $MAIN diff -S $TMP $_psha $_psha" \
+  "git -C $MAIN log --grep=$TMP $_psha" \
+  "git -C $MAIN log --grep $TMP $_psha" \
+  "git -C $MAIN log --author $TMP $_psha" \
+  "git -C $MAIN log --committer=$TMP $_psha" \
+  "git -C $MAIN log --grep-reflog $TMP -g $_psha" \
+  "git -C $MAIN grep -n -Fe $TMP $_psha -- x" \
+  "git -C $MAIN log --oneline -S $TMP $_psha" \
+  "git -C $MAIN log $_psha -S $TMP" \
+  "git -C $MAIN log -S a --grep $TMP $_psha" \
+  "git -C $MAIN log -L $TMP $_psha" \
+  "git -C $MAIN blame -L $TMP $_psha -- f" \
+  "git -C $MAIN blame -w -L $TMP $_psha -- f" \
+  "git -C $MAIN log -1 -S $TMP $_psha" \
+  "git -C $MAIN log --graph -S $TMP $_psha" \
+  "git -C $MAIN log -i --grep $TMP $_psha" \
+  "git -C $MAIN diff -I $TMP $_psha $_psha" \
+  "git -C $MAIN diff --ignore-matching-lines $TMP $_psha $_psha" \
+  "git -C $MAIN diff --word-diff-regex=$TMP $_psha $_psha" \
+  "git -C $MAIN diff --word-diff-regex $TMP $_psha $_psha" \
+  "git -C $MAIN diff --ignore-matching-lines=$TMP $_psha $_psha" \
+  "git -C $MAIN show --grep $TMP $_psha" \
+  "git -C $MAIN log -I $TMP $_psha" \
+  "git -C $MAIN log --word-diff-regex $TMP $_psha" \
+  "git -C $MAIN log --format=%h -S $TMP $_psha" \
+  "git -C $MAIN log --author=$TMP $_psha" \
+  "git -C $MAIN log -r -S $TMP $_psha" \
+  "git -C $MAIN show -p -S $TMP $_psha" \
+  "git -C $MAIN show -i --grep $TMP $_psha" \
+  "git -C $MAIN show -I $TMP $_psha" \
+  "git -C $MAIN show --word-diff-regex $TMP $_psha" \
+  "git -C $MAIN diff -p -G $TMP $_psha $_psha" \
+  "git -C $MAIN diff -r -S $TMP $_psha $_psha" \
+  "git -C $MAIN log --committer $TMP $_psha" \
+  "git -C $MAIN log --grep-reflog=$TMP -g $_psha" \
+  "git -C $MAIN grep -n -ilwcF -e $TMP $_psha -- x" \
+  "git -C $MAIN log -g --grep-reflog $TMP $_psha" \
+  "git -C $MAIN log --walk-reflogs --grep-reflog $TMP $_psha" \
+  "git -C $MAIN show -g --grep-reflog $TMP $_psha" \
+  "git -C $MAIN show --walk-reflogs -S $TMP $_psha" \
+  "git -C $MAIN diff --color-words=$TMP $_psha $_psha" \
+  "git -C $MAIN log --color-words=$TMP $_psha" \
+  "git -C $MAIN show --color-words=$TMP $_psha" \
+  "git -C $MAIN log --color-words -S $TMP $_psha"
+do
+  _pi=$((_pi + 1))
+  run "$(mk_start "$AUD" pp$_pi)"
+  run "$(mk_bash "$AUD" pp$_pi "$_pcmd")"
+  if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pp$_pi/touched" ]; then pass "a pattern value touches no worktree: $_pcmd"; else fail "a pattern value touched worktrees: $_pcmd (rc=$RC touched=|$(cat "$FP_ROOT/pp$_pi/touched" 2>/dev/null)|)"; fi
+  case "$_pcmd" in *" -L "*) ;; *) git_runs "$_pcmd" || fail "git refuses pp row: $_pcmd" ;; esac
+done
+# An attached pattern is no path either: from wtA, `-S../wtB/f` and the
+# clustered `-sGS../wtD/f` (the -G value is `S../wtD/f`, which the old cluster
+# arm read as the path `../wtD/f`) read wtA only. git refuses -S with -G, so
+# each has its own row.
+prow pq1 "git -C $TMP/wtA log -S../wtB/f $_psha"
+if touched_is pq1 "$WTA"; then pass "an attached -S pattern touches no sibling worktree"; else fail "an attached -S pattern touched a sibling: |$(cat "$FP_ROOT/pq1/touched" 2>/dev/null)|"; fi
+prow pq15 "git -C $TMP/wtA log -sGS../wtD/f $_psha"
+if touched_is pq15 "$WTA"; then pass "a clustered attached -G pattern touches no sibling worktree"; else fail "a clustered attached -G pattern touched a sibling: |$(cat "$FP_ROOT/pq15/touched" 2>/dev/null)|"; fi
+# The reported symptom: a sibling changes while the seat greps, and the
+# seat's approve stands.
+prow pq2 "git -C $MAIN grep -n -F -e '$TMP' $_psha -- x"
+printf 'sibling fix round\n' >> "$TMP/wtB/f"
+run "$(mk_verdict "$AUD" pq2)"
+if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ ! -e "$TAMPER_ROOT/pq2.json" ]; then pass "a sibling edit during a pattern grep leaves the approve standing"; else fail "a pattern grep still escalated (rc=$RC reason=|$(reason_of)|)"; fi
+# A path stays a path: after `--` a `-e` token is a pathspec (the `x` before
+# it makes the token free, so only the `--` rule keeps it a path), `grep -f` reads
+# a pattern file, and `blame -S` reads a revs file. pq3's pathspec names a file
+# in wtP, a task worktree nested under $MAIN: git matches the pathspec against
+# the tree, and the hook touches wtP (over-touch, the safe side). pq4 and pq5
+# touch wtB.
+git -C "$MAIN" worktree add -q "$MAIN/nest/wtP" -b pq3
+printf 'marker\n' > "$MAIN/nest/wtP/.war-task"
+WTP="$(cd "$MAIN/nest/wtP" && pwd -P)"
+prow pq3 "git -C $MAIN grep -F -e x $_psha -- x -e nest/wtP/f"
+if touched_is pq3 "$WTP"; then pass "a -e after -- stays a pathspec"; else fail "a -e after -- hid its path: |$(cat "$FP_ROOT/pq3/touched" 2>/dev/null)|"; fi
+prow pq4 "git -C $MAIN grep -F -f $TMP/wtB/f $_psha"
+if touched_is pq4 "$WTB"; then pass "a grep -f value stays a path"; else fail "a grep -f value was not touched: |$(cat "$FP_ROOT/pq4/touched" 2>/dev/null)|"; fi
+prow pq5 "git -C $MAIN blame -S $TMP/wtB/f $_psha -- f"
+if touched_is pq5 "$WTB"; then pass "a blame -S value stays a path"; else fail "a blame -S value was not touched: |$(cat "$FP_ROOT/pq5/touched" 2>/dev/null)|"; fi
+# A value-taking letter before S keeps the cluster a path: in `-pOS/../../wtB/f`
+# the `O` takes `S/../../wtB/f` as its orderfile, whose lexical reading lands
+# in wtB (the hook reads both ways, see task_worktree_of).
+prow pq6 "git -C $TMP/wtA diff -pOS/../../wtB/f $_psha $_psha"
+if touched_is pq6 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "a value-taking letter before S keeps the cluster a path"; else fail "a -pOS cluster lost its orderfile: |$(cat "$FP_ROOT/pq6/touched" 2>/dev/null)|"; fi
+# An option that takes the next token as its value takes a following -S or
+# -G as that value, so the token after it is a path git reads: `-I` takes
+# `-S` as its regex, `--src-prefix` takes `-G` as its prefix, `-O` takes `-S`
+# as its orderfile, and each diff reads wtB/f and wtD/f (git 2.54). `-I` is a
+# pattern option itself, so pq7 pins this rule: a pattern value that starts
+# with `-` is still the value, never an option (the `_pv` skip runs before
+# pat_opt). pq8, pq10 and pq12 pin pat_free: neither `--src-prefix`, `-O`
+# nor the mixed cluster `-pO` is free (every cluster letter must be in _pk).
+# git reads the orderfile, so an empty file named `-S` in $MAIN lets git run
+# pq10 and pq12.
+: > "$MAIN/-S"
+prow pq7 "git -C $MAIN diff --no-index -I -S $TMP/wtB/f $TMP/wtD/f"
+if touched_is pq7 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of -I stays no pattern option"; else fail "a -S after -I hid a path: |$(cat "$FP_ROOT/pq7/touched" 2>/dev/null)|"; fi
+prow pq8 "git -C $MAIN diff --src-prefix -G $TMP/wtB/f $TMP/wtD/f"
+if touched_is pq8 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -G taken as the value of --src-prefix stays no pattern option"; else fail "a -G after --src-prefix hid a path: |$(cat "$FP_ROOT/pq8/touched" 2>/dev/null)|"; fi
+prow pq10 "git -C $MAIN diff -O -S $TMP/wtB/f $TMP/wtD/f"
+if touched_is pq10 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of -O stays no pattern option"; else fail "a -S after -O hid a path: |$(cat "$FP_ROOT/pq10/touched" 2>/dev/null)|"; fi
+prow pq12 "git -C $MAIN diff -pO -S $TMP/wtB/f $TMP/wtD/f"
+if touched_is pq12 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of the cluster -pO stays no pattern option"; else fail "a -S after -pO hid a path: |$(cat "$FP_ROOT/pq12/touched" 2>/dev/null)|"; fi
+# An attached pattern value carries its own value, so the token after it is
+# free and stays a path: both diffs read wtB/f and wtD/f (git 2.54).
+prow pq13 "git -C $MAIN diff --no-index --word-diff-regex=x $TMP/wtB/f $TMP/wtD/f"
+if touched_is pq13 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a path after an attached long pattern value stays a path"; else fail "a path after --word-diff-regex=x was skipped: |$(cat "$FP_ROOT/pq13/touched" 2>/dev/null)|"; fi
+prow pq14 "git -C $MAIN diff --no-index -Sx $TMP/wtB/f $TMP/wtD/f"
+if touched_is pq14 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a path after an attached short pattern value stays a path"; else fail "a path after -Sx was skipped: |$(cat "$FP_ROOT/pq14/touched" 2>/dev/null)|"; fi
+# `--end-of-options` ends option parsing like `--`: in `diff --no-index
+# --end-of-options wtA -S wtB` from $TMP, git compares wtA with the empty
+# folder `-S`, limited to the pathspec wtB. git reads wtA, and the hook also
+# touches wtB (over-touch, the safe side). The `wtA` before `-S` is free, so
+# only the `--end-of-options` rule keeps `-S` from skipping wtB.
+mkdir "$TMP/-S"
+prow pq11 "git -C $TMP diff --no-index --end-of-options wtA -S wtB"
+if touched_is pq11 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "a -S after --end-of-options stays a path"; else fail "a -S after --end-of-options hid a path: |$(cat "$FP_ROOT/pq11/touched" 2>/dev/null)|"; fi
+# An attached -e pattern is no path: from wtA, `-e../wtB/f` reads wtA only.
+prow pq9 "git -C $TMP/wtA grep -n -F -e../wtB/f $_psha -- x"
+if touched_is pq9 "$WTA"; then pass "an attached -e pattern touches no sibling worktree"; else fail "an attached -e pattern touched a sibling: |$(cat "$FP_ROOT/pq9/touched" 2>/dev/null)|"; fi
+# Every pq command is one git accepts (the git_runs rule above).
+_pq_bad=""
+while IFS= read -r _c; do
+  [ -n "$_c" ] && ! git_runs "$_c" && _pq_bad="$_pq_bad[$_c] "
+done <<EOF_PQ
+$_pq_cmds
+EOF_PQ
+if [ -z "$_pq_bad" ]; then pass "git accepts every pq row command"; else fail "git refuses pq rows: $_pq_bad"; fi
+git -C "$MAIN" worktree remove --force "$MAIN/nest/wtP"
+rm -rf "$MAIN/nest" "$MAIN/-S" "$TMP/-S" "$TMP/pp0e" "$TMP/gr.err"
 
 # --- registration + conventions ---------------------------------------------
 if jq -e . "$HJSON" >/dev/null 2>&1; then pass "hooks.json parses"; else fail "hooks.json does not parse"; fi

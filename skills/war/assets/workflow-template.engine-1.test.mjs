@@ -3139,8 +3139,8 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
     assert.ok(c.prompt.includes('WITHOUT committing'), 'a preflight hit returns the existing sha without committing')
     assert.ok(c.prompt.includes('in THIS worktree only') && c.prompt.includes('never any shared ref'),
       'the dead-attempt dirt clause is worktree-local only — never any shared ref')
-    assert.ok(c.prompt.includes('keep the gate green') && c.prompt.includes('make gate'),
-      'the subset prompt keeps the gate green and carries the gate command (prompt truth, D6)')
+    assert.ok(c.prompt.includes('run only the tests you touched') && c.prompt.includes('make gate'),
+      'the subset prompt carries the fix-gate rule and the gate command (prompt truth, D6, #2617)')
   }
   // subset ordering: each half lists exactly its own findings (same-file grouping preserved)
   assert.ok(aces[1].prompt.includes('fa nit') && !aces[1].prompt.includes('fb nit'), 'half 1 carries only its findings')
@@ -7961,19 +7961,20 @@ test('Task 1.2 — docs tier: an all-*.md task dispatches its first-pass worker 
   assert.equal(empty.model, 'opus', 'EMPTY files list ⇒ base worker tier (fail-safe)')
 })
 
-test('Task 1.2 — fix tier set: the fix-round AND the --ace worker both dispatch on agents.worker.fix (and the base first-pass differs)', async () => {
-  const { work, fix, ace } = await runFixAndAce({ worker: { model: 'sonnet', fix: { model: 'opus', effort: 'high' } } })
+test('Task 1.2 — fix tier set: the fix-round worker dispatches on agents.worker.fix, and an unset ace takes the ace default, not the fix model (#2619)', async () => {
+  const { work, fix, ace } = await runFixAndAce({ worker: { model: 'sonnet', fix: { model: 'fable', effort: 'high' } } })
   assert.equal(work.model, 'sonnet', 'the base first-pass worker uses agents.worker (sonnet) — NOT the fix tier')
-  assert.deepEqual({ model: fix.model, effort: fix.effort }, { model: 'opus', effort: 'high' }, 'the fix-round worker carries agents.worker.fix')
-  assert.deepEqual({ model: ace.model, effort: ace.effort }, { model: 'opus', effort: 'high' }, 'the --ace worker carries agents.worker.fix')
+  assert.deepEqual({ model: fix.model, effort: fix.effort }, { model: 'fable', effort: 'high' }, 'the fix-round worker carries agents.worker.fix')
+  assert.deepEqual({ model: ace.model, effort: ace.effort }, { model: 'opus', effort: undefined },
+    'ace unset ⇒ the --ace worker carries the ace default (opus), never the fix model (fable)')
 })
 
-test('Task 1.2 — fix tier absent: the fix-round AND the --ace worker both inherit the base worker (no fix block)', async () => {
+test('Task 1.2 — fix tier absent: the fix-round worker inherits the base worker; the --ace worker takes the ace default (no fix or ace block)', async () => {
   const { fix, ace } = await runFixAndAce({ worker: { model: 'sonnet' } })
   assert.equal(fix.model, 'sonnet', 'fix absent ⇒ the fix-round worker inherits the base worker model')
   assert.equal(fix.effort, undefined, 'base worker has no configured effort ⇒ omitted (inherit session)')
-  assert.equal(ace.model, 'sonnet', 'fix absent ⇒ the --ace worker inherits the base worker model')
-  assert.equal(ace.effort, undefined, 'base worker has no configured effort ⇒ omitted (inherit session)')
+  assert.equal(ace.model, 'opus', 'ace absent ⇒ the --ace worker carries the ace default model (#2619)')
+  assert.equal(ace.effort, undefined, "the ace default effort is 'default' ⇒ omitted (inherit session)")
 })
 
 test('#817 — floor-retry fix tier set: the add-test dispatch carries agents.worker.fix { model, effort } (spawnWorker(\'fix\'), not the base worker)', async () => {
@@ -7989,7 +7990,7 @@ test('#817 — floor-retry fix tier absent: the add-test dispatch inherits the b
 })
 
 // #2519 — the ace tier splits --ace and the terminal pass off agents.worker.fix. Fix rounds and floor retries stay
-// on the fix tier. (Ace absent ⇒ the fix tier: the 'Task 1.2 — fix tier set' test above proves that fallback.)
+// on the fix tier. (Ace absent ⇒ the ace default, #2619: the 'Task 1.2 — fix tier set' test above proves it.)
 const ACE_SPLIT = { worker: { model: 'fable', fix: { model: 'opus', effort: 'high' }, ace: { model: 'sonnet', effort: 'medium' } } }
 test('#2519 — ace tier set: the --ace worker dispatches on agents.worker.ace; the fix-round and add-test workers stay on agents.worker.fix', async () => {
   const { work, fix, ace } = await runFixAndAce(ACE_SPLIT)
@@ -8001,7 +8002,7 @@ test('#2519 — ace tier set: the --ace worker dispatches on agents.worker.ace; 
   assert.deepEqual({ model: retry.model, effort: retry.effort }, { model: 'opus', effort: 'high' }, 'the add-test floor retry stays on agents.worker.fix')
 })
 
-test('#2519 — ace tier: the terminal pass dispatches on agents.worker.ace when set, else on agents.worker.fix', async () => {
+test('#2519 — ace tier: the terminal pass dispatches on agents.worker.ace when set, else on the ace default (#2619)', async () => {
   const terminalOpts = async (agents) => {
     const { calls } = await runPhase(SWEEP_ARGS({ agents }), terminalImpl())
     const tw = calls.find(c => (c.opts.label || '') === 'terminal:phase-3')
@@ -8009,8 +8010,30 @@ test('#2519 — ace tier: the terminal pass dispatches on agents.worker.ace when
     return { model: tw.opts.model, effort: tw.opts.effort }
   }
   assert.deepEqual(await terminalOpts(ACE_SPLIT), { model: 'sonnet', effort: 'medium' }, 'ace set ⇒ the terminal worker carries agents.worker.ace')
-  assert.deepEqual(await terminalOpts({ worker: { model: 'fable', fix: { model: 'opus', effort: 'high' } } }), { model: 'opus', effort: 'high' },
-    'ace absent ⇒ the terminal worker carries agents.worker.fix (unchanged from before the split)')
+  assert.deepEqual(await terminalOpts({ worker: { model: 'sonnet', fix: { model: 'fable', effort: 'high' } } }), { model: 'opus', effort: undefined },
+    'ace absent ⇒ the terminal worker carries the ace default (opus), never agents.worker.fix (fable)')
+})
+
+// Operator ruling 2026-11-05: ace charges 5 and 6 run on agents.worker.fix, the stronger tier; charges 1-4 stay on agents.worker.ace.
+test('ace charges 5 and 6 dispatch on agents.worker.fix; charge 4 stays on agents.worker.ace', async () => {
+  const aceAt = async (seeded) => {
+    const { calls } = await runPhase(ACE_ARGS({ agents: ACE_SPLIT }), withBarrier({ ok: true, absorbCharges: { t1: seeded } }, aceBase()))
+    const c = calls.find(x => (x.opts.label || '') === 'ace:polish:t1:a' + (seeded + 1))
+    assert.ok(c, 'charge ' + (seeded + 1) + ' dispatched (presence guard)')
+    return { model: c.opts.model, effort: c.opts.effort }
+  }
+  assert.deepEqual(await aceAt(3), { model: 'sonnet', effort: 'medium' }, 'charge 4 carries agents.worker.ace')
+  assert.deepEqual(await aceAt(4), { model: 'opus', effort: 'high' }, 'charge 5 carries agents.worker.fix')
+  assert.deepEqual(await aceAt(5), { model: 'opus', effort: 'high' }, 'charge 6 carries agents.worker.fix')
+})
+
+test('ace charge tiers: the subset, re-entry and polish ace workers all spawn through aceSpawn, and only the terminal pass keeps spawnWorker(\'ace\')', () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'workflow-template.js'), 'utf8')
+  const sites = [...src.matchAll(/label: aceLabel\(r, '(\w+)'\), schema: WORKER_RESULT, \.\.\.aceSpawn\(r\) \}\)/g)].map(m => m[1])
+  assert.deepEqual(sites.sort(), ['polish', 'reentry', 'subset'], 'exactly three ace sites spawn through aceSpawn')
+  const direct = src.split('\n').filter(l => l.includes("...spawnWorker('ace')"))
+  assert.equal(direct.length, 1, 'one direct ace-tier spawn is left')
+  assert.match(direct[0], /label: `terminal:phase-/, 'and it is the terminal pass')
 })
 
 // #2519 — a roster seat's own model/effort overrides the auditor tier for that seat only.
@@ -8222,10 +8245,10 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       canonical: [MANIFEST_PATH_TEMPLATE],
       extractInline: () => [(src.match(/const\s+MANIFEST_PATH_TEMPLATE\s*=\s*'([^'\n]+)'/) || [])[1]] },
     // Worker sub-tier defaults (Task 1.2): the inline WORKER_TIER_DEFAULTS mirror bound to the canonical
-    // DEFAULTS.agents.worker sub-tiers — value equality, never a restated literal. docs is the only
-    // defaulted tier (fix has no default block: absent ⇒ inherit the base worker, nothing to mirror).
+    // DEFAULTS.agents.worker sub-tiers — value equality, never a restated literal. docs and ace (#2619) are
+    // mirrored (fix has no sandbox default: absent ⇒ inherit the base worker, nothing to mirror).
     { name: 'WORKER_TIER_DEFAULTS (inline ↔ DEFAULTS.agents.worker sub-tiers)', mode: 'behavioral',
-      cases: [['docs']],
+      cases: [['docs'], ['ace']],
       inline: ([tier]) => inlineHelpers().WORKER_TIER_DEFAULTS[tier],
       canonical: ([tier]) => DEFAULTS.agents.worker[tier] },
     // AUDITOR_TIER_DEFAULTS (#2534): the sandbox fallback for an absent agents.auditor.high, bound to DEFAULTS by value.
@@ -8443,10 +8466,20 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     'zero dispatches reach the worker site on the refused launch (the floor is at entry)')
 })
 
-test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-green carries the gate command', async () => {
-  // Reach all keep-green prompt classes (the five fix-family prompts plus the three site-segmented
-  // ace classes (subset / reentry / polish) + the phase-close sweep); the sweep filter keys on the literal "keep the gate"
-  // fragment, parenthetical-gate form included.
+test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RULE, none says keep the gate, and the worker card agrees', async () => {
+  // Operator ruling 2026-11-05 (#2617 part 2): a fix-applying dispatch runs only the tests it touched and
+  // any Done when: command, then commits. The engine's own gate at the new tip is the only full gate.
+  // The rule text is read from the template source, so this test and the card check key on one string.
+  const rule = (src.match(/^const FIX_GATE_RULE = '([^']+)'$/m) || [])[1]
+  assert.ok(rule && rule.includes('run only the tests you touched') && rule.includes('Done when:'),
+    'FIX_GATE_RULE resolves in the template source and names touched tests plus Done when:')
+  const workerCard = readFileSync(join(here, '../../../agents/war-worker.md'), 'utf8')
+  assert.ok(workerCard.includes(rule),
+    'agents/war-worker.md carries FIX_GATE_RULE verbatim (standing card and dispatched prompt agree)')
+  assert.ok(workerCard.includes('On a fix-applying dispatch (a `BACKWARD-CHAIN FIX` block), skip the full gate.'),
+    'the card scopes the rule to the BACKWARD-CHAIN FIX trigger, so step 4 "Run the gate command until green" never contradicts a fix prompt')
+  assert.ok(!workerCard.includes('alongside the gate'),
+    'the card Done when: input no longer pairs Done when with the full gate (round 6, #2617)')
   const runs = [
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), fixNeededImpl()),
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), floorRetryImpl()),
@@ -8458,77 +8491,118 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()])),
     await runPhase(SWEEP_ARGS(), terminalImpl()),   // terminal-pass (D3a): the one-hop pass after the merged sweep
     await runPhase(LATE_FIX_ARGS(), lateFixImpl()),   // late-fix pass (late-defects Task 3.1)
+    // CITE_BUDGET (round 3): every Refine merge returns the budget-uncited route, so one cite-budget
+    // worker dispatches before the roundLimit 1 budget is spent.
+    await runPhase(NO_TEST_ARGS({ tasks: [dwTask()], run: { roundLimit: 1 } }), (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
+      if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }
+      if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    }),
   ]
-  const keepGreen = runs.flatMap(r => r.calls).filter(c => /keep the gate\b/i.test(c.prompt || ''))
-  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^ace:subset:/, /^ace:reentry:/, /^ace:polish:/, /^polish:/, /^terminal:/, /^late-fix:/]) {
-    assert.ok(keepGreen.some(c => cls.test(c.opts.label || '')),
-      `a keep-the-gate-green prompt of class ${cls} was captured (anti-vacuity floor)`)
+  const calls = runs.flatMap(r => r.calls)
+  for (const c of calls) {
+    assert.doesNotMatch(c.prompt || '', /keep(ing)? the gate\b/i,
+      `prompt "${c.opts.label}" no longer says keep the gate green (#2617: the engine gate is the only full gate)`)
   }
-  for (const c of keepGreen) {
+  const fixPrompts = calls.filter(c => (c.prompt || '').includes(rule))
+  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^cite-budget:/, /^ace:subset:/, /^ace:reentry:/, /^ace:polish:/, /^polish:/, /^terminal:/, /^late-fix:/]) {
+    assert.ok(fixPrompts.some(c => cls.test(c.opts.label || '')),
+      `a fix-applying prompt of class ${cls} carries FIX_GATE_RULE (anti-vacuity floor)`)
+    // every(), not just some(): a later-round prompt of the class that lost the rule reds too.
+    for (const c of calls.filter(c => cls.test(c.opts.label || ''))) {
+      assert.ok((c.prompt || '').includes(rule), `every ${cls} prompt carries FIX_GATE_RULE ("${c.opts.label}")`)
+    }
+  }
+  // Wider contradiction ban, fix prompts only (refiner prompts still say "Run the gate"): no fix
+  // prompt tells the worker to keep, run or drive the gate, or to bring the gate to green.
+  for (const c of fixPrompts) {
+    assert.doesNotMatch(c.prompt, /\b(keep(ing)?|run|drive) the (full )?gate\b|\bgate\b[^.\n]{0,20}\bgreen\b/i,
+      `fix prompt "${c.opts.label}" never tells the worker to run the full gate or keep it green`)
+  }
+  for (const c of fixPrompts) {
     assert.ok(c.prompt.includes('make gate'),
-      `prompt "${c.opts.label}" says keep-the-gate-green AND carries the gate command`)
+      `fix prompt "${c.opts.label}" still names the gate command the engine runs at its new tip`)
+    // The card's skip-the-gate rule fires only on a BACKWARD-CHAIN FIX block (round 6, #2617). The
+    // late-fix pass has no backward-chain clause (late-defects Task 3.1), so its own FIX_GATE_RULE
+    // is the rule's only carrier there.
+    if (/^late-fix:/.test(c.opts.label || '')) continue
+    assert.ok(c.prompt.includes('BACKWARD-CHAIN FIX'),
+      `fix prompt "${c.opts.label}" carries the BACKWARD-CHAIN FIX block that triggers the card rule`)
   }
-  // Default-deny census (D6, #1334-4): the sweep above only reaches prompts its fixtures drive, so a
-  // keep-green prompt added at a dispatch site no fixture reaches would silently evade it. Count the
-  // space-form phrase over the template SOURCE in OCCURRENCE semantics (case-insensitive; comment
-  // mentions are blanked out below, so their hyphenated form no longer carries the exclusion alone).
-  // The census regex
-  // carries the sweep matcher's own word boundary (\b parity, #1686) so the two halves cannot key on
-  // different phrase sets. Pin re-measured
-  // at task time: 8 (the ace bisection subset prompt joined via realized-absorb-rate Task 1.1; the
-  // ace RE-ENTRY batch prompt joined via in-run-finding-resolution Task 1.1 — its fixture rides
-  // the sweep above).
-  // Line comments are blanked to SPACES, never deleted, so every index below still addresses the
-  // real source (the established `//`-strip idiom in this file, made index-preserving). Blanking is
-  // fail-CLOSED for this pin: an over-blanked line loses its occurrence and reds the count.
+  // Default-deny census: the sweep above only reaches prompts its fixtures drive, so a fix prompt at a
+  // site no fixture reaches would evade it. Line comments are blanked to SPACES (index-preserving).
   const censusSrc = src.replace(/\/\/[^\n]*/g, m => ' '.repeat(m.length))
-  // 8 → 9 (in-band-absorb-default D3a): the terminal-pass prompt joined; its fixture (terminalImpl)
-  // rides the sweep above. 9 → 10 (late-defects Task 3.1): the late-fix pass prompt joined (lateFixImpl).
-  const census = [...censusSrc.matchAll(/keep the gate\b/gi)]
-  assert.equal(census.length, 10,
-    'a new keep-the-gate-green prompt must join the D6 sweep above — the space-form census over the template source moved; re-pin this count ONLY alongside extending the sweep fixtures to reach the new site')
-  // Per-occurrence membership (#1686) — the count alone is RELOCATION-blind: an occurrence that
-  // moves out of a dispatched prompt into a comment, or into a dispatch site no fixture drives,
-  // keeps the total at 8 and the pin above stays green
-  // (memory: count-only-source-census-pin-is-blind-to-relocation-not-just-addition). So every match
-  // must also fall inside a fixture-reachable dispatch site's byte range. Each range is derived from
-  // the site's NAMED constructs — its prompt-header anchor through its own `label:` dispatch option,
-  // which is exactly the span that is dispatched — never a line number. `reachedBy` names the label
-  // class the sweep above already captured, so "fixture-reachable" is mechanical, not prose.
-  const KEEP_GREEN_SITES = [
-    // Site-segmented ace labels (D14, PIN-18, #2085): each ace row's reachedBy matches exactly ONE
-    // dispatch site — `ace:subset:` / `ace:reentry:` / `ace:polish:` — so a site that silently stopped
-    // dispatching can no longer borrow a sibling's capture.
+  assert.equal([...censusSrc.matchAll(/keep(ing)? the gate\b/gi)].length, 0,
+    'no template prompt says keep the gate green (#2617)')
+  const census = [...censusSrc.matchAll(/\$\{FIX_GATE_RULE\}/g)]
+  assert.equal(census.length, 11,
+    'a new fix-applying prompt must join the sweep above — re-pin this count ONLY alongside a fixture that reaches the new site')
+  // Per-occurrence membership: the count alone is relocation-blind, so every interpolation must sit
+  // inside a fixture-reachable dispatch site, from its prompt-header anchor to its own label: option.
+  const FIX_GATE_SITES = [
     { site: 'ace bisection subset (ACE BISECTION SUBSET)', from: 'pt`ACE BISECTION SUBSET for WAR task', reachedBy: /^ace:subset:/ },
     { site: 'ace re-entry batch (ACE RE-ENTRY BATCH)', from: 'pt`ACE RE-ENTRY BATCH for WAR task', reachedBy: /^ace:reentry:/ },
     { site: 'ace advisory polish (ADVISORY POLISH (--ace))', from: 'pt`ADVISORY POLISH (--ace) for WAR task', reachedBy: /^ace:polish:/ },
     { site: 'FIX_NEEDED fix prompt', from: 'pt`FIX_NEEDED for WAR task', reachedBy: /^fix:/ },
-    { site: 'floor-fix prompt ladder (const fixPrompt)', from: 'const fixPrompt = isNoTest', reachedBy: /^(add-test|make-pass|package-it):/ },
+    // The four floor arms get one range each (round 2, #2617), so the rule cannot move between arms
+    // unseen. Each arm ends at the next arm's anchor.
+    { site: 'floor ADD_TEST arm', from: 'pt`ADD_TEST for WAR task', to: 'pt`MAKE_DONE_PASS for WAR task', reachedBy: /^add-test:/ },
+    { site: 'floor MAKE_DONE_PASS arm', from: 'pt`MAKE_DONE_PASS for WAR task', to: 'pt`CITE_BUDGET for WAR task', reachedBy: /^make-pass:/ },
+    { site: 'floor CITE_BUDGET arm', from: 'pt`CITE_BUDGET for WAR task', to: 'pt`PACKAGE_IT for WAR task', reachedBy: /^cite-budget:/ },
+    { site: 'floor PACKAGE_IT arm', from: 'pt`PACKAGE_IT for WAR task', reachedBy: /^package-it:/ },
     { site: 'phase-close coherence sweep (PHASE-CLOSE COHERENCE SWEEP)', from: 'pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase', reachedBy: /^polish:/ },
     { site: 'terminal pass (TERMINAL PASS)', from: 'pt`TERMINAL PASS for WAR phase', reachedBy: /^terminal:/ },
     { site: 'late-fix pass (LATE-FIX PASS)', from: 'pt`LATE-FIX PASS for WAR task', reachedBy: /^late-fix:/ },
   ]
-  const keepGreenRanges = KEEP_GREEN_SITES.map(s => {
+  const ranges = FIX_GATE_SITES.map(s => {
     const start = censusSrc.indexOf(s.from)
-    assert.ok(start >= 0,
-      `dispatch-site anchor for "${s.site}" resolves in the template source (extraction floor — a renamed construct reds this pin, never silently skips the site)`)
-    assert.equal(censusSrc.indexOf(s.from, start + 1), -1,
-      `dispatch-site anchor for "${s.site}" is UNIQUE (a duplicated anchor would make the range arbitrary)`)
-    const end = censusSrc.indexOf('label:', start)
-    assert.ok(end > start,
-      `dispatch-site "${s.site}" terminates at its own label: dispatch option (range floor)`)
-    assert.ok(keepGreen.some(c => s.reachedBy.test(c.opts.label || '')),
-      `dispatch-site "${s.site}" is fixture-reachable — a keep-green prompt of class ${s.reachedBy} was captured above`)
+    assert.ok(start >= 0, `dispatch-site anchor for "${s.site}" resolves in the template source`)
+    assert.equal(censusSrc.indexOf(s.from, start + 1), -1, `dispatch-site anchor for "${s.site}" is unique`)
+    const end = censusSrc.indexOf(s.to || 'label:', start)
+    assert.ok(end > start, `dispatch-site "${s.site}" terminates at ${s.to ? 'the next arm' : 'its own label: dispatch option'}`)
+    assert.ok(fixPrompts.some(c => s.reachedBy.test(c.opts.label || '')),
+      `dispatch-site "${s.site}" is fixture-reachable`)
     return { ...s, start, end }
   })
   for (const m of census) {
-    const home = keepGreenRanges.find(r => m.index >= r.start && m.index < r.end)
-    assert.ok(home,
-      `the keep-the-gate-green occurrence at source index ${m.index} sits inside a fixture-reachable dispatch site — an occurrence relocated into a comment, or into a site no fixture drives, is a keep-green claim the sweep above never checks`)
+    assert.ok(ranges.some(r => m.index >= r.start && m.index < r.end),
+      `the FIX_GATE_RULE interpolation at source index ${m.index} sits inside a fixture-reachable dispatch site`)
   }
-  for (const r of keepGreenRanges) {
-    assert.ok(census.some(m => m.index >= r.start && m.index < r.end),
-      `dispatch-site "${r.site}" still owns at least one keep-the-gate-green occurrence (anti-vacuity — a range that stops matching is a moved or dropped clause, never a silent pass)`)
+  for (const r of ranges) {
+    assert.equal(census.filter(m => m.index >= r.start && m.index < r.end).length, 1,
+      `dispatch-site "${r.site}" owns exactly one FIX_GATE_RULE interpolation (a rule moved between sites reds here)`)
+  }
+  // Default-deny over the card's trigger: every fix-applying dispatch carries a BACKWARD-CHAIN FIX block
+  // (chainFixClause), so each chainFixClause call must sit in a site above. A new fix site that
+  // leaves FIX_GATE_RULE out reds here, not just a site that drops it.
+  const chainCalls = [...censusSrc.matchAll(/\bchainFixClause\(/g)]
+  assert.equal(chainCalls.length, 7, 'seven chainFixClause call sites (anti-vacuity floor)')
+  for (const m of chainCalls) {
+    assert.ok(ranges.some(r => m.index >= r.start && m.index < r.end),
+      `the chainFixClause call at source index ${m.index} sits inside a FIX_GATE_SITES range (a new fix-applying dispatch must carry FIX_GATE_RULE)`)
+  }
+  // Round 4 (#2617): key the default-deny on the worker dispatch itself, not only on chainFixClause.
+  // Nine war-worker dispatches: the primary work dispatch, seven fix builds and the late-fix pass.
+  // Only the work dispatch may sit outside a FIX_GATE_SITES range.
+  const workerDispatches = [...censusSrc.matchAll(/agentType: NS \+ 'war-worker'/g)]
+  assert.equal(workerDispatches.length, 9, 'nine war-worker dispatch sites (work, seven fix builds and the late-fix pass)')
+  // Any spelling: a dispatch that names the agent another way still names 'war-worker' once.
+  assert.equal([...censusSrc.matchAll(/war-worker/g)].length, 9,
+    'every war-worker mention in non-comment source is one of the nine matched dispatch sites')
+  const outside = workerDispatches.filter(m => !ranges.some(r => m.index >= r.start && m.index < r.end))
+  assert.equal(outside.length, 1, 'only the primary work dispatch sits outside a fix-gate site range')
+  assert.match(censusSrc.slice(outside[0].index, outside[0].index + 120), /label: `work:/, 'the one outside dispatch is the work: dispatch')
+  // Every FIX_GATE_RULE token, in any spelling: the definition plus the eleven site interpolations.
+  assert.equal([...censusSrc.matchAll(/\bFIX_GATE_RULE\b/g)].length, 12,
+    'FIX_GATE_RULE appears only at its definition and the eleven fix sites (no bare concatenation elsewhere)')
+  assert.ok(calls.some(c => /^work:/.test(c.opts.label || '')), 'a work: prompt was captured (anti-vacuity)')
+  for (const c of calls.filter(c => /^work:/.test(c.opts.label || ''))) {
+    assert.ok(!(c.prompt || '').includes(rule), 'the primary work prompt never carries FIX_GATE_RULE: it runs the full gate')
   }
 })
 
@@ -9113,14 +9187,37 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // per-surface revert reds this row. Byte-equality of the rule itself is pinned by that fixture.
     { name: 'backgrounded gate — merge-task (D7, PIN-11, #2086): refiner card step 10 ↔ merge-task + environment-proceed dispatch prompts',
       surfaces: [['war-refiner.md', refinerMd], ['merge-task dispatch prompt', mergeP], ['environment-proceed re-merge prompt', epMergeP]],
-      anchors: [/run_in_background/, /gate_segment:\s*['"]incomplete['"]/, /FIRST line is `tip_sha:` of the sha being gated/, /LAST line is `exit_code:`/, /rerun into a FRESH unique artifact/, /never truncate or reuse a file/] },
+      anchors: [/run_in_background/, /gate_segment:\s*['"]incomplete['"]/, /FIRST line is `tip_sha:` of the sha being gated/, /LAST line is `exit_code:`/, /rerun into a FRESH unique artifact/, /never truncate or reuse a file/,
+                /can outrun one tool call \(600000 ms\)/, /poll that log with foreground calls in this same turn/, /your turn end kills the job/, /only if the job dies before it writes `?exit_code:/, /stops at 120000 ms unless you pass `?timeout/] },
+    // Same-turn poll, merge-task (#2617): the card-wide row above also matches the land bullet, so this
+    // row reads merge-task step 10 alone.
+    { name: 'same-turn poll — merge-task (#2617): refiner card step 10 ↔ merge-task dispatch prompt',
+      surfaces: [['war-refiner.md step 10', (refinerMd.split('10. **Backgrounded gate (tool-timeout survival):**')[1] || '').split('\n')[0]], ['merge-task dispatch prompt', mergeP]],
+      anchors: [/stops at 120000 ms unless you pass `?timeout/, /can outrun one tool call \(600000 ms\)/, /poll that log with foreground calls in this same turn/, /your turn end kills the job/, /only if the job dies before it writes `?exit_code:/] },
     // Backgrounded gate, land (D7, PIN-11): the card's segmented-land bullet and every land build (the
     // initial land — captured here — and the environment-proceed re-land; the baseline-proceed re-land
     // and the continuation ride the same segmentedLandClause, walked by the fixture above) carry
     // run_in_background, the land_segment return shape, the phase-keyed land gate log, and the rule.
     { name: 'backgrounded gate — land (D7, PIN-11, #2086): refiner card segmented-land bullet ↔ land + environment-proceed re-land prompts',
       surfaces: [['war-refiner.md', refinerMd], ['land dispatch prompt', landP], ['environment-proceed re-land prompt', epLandP]],
-      anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /git-excluded/, /rerun into a FRESH unique artifact/] },
+      anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /git-excluded/, /rerun into a FRESH unique artifact/,
+                /can outrun one tool call \(600000 ms\)/, /poll that log with foreground calls in this same turn/, /your turn end kills the job/, /only if the job dies before it writes `?exit_code:/] },
+    // Same-turn poll, land (#2617): the card-wide land row above matches step 10 too, so this row reads
+    // the segmented-land bullet alone against the land dispatch prompt.
+    { name: 'same-turn poll — land (#2617): refiner card segmented-land bullet ↔ land dispatch prompt',
+      surfaces: [['war-refiner.md segmented-land bullet', (refinerMd.split('- **Segmented land (tool-timeout survival):**')[1] || '').split('\n')[0]], ['land dispatch prompt', landP]],
+      anchors: [/can outrun one tool call \(600000 ms\)/, /poll that log with foreground calls in this same turn/, /your turn end kills the job/, /only if the job dies before it writes `?exit_code:/] },
+    // Shared-stash ban + dirty-tree arm on the pin-transfer probe (#2617): the refiner card's pin-transfer
+    // section and the dispatched probe prompt both forbid git stash and return status error naming the
+    // dirty paths before any rebase. `git stash` counted 0 on both surfaces at the task base.
+    { name: 'pin-transfer stash ban (#2617): refiner card pin-transfer section ↔ the dispatched pin-transfer prompt',
+      surfaces: [['war-refiner.md pin-transfer section', (refinerMd.split('## pin-transfer probe')[1] || '').split('\n1. ')[0]], ['pin-transfer dispatch prompt', pinTransferP]],
+      anchors: [/Never run `?git stash`?: every worktree and session shares the stash/, /status --porcelain --untracked-files=no`? prints anything, return/, /dirty task worktree: <those paths>/, /[Bb]efore any forward-revert or rebase/, /['"]error['"]`?,? ?(with `)?detail:? ?['"]dirty task worktree: </] },
+    // Merge-task stash ban (#2617): the refiner card's merge-task step 1 and every merge-task rebase site
+    // carry the dirty-tree stop. `git stash` counted 0 on both surfaces at the base faf52933.
+    { name: 'merge-task stash ban (#2617): refiner card merge-task step 1 ↔ merge-task dispatch prompt',
+      surfaces: [['war-refiner.md merge-task step 1', refinerMd.split('\n').find(l => l.includes('Rebase the task branch onto the current integration tip')) || ''], ['merge-task dispatch prompt', mergeP], ['environment-proceed re-merge prompt', epMergeP]],
+      anchors: [/(Never run|No) `?git stash`?/, /['"]error['"]`?,? ?(with `)?detail:? ?['"]dirty task worktree: </] },
     // Gate-log stamp (D8, PIN-12, #2094): the card's merge-task step 9 and every gateCaptureClause
     // carrier (the captureUses census is the arbiter of that site list) plus the land clause stamp
     // tip_sha: first and exit_code: last on the gate log, and the evidence dispatch's intraDep branch
@@ -9174,7 +9271,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/The boundary is two-sided/, /decision-forked blocking finding/, /mechanical blocking finding while fix budget remains ⇒ `request_changes`, never `escalate`/, /reads `escalate_reason` into the phase's escalation record/] },
   ]
-  assert.ok(REGISTRY.length >= 36, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt())')
+  assert.ok(REGISTRY.length >= 40, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) ')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -12243,6 +12340,8 @@ test('#2326 — the ace gate prompt carries the capture, the background rule and
   assert.ok(one.prompt.includes(evalPt('GATE_LOG_STAMP')), 'the first dispatch stamps its log')
   assert.ok(one.prompt.includes("gate_green: false, gate_segment: 'incomplete'"), 'the first dispatch names the return pair')
   assert.match(one.prompt, /run_in_background/, 'the first dispatch names the background rule')
+  assert.match(one.prompt, /poll that log with foreground calls in this same turn/, 'the ace gate check polls in the same turn (#2617)')
+  assert.match(one.prompt, /only if the job dies before it writes exit_code:/, 'the ace gate check returns the pair only if the job dies (#2617)')
   assert.match(one.prompt, /READ-ONLY[^\n]*git-excluded gate log/, 'the read-only opener admits the gate log, so a literal seat can follow the capture clause')
   assert.ok(two.prompt.startsWith('SEGMENTED-GATE CONTINUATION (ace-gate:t1:a1)'), 'the continuation leads with its header')
   assert.ok(two.prompt.includes('Prior gate_log_path: ' + path + '.'), 'the continuation carries the admitted log path')
@@ -15371,7 +15470,7 @@ test('segmented-gate: partial gate log reruns the gate — both arms (last line 
   // Both arms of the two-sided read, and the instruction each arm resolves to.
   assert.match(rule, /LAST line is `exit_code:`/, 'arm 1: the last line must be the exit_code: stamp')
   assert.match(rule, /FIRST line is `tip_sha:` of the sha being gated/, 'arm 2: the first line must be tip_sha: of the sha being gated (a complete log from an earlier tip never passes)')
-  assert.match(rule, /If absent, unstamped, partial or stale, wait for the known writer or rerun into a FRESH unique artifact/, 'partial/stale evidence needs completion or a fresh run')
+  assert.match(rule, /If absent, unstamped, partial or stale, rerun into a FRESH unique artifact/, 'partial/stale evidence needs a fresh run, because the turn end killed its writer (#2617)')
   assert.match(rule, /never truncate or reuse a file a prior background job may still write/, 'old writers cannot corrupt the new artifact')
   assert.match(rule, /fresh logical dispatch always allocates a fresh artifact, even at the same tip/, 'same-tip retries are distinct')
   // Standing card: the same sentence, byte-equal (the refiner executes the read; the engine never opens the log).
@@ -18803,4 +18902,159 @@ test('every agent card the engine dispatches is registered in plugin.json (an un
   const dispatched = [...new Set([...readFileSync('skills/war/assets/workflow-template.js', 'utf8').matchAll(/NS \+ '(war-[a-z-]+)'/g)].map(m => m[1]))]
   assert.ok(dispatched.includes('war-helper') && dispatched.includes('war-worker'), 'the scan sees the literals')
   for (const card of dispatched) assert.ok(manifest.agents.includes(`./agents/${card}.md`), `${card} is dispatched but plugin.json does not list it`)
+})
+
+// #2617: a workflow agent exits when its turn ends, so the worker card carries the one-turn rule.
+// Each anchor counted 0 on the card at the base faf52933, so dropping any rule reds this row.
+// Single layer by choice: the rule rides the worker card only, which loads on every war-worker spawn,
+// and the staged template has no byte room for a dispatched copy.
+test('#2617 one-turn rule: the worker card forbids ending a turn with work left, waiting, and git stash', () => {
+  const card = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../../agents/war-worker.md'), 'utf8')
+  const sec = (card.split('## One turn, no waiting')[1] || '').split('\n## ')[0]
+  assert.ok(sec, 'the card has a One turn, no waiting section')
+  for (const re of [/When your turn ends, you exit, and any background job dies with you/,
+    /Never end your turn with work left: commit and push, or return `blocked`/,
+    /Before you return, leave no uncommitted tracked edits: commit them or restore them/,
+    /One tool call runs at most 600000 ms, and stops at 120000 ms unless you set `timeout`/,
+    /start it with `run_in_background`, then poll its output with foreground calls in this same turn until it exits/,
+    /Never end your turn to wait for a notification or a monitor/,
+    /Never run `git stash`: every worktree and session shares the stash/,
+    /Fix a red you caused before you probe one you did not/]) assert.match(sec, re)
+})
+
+// #2617: no carrier may tell the refiner to return early because the gate outruns a tool timeout:
+// the turn end kills the backgrounded job, so the land would rerun from scratch every segment.
+test('#2617 no early-return example: the template never cites a tool-timeout overrun as a reason to return', () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'workflow-template.js'), 'utf8')
+  for (const [name, text] of [['workflow-template.js', src], ['war-refiner.md', refinerMd]]) {
+    assert.doesNotMatch(text, /outr[au]n(s)? (your |the )?tool timeout/, name + ' cites no tool-timeout overrun')
+    assert.doesNotMatch(text, /cannot finish inside this turn/, name + ' keeps no retired turn-bound wording')
+    assert.doesNotMatch(text, /outruns? the turn/, name + ' keeps no outruns-the-turn wording')
+  }
+})
+
+test('#2617 dirty task worktree: a pin-transfer probe that reports one holds the task before any merge-task dispatch, and keeps the paths', async () => {
+  const probe = (prompt, opts) => (opts.label || '') === 'pin-transfer:t1'
+    ? { status: 'error', detail: 'dirty task worktree: src/a.js' }
+    : NEW_SEAT_DEFAULTS['pin-transfer']
+  const { out, calls } = await runPhase(twoIndependentTasks(), defaultImpl, { 'pin-transfer': probe })
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
+  assert.ok(esc, 'the dirty task escalates (presence guard)')
+  assert.equal(esc.reason, 'escalate')
+  assert.match(esc.detail.note, /task worktree dirty at pin-transfer: dirty task worktree: src\/a\.js/, 'the hold keeps the dirty paths')
+  assert.ok(!calls.some(c => c.prompt.includes('Merge WAR task t1 (branch')), 'no merge-task runs on the dirty tree')
+  assert.ok(!out.landed.includes('t1'), 'the dirty task never merges')
+  assert.ok(out.landed.includes('t2'), 'the clean sibling still merges, so the hold is task-scoped')
+  assert.ok((out.auditLog || []).some(a => a.task === 't1' && a.verdict === 'pin-transfer:dirty-worktree'), 'the hold writes its auditLog verdict')
+  const p1 = calls.find(c => (c.opts.label || '') === 'pin-transfer:t1')
+  const pinStop = p1 ? p1.prompt.indexOf('dirty task worktree: <those paths>') : -1
+  assert.ok(pinStop >= 0 && pinStop < p1.prompt.indexOf('(1) BEFORE the rebase'), 'the probe stop comes before any forward-revert or rebase step')
+})
+
+test('#2617 dirty task worktree at merge-task: the stop rides every segmented merge, and its error holds the task (escalate) while the sibling merges', async () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'workflow-template.js'), 'utf8')
+  assert.match(src, /reconciledMerge\(DIRTY_TASK_STOP \+ prompt \+ segmentedGateClause/, 'every segmentedMerge site opens with the dirty-tree stop')
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:t1' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : defaultImpl(prompt, opts)
+  const { out, calls } = await runPhase(twoIndependentTasks(), impl)
+  const m1 = calls.find(c => (c.opts.label || '') === 'merge:t1')
+  const stopAt = m1 ? m1.prompt.indexOf('dirty task worktree: <those paths>') : -1
+  assert.ok(stopAt >= 0 && stopAt < m1.prompt.indexOf('(a) REBASE in the TASK worktree'), 'the stop comes before the rebase step')
+  assert.ok(m1 && m1.opts.schema && m1.opts.schema.properties.detail, 'MERGE_RESULT declares detail, so structured output keeps the stop the hold routes on')
+  assert.ok((out.auditLog || []).some(a => a.site === 'merge:t1' && a.verdict === 'git-confirmed:error'), 'Git confirms the reported stop against unchanged refs')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'a dirty stop skips Git reconciliation, which could clean the tree and merge')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
+  assert.ok(esc, 'the dirty task escalates (presence guard)')
+  assert.equal(esc.reason, 'escalate', 'a dirty merge-task holds on the hard reason, never a soft error')
+  assert.match(String(esc.detail && esc.detail.detail), /^dirty task worktree: src\/a\.js/, 'the hold keeps the paths')
+  assert.ok(!out.landed.includes('t1'), 'the dirty task never merges')
+  assert.ok(out.landed.includes('t2'), 'the clean sibling still merges')
+})
+
+test('#2617 dirty task worktree at merge-task, unconfirmed by Git: the stop keeps its paths and holds, with no reconciliation', async () => {
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:t1' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : defaultImpl(prompt, opts)
+  const { out, calls } = await runPhase(twoIndependentTasks(), impl, {
+    'merge-confirm': (p, o, w) => o.label === 'git-confirm:merge:t1' ? { remote_sha: '' } : NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w),
+  })
+  assert.ok((out.auditLog || []).some(a => a.site === 'merge:t1' && a.verdict === 'git-confirmation:unresolved'), 'Git did not confirm the stop')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'the unconfirmed dirty stop still skips reconciliation')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
+  assert.ok(esc, 'the dirty task escalates (presence guard)')
+  assert.equal(esc.reason, 'escalate', 'it holds on the hard reason')
+  assert.equal(String(esc.detail && esc.detail.detail), 'dirty task worktree: src/a.js; Git did not confirm', 'the hold keeps the paths and names the missing proof')
+  assert.ok(!out.landed.includes('t1') && out.landed.includes('t2'), 'the dirty task never merges, and the clean sibling does')
+})
+
+test('#2617 dirty stop at the polish sweep merge, unconfirmed by Git: it reconciles before its fail-open arm', async () => {
+  const base = sweepBase([queuedAbsorb()])
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:p3-polish' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : base(prompt, opts)
+  const { out, calls } = await runPhase(SWEEP_ARGS(), impl, {
+    'merge-confirm': (p, o, w) => o.label === 'git-confirm:merge:p3-polish' ? { remote_sha: '' } : NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w),
+  })
+  assert.ok(calls.some(c => (c.opts.label || '') === 'merge:p3-polish'), 'the polish merge runs (presence guard)')
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile' && (c.opts.label || '').startsWith('git-reconcile:merge:p3-polish')), 'an unconfirmed sweep stop reconciles Git before the discard')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
+  assert.equal(out.handoff.polish, 'discarded', 'after reconciliation the sweep takes its fail-open discard')
+})
+
+test('#2617 dirty stop at the terminal sweep merge, unconfirmed by Git: it reconciles, never holds, and the commit stays unmerged', async () => {
+  const base = terminalImpl()
+  const { out, calls } = await runPhase(SWEEP_ARGS(), (p, o) => (o.label || '') === 'merge:p3-terminal' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : base(p, o), {
+    'merge-confirm': (p, o, w) => o.label === 'git-confirm:merge:p3-terminal' ? { remote_sha: '' } : NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w),
+  })
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile' && (c.opts.label || '').startsWith('git-reconcile:merge:p3-terminal')), 'an unconfirmed terminal stop reconciles Git first')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
+  assert.ok(!(out.aced || []).some(a => a.sha === '7e4a1a10'), 'the terminal commit stays unmerged, fail-open')
+})
+
+test('#2617 dirty stop at the polish sweep merge, confirmed by Git: no reconciliation, no hold, and the sweep discards', async () => {
+  const base = sweepBase([queuedAbsorb()])
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:p3-polish' ? { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' } : base(prompt, opts)
+  const { out, calls } = await runPhase(SWEEP_ARGS(), impl)
+  const pm = calls.find(c => (c.opts.label || '') === 'merge:p3-polish')
+  assert.ok(pm && pm.prompt.includes('git -C <rebase worktree> status'), 'the polish merge runs and its stop names the worktree it rebases in')
+  assert.ok((out.auditLog || []).some(a => a.site === 'merge:p3-polish' && a.verdict === 'git-confirmed:error'), 'Git confirms the stop')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'a confirmed sweep stop skips reconciliation')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
+  assert.equal(out.handoff.polish, 'discarded', 'the sweep takes its fail-open discard')
+})
+
+const DIRTY_MR = { mode: 'merge-task', status: 'error', detail: 'dirty task worktree: src/a.js' }
+for (const [name, site, args, impl] of [
+  ['floor-retry', 'merge:t1:floor-retry:r1', () => PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 3 } }), floorRetryImpl],
+  ['environment-proceed', 'merge:t1:environment-proceed', () => CLS_ARGS(), () => clsImpl({ mergeResult: envMergeResult })],
+  ['baseline-proceed', 'merge:t1:baseline-proceed', () => CLS_ARGS(), () => clsImpl({ mergeResult: baselineMergeResult })],
+]) test('#2617 dirty task worktree at the ' + name + ' re-merge: routedMr holds it on escalate, with no reconciliation', async () => {
+  const base = impl()
+  const { out, calls } = await runPhase(args(), (p, o) => (o.label || '') === site ? DIRTY_MR : base(p, o))
+  assert.ok(calls.some(c => (c.opts.label || '') === site), 'the ' + name + ' re-merge runs (presence guard)')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'the dirty stop skips reconciliation')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.equal(esc && esc.reason, 'escalate', 'the stop holds on the hard reason, never a soft error')
+  assert.ok(!out.landed.includes('t1'), 'the dirty task never merges')
+})
+
+test('#2617 dirty stop at the terminal sweep merge, confirmed by Git: no reconciliation, no hold, and the commit stays unmerged', async () => {
+  const base = terminalImpl()
+  const { out, calls } = await runPhase(SWEEP_ARGS(), (p, o) => (o.label || '') === 'merge:p3-terminal' ? DIRTY_MR : base(p, o))
+  assert.ok(calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'the terminal merge runs (presence guard)')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'a confirmed sweep stop skips reconciliation')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'escalate'), 'a sweep stop never holds the phase')
+  assert.ok(!(out.aced || []).some(a => a.sha === '7e4a1a10'), 'the terminal commit stays unmerged, fail-open')
+})
+
+test('#2617 the dirty stop comes before the --ace forward-revert in the pin-transfer probe and the merge prompt', async () => {
+  const fa = nit({ title: 'fa nit', file: 'skills/fa.js' }), fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove(), bRegress('zz.js')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],
+    'ace:subset:t1:a3': [bWorker('5ab00002')],
+  }, aceBase([fa, fb]))
+  const { calls } = await runPhase(ACE_ARGS(), impl)
+  for (const c of [calls.find(c => c.opts.dispatchKind === 'pin-transfer'), calls.find(isMergeTask)]) {
+    const rev = c ? c.prompt.indexOf('FORWARD-REVERT (--ace)') : -1
+    const stop = c ? c.prompt.indexOf('dirty task worktree: <those paths>') : -1
+    assert.ok(rev >= 0, (c && c.opts.label) + ' carries the forward-revert clause (presence guard)')
+    assert.ok(stop >= 0 && stop < rev, (c && c.opts.label) + ' puts the dirty stop before the forward-revert')
+  }
 })
