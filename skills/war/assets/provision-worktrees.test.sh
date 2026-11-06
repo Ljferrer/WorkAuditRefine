@@ -4124,6 +4124,8 @@ expect "LA.7: a short already-landed call runs no push" no "$(la_has "$(ls "$LA_
 #   rr-readfail each push is a [remote rejected], and the origin read then fails
 #   rr-landed   each push is a [remote rejected], and origin then reads new_sha
 #   rr-then-rejected the first push is a [remote rejected], later pushes are [rejected]
+#   other       each push fails with an unrelated error (no rejection token)
+#   rr-then-other the first push is a [remote rejected], later pushes fail unrelated
 # ---------------------------------------------------------------------------
 RR_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t warrrshim)"
 REPOS="$REPOS $RR_DIR"
@@ -4135,9 +4137,13 @@ case "${1:-}" in
     pushes="$(wc -c < "$RR_DIR/pushes" | tr -d ' ')"
     : > "$RR_DIR/pushed"
     case "${RR_SHIM:-}:$pushes" in
-      rr-once:1 | rr-always:* | rr-moved:* | rr-readfail:* | rr-landed:* | rr-then-rejected:1)
+      rr-once:1 | rr-always:* | rr-moved:* | rr-readfail:* | rr-landed:* | rr-then-rejected:1 | rr-then-other:1)
         printf 'remote: fatal error in commit_refs_rules\nTo origin\n ! [remote rejected]   %s (fatal error in commit_refs_rules)\nerror: failed to push some refs to origin\n' "$3" >&2
         exit 1
+        ;;
+      other:* | rr-then-other:*)
+        printf 'fatal: unable to access origin\n' >&2
+        exit 128
         ;;
       rejected:* | rr-then-rejected:*)
         printf 'To origin\n ! [rejected]        %s (fetch first)\nerror: failed to push some refs to origin\n' "$3" >&2
@@ -4283,10 +4289,29 @@ expect "RR.9 remote-rejected but applied: one push" 1 "$RR_PUSHES"
 expect "RR.9 remote-rejected but applied: no wait" "" "$RR_SLEEPS"
 expect "RR.9 remote-rejected but applied: the follower stays" "$LA_SEED" "$(la_follower working/rr9)"
 
+# RR.10: an unrelated push error (network, permission) is never retried.
+la_fixture working/rr10
+rr_run other working/rr10 "$LA_NEW"
+expect "RR.10 unrelated push error: exits 3" 3 "$RR_RC"
+expect "RR.10 unrelated push error: one push" 1 "$RR_PUSHES"
+expect "RR.10 unrelated push error: no wait" "" "$RR_SLEEPS"
+expect "RR.10 unrelated push error: the die names no retry" yes "$(la_has "$RR_ERR" "after 0 retries")"
+expect "RR.10 unrelated push error: the follower stays" "$LA_SEED" "$(la_follower working/rr10)"
+
+# RR.11: an unrelated error on a retry stops the loop at once.
+la_fixture working/rr11
+rr_run rr-then-other working/rr11 "$LA_NEW"
+expect "RR.11 remote-rejected then unrelated: exits 3" 3 "$RR_RC"
+expect "RR.11 remote-rejected then unrelated: two pushes" 2 "$RR_PUSHES"
+expect "RR.11 remote-rejected then unrelated: one 10 second wait" "10 " "$RR_SLEEPS"
+expect "RR.11 remote-rejected then unrelated: the die names one retry" yes "$(la_has "$RR_ERR" "after 1 retries")"
+expect "RR.11 remote-rejected then unrelated: the follower stays" "$LA_SEED" "$(la_follower working/rr11)"
+
 # The Lead's recovery step quotes this die, so it must match the script's text.
 RR_DOC="$HERE/../references/resume-and-recovery.md"
 expect "RR doc: the recovery step quotes the spent-retry die" yes "$(la_has "$(cat "$RR_DOC")" "git push failed (rc=N) after 3 retries:")"
 expect "RR doc: the recovery step names the [remote rejected] line" yes "$(la_has "$(cat "$RR_DOC")" "\`[remote rejected]\` line")"
+expect "RR doc: the Lead's land-advance runs with the raised tool timeout" yes "$(la_has "$(cat "$RR_DOC")" "as a foreground call with timeout 300000")"
 expect "RR doc: the script still prints the quoted die" yes "$(la_has "$(cat "$SCRIPT")" 'git push failed (rc=$push_rc) after $retries retries:')"
 
 # ---------------------------------------------------------------------------
