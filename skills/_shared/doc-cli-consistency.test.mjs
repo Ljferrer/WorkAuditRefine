@@ -153,6 +153,10 @@ const EVICTION_DESTINATIONS = [
   // doctrine behind the agents/war-refiner.md late-fix worktree pointer; it phrases the
   // provision-worktrees.sh `ensure-worktree` step, so it stays under the verb scan.
   'skills/war/references/late-fix-pass.md',
+  // #2635: the Gate 2 promotion steps evicted from skills/war/SKILL.md phrase
+  // `war-memory.mjs lint` and `provision-worktrees.sh ensure-origin`, so those verb claims move
+  // with them and stay scanned.
+  'skills/war/references/learnings-publication.md',
   'skills/war/references/setup.md',
   'skills/war/references/docker-gate.md',
   'skills/war/references/submodule-flows.md',

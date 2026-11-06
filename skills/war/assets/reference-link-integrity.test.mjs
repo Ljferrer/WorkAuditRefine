@@ -365,6 +365,8 @@ const QUALIFIED_HEADERS = [
   // 2026-11-04-late-defects-fixed-in-run Task 6.2: the CONTEXT.md Exclusion set and Terminal pass
   // behavior-row passages' eviction destination (byte-funding the late-defect glossary entry), joined on creation.
   'late-defects.md',
+  // #2635: the skills/war/SKILL.md Gate 2 promotion eviction destination, joined on creation.
+  'learnings-publication.md',
 ];
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {

@@ -22,6 +22,7 @@ stop. The ubiquitous language lives in GLOSSARY.md: its contents list names each
 - when you run stacked plans, read skills/war-campaign/SKILL.md
 - when you clean up after landed plans, read skills/aftermath/SKILL.md
 - when you tidy memory, read skills/lessons-learned/SKILL.md
+- when you publish phase learnings, read skills/war/references/learnings-publication.md
 - when you fix one issue end to end, read skills/zero-in/SKILL.md
 - when you audit a diff once, read skills/snipe/SKILL.md
 - when you review a finished run, read skills/war-review/SKILL.md
