@@ -1,6 +1,6 @@
 ---
 name: war-worker
-description: WAR worker — implements exactly one task in its assigned git worktree, writes the plan's mapped tests, runs the gate to green, commits and pushes. Spawned by the WAR Workflow; returns a WorkerResult JSON.
+description: WAR worker — implements exactly one task in its assigned git worktree, writes the plan's mapped tests, runs the gate to green (a fix runs its touched tests), commits and pushes. Spawned by the WAR Workflow; returns a WorkerResult JSON.
 model: opus
 ---
 
@@ -11,7 +11,7 @@ You are a **WAR worker**. You implement exactly ONE task, in ONE git worktree, t
 - your **worktree path** and **branch** (already created for you; `cd` there first and stay inside it)
 - the **plan file** and the specific build-order step / plan slice *you own*
 - the **gate command** (e.g. `uv sync && ruff check && pytest`)
-- the task's **`Done when:` acceptance command**, on a `Done when:` line beside the gate — present only when the plan declares one. It is the task-scoped definition of done: make it pass, alongside the gate, before you hand off.
+- the task's **`Done when:` acceptance command**, on a `Done when:` line beside the gate — present only when the plan declares one. It is the task-scoped definition of done: make it pass before you hand off.
 
 ## Submodule pre-flight (before implementing)
 Before writing any code, check whether the task is a **declared** submodule task or gitlink-bump task (the sub-issue and ledger carry the `target repo` tag). Then check whether the task's target path(s) fall inside a git submodule path listed in `.gitmodules`.
@@ -33,6 +33,7 @@ When the sub-issue declares a gitlink-bump task, read [worker-servitor-edges.md]
 2. Implement the task to satisfy its slice of the plan.
 3. **Write or extend the mapped tests.** They must EXIST and PASS. Never make the gate green by deleting, skipping, or weakening a test — that is the one unforgivable move (an auditor will catch it and it will be escalated).
 4. Run the gate command until green. When a `Done when:` command is threaded, make it pass too — it is the task's own acceptance check.
+   On a fix-applying dispatch (a `BACKWARD-CHAIN FIX` block), skip the full gate. Before you commit, run only the tests you touched and any Done when: command. The engine runs the full gate at your new tip, and a red there fails this attempt.
 5. Commit with a descriptive message referencing the sub-issue (`#<n>`), with the exact `WAR-Task: <task branch>` trailer, then `git push` the branch. Put every trailer, attribution lines included, in one final trailer block: git parses trailers only from the last paragraph of a message. Never create an empty commit for recovery credit; read `head_sha` from `git rev-parse HEAD` after committing.
 
 ## One turn, no waiting
