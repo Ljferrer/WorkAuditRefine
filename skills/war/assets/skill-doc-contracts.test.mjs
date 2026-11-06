@@ -652,7 +652,7 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
 // (D21, extended — 2026-09-06 engine-and-audit-verdict-integrity Task 1.2, #1597/#1801) The handoff
 // EMIT gate and the follow-up FILING gate are two DISTINCT status sets in workflow-template.js: the
 // handoff block is emitted on `landed` + `held:escalation` only, while the filing dispatch also runs
-// on `held:land-failed`. GLOSSARY.md's **Clean handoff** row used to fold them into one three-member
+// on `held:land-failed`. CONTEXT.md's (now GLOSSARY.md's) **Clean handoff** row used to fold them into one three-member
 // emit claim (`… emitted on `landed`, `held:escalation` and `held:land-failed` for the …`) — false
 // for the emit gate. Both sets are EXTRACTED from the engine, and the emit pair is ADDITIONALLY
 // pinned against the ratified literal `['held:escalation', 'landed']` as a canary, so a gate widening
@@ -1281,7 +1281,7 @@ test('D33 — `ensure-origin` token census: SKILL.md and every references/ file 
 
 // ---- Task 2.1 doc-cascade gates (plan 2026-07-26-dispatch-args-and-floor-coverage) ----
 //
-// The ADR 0037 and GLOSSARY.md amendments below are deliberately phrased OUT of the spec §4.4
+// The ADR 0037 and CONTEXT.md (now GLOSSARY.md) amendments below are deliberately phrased OUT of the spec §4.4
 // four-surface embedded-args token-pair grep — named descriptively and never quoted here, because a
 // comment restating that sweep's own alternation becomes a hit for the sweep it describes and
 // silently forks the count (#1241/#1163; the recorded
@@ -1330,7 +1330,7 @@ test('D23 — ADR 0037 decision 2 carries the dated amendment covering BOTH of i
   }
 })
 
-// (D24) GLOSSARY.md's staged-phase-script glossary entry claimed the stager substitutes exactly the
+// (D24) CONTEXT.md's (now GLOSSARY.md's) staged-phase-script glossary entry claimed the stager substitutes exactly the
 // two `export const meta` anchor literals. A living glossary is edited IN PLACE, so this row is
 // NEW-present AND OLD-absent — the bare unqualified two-only claim must be gone, keyed on the
 // sentence literal (not the word `two`, which stays legitimately in the corrected sentence naming the
@@ -1853,7 +1853,7 @@ test('D29 — ADR 0042 doctrine mirrors (GLOSSARY.md glossary terms, CLAUDE.md h
 // EOF — never line numbers; exactly-one-match per surface, and each cold body must span its
 // `_Avoid_` line (D26's non-vacuity floor — a gutted or truncated body reds, not just a missing
 // heading).
-test('D32 — evicted GLOSSARY.md glossary entries keep trigger pointers, and glossary-cold.md carries each term body (#1265, #1357)', () => {
+test('D32 — evicted glossary entries keep trigger pointers in GLOSSARY.md, and glossary-cold.md carries each term body (#1265, #1357)', () => {
   const glossaryColdMd = readFileSync(join(HERE, '..', 'references', 'glossary-cold.md'), 'utf8')
   // Each row pins the term (GLOSSARY.md bold heading) AND the exact cold-home heading line — a
   // trailing-tolerance wildcard after the term would stay green on an appended rename
@@ -2800,7 +2800,7 @@ test('D36 — the eight authoring-side-verification GLOSSARY.md glossary terms m
 // **Clean handoff** + the new glossary region; the CLAUDE.md Known-traps disposition bullet).
 // Found (four-sentence floor): (1) D19 in this suite anchors the **Adjudication** `_Avoid_`
 // provenance clause — extended in place by D19a above, same commit as the widening. (2)
-// prompt-surface-budgets.test.mjs carries the CONTEXT.md (126,976 B) and CLAUDE.md (16,384 B)
+// prompt-surface-budgets.test.mjs carried the CONTEXT.md (126,976 B at that base, now the GLOSSARY.md row) and CLAUDE.md (16,384 B)
 // hard ceilings — D12's budget arbiter, exercised by this task's Done-when. (3) Tour step 2
 // anchors GLOSSARY.md at the Container/Contents heading — outside the edited region, retyped
 // pattern-only by Task 2.5 and pinned in D39 below. (4) No `.test.sh` surface anchors any touched
@@ -3467,7 +3467,7 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
     // The retired reserve-stop demote route, construct-scoped: a home that still says the
     // still-queued subsets DEMOTE states the pre-2026-09-03 arm. The key is forward-only
     // (phrase, then `demote` within 60 chars). At this task's cut base it reds on two homes:
-    // GLOSSARY.md's "the remaining subsets demote to `follow-up`" and design.md's "the remaining
+    // CONTEXT.md's (now GLOSSARY.md's) "the remaining subsets demote to `follow-up`" and design.md's "the remaining
     // subsets demote straight to `follow-up`". SKILL.md's base placed `demote` AHEAD of the
     // phrase ("subsets demote (plus the subsets still queued when the floor-retry reserve stops
     // the ladder"), which this key does not match, so on SKILL.md it guards prospectively only
@@ -3547,7 +3547,7 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
 // (reserve-retired) THE `roundLimit − 2` RESERVE ARITHMETIC IS ABSENT FROM EVERY LIVING SURFACE
 // (plan 2026-09-03-in-band-absorb-default, End state 5 · Task 2.2; PIN-7). OLD-absent, whole-surface,
 // base-verified: at this task's cut base the reserve shape was present in SKILL.md's `--ace` bullet,
-// GLOSSARY.md's **Ace bisection** and **Re-entry** rows, and design.md §18 (Task 2.2 re-authored
+// CONTEXT.md's (now GLOSSARY.md's) **Ace bisection** and **Re-entry** rows, and design.md §18 (Task 2.2 re-authored
 // them), and Task 2.1 had already retired it from `disposition-eligibility.md` widening 1, the
 // `schemas.md` re-entry row, and the engine's seven comments plus its four emitted reserve-stop
 // strings (two log() calls plus the demote() and routeToSweep() reason literals they guarded)
@@ -3841,12 +3841,12 @@ test('economy-ace-flip — NEW-present: every surface carries the inherited-on f
 // (old-default-absent) THE RETIRED "ABSORB IS NEVER A DEFAULT" CONJUNCTIONS ARE ABSENT FROM THE EIGHT
 // LIVING SURFACES (plan 2026-09-03-in-band-absorb-default, End state 8 · Task 3.2; D1/D2). The
 // in-diff `absorb` default retired three conjunction shapes, base-verified at this task's cut base:
-// `absorb` and `ask` are never default* (CLAUDE.md, GLOSSARY.md, SKILL.md, design.md, the card,
+// `absorb` and `ask` are never default* (CLAUDE.md, CONTEXT.md (now GLOSSARY.md), SKILL.md, design.md, the card,
 // `schemas.md`, and the three `workflow-template.js` sites Task 3.1 rewrote — the `*` covers
 // `defaults` and `defaulted`; rule 7: this row reads those last three surfaces after the dep
 // rebase), `absorb` and `ask` never defaulted (gastown-design-params.md), and the zero-token-gap
 // `absorb` is never a default (the ADR 0013 Decision 4 literal, guard-exempt here, and the earlier
-// GLOSSARY.md retirement D37a still pins — never present on the other seven surfaces at base, so
+// CONTEXT.md (now GLOSSARY.md) retirement D37a still pins — never present on the other seven surfaces at base, so
 // its assert guards a first appearance, not a revert). Detection runs on a NORMALIZED
 // surface — `//`/`>`/`#` line leaders stripped by `norm` BEFORE the join (so a phrase wrapped
 // across a comment boundary flattens contiguous), then backticks and single and double quotes

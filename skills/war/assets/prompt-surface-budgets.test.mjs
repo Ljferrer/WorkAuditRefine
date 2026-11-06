@@ -312,15 +312,15 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
 //     exactly the sort of hole a mechanical guard exists to foreclose before it opens.
 //   * Parenthetical-tolerant because the sentinel's derivation interposes a block/file-size
 //     aside between the byte count and the SHA. The plain fused shape REDs that one live
-//     subject; this shape passes all ten with zero comment rewrites.
+//     subject; this shape passed every subject at that base with zero comment rewrites.
 //   * The `\n` in the negated class is PROPHYLACTIC and no current subject demonstrates it:
 //     JavaScript negated classes match U+000A, so a bare `[^)]*` would let the aside span
 //     comment lines and re-admit the cross-line pairing the fusion just closed. Measured at this
-//     base the two variants agree on all ten subjects (nine of the ten blocks put ` @ <sha>`
+//     base the two variants agree on every subject (every block but the sentinel puts ` @ <sha>`
 //     directly after the byte count, so the optional group is skipped; the sentinel's aside opens
 //     right after the byte count AND closes on the same comment line, with the SHA after the
-//     close, so both variants match it identically — and under `@ <sha>`-stripping rot all ten
-//     RED under either variant). It guards a future shape — an aside opening right after the
+//     close, so both variants match it identically — and under `@ <sha>`-stripping rot every
+//     subject REDs under either variant). It guards a future shape — an aside opening right after the
 //     byte count and closing on a later line with the SHA after it — not a present one.
 //
 // Multiplier disjunction, not conjunction: GLOSSARY.md's row is the known one-arm outlier, showing

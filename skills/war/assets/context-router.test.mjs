@@ -140,17 +140,27 @@ function git(args) {
 // Both sides of the move, read at the move itself: `before` is CONTEXT.md in the parent of the
 // commit that added GLOSSARY.md, and `moved` is GLOSSARY.md in that commit. Later glossary edits
 // change neither side. Before that commit exists, the sides are HEAD's CONTEXT.md and the
-// working-tree GLOSSARY.md. null outside git.
+// working-tree GLOSSARY.md. null outside git, or when the adding commit has no readable parent
+// (a shallow clone cut at that commit).
+// `-c log.follow=false`: a user-level log.follow=true turns a one-path log into --follow, which
+// reads the move as a copy of CONTEXT.md and names CONTEXT.md's own first commit as the add.
 function moveSides() {
   try {
     git(['rev-parse', '--git-dir'])
   } catch {
     return null
   }
-  const added = git(['log', '--diff-filter=A', '--format=%H', '--', 'GLOSSARY.md']).trim().split('\n').filter(Boolean)
+  const added = git(['-c', 'log.follow=false', 'log', '--diff-filter=A', '--format=%H', '--', 'GLOSSARY.md'])
+    .trim().split('\n').filter(Boolean)
   if (added.length === 0) return { before: git(['show', 'HEAD:CONTEXT.md']), moved: read('GLOSSARY.md') }
   const at = added[added.length - 1]
-  return { before: git(['show', `${at}^:CONTEXT.md`]), moved: git(['show', `${at}:GLOSSARY.md`]) }
+  let before
+  try {
+    before = git(['show', `${at}^:CONTEXT.md`])
+  } catch {
+    return null
+  }
+  return { before, moved: git(['show', `${at}:GLOSSARY.md`]) }
 }
 
 const router = read('CONTEXT.md')
@@ -173,10 +183,11 @@ test('router — planted faults go red (#2636)', () => {
     'router links a glossary section directly': `${good}\n- when you land, read GLOSSARY.md#landing`,
     'router links a glossary section directly (2-hop rule): GLOSSARY.md#audit': `Prose: see GLOSSARY.md#audit.\n${good}`,
     'broken link: c.md': `See [c](c.md).\n${good}`,
+    'exactly one entry must read GLOSSARY.md#contents (duplicate)': `${good}\n- when you need a term, read GLOSSARY.md#contents`,
   }
   for (const [want, text] of Object.entries(cases)) {
     const got = routerFaults(text, glossary, files)
-    assert.ok(got.some((f) => f.startsWith(want)), `${want}: got ${JSON.stringify(got)}`)
+    assert.ok(got.some((f) => f.startsWith(want.replace(/ \(duplicate\)$/, ''))), `${want}: got ${JSON.stringify(got)}`)
   }
 })
 
@@ -190,6 +201,7 @@ test('contents — planted faults go red (#2636)', () => {
   assert.ok(first, 'the contents list has no lines')
   const cases = {
     'contents list names': glossary.replace(`${first[0]}\n`, ''),
+    'contents list names (duplicate)': glossary.replace(first[0], `${first[0]}\n${first[0]}`),
     'broken contents link': glossary.replace(first[0], `${first[0]}\n- #no-such-heading`),
     'not a bare #slug list line': glossary.replace(first[0], `- [x](#${first[1]})`),
     'the second block must be ## Contents': glossary.replace('## Contents', '## Index'),
@@ -198,13 +210,13 @@ test('contents — planted faults go red (#2636)', () => {
   }
   for (const [want, text] of Object.entries(cases)) {
     const got = contentsFaults(text)
-    assert.ok(got.some((f) => f.startsWith(want)), `${want}: got ${JSON.stringify(got)}`)
+    assert.ok(got.some((f) => f.startsWith(want.replace(/ \(duplicate\)$/, ''))), `${want}: got ${JSON.stringify(got)}`)
   }
 })
 
 test('identity — the moved ## Language span equals the pre-move CONTEXT.md span byte for byte (ADR 0042 D3, #2636)', (t) => {
   const sides = moveSides()
-  if (sides === null) return t.skip('no usable git context')
+  if (sides === null) return t.skip('no usable git context, or the move commit has no readable parent')
   assert.deepEqual(identityFaults(sides.before, sides.moved, router), [])
 })
 
@@ -221,6 +233,6 @@ test('identity — planted faults go red (#2636)', () => {
   }
   for (const [want, args] of Object.entries(cases)) {
     const got = identityFaults(...args)
-    assert.ok(got.some((f) => f.startsWith(want)), `${want}: got ${JSON.stringify(got)}`)
+    assert.ok(got.some((f) => f.startsWith(want.replace(/ \(duplicate\)$/, ''))), `${want}: got ${JSON.stringify(got)}`)
   }
 })

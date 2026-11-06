@@ -588,10 +588,11 @@ printf '\n# Gospel pins (docs/plans/2026-08-04-interview-and-authoring-contract.
 # Named, not numbered: the original pipeline spec owns the numbered criteria. Adjudicated
 # 2026-08-05 (ADR 0017 — the five-surface gospel sweep may not ride a hand-run grep alone):
 # every Task-6 retired anchor is pinned OLD-ABSENT via lacks_i() on ALL FIVE End-state-5
-# surfaces — README, CLAUDE.md, war-help, GLOSSARY.md, war-strategy — and each surface THIS
+# surfaces — README, CLAUDE.md, war-help, CONTEXT.md, war-strategy — and each surface THIS
 # suite owns carries a NEW-present twin (war-strategy's both-ways enforcement — its own
 # retired-wording set and the merged-template heading — lives in
-# war-strategy-structure.test.sh, Task 1). Case-insensitive in BOTH directions: a benign
+# war-strategy-structure.test.sh, Task 1). #2636 moved the glossary to GLOSSARY.md, so the
+# OLD-absent loop sweeps GLOSSARY.md and the CONTEXT.md router in that surface's place. Case-insensitive in BOTH directions: a benign
 # re-casing must neither resurrect retired prose unseen
 # ([[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]]) nor false-negate a presence pin
 # (the sentence-case class). lacks_i() inherits strip_prose, so Task 10's README `## Status`
