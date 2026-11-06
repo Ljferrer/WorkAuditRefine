@@ -87,3 +87,9 @@ sub-area of the superproject worktree.** Five sub-decisions:
   worktree/refinery model the submodule-as-repo topology reuses.
 - [ADR-0005](0005-dead-phase-halts-the-dag.md) / [ADR-0008](0008-git-is-the-resume-source-of-truth.md) — the
   landDecision and resume-precedence machinery this feature extends.
+
+## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+
+#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
+(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
+next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.

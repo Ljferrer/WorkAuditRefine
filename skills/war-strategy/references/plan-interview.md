@@ -12,7 +12,7 @@ falsifier probes + provenance scan against a drafted conversion).
 
 **Stage 0 — silent recon.** Before any question, four recon lanes, all fail-open:
 
-1. **Static recon** — read the repo tree, `CONTEXT.md`, `docs/adr/`, and the related plans
+1. **Static recon** — read the repo tree, `GLOSSARY.md`, `docs/adr/`, and the related plans
    under `docs/plans/`.
 2. **The run-history recon lane** — read the four run-history corpus classes:
    run manifests (`.claude/war/runs/`) · epic phase reports · the war-followup corpus · `docs/learnings/`
@@ -230,7 +230,7 @@ interview that leaves a row unfilled has not finished:
 | assumptions | `## Assumptions ledger` | `/red-team`'s `dependency-feasibility` lens and `dep-resolves` probe |
 | fork trials (fact forks, Stage 1b) | the `**Trials run**` block — one `TRIAL-<n>` row per trial, Part 1 placement latitude | `/red-team` replay of settled rows · gate 1 enumerate-aloud |
 | pair beats (interface forks, the three triggers) | the design-tree Source cell (`(user) Q<k>, after TRIAL-<n>`) and the Trials pair row | `/red-team` coverage of the chosen and rejected shapes |
-| new domain terms | `## New domain terms · Recommended ADRs` | CONTEXT.md glossary |
+| new domain terms | `## New domain terms · Recommended ADRs` | GLOSSARY.md |
 | choices passing the ADR triad (hard to reverse · surprising without context · a genuine trade-off) | ADR recommendations | `docs/adr/` |
 
 ## Evidence + slot law (shared with the template)

@@ -1000,17 +1000,17 @@ test('ff-topology prose presence pair: SKILL.md + lenses.md both carry the probe
     'lenses.md ff-topology row still builds the retired fast-forward task-merge fixture')
 })
 
-// #2485 (Task 5.3): CONTEXT.md's topology-void entry follows the merge-commit topology, and the four
-// born-cold terms carry one trigger pointer each in CONTEXT.md and a body (with its _Avoid_ line) in
+// #2485 (Task 5.3): GLOSSARY.md's topology-void entry follows the merge-commit topology, and the four
+// born-cold terms carry one trigger pointer each in GLOSSARY.md and a body (with its _Avoid_ line) in
 // skills/war/references/glossary-cold.md. Entry extraction: the bold term → next bold term or `###`;
 // cold body: the `## ` heading → next `## `.
-test('#2485 topology-void entry and the four born-cold merge-provenance terms (CONTEXT.md + glossary-cold.md)', () => {
+test('#2485 topology-void entry and the four born-cold merge-provenance terms (GLOSSARY.md + glossary-cold.md)', () => {
   const repo = join(__dirname, '..', '..', '..')
-  const ctx = readFileSync(join(repo, 'CONTEXT.md'), 'utf8')
+  const ctx = readFileSync(join(repo, 'GLOSSARY.md'), 'utf8')
   const cold = readFileSync(join(repo, 'skills', 'war', 'references', 'glossary-cold.md'), 'utf8')
   const entry = (term) => {
     const start = ctx.indexOf(`\n**${term}**:\n`)
-    assert.ok(start !== -1, `CONTEXT.md must carry a **${term}**: entry`)
+    assert.ok(start !== -1, `GLOSSARY.md must carry a **${term}**: entry`)
     const rest = ctx.slice(start + 1)
     const end = rest.slice(2).search(/\n(\*\*[^\n]+\*\*[^\n]*:\n|### )/)
     return end === -1 ? rest : rest.slice(0, end + 3)
@@ -1022,7 +1022,7 @@ test('#2485 topology-void entry and the four born-cold merge-provenance terms (C
   assert.doesNotMatch(tv, /fast-forward per-task merges/, 'topology-void still states the retired fast-forward premise')
   for (const term of ['Tip probe', 'Merge-commit provenance', 'Provision tree marker', 'Launch identity of a recovery']) {
     assert.match(entry(term), /^\*\*[^\n]+\*\*:\nwhen [^\n]+, read skills\/war\/references\/glossary-cold\.md\n/,
-      `CONTEXT.md \`${term}\` must be one fixed-shape trigger pointer to glossary-cold.md`)
+      `GLOSSARY.md \`${term}\` must be one fixed-shape trigger pointer to glossary-cold.md`)
     const heads = cold.split('\n').filter((l) => l === `## ${term}`)
     assert.equal(heads.length, 1, `glossary-cold.md must carry exactly one \`## ${term}\` heading`)
     const at = cold.indexOf(`\n## ${term}\n`) + 1
@@ -1262,7 +1262,7 @@ test('model/effort threading: model-only args (no effort) → only model threade
 const SKILL_PATH = join(__dirname, '..', 'SKILL.md')
 const LENSES_PATH = join(__dirname, '..', 'references', 'lenses.md')
 const GATE_PATH = join(__dirname, 'red-team-gate.mjs')
-const CONTEXT_PATH = join(__dirname, '..', '..', '..', 'CONTEXT.md')
+const GLOSSARY_PATH = join(__dirname, '..', '..', '..', 'GLOSSARY.md')
 const CAMPAIGN_PATH = join(__dirname, '..', '..', 'war-campaign', 'SKILL.md')
 const surface = (p) => readFileSync(p, 'utf8')
 
@@ -1355,7 +1355,7 @@ test('sandbox-idiom drift guard: each surface pins its isolating forms, and the 
 // five surfaces, each with a named compare mode:
 //   1. lenses.md severity-section verdict bullet — delimiter-split token-SET equality;
 //   2. lenses.md report-template verdict line — delimiter-split token-SET equality;
-//   3. CONTEXT.md ADJUDICATED-(verdict)-entry precedence chain — ORDERED-SEQUENCE equality against
+//   3. GLOSSARY.md ADJUDICATED-(verdict)-entry precedence chain — ORDERED-SEQUENCE equality against
 //      the pre-sort literals array (verdict()'s body-appearance order IS the precedence order, so
 //      the chain's order is semantic — a set compare would pass a reordering);
 //   4. war-campaign SKILL.md step-3 triage arms — DERIVED-SUBSET set equality on the proceed arm's
@@ -1378,7 +1378,7 @@ test('sandbox-idiom drift guard: each surface pins its isolating forms, and the 
 // parenthetical, so a whole-line read would false-pass both drifts.
 const EXPECTED_VERDICTS = ['ADJUDICATED', 'BLOCKED', 'CLEARED', 'CLEARED-WITH-NOTES', 'INCOMPLETE']
 
-test('verdict-enumeration drift guard: verdict()\'s literal set is exact and all five documented surfaces match it — token-set (lenses severity bullet, report-template line, spine bullet), ordered-sequence (CONTEXT.md precedence chain), derived-subset + partition (war-campaign triage arms) (End state 9)', () => {
+test('verdict-enumeration drift guard: verdict()\'s literal set is exact and all five documented surfaces match it — token-set (lenses severity bullet, report-template line, spine bullet), ordered-sequence (GLOSSARY.md precedence chain), derived-subset + partition (war-campaign triage arms) (End state 9)', () => {
   const gate = surface(GATE_PATH)
   const open = gate.indexOf('export function verdict(')
   assert.notEqual(open, -1, 'red-team-gate.mjs must export the verdict() construct this guard anchors on')
@@ -1420,20 +1420,20 @@ test('verdict-enumeration drift guard: verdict()\'s literal set is exact and all
   assert.deepEqual(tmplTokens, EXPECTED_VERDICTS,
     `the report template verdict line enumerates ${JSON.stringify(tmplTokens)}, not ${JSON.stringify(EXPECTED_VERDICTS)}`)
 
-  // Surface 3 — CONTEXT.md's ADJUDICATED (verdict) glossary entry: its precedence chain, compared
+  // Surface 3 — GLOSSARY.md's ADJUDICATED (verdict) glossary entry: its precedence chain, compared
   // as an ORDERED SEQUENCE against the pre-sort literals array (verdict()'s body-appearance order
   // IS the precedence order). Entry sliced by the skill-doc-contracts D19 idiom — bolded term
   // heading with next-bolded-term lookahead — never a whole-file read.
-  const ctx = surface(CONTEXT_PATH)
+  const ctx = surface(GLOSSARY_PATH)
   const entry = ctx.match(/^\*\*ADJUDICATED \(verdict\)\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:)/m)
   assert.ok(entry,
-    'could not locate the ADJUDICATED (verdict) glossary entry in CONTEXT.md (bolded term → next bolded term) — the extraction construct rotted')
+    'could not locate the ADJUDICATED (verdict) glossary entry in GLOSSARY.md (bolded term → next bolded term) — the extraction construct rotted')
   const precLines = entry[0].split('\n').filter(l => l.startsWith('Precedence:'))
   assert.equal(precLines.length, 1,
     'the ADJUDICATED (verdict) entry must carry exactly one Precedence: line')
   const chainTokens = [...precLines[0].split(';')[0].matchAll(/`([^`]+)`/g)].map(m => m[1])
   assert.deepEqual(chainTokens, literals,
-    `the CONTEXT.md precedence chain reads ${JSON.stringify(chainTokens)} but verdict()'s body-appearance (= precedence) order is ${JSON.stringify(literals)} — ordered compare: a reordering is a defect even at equal membership`)
+    `the GLOSSARY.md precedence chain reads ${JSON.stringify(chainTokens)} but verdict()'s body-appearance (= precedence) order is ${JSON.stringify(literals)} — ordered compare: a reordering is a defect even at equal membership`)
 
   // Surface 4 — war-campaign SKILL.md step-3 triage: the proceed arm's enumeration SEGMENT (marker
   // → first following parenthesis; the whole line also carries the blocking verdict in its

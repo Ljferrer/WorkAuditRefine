@@ -12,11 +12,11 @@ const __dir = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(__dir, '..', '..')
 const skill = readFileSync(join(REPO_ROOT, 'skills/lessons-learned/SKILL.md'), 'utf8')
 const migration = readFileSync(join(REPO_ROOT, 'skills/lessons-learned/references/migration.md'), 'utf8')
-// CONTEXT.md joined the swept surfaces with the #992 target-aware preflight (Task 1.2): its
+// The glossary (then CONTEXT.md, now GLOSSARY.md, #2636) joined the swept surfaces with the #992 target-aware preflight (Task 1.2): its
 // **Advisory line** / **Tighten pass** glossary entries carried the same fixed-advisory claim as
 // SKILL.md, in stronger definitional form. Without loading it here those two surfaces have zero
 // mechanical check.
-const context = readFileSync(join(REPO_ROOT, 'CONTEXT.md'), 'utf8')
+const context = readFileSync(join(REPO_ROOT, 'GLOSSARY.md'), 'utf8')
 // Task 2.2 (lessons-learned-seed): the seed mode reads three more surfaces.
 const seeding = readFileSync(join(REPO_ROOT, 'skills/lessons-learned/references/seeding.md'), 'utf8')
 // Prompt-surface simplification Task 6.1: the tighten five-step procedure was evicted verbatim
@@ -234,8 +234,8 @@ test('doc-contract: Phase 6 It-checks names the repo-completeness hard fail', ()
 // tighten trigger became false. ADR 0025 default-flip discipline: OLD-absent per enumerated
 // surface, not just NEW-present — a worker could otherwise APPEND a target-aware sentence and
 // leave the false clause standing, and a presence-only lock would pass. Eight enumerated
-// surfaces: (1)–(6) in SKILL.md, (7)–(8) in CONTEXT.md's glossary. Each needle was verified to sit
-// on a single physical line (the stop rule and CONTEXT's "no third threshold" sentence both WRAP,
+// surfaces: (1)–(6) in SKILL.md, (7)–(8) in GLOSSARY.md's glossary. Each needle was verified to sit
+// on a single physical line (the stop rule and GLOSSARY's "no third threshold" sentence both WRAP,
 // hence the whitespace-tolerant / truncated needles below).
 // Task 6.1 re-anchor: the tighten procedure (which carried surfaces 1, 2, 5, 6) moved verbatim to
 // references/tighten.md, so the six-needle OLD-absent key (17) below scans the UNION of SKILL.md +
@@ -261,14 +261,14 @@ test('doc-contract: no fixed-advisory tighten-preflight reading survives in SKIL
         `${name} ${surface}: the retired fixed-advisory reading must be gone — the preflight verdict is the stricter of the advisory line and the effective --target (#992)`)
 })
 
-// (18) OLD-absent ×2 on CONTEXT.md's glossary (surfaces 7-8). The definitional entries asserted the
+// (18) OLD-absent ×2 on GLOSSARY.md's glossary (surfaces 7-8). The definitional entries asserted the
 //      advisory line was the ONLY trigger threshold; a sub-advisory --target is exactly a second,
 //      stricter one. `there is no third` stops before `threshold` on purpose: that sentence wraps.
-test('doc-contract: CONTEXT.md glossary no longer calls the advisory line the sole tighten trigger (surfaces 7-8)', () => {
+test('doc-contract: GLOSSARY.md glossary no longer calls the advisory line the sole tighten trigger (surfaces 7-8)', () => {
   assert.doesNotMatch(context, /there is no third/i,
-    'CONTEXT.md **Advisory line**: the "no third threshold" claim must be gone — a stricter --target IS a second trigger threshold (#992)')
+    'GLOSSARY.md **Advisory line**: the "no third threshold" claim must be gone — a stricter --target IS a second trigger threshold (#992)')
   assert.doesNotMatch(context, /triggered at the advisory line/i,
-    'CONTEXT.md **Tighten pass**: the pass triggers at the EFFECTIVE target (advisory line by default, a stricter --target when supplied)')
+    'GLOSSARY.md **Tighten pass**: the pass triggers at the EFFECTIVE target (advisory line by default, a stricter --target when supplied)')
 })
 
 // (19) NEW-present on the reworded explanatory sentence (surface 1). Anchored there, NOT on the

@@ -73,3 +73,9 @@ that **always halts the DAG**; the Lead never advances on an unrecognized result
   — full mechanics, surface changes, validation criteria.
 - Audit finding **M1** (2026-06-29 agent-architecture audit) — the originating defect.
 - [ADR-0002](0002-scope-by-agent-type.md) — the fail-closed posture precedent (auditor git guard).
+
+## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+
+#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
+(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
+next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.

@@ -241,8 +241,8 @@ const VERB_SCAN_EXCLUSIONS = [
   'skills/war/references/run-manifest.md',
   'skills/red-team/references/lenses.md',           // no shell-out prose for the scanned modules
   'skills/red-team/references/loop-budget.md',      // no shell-out prose for the scanned modules
-  // glossary-cold.md holds evicted CONTEXT.md glossary bodies (incident/recovery doctrine, Executor gate, Decisive slot) and
-  // born-cold bodies that never lived in CONTEXT.md (fork trial, pair beat, Trials run block;
+  // glossary-cold.md holds evicted glossary bodies (from CONTEXT.md, now GLOSSARY.md) (incident/recovery doctrine, Executor gate, Decisive slot) and
+  // born-cold bodies that never lived in the glossary file (fork trial, pair beat, Trials run block;
   // plan 2026-10-26-interview-fork-trials-and-pair-beats D14); no shell-out prose for the
   // scanned modules (re-verified at the 2026-08-16 land base, D10).
   'skills/war/references/glossary-cold.md',

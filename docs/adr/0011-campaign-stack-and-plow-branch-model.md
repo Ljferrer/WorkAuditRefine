@@ -2,7 +2,7 @@
 
 **Status:** accepted (2026-07-06) — stack-and-plow shipped in `/war-campaign` and is treated as operating doctrine by later ADRs (0016 references it as the campaign model)
 
-`/war-campaign` runs a **hopper**: one chat executing a [roadmap](../../CONTEXT.md) of plans back-to-back
+`/war-campaign` runs a **hopper**: one chat executing a [roadmap](../../GLOSSARY.md) of plans back-to-back
 (`/red-team <plan>` → `/war <plan> … --afk --ace`) overnight, unattended. The unattended part is the whole
 point — so the campaign **cannot pause and wait for a human to merge** between plans. That forces a decision a
 future reader will find surprising: **when plan N+1 needs plan N's code but nobody is awake to merge plan N's
@@ -72,3 +72,9 @@ campaign instead **stacks**. Full mechanics: [the design spec](../specs/2026-07-
   applies at the campaign (plan-to-plan) level.
 - [ADR-0010 — Submodule landing authority](0010-submodule-landing-authority.md) — the AFK submodule-ownership
   gate a campaign inherits.
+
+## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+
+#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
+(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
+next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.

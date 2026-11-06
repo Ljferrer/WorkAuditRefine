@@ -1,27 +1,27 @@
-# Glossary cold home — evicted and born-cold CONTEXT.md entries
+# Glossary cold home — evicted and born-cold glossary entries
 
 The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) for evicted and
-born-cold `CONTEXT.md` glossary bodies. Each evicted body below was byte-identical to its pre-eviction
+born-cold glossary bodies (the glossary was `CONTEXT.md` until #2636 moved it to `GLOSSARY.md`). Each evicted body below was byte-identical to its pre-eviction
 `CONTEXT.md` text **at eviction time** (only repo-root-relative links were re-anchored for this file's
 depth), moved under an additive per-term heading — and the glossary keeps the `**Term**:` heading plus
 one fixed-shape trigger pointer (`when <trigger>, read skills/war/references/glossary-cold.md`).
-A born-cold body is authored here first and has no pre-eviction text to match (waves 5 and 6): `CONTEXT.md`
+A born-cold body is authored here first and has no pre-eviction text to match (waves 5 and 6): `GLOSSARY.md`
 holds only its `**Term**:` heading plus the same trigger pointer. One
 pointer may carry several terms when a whole cold cluster leaves together (wave 4). Prose
 temperature is branch
 frequency (ADR 0042): these are cold but still authoritative — never delete a body; evict more the
 same way. **Coldness criterion** (one standing criterion; selections for waves 1-3 and 5 are recorded in
 the D32 row's comments in `skills/war/assets/skill-doc-contracts.test.mjs`, which pins those
-CONTEXT.md pointers to their bodies here — wave 4's bodies are deliberately unpinned, selected for
+GLOSSARY.md pointers to their bodies here — wave 4's bodies are deliberately unpinned, selected for
 carrying no live drift-guard key; wave 6's four born-cold merge-provenance bodies are pinned instead by
 `skills/red-team/assets/workflow-scaffold.test.mjs`): a term qualifies when it names a
 retired mechanism, or when it is fully narrated in its own operative home (a `references/` file, an
 owning skill's SKILL.md, or its ADR) so the glossary needs only a pointer — incident-only recovery
 and one-command forensics entries are the standing example. Bold glossary cross-references inside
-the moved bodies resolve in `CONTEXT.md`, their original home, or here when the referenced term has
+the moved bodies resolve in the glossary (`GLOSSARY.md`), their original home, or here when the referenced term has
 itself since been evicted — stated as the rule rather than a
 dated enumeration, which rots as bodies are added (#1908). A reference may be a shortened or
-differently-cased form of its CONTEXT.md heading (**phantom land** → `**Phantom land**`,
+differently-cased form of its GLOSSARY.md heading (**phantom land** → `**Phantom land**`,
 **Land primitive** → `**Land primitive (single land chokepoint)**`); resolve by term, not by
 byte-match.
 
