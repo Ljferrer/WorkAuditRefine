@@ -1021,13 +1021,16 @@ expect "non-empty unregistered dir: precious file NOT deleted" \
 #   2. Classify on the [rejected] token (always emitted on non-ff rejection):
 #        [rejected] present -> exit RELAND code (2)
 #        clean exit 0      -> success (continue to step 3)
+#        [remote rejected] with origin unmoved -> the same push again, up to
+#                            3 retries after 10, 20 and 40 s, then exit 3 (#2626)
 #        other non-zero    -> exit ESCALATE code (3)
 #   3. ONLY on push success: git update-ref refs/heads/<working> <new-sha> <pre-push-local-tip>
 #
 # Exit codes:
 #   0  -> push accepted; local follower advanced
 #   2  -> push rejected ([rejected] token seen); local ref UNCHANGED
-#   3  -> unrelated push error (not a non-ff rejection); escalate
+#   3  -> unrelated push error (not a non-ff rejection), or a [remote rejected]
+#         push whose retries are spent or whose origin moved; escalate
 #   6  -> EX_WRONG_BRANCH: invoked from a worktree whose HEAD is not <new-sha>;
 #         no push attempted, all refs untouched (never 2 — #986)
 #
@@ -4216,6 +4219,23 @@ expect "RR.5 remote-rejected: a failed origin read exits 3, not Git's code" 3 "$
 expect "RR.5 remote-rejected: one push" 1 "$RR_PUSHES"
 expect "RR.5 remote-rejected: no wait" "" "$RR_SLEEPS"
 expect "RR.5 remote-rejected: the follower stays" "$LA_SEED" "$(la_follower working/rr5)"
+
+# RR.6: a first land (no branch on origin yet) retries too. The empty origin
+# read equals the empty pre-push read, so nothing moved.
+LA_PAIR="$(setup_origin_pair)"
+LA_C1="$(printf '%s' "$LA_PAIR" | cut -d' ' -f1)"
+printf 'rr6\n' > "$LA_C1/la.txt"
+git -C "$LA_C1" add -A
+git -C "$LA_C1" commit -qm "new sha for working/rr6"
+LA_NEW="$(git -C "$LA_C1" rev-parse HEAD)"
+git -C "$LA_C1" checkout -q --detach "$LA_NEW"
+expect "RR.6 fixture: origin has no working/rr6 before the land" "" "$(la_origin working/rr6)"
+rr_run rr-once working/rr6 "$LA_NEW"
+expect "RR.6 remote-rejected first land: a retry that lands exits 0" 0 "$RR_RC"
+expect "RR.6 remote-rejected first land: origin holds new_sha" "$LA_NEW" "$(la_origin working/rr6)"
+expect "RR.6 remote-rejected first land: the follower is created at new_sha" "$LA_NEW" "$(la_follower working/rr6)"
+expect "RR.6 remote-rejected first land: two pushes" 2 "$RR_PUSHES"
+expect "RR.6 remote-rejected first land: one 10 second wait" "10 " "$RR_SLEEPS"
 
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
