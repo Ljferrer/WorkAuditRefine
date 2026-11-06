@@ -1324,6 +1324,10 @@ cmd_teardown_phase() {
 #      the caller re-fetches origin/<working>, re-merges, and retries.
 #      Do NOT key on the literal "non-fast-forward" — red-team proved it is NOT
 #      reliably emitted for this push form. [rejected] is the canonical token.
+#    - [remote rejected] (a server-side error, #2626) while a fresh ls-remote
+#      still reads the pre-push origin tip → RETRY the same push, at most 3
+#      times, after 10, 20, then 40 s. Spent retries, a moved origin, or a
+#      failed read → ESCALATE (exit 3). Never land_stale, never --force.
 #    - Other non-zero (e.g. network failure, bad URL) → ESCALATE (exit 3), and the
 #      die carries the push output.
 #      Never infer success from absence of [rejected] alone — require exit 0.
@@ -1343,7 +1347,8 @@ cmd_teardown_phase() {
 #        <new-sha>; escalate.
 #   2  → push rejected ([rejected] token seen); local ref unchanged; reland.
 #   3  → phantom land, failed origin readback, unresolvable HEAD/<new-sha>,
-#        unrelated push error, or post-push readback mismatch; escalate. A git
+#        unrelated push error, a [remote rejected] push whose retries are spent
+#        or whose origin moved, or post-push readback mismatch; escalate. A git
 #        error never collapses into 0 or 2.
 #   6  → EX_WRONG_BRANCH: wrong-HEAD precheck (step 0b) — invoked from a worktree
 #        whose HEAD is not <new-sha>. No push attempted; local and origin refs
@@ -1458,11 +1463,29 @@ cmd_land_advance() {
 
   # Push HEAD (which IS <new-sha> in the detached refinery) to the named branch
   # on origin. Capture combined stdout+stderr for [rejected] detection.
-  push_out="$(mktemp 2>/dev/null || mktemp -t warpush)"
-  push_rc=0
-  git push origin "HEAD:refs/heads/$working" >"$push_out" 2>&1 || push_rc=$?
-  push_output="$(cat "$push_out")"
-  rm -f "$push_out"
+  # A server-side "[remote rejected]" (#2626, e.g. "fatal error in
+  # commit_refs_rules") is retried up to 3 times, waiting 10, 20, then 40 s, but
+  # only while a fresh ls-remote still reads pre_push_origin: nothing moved, so
+  # the same push is safe. It never contains the [rejected] token. A moved origin,
+  # a failed read, or spent retries fall to the EX_FOREIGN die below. The read runs
+  # before each wait. If origin moves during the wait, the non-force retry cannot
+  # overwrite it: git refuses a non-fast-forward ([rejected], exit 2, RR.8), and
+  # any other outcome ends through the readback or the EX_FOREIGN die.
+  retries=0
+  while :; do
+    push_out="$(mktemp 2>/dev/null || mktemp -t warpush)"
+    push_rc=0
+    git push origin "HEAD:refs/heads/$working" >"$push_out" 2>&1 || push_rc=$?
+    push_output="$(cat "$push_out")"
+    rm -f "$push_out"
+    [ "$push_rc" -ne 0 ] || break
+    case "$push_output" in *'[remote rejected]'*) ;; *) break ;; esac
+    [ "$retries" -lt 3 ] || break
+    origin_now="$(git ls-remote origin "refs/heads/$working" | cut -f1)" || break
+    [ "$origin_now" = "$pre_push_origin" ] || break
+    retries=$((retries + 1))
+    case "$retries" in 1) sleep 10 ;; 2) sleep 20 ;; *) sleep 40 ;; esac
+  done
 
   if [ "$push_rc" -eq 0 ]; then
     # Origin readback (#251): the push exited 0, but a push that did not move
@@ -1506,7 +1529,7 @@ cmd_land_advance() {
 
   # Any other non-zero (network failure, bad URL, permission error, etc.)
   # → escalate. The Lead must intervene, and the push output is the evidence.
-  die "land-advance: git push failed (rc=$push_rc): $push_output Escalate." "$EX_FOREIGN"
+  die "land-advance: git push failed (rc=$push_rc) after $retries retries: $push_output Escalate." "$EX_FOREIGN"
 }
 
 # --- subcommand: sync-follower ----------------------------------------------

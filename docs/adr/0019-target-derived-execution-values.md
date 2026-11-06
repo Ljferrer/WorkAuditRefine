@@ -180,3 +180,9 @@ phase, both with the reason "found at the land gate after the late-fix pass". Th
 `baseline` routes ... stand unchanged" is narrowed the same way. The `environment` route keeps its
 ADR 0040 route and makes no row. Plan `docs/plans/2026-11-04-late-defects-fixed-in-run.md` D12, PIN-12,
 Task 5.1. Procedure: [late-fix-pass.md](../../skills/war/references/late-fix-pass.md).
+
+## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+
+#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
+(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
+next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.

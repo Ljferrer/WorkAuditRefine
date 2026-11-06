@@ -1281,6 +1281,8 @@ const SINGLE_PROV = (over = {}) => withProvision({ tasks: [{ id: 't1', issue: 1,
 const RELAND_DISC_CMD = 'git rev-list --left-right --count <merge-sha>...origin/'                     // A1: discrimination command core (working branch follows)
 const RELAND_DISC_BUDGET = 'exactly one extra push-first attempt beyond roundLimit exhaustion (an explicit +1, once' // A2: the explicit-+1 budget sentence
 const RELAND_DISC_DIVERGE = 'nonzero right count'                                                     // A3: the real-divergence signal
+const RELAND_REMOTE_REJECTED = 'push with origin unmoved is a retry, never'                         // A4 (#2626): a server-side [remote rejected] is a retry, never land_stale
+const RELAND_ADVANCE_TIMEOUT = 'Run land-advance as a foreground call with timeout 300000'           // A5 (#2626): 70 s of retry waits plus up to 4 pushes can near the 120000 ms default
 
 // ---------------------------------------------------------------------------
 // FILE-FOLLOWUPS PAIRED PINS (#1587) — the standing/dispatched coverage split made mechanical for
@@ -3811,6 +3813,8 @@ export {
   RELAND_DISC_CMD,
   RELAND_DISC_BUDGET,
   RELAND_DISC_DIVERGE,
+  RELAND_REMOTE_REJECTED,
+  RELAND_ADVANCE_TIMEOUT,
   FF_PREFLIGHT,
   FF_DEDUP_CMD,
   FF_DEDUP_RULE,

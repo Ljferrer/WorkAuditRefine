@@ -226,3 +226,9 @@ This amendment supersedes decision 3's date-based runId format and same-day recu
 - [ADR-0030 — plans reference live artifacts, never stack-fragile literals](0030-live-artifacts-over-stack-fragile-literals.md)
   — why the derived name/description live in one exported pure function rather than being restated at
   each call site.
+
+## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+
+#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
+(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
+next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.

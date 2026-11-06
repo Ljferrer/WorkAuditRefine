@@ -37,10 +37,13 @@ const specProseDrift = readFileSync(
   'utf8',
 )
 // Glossary + contract reads (D19/D20) — same construct-anchored style as the rows above.
-// CONTEXT.md is the repo-root ubiquitous-language glossary; schemas.md is the war skill's contract
+// GLOSSARY.md is the repo-root ubiquitous-language glossary; schemas.md is the war skill's contract
 // sheet (skills/war/references/), so the two roots differ — each resolved from HERE, never cwd;
 // run-manifest.md is the war skill's cold per-stamp reference, same root as schemas.md.
-const contextMd = readFileSync(join(HERE, '..', '..', '..', 'CONTEXT.md'), 'utf8')
+const glossaryMd = readFileSync(join(HERE, '..', '..', '..', 'GLOSSARY.md'), 'utf8')
+// The Layer 1 router (#2636). OLD-absent sweeps scan it beside the glossary: it is a live,
+// prompt-bearing surface, so a retired shape written there must still red.
+const routerMd = readFileSync(join(HERE, '..', '..', '..', 'CONTEXT.md'), 'utf8')
 const schemasMd = readFileSync(join(HERE, '..', 'references', 'schemas.md'), 'utf8')
 const runManifestMd = readFileSync(join(HERE, '..', 'references', 'run-manifest.md'), 'utf8')
 // (D23) This file's FIRST `docs/adr/` read — same construct-anchored style, third root.
@@ -58,14 +61,14 @@ const adr0040 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0040-environment-class-gate-failures-earn-one-retry.md'),
   'utf8',
 )
-// (D26) The audit-evidence-precedence doctrine's glossary mirror — CONTEXT.md `### Audit` terms
+// (D26) The audit-evidence-precedence doctrine's glossary mirror — GLOSSARY.md `### Audit` terms
 // restate ADR 0041's D3 conflict semantics and lessons floor rule (ADR 0025 same-task mirror guard).
 const adr0041 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0041-audit-evidence-precedence.md'),
   'utf8',
 )
 // (D29) The prompt-surface-budgets doctrine's canonical record plus its two prose mirror surfaces
-// beyond CONTEXT.md (read via contextMd above): CLAUDE.md's hot/cold-law summary, and the budget
+// beyond GLOSSARY.md (read via glossaryMd above): CLAUDE.md's hot/cold-law summary, and the budget
 // suite's header formula comment — the ×1.10/×1.25 numeric pair's ONLY mirror block (neither
 // prose summary carries the numbers; verified at this task's base).
 const adr0042 = readFileSync(
@@ -106,7 +109,7 @@ const refinerRecoveryMd = readFileSync(
   'utf8',
 )
 // (D34–D36) The authoring-side-verification glossary mirrors (plan 2026-08-24, Task 2.3): the
-// war-strategy authoring surfaces are the canonical homes the new/converged CONTEXT.md glossary
+// war-strategy authoring surfaces are the canonical homes the new/converged glossary
 // entries restate — SKILL.md §3's rule 8 + §2's oracle-duality bullet, the interview doctrine's
 // pin-ledger/recon-lane/probe law, and the strategy-verifier charter. Read here so each mirror
 // row can assert BOTH surfaces (ADR 0025: a one-sided edit reds).
@@ -139,7 +142,7 @@ const surveyCorpsSkillMd = readFileSync(
 )
 const workflowTemplateSrc = readFileSync(join(HERE, 'workflow-template.js'), 'utf8')
 // (D37–D42) The ask-disposition surfaces (#1550; plan 2026-08-25-ask-disposition, Task 2.3):
-// ADR 0013's dated amendment is the canonical decision record the new CONTEXT.md glossary terms
+// ADR 0013's dated amendment is the canonical decision record the new glossary terms
 // restate; ADR 0012 carries the one-line cross-ref; design.md + file-followups.md carry the
 // Task 2.2 reference mirrors; war-review's SKILL.md is the canonical home of the grind-measurement
 // doctrine. Read here so every mirror row asserts BOTH surfaces (ADR 0025: a one-sided edit reds).
@@ -495,7 +498,7 @@ test('D18 — gate_failed environment arm documents bounded environment-proceed,
 
 // ---- Task 1.3 locks (a)/(b)/(c) — plan 2026-07-24-runbook-and-standing-record-coherence ----
 
-// (D19) The CONTEXT.md `**Adjudication**:` glossary term must keep the provenance-discipline clause
+// (D19) The GLOSSARY.md `**Adjudication**:` glossary term must keep the provenance-discipline clause
 // on its `_Avoid_` line — the doctrine that a row comes only from the named producers (two at this row's authoring; three since the #1550 ask-ruling widening — D19a below guards the count) and is
 // never sourced from surrounding prose (#1087). Recorded regression: the 2026-07-22
 // audit-adjudication-threading spec justified overwriting that clause by citing a duplicate home at
@@ -508,32 +511,32 @@ test('D18 — gate_failed environment arm documents bounded environment-proceed,
 // whole-file scan: the same doctrine has a second standing home in SKILL.md step 5, and a
 // repo-wide key could not tell the two anchors apart (deleting this one would still pass).
 // The key spells its inner spaces `\s+` on purpose, D18's first absence key being the in-file
-// precedent: CONTEXT.md wraps near 100 columns, so the restored `_Avoid_` line may legitimately wrap
+// precedent: GLOSSARY.md wraps near 100 columns, so the restored `_Avoid_` line may legitimately wrap
 // mid-phrase, and per the two-line-pairing lesson the `\s+` form strictly widens the match across a
 // wrap. It also keeps the contiguous literal out of this file, which the plan's wrap-tolerant
 // repo-wide doctrine census expects to return zero hits here — a guard must never trip the floor it backs.
-test('D19 — CONTEXT.md **Adjudication** term keeps its provenance-discipline doctrine clause (#1087)', () => {
-  const block = contextMd.match(/^\*\*Adjudication\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:)/m)
+test('D19 — GLOSSARY.md **Adjudication** term keeps its provenance-discipline doctrine clause (#1087)', () => {
+  const block = glossaryMd.match(/^\*\*Adjudication\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:)/m)
   assert.ok(
     block,
-    'could not locate the `**Adjudication**:` glossary term in CONTEXT.md (bolded term → next ' +
+    'could not locate the `**Adjudication**:` glossary term in GLOSSARY.md (bolded term → next ' +
       'bolded glossary term) — the extraction construct rotted',
   )
   assert.match(
     block[0],
     /never\s+mined\s+from\s+arbitrary\s+prose/i,
-    "the CONTEXT.md **Adjudication** term's `_Avoid_` line must keep the provenance-discipline " +
+    "the GLOSSARY.md **Adjudication** term's `_Avoid_` line must keep the provenance-discipline " +
       'doctrine clause — it is the doctrine\'s original and standing anchor (#1087); correct this ' +
       'row to a sanctioned rewording, never drop the clause to make a reword pass',
   )
 })
 
 // (D19a) The Adjudication producer enumeration widened two → three (#1550; ADR 0013 amendment
-// 2026-08-25, ask-disposition Task 2.3) — the CONTEXT.md **Adjudication** entry carries BOTH edit
+// 2026-08-25, ask-disposition Task 2.3) — the GLOSSARY.md **Adjudication** entry carries BOTH edit
 // sites: the definition-body producer enumeration (which now names the Checkpoint's ask rulings as
 // the third producer, minted at the strike-list gate) and the `_Avoid_` count line D19 guards
 // (now "the three named producers"). OLD-absent per PIN-8's law: the retired literal "two named
-// producers" was verified present at this task's base — its base carrier is CONTEXT.md's own
+// producers" was verified present at this task's base — its base carrier is CONTEXT.md's own (now GLOSSARY.md)
 // `_Avoid_` count line ("rows come only from the two named producers"), the byte-run this widening
 // rewrote in place. It is NOT quoted by D19's block comment above: that comment was rewritten in
 // the companion commit that completed the same task (the widening landed in fbadb88, the D19
@@ -541,11 +544,11 @@ test('D19 — CONTEXT.md **Adjudication** term keeps its provenance-discipline d
 // authoring; three since the #1550 ask-ruling widening", so citing it as the carrier would name
 // a byte-run the D19 comment rewrite removed. Never a count word on a never-present value. Same extraction
 // construct as D19.
-test('D19a — CONTEXT.md **Adjudication** producer enumeration is widened two → three, old count literal retired (#1550)', () => {
-  const block = contextMd.match(/^\*\*Adjudication\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:)/m)
+test('D19a — GLOSSARY.md **Adjudication** producer enumeration is widened two → three, old count literal retired (#1550)', () => {
+  const block = glossaryMd.match(/^\*\*Adjudication\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:)/m)
   assert.ok(
     block,
-    'could not locate the `**Adjudication**:` glossary term in CONTEXT.md (bolded term → next ' +
+    'could not locate the `**Adjudication**:` glossary term in GLOSSARY.md (bolded term → next ' +
       'bolded glossary term) — the extraction construct rotted',
   )
   const b = norm(block[0])
@@ -557,7 +560,7 @@ test('D19a — CONTEXT.md **Adjudication** producer enumeration is widened two �
     assert.match(
       b,
       re,
-      `the CONTEXT.md **Adjudication** entry must carry ${what} (#1550). Correct this row to a ` +
+      `the GLOSSARY.md **Adjudication** entry must carry ${what} (#1550). Correct this row to a ` +
         'sanctioned rewording, never drop the widening to make a reword pass',
     )
   }
@@ -649,14 +652,14 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
 // (D21, extended — 2026-09-06 engine-and-audit-verdict-integrity Task 1.2, #1597/#1801) The handoff
 // EMIT gate and the follow-up FILING gate are two DISTINCT status sets in workflow-template.js: the
 // handoff block is emitted on `landed` + `held:escalation` only, while the filing dispatch also runs
-// on `held:land-failed`. CONTEXT.md's **Clean handoff** row used to fold them into one three-member
+// on `held:land-failed`. CONTEXT.md's (now GLOSSARY.md's) **Clean handoff** row used to fold them into one three-member
 // emit claim (`… emitted on `landed`, `held:escalation` and `held:land-failed` for the …`) — false
 // for the emit gate. Both sets are EXTRACTED from the engine, and the emit pair is ADDITIONALLY
 // pinned against the ratified literal `['held:escalation', 'landed']` as a canary, so a gate widening
 // reds this pin by name at the literal (deliberately, never silently) before the doc assert retunes.
 //
 // The OLD-absent key targets the SENTENCE, never the `held:land-failed` token: the token legitimately
-// stays in the row as the filing gate's third member. CONTEXT.md is hard-wrapped, so the row is
+// stays in the row as the filing gate's third member. GLOSSARY.md is hard-wrapped, so the row is
 // whitespace-folded first (a line-anchored grep false-negates on a re-wrap).
 const gateStatuses = (src, label, re) => {
   const m = src.match(re)
@@ -665,7 +668,7 @@ const gateStatuses = (src, label, re) => {
   assert.ok(set.length > 0, `the ${label} gate names no landDecision member — extraction rotted`)
   return set
 }
-test('D21 (extended) — CONTEXT.md **Clean handoff** names the engine emit pair and the filing gate\'s third member as two distinct sets (#1597, #1801)', () => {
+test('D21 (extended) — GLOSSARY.md **Clean handoff** names the engine emit pair and the filing gate\'s third member as two distinct sets (#1597, #1801)', () => {
   const emitSet = gateStatuses(
     workflowTemplateSrc, 'handoff emit',
     /let handoff = null\nif \(((?:landDecision === '[^']+'(?: \|\| )?)+)\) \{/,
@@ -678,8 +681,8 @@ test('D21 (extended) — CONTEXT.md **Clean handoff** names the engine emit pair
   assert.deepEqual([...emitSet].sort(), ['held:escalation', 'landed'], 'the handoff emit gate is the pair landed + held:escalation')
   const third = filingSet.filter((s) => !emitSet.includes(s))
   assert.deepEqual(third, ['held:land-failed'], 'the filing gate is the emit pair plus held:land-failed alone')
-  const handoff = contextMd.match(/^\*\*Clean handoff\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
-  assert.ok(handoff, 'could not locate the `**Clean handoff**` glossary entry in CONTEXT.md — construct rotted')
+  const handoff = glossaryMd.match(/^\*\*Clean handoff\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(handoff, 'could not locate the `**Clean handoff**` glossary entry in GLOSSARY.md — construct rotted')
   const h = norm(handoff[0])
   assert.match(h, /_Avoid_/, 'the extracted **Clean handoff** entry must span its `_Avoid_` line — extraction truncated')
   // Emit clause: `emitted on <pair> only` — names exactly the emit set, never the filing member.
@@ -699,12 +702,12 @@ test('D21 (extended) — CONTEXT.md **Clean handoff** names the engine emit pair
     /`held:escalation`\s+and\s+`held:land-failed`\s+for\s+the/i,
     'the OLD three-member emit sentence (`… `held:escalation` and `held:land-failed` for the …`) is still in the **Clean handoff** row — the handoff never emits on held:land-failed (#1801)',
   )
-  // File-scoped companion: the same OLD sentence must be absent from ALL of CONTEXT.md, not only
+  // File-scoped companion: the same OLD sentence must be absent from ALL of GLOSSARY.md, not only
   // the **Clean handoff** row — a reintroduction elsewhere in the glossary would otherwise stay green.
   assert.doesNotMatch(
-    norm(contextMd),
+    norm(glossaryMd),
     /`held:escalation`\s+and\s+`held:land-failed`\s+for\s+the/i,
-    'the OLD three-member emit sentence (`… `held:escalation` and `held:land-failed` for the …`) is present somewhere in CONTEXT.md outside the **Clean handoff** row (#1801)',
+    'the OLD three-member emit sentence (`… `held:escalation` and `held:land-failed` for the …`) is present somewhere in GLOSSARY.md outside the **Clean handoff** row (#1801)',
   )
 })
 
@@ -1278,7 +1281,7 @@ test('D33 — `ensure-origin` token census: SKILL.md and every references/ file 
 
 // ---- Task 2.1 doc-cascade gates (plan 2026-07-26-dispatch-args-and-floor-coverage) ----
 //
-// The ADR 0037 and CONTEXT.md amendments below are deliberately phrased OUT of the spec §4.4
+// The ADR 0037 and CONTEXT.md (now GLOSSARY.md) amendments below are deliberately phrased OUT of the spec §4.4
 // four-surface embedded-args token-pair grep — named descriptively and never quoted here, because a
 // comment restating that sweep's own alternation becomes a hit for the sweep it describes and
 // silently forks the count (#1241/#1163; the recorded
@@ -1286,7 +1289,7 @@ test('D33 — `ensure-origin` token census: SKILL.md and every references/ file 
 // that hit, and D30 below is the mechanical census that replaces the hand-run grep). Nothing else in
 // the suite reads them, so without these two rows the doc reword would ship with no mechanical check
 // of any kind. They are PER-MEDIUM, not uniform: an ADR is append-only, so its superseded
-// sentences legitimately stay byte-intact and only NEW-present can discriminate; CONTEXT.md is a
+// sentences legitimately stay byte-intact and only NEW-present can discriminate; GLOSSARY.md is a
 // living glossary edited in place, so it gets NEW-present AND OLD-absent. Every OLD-absent
 // predicate is sentence-literal-scoped — never a bare `two` word test (decision 2's
 // "two pure, independently-tested exports" sentence is still true and must not trip it).
@@ -1327,18 +1330,18 @@ test('D23 — ADR 0037 decision 2 carries the dated amendment covering BOTH of i
   }
 })
 
-// (D24) CONTEXT.md's staged-phase-script glossary entry claimed the stager substitutes exactly the
+// (D24) CONTEXT.md's (now GLOSSARY.md's) staged-phase-script glossary entry claimed the stager substitutes exactly the
 // two `export const meta` anchor literals. A living glossary is edited IN PLACE, so this row is
 // NEW-present AND OLD-absent — the bare unqualified two-only claim must be gone, keyed on the
 // sentence literal (not the word `two`, which stays legitimately in the corrected sentence naming the
 // two meta anchors). Extraction is BY CONSTRUCT — the bolded term to the next bolded glossary term OR
 // the next `###` heading, D19's idiom — never a whole-file scan: ADR 0037's own prose and the
 // `_Avoid_` line below discuss the same stager.
-test('D24 — CONTEXT.md staged-phase-script entry names the optional third substitution, drops the two-only claim (#1134)', () => {
-  const block = contextMd.match(/^\*\*Staged phase script\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+test('D24 — GLOSSARY.md staged-phase-script entry names the optional third substitution, drops the two-only claim (#1134)', () => {
+  const block = glossaryMd.match(/^\*\*Staged phase script\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
   assert.ok(
     block,
-    'could not locate the `**Staged phase script**:` glossary entry in CONTEXT.md (bolded term → ' +
+    'could not locate the `**Staged phase script**:` glossary entry in GLOSSARY.md (bolded term → ' +
       'next bolded term or `###` heading) — the extraction construct rotted',
   )
   const b = norm(block[0])
@@ -1347,7 +1350,7 @@ test('D24 — CONTEXT.md staged-phase-script entry names the optional third subs
   assert.doesNotMatch(
     b,
     /substitutes the two `export const meta` anchor literals/i,
-    'the CONTEXT.md staged-phase-script entry still makes the bare unqualified two-only ' +
+    'the GLOSSARY.md staged-phase-script entry still makes the bare unqualified two-only ' +
       'substitution claim — the stager now makes an OPTIONAL THIRD exactly-once substitution under ' +
       '`--args <file>` (#1134)',
   )
@@ -1358,7 +1361,7 @@ test('D24 — CONTEXT.md staged-phase-script entry names the optional third subs
     assert.match(
       b,
       re,
-      `the CONTEXT.md staged-phase-script entry must name ${what}. Correct this row to a sanctioned ` +
+      `the GLOSSARY.md staged-phase-script entry must name ${what}. Correct this row to a sanctioned ` +
         'rewording, never drop the clause to make a reword pass',
     )
   }
@@ -1438,7 +1441,7 @@ test('D25 — the no-chaining two-site routing fact is present on BOTH mirror su
   )
 })
 
-// (D26) GLOSSARY ↔ ADR MIRROR — the three audit-evidence-precedence glossary terms in CONTEXT.md's
+// (D26) GLOSSARY ↔ ADR MIRROR — the three audit-evidence-precedence glossary terms in GLOSSARY.md's
 // `### Audit` section (**Claim shape**, **Evidence rung**, **Rule + record**) restate doctrine that
 // ADR 0041 carries canonically: the `execution`-shape vs `execution-evidence`-lens disambiguation,
 // the lessons floor rule (priors, never evidence), and the D3 conflict rule (`disposition: note`
@@ -1451,7 +1454,7 @@ test('D25 — the no-chaining two-site routing fact is present on BOTH mirror su
 // a repo-wide key could not tell the anchors apart). Keys are token-anchored `\s+`-wrapped `/…/i`
 // forms, never sentence bytes — sanctioned rewording latitude on either surface must not false-red;
 // a one-sided edit (glossary reworded away from the doctrine, or the ADR clause dropped) reds.
-test('D26 — CONTEXT.md audit-evidence glossary terms mirror ADR 0041 doctrine clauses on both surfaces', () => {
+test('D26 — GLOSSARY.md audit-evidence glossary terms mirror ADR 0041 doctrine clauses on both surfaces', () => {
   for (const [term, keys] of [
     [
       'Claim shape',
@@ -1480,12 +1483,12 @@ test('D26 — CONTEXT.md audit-evidence glossary terms mirror ADR 0041 doctrine 
   ]) {
     // `Rule + record` carries a regex metacharacter — escape the term before building the pattern.
     const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const block = contextMd.match(
+    const block = glossaryMd.match(
       new RegExp(`^\\*\\*${t}\\*\\*:[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*:|\\n### )`, 'm'),
     )
     assert.ok(
       block,
-      `could not locate the \`**${term}**:\` glossary term in CONTEXT.md (bolded term → next ` +
+      `could not locate the \`**${term}**:\` glossary term in GLOSSARY.md (bolded term → next ` +
         'bolded term or `###` heading) — the extraction construct rotted',
     )
     // Non-vacuous: every entry must really reach its own `_Avoid_` line.
@@ -1496,7 +1499,7 @@ test('D26 — CONTEXT.md audit-evidence glossary terms mirror ADR 0041 doctrine 
     )
     for (const [key, what] of keys) {
       for (const [surface, text] of [
-        [`CONTEXT.md **${term}** entry (mirror)`, norm(block[0])],
+        [`GLOSSARY.md **${term}** entry (mirror)`, norm(block[0])],
         ['ADR 0041 (canonical source)', norm(adr0041)],
       ]) {
         assert.match(
@@ -1519,7 +1522,7 @@ test('D26 — CONTEXT.md audit-evidence glossary terms mirror ADR 0041 doctrine 
 // matters (D19/D21/D22's per-claim-anchor idiom). Extraction is BY CONSTRUCT — the `**Lead
 // evidence bindings` bold lead-in to the next bold lead-in paragraph or `##` heading, never a
 // whole-file scan: the shape names and both floor tokens also live on the auditor card, in
-// ADR 0041, and in CONTEXT.md's `### Audit` glossary, so a repo-wide key could not tell the
+// ADR 0041, and in GLOSSARY.md's `### Audit` glossary, so a repo-wide key could not tell the
 // anchors apart. Keys are token-anchored `\s+`-wrapped `/…/i` forms, never sentence bytes —
 // sanctioned rewording latitude must not false-red.
 test('D27 — SKILL.md Lead evidence bindings paragraph carries the §4.4 skeleton and all three bindings, each with its own anchor pair (ADR 0041)', () => {
@@ -1579,7 +1582,7 @@ test('D27 — SKILL.md Lead evidence bindings paragraph carries the §4.4 skelet
 // home. The residual this guard closes: war-config.test.mjs pins the '### Recovery relaunch'
 // heading + entry-point tokens at the destination, and a destination-file rename already reds
 // loudly (this file readFileSync's both destinations at module scope, and war-config.test.mjs
-// enumerates both paths in its UNION absence sweeps) — but nothing pins the CONTEXT.md trigger
+// enumerates both paths in its UNION absence sweeps) — but nothing pins the GLOSSARY.md trigger
 // clauses/paths, the submodule sub-procedure's mergeCommit.oid + operator-supplied-SHA content,
 // or the runbook's record-as-owned / args.recovery / reclaimStaleRemote / full-original-DAG
 // tokens. A within-file re-home or a gutted section is the rot class D28 closes — the recorded
@@ -1591,14 +1594,14 @@ test('D27 — SKILL.md Lead evidence bindings paragraph carries the §4.4 skelet
 // section is its file's trailing section; the resume-and-recovery.md match deliberately spans the
 // Recovery-relaunch subsection plus the held-partial-phase runbook — see the recDest comment)
 // — never a whole-file scan. Delete-and-trace: re-home or gut a
-// destination section and its (b) reds while CONTEXT.md still points at it; drop a pointer or a
+// destination section and its (b) reds while GLOSSARY.md still points at it; drop a pointer or a
 // definition core and its (a) reds.
-test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger pointer, and each destination carries the delegated doctrine (#1228)', () => {
+test('D28 — GLOSSARY.md compressed glossary entries keep definition + trigger pointer, and each destination carries the delegated doctrine (#1228)', () => {
   // --- Pair 1: **`held:submodule-pr`** → references/submodule-flows.md ---
-  const subEntry = contextMd.match(/^\*\*`held:submodule-pr`\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  const subEntry = glossaryMd.match(/^\*\*`held:submodule-pr`\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(
     subEntry,
-    'could not locate the `**`held:submodule-pr`**` glossary entry in CONTEXT.md (bolded term → ' +
+    'could not locate the `**`held:submodule-pr`**` glossary entry in GLOSSARY.md (bolded term → ' +
       'next bolded term or `###` heading) — the extraction construct rotted',
   )
   const sub = norm(subEntry[0])
@@ -1612,7 +1615,7 @@ test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger p
     assert.match(
       sub,
       re,
-      `the CONTEXT.md \`held:submodule-pr\` entry must keep ${what} — correct this row to a ` +
+      `the GLOSSARY.md \`held:submodule-pr\` entry must keep ${what} — correct this row to a ` +
         'sanctioned rewording, never drop the anchor to make a reword pass',
     )
   }
@@ -1620,7 +1623,7 @@ test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger p
   assert.ok(
     subDest,
     'references/submodule-flows.md no longer carries the `## `held:submodule-pr` sub-procedure` ' +
-      "section — CONTEXT.md's trigger pointer now dangles; re-anchor BOTH surfaces together",
+      "section — GLOSSARY.md's trigger pointer now dangles; re-anchor BOTH surfaces together",
   )
   for (const [re, what] of [
     [/mergeCommit\.oid/, 'the `mergeCommit.oid`-as-landed-SHA step'],
@@ -1635,10 +1638,10 @@ test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger p
   }
 
   // --- Pair 2: **recovery relaunch** → references/resume-and-recovery.md ---
-  const recEntry = contextMd.match(/^\*\*recovery relaunch\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  const recEntry = glossaryMd.match(/^\*\*recovery relaunch\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(
     recEntry,
-    'could not locate the `**recovery relaunch**:` glossary entry in CONTEXT.md (bolded term → ' +
+    'could not locate the `**recovery relaunch**:` glossary entry in GLOSSARY.md (bolded term → ' +
       'next bolded term or `###` heading) — the extraction construct rotted',
   )
   const rec = norm(recEntry[0])
@@ -1653,7 +1656,7 @@ test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger p
     assert.match(
       rec,
       re,
-      `the CONTEXT.md recovery-relaunch entry must keep ${what} — correct this row to a ` +
+      `the GLOSSARY.md recovery-relaunch entry must keep ${what} — correct this row to a ` +
         'sanctioned rewording, never drop the anchor to make a reword pass',
     )
   }
@@ -1663,13 +1666,13 @@ test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger p
   assert.ok(
     recDest,
     'references/resume-and-recovery.md no longer carries the `### Recovery relaunch` section — ' +
-      "CONTEXT.md's trigger pointer now dangles; re-anchor BOTH surfaces together",
+      "GLOSSARY.md's trigger pointer now dangles; re-anchor BOTH surfaces together",
   )
   for (const [re, what] of [
     // First key anchors in the Recovery-relaunch body proper (its only in-extraction occurrence)
-    // — gutting that body while the adjacent runbook survives must red, since the CONTEXT.md
+    // — gutting that body while the adjacent runbook survives must red, since the GLOSSARY.md
     // pointer promises the single-task vs full-DAG entry-point split that lives only there.
-    [/two entry points/i, 'the two-entry-point structure the CONTEXT.md pointer names'],
+    [/two entry points/i, 'the two-entry-point structure the GLOSSARY.md pointer names'],
     [/record-as-owned/, 'the `record-as-owned` orphan-adoption step'],
     [/args\.recovery/, 'the `args.recovery` arming'],
     [/reclaimStaleRemote/, 'the `reclaimStaleRemote` arming'],
@@ -1687,7 +1690,7 @@ test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger p
 // (D29) ADR 0042 DOCTRINE MIRROR — the hot/cold law + budget doctrine is hand-synced across three
 // surfaces beyond the ADR (#1208; folded into Task 6.2 and lost to a row-label collision —
 // [[folded-in-followup-can-be-silently-consumed-by-a-row-label-collision]] — relanded as #1231):
-// CONTEXT.md's `### Prompt-surface budgets` glossary terms (**Surface budget**, **Prose
+// GLOSSARY.md's `### Prompt-surface budgets` glossary terms (**Surface budget**, **Prose
 // temperature**, **Trigger pointer**), CLAUDE.md's `## Doctrine placement` summary, and
 // prompt-surface-budgets.test.mjs's header formula comment (D5/adjudication-D mandates the budget
 // constants carry the formula — and it is the ×1.10/×1.25 numeric pair's ONLY mirror block:
@@ -1704,7 +1707,7 @@ test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger p
 // raising↔commit-body; advisory↔×1.10, hard↔×1.25; the tier ladder in canonical order) — the
 // recorded [[multi-token-presence-loop-needs-paired-first-following-match-to-catch-a-swap]]
 // class: presence-anywhere keys stay green on exactly the direction inversion that matters.
-test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md hot/cold summary, budget-suite formula) track the canonical ADR on both surfaces (#1208)', () => {
+test('D29 — ADR 0042 doctrine mirrors (GLOSSARY.md glossary terms, CLAUDE.md hot/cold summary, budget-suite formula) track the canonical ADR on both surfaces (#1208)', () => {
   const adr = norm(adr0042)
   const assertMirror = (blockName, blockText, keys) => {
     for (const [key, what] of keys) {
@@ -1722,7 +1725,7 @@ test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md ho
     }
   }
 
-  // --- CONTEXT.md `### Prompt-surface budgets` glossary terms, per-term extraction ---
+  // --- GLOSSARY.md `### Prompt-surface budgets` glossary terms, per-term extraction ---
   for (const [term, keys] of [
     [
       'Surface budget',
@@ -1770,12 +1773,12 @@ test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md ho
     // Mirror D26's idiom: escape the term before building the pattern, so a future
     // metachar-bearing term cannot silently mis-anchor the extraction.
     const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const block = contextMd.match(
+    const block = glossaryMd.match(
       new RegExp(`^\\*\\*${t}\\*\\*:[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*:|\\n### )`, 'm'),
     )
     assert.ok(
       block,
-      `could not locate the \`**${term}**:\` glossary term in CONTEXT.md (bolded term → next ` +
+      `could not locate the \`**${term}**:\` glossary term in GLOSSARY.md (bolded term → next ` +
         'bolded term or `###` heading) — the extraction construct rotted',
     )
     // Non-vacuous: every entry must really reach its own `_Avoid_` line.
@@ -1784,7 +1787,7 @@ test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md ho
       /_Avoid_/,
       `the extracted **${term}** entry must span its \`_Avoid_\` line — extraction truncated`,
     )
-    assertMirror(`CONTEXT.md **${term}** entry (mirror)`, norm(block[0]), keys)
+    assertMirror(`GLOSSARY.md **${term}** entry (mirror)`, norm(block[0]), keys)
   }
 
   // --- CLAUDE.md `## Doctrine placement` summary, heading → next `##` ---
@@ -1839,20 +1842,20 @@ test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md ho
 // (D32) EVICTED-GLOSSARY POINTER PAIRS — the verdict-adjudication-integrity plan's D14 eviction
 // (#1265, #1357; its decision tree labels this guard "D30", a label this file had already spent on
 // the dispatch-args census below, so the row lands as D32) moved five cold recovery-entry bodies
-// out of CONTEXT.md into the unbudgeted cold home references/glossary-cold.md, leaving per-term
+// out of CONTEXT.md (now GLOSSARY.md) into the unbudgeted cold home references/glossary-cold.md, leaving per-term
 // `when <trigger>, read …` pointers; a second wave (2026-08-27, marked inline below) moved three
-// more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned) and, since wave 5, the born-cold terms too, not one plan's five (wave 6's four born-cold merge-provenance bodies are pinned by skills/red-team/assets/workflow-scaffold.test.mjs, not by this row). Modelled on D28: each residue is a hand-copied cross-file
+// more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned; wave 7 moved two from GLOSSARY.md) and, since wave 5, the born-cold terms too, not one plan's five (wave 6's four born-cold merge-provenance bodies are pinned by skills/red-team/assets/workflow-scaffold.test.mjs, not by this row). Modelled on D28: each residue is a hand-copied cross-file
 // fact (the destination path plus the per-term heading it must resolve to) with no other guard —
-// a renamed or dropped destination heading must red here while CONTEXT.md still promises it, and
+// a renamed or dropped destination heading must red here while GLOSSARY.md still promises it, and
 // a residue that loses its trigger clause or destination path must red too (a pointer without a
-// trigger is a defect, ADR 0042). Extraction is BY CONSTRUCT (D28's idiom): CONTEXT.md bolded
+// trigger is a defect, ADR 0042). Extraction is BY CONSTRUCT (D28's idiom): GLOSSARY.md bolded
 // term → next bolded term or `###` heading; glossary-cold.md `##` term heading → next `##` or
 // EOF — never line numbers; exactly-one-match per surface, and each cold body must span its
 // `_Avoid_` line (D26's non-vacuity floor — a gutted or truncated body reds, not just a missing
 // heading).
-test('D32 — evicted CONTEXT.md glossary entries keep trigger pointers, and glossary-cold.md carries each term body (#1265, #1357)', () => {
+test('D32 — evicted glossary entries keep trigger pointers in GLOSSARY.md, and glossary-cold.md carries each term body (#1265, #1357)', () => {
   const glossaryColdMd = readFileSync(join(HERE, '..', 'references', 'glossary-cold.md'), 'utf8')
-  // Each row pins the term (CONTEXT.md bold heading) AND the exact cold-home heading line — a
+  // Each row pins the term (GLOSSARY.md bold heading) AND the exact cold-home heading line — a
   // trailing-tolerance wildcard after the term would stay green on an appended rename
   // (`## Stale prior attempts (renamed)` matched a `[^\n]*`-suffixed draft of this row).
   for (const [term, coldHeading] of [
@@ -1887,26 +1890,33 @@ test('D32 — evicted CONTEXT.md glossary entries keep trigger pointers, and glo
     // born-cold glossary terms by a byte-identical eviction of two authoring-side entries, each
     // fully narrated in its own operative home (plan-interview.md's Stage 5 gates and its
     // decisive-slots table). The three born-cold bodies were authored in glossary-cold.md first:
-    // CONTEXT.md never held them, so it carries only their pointer residues, in the same shape.
+    // The glossary never held them, so it carries only their pointer residues, in the same shape.
     // Never a ceiling raise; these rows are the lock-step re-anchor the funding owes.
     ['Executor gate', '## Executor gate'],
     ['Decisive slot', '## Decisive slot'],
     ['Fork trial', '## Fork trial'],
     ['Pair beat', '## Pair beat'],
     ['Trials run block', '## Trials run block'],
+    // Wave 7 — the #2643 merge of origin/master (the #2636 glossary move) put GLOSSARY.md 663 B over
+    // its hard line once the branch's glossary edits were ported in. Two cold entries left by a
+    // byte-identical move, each fully narrated in its own operative home: the run-manifest shape in
+    // skills/war/references/run-manifest.md § Relaunch, and the /aftermath upstream-unset recovery.
+    // Never a ceiling raise; these rows are the lock-step re-anchor the eviction owes.
+    ['Relaunch attempt', '## Relaunch attempt'],
+    ['stranded upstream', '## stranded upstream'],
   ]) {
     // Mirror D26's idiom: escape the term before building the pattern.
     const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    // --- (a) CONTEXT.md residue: heading survives, with trigger clause + literal destination ---
+    // --- (a) GLOSSARY.md residue: heading survives, with trigger clause + literal destination ---
     const residues = [
-      ...contextMd.matchAll(
+      ...glossaryMd.matchAll(
         new RegExp(`^\\*\\*${t}\\*\\*[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*|\\n### )`, 'gm'),
       ),
     ]
     assert.equal(
       residues.length,
       1,
-      `expected exactly one \`**${term}**\` glossary entry in CONTEXT.md (bolded term → next ` +
+      `expected exactly one \`**${term}**\` glossary entry in GLOSSARY.md (bolded term → next ` +
         `bolded term or \`###\` heading), found ${residues.length} — the extraction construct ` +
         'rotted or the residue was dropped',
     )
@@ -1914,13 +1924,13 @@ test('D32 — evicted CONTEXT.md glossary entries keep trigger pointers, and glo
     assert.match(
       residue,
       /\bwhen\s+\S[\s\S]*?,\s*read\s/i,
-      `the CONTEXT.md \`${term}\` residue must keep its \`when <trigger>, read …\` clause — a ` +
+      `the GLOSSARY.md \`${term}\` residue must keep its \`when <trigger>, read …\` clause — a ` +
         'pointer without a trigger is a defect (ADR 0042); restore the trigger, never bare-link',
     )
     assert.match(
       residue,
       /skills\/war\/references\/glossary-cold\.md/,
-      `the CONTEXT.md \`${term}\` residue must keep the literal glossary-cold.md destination ` +
+      `the GLOSSARY.md \`${term}\` residue must keep the literal glossary-cold.md destination ` +
         'path — re-anchor BOTH surfaces together on any re-home',
     )
     // --- (b) cold-home destination: exactly one per-term heading with a non-empty body ---
@@ -1937,7 +1947,7 @@ test('D32 — evicted CONTEXT.md glossary entries keep trigger pointers, and glo
       dests.length,
       1,
       `expected exactly one \`${coldHeading}\` heading in references/glossary-cold.md, found ` +
-        `${dests.length} — CONTEXT.md's trigger pointer now dangles; re-anchor BOTH surfaces together`,
+        `${dests.length} — GLOSSARY.md's trigger pointer now dangles; re-anchor BOTH surfaces together`,
     )
     const destBody = norm(dests[0][1])
     assert.ok(
@@ -1956,7 +1966,7 @@ test('D32 — evicted CONTEXT.md glossary entries keep trigger pointers, and glo
 
 // (D32 companion) BORN-COLD HEADER TRUTH — glossary-cold.md's header claims every evicted body
 // was byte-identical to its CONTEXT.md text "at eviction time" (reference-link-integrity Arm 3
-// pins that qualifier). Wave 5 added three bodies CONTEXT.md never held, so the header gained a
+// pins that qualifier). Wave 5 added three bodies the glossary never held, so the header gained a
 // born-cold clause admitting them; without that clause the header's byte-identity claim is
 // false for three of its own sections (the fork-trials plan's ledger row A5). A FIXED-STRING
 // pin, read from the header region (the text before the first `## ` heading, never a
@@ -2397,7 +2407,7 @@ test('disposition-eligibility.md absorb block carries the source-derivable eligi
   )
 })
 
-// (D34) RETIRED D4/D5 CONNECTIVES (#1498) — CONTEXT.md was the third live surface of the two
+// (D34) RETIRED D4/D5 CONNECTIVES (#1498) — the glossary (then CONTEXT.md, now GLOSSARY.md) was the third live surface of the two
 // authoring laws the war-strategy convergence retired the old wording of: the D4 issue-derived
 // source-form clause (the retired claims/source-form phrasing → "issue-derived facts use …") and
 // the D5 done-when connective (the retired elsewhere-connective → "permitted (not required) on
@@ -2406,35 +2416,36 @@ test('disposition-eligibility.md absorb block carries the source-derivable eligi
 // sweep.) Both directions are committed assertions, per the
 // recorded [[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]] lesson: the
 // NEW-present half is extracted BY CONSTRUCT from the owning glossary entry (D19/D26's idiom), and
-// the OLD-absent half sweeps all THREE converged surfaces (CONTEXT.md + the two canonical
+// the OLD-absent half sweeps the CONTEXT.md router (#2636) and all THREE converged surfaces (GLOSSARY.md + the two canonical
 // war-strategy homes) so a revert on any one reds. Keys are `\s+`-wrapped so the retired literal
 // never appears contiguously in this file and a wrapped line still matches (D18's idiom).
 // Deliberately OUT of the OLD-absent sweep: ADR 0044 §Decision item 4 (a historical decision
 // record, outside the pin sweep), skills/war-machine/SKILL.md's conversion directive, and
 // skills/survey-corps/SKILL.md's already-converged "carries" phrasing — per #1498's own survey.
-test('D34 — CONTEXT.md carries the converged D4/D5 connectives; the retired forms are absent on all three converged surfaces (#1498)', () => {
+test('D34 — GLOSSARY.md carries the converged D4/D5 connectives; the retired forms are absent on all three converged surfaces (#1498)', () => {
   // NEW-present, by construct: the **Evidence tag** entry carries the converged D4 clause.
-  const evTag = contextMd.match(/^\*\*Evidence tag\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
-  assert.ok(evTag, 'could not locate the `**Evidence tag**:` glossary entry in CONTEXT.md')
+  const evTag = glossaryMd.match(/^\*\*Evidence tag\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.ok(evTag, 'could not locate the `**Evidence tag**:` glossary entry in GLOSSARY.md')
   assert.match(
     norm(evTag[0]),
     /issue-derived\s+facts\s+use\s+`?\(verified:\s+issue\s+#N/i,
-    'the CONTEXT.md **Evidence tag** entry must carry the converged D4 clause ' +
+    'the GLOSSARY.md **Evidence tag** entry must carry the converged D4 clause ' +
       '("issue-derived facts use `(verified: issue #N (<date>))`") — correct this row to a ' +
       'sanctioned rewording, never revert to the retired connective',
   )
   // NEW-present, by construct: the **Done-when** entry carries the converged D5 connective.
-  const doneWhen = contextMd.match(/^\*\*Done-when\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
-  assert.ok(doneWhen, 'could not locate the `**Done-when**:` glossary entry in CONTEXT.md')
+  const doneWhen = glossaryMd.match(/^\*\*Done-when\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.ok(doneWhen, 'could not locate the `**Done-when**:` glossary entry in GLOSSARY.md')
   assert.match(
     norm(doneWhen[0]),
     /permitted\s+\(not\s+required\)\s+on\s+any\s+other\s+task;\s+otherwise/i,
-    'the CONTEXT.md **Done-when** entry must carry the converged D5 connective ' +
+    'the GLOSSARY.md **Done-when** entry must carry the converged D5 connective ' +
       '("permitted (not required) on any other task; otherwise `None — <basis>`")',
   )
-  // OLD-absent, all three converged surfaces — the committed half of the both-directions gate.
+  // OLD-absent, all three converged surfaces and the router — the committed half of the both-directions gate.
   for (const [name, text] of [
-    ['CONTEXT.md', contextMd],
+    ['GLOSSARY.md', glossaryMd],
+    ['CONTEXT.md', routerMd],
     ['skills/war-strategy/SKILL.md', warStrategySkillMd],
     ['skills/war-strategy/references/plan-interview.md', planInterviewMd],
   ]) {
@@ -2453,7 +2464,7 @@ test('D34 — CONTEXT.md carries the converged D4/D5 connectives; the retired fo
   }
 })
 
-// (D35) TOUCHED-DOC ACCURACY DUTY MIRROR (#1603) — the CONTEXT.md **Touched-doc accuracy duty**
+// (D35) TOUCHED-DOC ACCURACY DUTY MIRROR (#1603) — the GLOSSARY.md **Touched-doc accuracy duty**
 // glossary entry restates doctrine whose canonical operative home is `/war-strategy` §3 authoring
 // rule 8 (with ADR 0025's 2026-08-19 amendment as the decision record). The entry landed with
 // zero mechanical coverage — this row is the same-commit-family guard the file's own D26/D29
@@ -2471,13 +2482,13 @@ test('D34 — CONTEXT.md carries the converged D4/D5 connectives; the retired fo
 // tokens through war-strategy-structure.test.sh, End state 10 pins the ADR 0044 amendment, and
 // End state 7 is this row's own.) Keys are token-anchored `\s+`-wrapped forms, never sentence bytes —
 // sanctioned rewording latitude on either surface must not false-red; a one-sided edit reds.
-test('D35 — CONTEXT.md **Touched-doc accuracy duty** entry mirrors war-strategy rule 8 on both surfaces (#1603)', () => {
-  const entry = contextMd.match(
+test('D35 — GLOSSARY.md **Touched-doc accuracy duty** entry mirrors war-strategy rule 8 on both surfaces (#1603)', () => {
+  const entry = glossaryMd.match(
     /^\*\*Touched-doc accuracy duty\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m,
   )
   assert.ok(
     entry,
-    'could not locate the `**Touched-doc accuracy duty**:` glossary entry in CONTEXT.md ' +
+    'could not locate the `**Touched-doc accuracy duty**:` glossary entry in GLOSSARY.md ' +
       '(bolded term → next bolded term or `###` heading) — the extraction construct rotted',
   )
   assert.match(
@@ -2502,7 +2513,7 @@ test('D35 — CONTEXT.md **Touched-doc accuracy duty** entry mirrors war-strateg
     [/2026-08-19/, "the ADR 0025 amendment date (the doctrine's decision record)"],
   ]) {
     for (const [surface, text] of [
-      ['CONTEXT.md **Touched-doc accuracy duty** entry (mirror)', norm(entry[0])],
+      ['GLOSSARY.md **Touched-doc accuracy duty** entry (mirror)', norm(entry[0])],
       ['war-strategy SKILL.md rule 8 (canonical home)', norm(rule8[0])],
     ]) {
       assert.match(
@@ -2516,7 +2527,7 @@ test('D35 — CONTEXT.md **Touched-doc accuracy duty** entry mirrors war-strateg
 })
 
 // (D36) THE EIGHT AUTHORING-SIDE-VERIFICATION GLOSSARY TERMS (plan 2026-08-24, Task 2.3) — each
-// new CONTEXT.md entry restates doctrine whose canonical home is a war-strategy authoring
+// new glossary entry (now in GLOSSARY.md) restates doctrine whose canonical home is a war-strategy authoring
 // surface (the interview doctrine, the strategy-verifier charter, or SKILL.md §2) — except the
 // Evidence-artifacts-duty row, whose normative homes are the FILING surfaces and are bound here
 // for the first time (#1652/#1676): ADR 0044's `### Evidence-duty home` section (the decision
@@ -2730,15 +2741,15 @@ const D36_ROWS = [
     ],
   ],
 ]
-test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mirror their canonical war-strategy surfaces', () => {
+test('D36 — the eight authoring-side-verification GLOSSARY.md glossary terms mirror their canonical war-strategy surfaces', () => {
   for (const [term, canonicals] of D36_ROWS) {
     const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const block = contextMd.match(
+    const block = glossaryMd.match(
       new RegExp(`^\\*\\*${t}\\*\\*[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*|\\n### )`, 'm'),
     )
     assert.ok(
       block,
-      `could not locate the \`**${term}**\` glossary entry in CONTEXT.md (bolded term → next ` +
+      `could not locate the \`**${term}**\` glossary entry in GLOSSARY.md (bolded term → next ` +
         'bolded term or `###` heading) — the extraction construct rotted',
     )
     assert.match(
@@ -2764,7 +2775,7 @@ test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mi
       const canonical = norm(span[0])
       for (const [key, what] of keys) {
         for (const [surface, textUnderTest] of [
-          [`CONTEXT.md **${term}** entry (mirror)`, mirror],
+          [`GLOSSARY.md **${term}** entry (mirror)`, mirror],
           [`${name} (canonical home)`, canonical],
         ]) {
           assert.match(
@@ -2792,13 +2803,13 @@ test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mi
 //
 // DISCOVERED-GUARD CENSUS (D6 · PIN-6 · PIN-8), run at this task's base (the phase-2 integration
 // tip) over the grep surface `**/*.test.mjs` + `**/*.test.sh` + `.tours/`, domain = guards
-// anchored on the passages this task edits (CONTEXT.md **Disposition** / **Adjudication** /
+// anchored on the passages this task edits (CONTEXT.md (now GLOSSARY.md) **Disposition** / **Adjudication** /
 // **Clean handoff** + the new glossary region; the CLAUDE.md Known-traps disposition bullet).
 // Found (four-sentence floor): (1) D19 in this suite anchors the **Adjudication** `_Avoid_`
 // provenance clause — extended in place by D19a above, same commit as the widening. (2)
-// prompt-surface-budgets.test.mjs carries the CONTEXT.md (126,976 B) and CLAUDE.md (16,384 B)
+// prompt-surface-budgets.test.mjs carried the CONTEXT.md (126,976 B at that base, now the GLOSSARY.md row) and CLAUDE.md (16,384 B)
 // hard ceilings — D12's budget arbiter, exercised by this task's Done-when. (3) Tour step 2
-// anchors CONTEXT.md at the Container/Contents heading — outside the edited region, retyped
+// anchored CONTEXT.md (now GLOSSARY.md) at the Container/Contents heading — outside the edited region, retyped
 // pattern-only by Task 2.5 and pinned in D39 below. (4) No `.test.sh` surface anchors any touched
 // passage (refinery-surface, war-pipeline-structure, and lessons-learned-doc-contract read other
 // regions — verified by token grep at base); the doc-cli-consistency and war-config `.test.mjs`
@@ -2809,7 +2820,7 @@ test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mi
 // per-key and the ninth key is additive by guardrail: no exact-key validator exists), and its
 // home is the engine suite outside this task's Files list.
 
-// (D37) THE SEVEN ASK-DISPOSITION GLOSSARY TERMS — each new CONTEXT.md entry restates doctrine
+// (D37) THE SEVEN ASK-DISPOSITION GLOSSARY TERMS — each new glossary entry (now in GLOSSARY.md) restates doctrine
 // whose canonical home is the ADR 0013 dated amendment (the decision record), the SKILL.md
 // Checkpoint (the ruling-gate duties), or war-review's SKILL.md (the grind-measurement rows).
 // Per the recorded [[context-md-doctrine-mirror-can-land-without-a-skill-doc-contracts-drift-guard-row]]
@@ -2827,7 +2838,7 @@ test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mi
 // bullet is taken as the single line carrying the `**Ask ruling gate` bold lead-in, uniqueness
 // asserted (D31's lead-in idiom). Whole-file keys are worse again: /absolute/i matches Gate-2's
 // absolute `memoryLocalRoot` and /consolidation/i the filing floor.
-test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their canonical homes (#1550)', () => {
+test('D37 — the seven ask-disposition GLOSSARY.md glossary terms mirror their canonical homes (#1550)', () => {
   const checkpoint = skillMd.match(/^## Checkpoint[\s\S]*?(?=\n## )/m)
   assert.ok(
     checkpoint,
@@ -2929,12 +2940,12 @@ test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their c
     ],
   ]) {
     const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const block = contextMd.match(
+    const block = glossaryMd.match(
       new RegExp(`^\\*\\*${t}\\*\\*[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*|\\n### )`, 'm'),
     )
     assert.ok(
       block,
-      `could not locate the \`**${term}**\` glossary entry in CONTEXT.md (bolded term → next ` +
+      `could not locate the \`**${term}**\` glossary entry in GLOSSARY.md (bolded term → next ` +
         'bolded term or `###` heading) — the extraction construct rotted',
     )
     assert.match(
@@ -2944,7 +2955,7 @@ test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their c
     )
     for (const [key, what] of keys) {
       for (const [surface, text] of [
-        [`CONTEXT.md **${term}** entry (mirror)`, norm(block[0])],
+        [`GLOSSARY.md **${term}** entry (mirror)`, norm(block[0])],
         [`${canonicalName} (canonical home)`, norm(canonicalText)],
       ]) {
         assert.match(
@@ -2958,7 +2969,7 @@ test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their c
   }
 })
 
-// (D37a) THE WIDENED PRE-EXISTING ENTRIES (D6 discovery sites) — CONTEXT.md's **Disposition** and
+// (D37a) THE WIDENED PRE-EXISTING ENTRIES (D6 discovery sites) — GLOSSARY.md's **Disposition** and
 // **Clean handoff** entries and the CLAUDE.md Known-traps disposition bullet predate #1550 and were
 // widened in place by this task; the D6 census records them as sitting OUTSIDE every discovered
 // guard surface, so without this row End state 9's named check is green whether the widenings are
@@ -2967,14 +2978,14 @@ test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their c
 // present at the plan's implementation base `a60221a` and retired by this task — the absence
 // asserts guard against a revert, never a never-present value; PIN-8).
 test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLAUDE.md Known-traps bullet carry the four-member shapes, closed phrasings retired (#1550)', () => {
-  // CONTEXT.md **Disposition** — four-member header, the in-diff absorb default with its ask-only
+  // GLOSSARY.md **Disposition** — four-member header, the in-diff absorb default with its ask-only
   // never-a-default tail (re-keyed by plan 2026-09-03-in-band-absorb-default Task 3.2 from the
   // retired `absorb` and `ask` are never defaults pair; the old-default-absent row guards the pair
   // absent), demote() ask refusal.
-  const disposition = contextMd.match(/^\*\*Disposition\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  const disposition = glossaryMd.match(/^\*\*Disposition\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(
     disposition,
-    'could not locate the `**Disposition**` glossary entry in CONTEXT.md (bolded term → next ' +
+    'could not locate the `**Disposition**` glossary entry in GLOSSARY.md (bolded term → next ' +
       'bolded term or `###` heading) — the extraction construct rotted',
   )
   const d = norm(disposition[0])
@@ -2994,16 +3005,16 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
     assert.match(
       d,
       re,
-      `the CONTEXT.md **Disposition** entry must carry ${what} (#1550). Correct this row to a ` +
+      `the GLOSSARY.md **Disposition** entry must carry ${what} (#1550). Correct this row to a ` +
         'sanctioned rewording, never drop the widening to make it pass',
     )
   }
-  // CONTEXT.md **Clean handoff** — the ninth `asks` key inside the 9-key handoff list, and the
+  // GLOSSARY.md **Clean handoff** — the ninth `asks` key inside the 9-key handoff list, and the
   // parked-ask disposal arm.
-  const handoff = contextMd.match(/^\*\*Clean handoff\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  const handoff = glossaryMd.match(/^\*\*Clean handoff\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(
     handoff,
-    'could not locate the `**Clean handoff**` glossary entry in CONTEXT.md — the extraction ' +
+    'could not locate the `**Clean handoff**` glossary entry in GLOSSARY.md — the extraction ' +
       'construct rotted',
   )
   const h = norm(handoff[0])
@@ -3053,20 +3064,20 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
   // OLD-absent closed phrasings (verified present at the plan base `a60221a`, retired by this
   // task; the asserts guard against a revert — PIN-8).
   assert.ok(
-    !/\(`absorb` \| `follow-up` \| `note`\):/.test(contextMd),
+    !/\(`absorb` \| `follow-up` \| `note`\):/.test(glossaryMd),
     'the retired three-member **Disposition** header `(`absorb` | `follow-up` | `note`):` must ' +
-      'be gone from CONTEXT.md (OLD-absent; PIN-8)',
+      'be gone from GLOSSARY.md (OLD-absent; PIN-8)',
   )
   assert.ok(
-    !/`absorb` is never a default/.test(norm(contextMd)),
-    'the retired singular `absorb` is never a default literal must be gone from CONTEXT.md — ' +
+    !/`absorb` is never a default/.test(norm(glossaryMd)),
+    'the retired singular `absorb` is never a default literal must be gone from GLOSSARY.md — ' +
       'the current wording reads a fully specified Minor/Nit defaults to `absorb`; `ask` is ' +
       'never a default, which shares no substring with the retired form (OLD-absent, ' +
       'norm()-surface: the base literal wrapped across lines; PIN-8)',
   )
   assert.ok(
-    !/followUps, notes/.test(norm(contextMd)),
-    'the retired 8-key handoff-list fragment `followUps, notes` must be gone from CONTEXT.md — ' +
+    !/followUps, notes/.test(norm(glossaryMd)),
+    'the retired 8-key handoff-list fragment `followUps, notes` must be gone from GLOSSARY.md — ' +
       'the ninth `asks` key sits between them (OLD-absent; PIN-8)',
   )
   assert.ok(
@@ -3137,7 +3148,7 @@ test('D38 — ADR 0013 carries the dated 2026-08-25 ask-disposition amendment an
 // sibling edit are unsatisfiable at any base and are pattern-only by construction.
 test('D39 — tour step 8 is retyped to the disposition ladder; touched steps carry pattern-only anchors (#1550, D10)', () => {
   const touched = [
-    [/^2 ·/, 'CONTEXT.md'],
+    [/^2 ·/, 'GLOSSARY.md'],
     [/^4 ·/, 'skills/war/SKILL.md'],
     [/^8 ·/, 'skills/war/assets/workflow-template.js'],
   ]
@@ -3384,7 +3395,7 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
 // in favour of the per-task absorb budget (`absorbRounds < run.absorbRounds`, PIN-7). #1812's drift
 // was silent precisely because NO row carried the token, so each flip ships the guard: this row
 // binds the CURRENT boundary prose on every LIVING doc home — SKILL.md's `--ace` bullet,
-// CONTEXT.md's **Ace bisection** glossary row, and design.md §18's disposition-routing bullet —
+// GLOSSARY.md's **Ace bisection** glossary row, and design.md §18's disposition-routing bullet —
 // plus the retired literals' absence on those same surfaces.
 //
 // THE ADR 0013 HOME IS DELIBERATELY EXEMPT, and the exemption is APPEND-ONLY-LAW-DERIVED, never
@@ -3415,8 +3426,8 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
       [/Residual rule/, 'its `Residual rule:` tail'],
     ],
     [
-      'CONTEXT.md **Ace bisection** glossary row',
-      contextMd.match(/^\*\*Ace bisection\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m),
+      'GLOSSARY.md **Ace bisection** glossary row',
+      glossaryMd.match(/^\*\*Ace bisection\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m),
       'bolded term → next bolded term or `###` heading',
       [/_Avoid_/, 'its `_Avoid_` line'],
     ],
@@ -3463,7 +3474,7 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
     // The retired reserve-stop demote route, construct-scoped: a home that still says the
     // still-queued subsets DEMOTE states the pre-2026-09-03 arm. The key is forward-only
     // (phrase, then `demote` within 60 chars). At this task's cut base it reds on two homes:
-    // CONTEXT.md's "the remaining subsets demote to `follow-up`" and design.md's "the remaining
+    // CONTEXT.md's (now GLOSSARY.md's) "the remaining subsets demote to `follow-up`" and design.md's "the remaining
     // subsets demote straight to `follow-up`". SKILL.md's base placed `demote` AHEAD of the
     // phrase ("subsets demote (plus the subsets still queued when the floor-retry reserve stops
     // the ladder"), which this key does not match, so on SKILL.md it guards prospectively only
@@ -3484,7 +3495,7 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
   // proof below.
   for (const [name, text, literal] of [
     ['skills/war/SKILL.md', skillMd, 'exhaustion demotes the remainder'],
-    ['CONTEXT.md', contextMd, 'exhaustion demotes the remainder'],
+    ['GLOSSARY.md', glossaryMd, 'exhaustion demotes the remainder'],
     ['skills/war/references/design.md', designRefMd, 'budget-exhausted remainder'],
   ]) {
     assert.ok(
@@ -3543,7 +3554,7 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
 // (reserve-retired) THE `roundLimit − 2` RESERVE ARITHMETIC IS ABSENT FROM EVERY LIVING SURFACE
 // (plan 2026-09-03-in-band-absorb-default, End state 5 · Task 2.2; PIN-7). OLD-absent, whole-surface,
 // base-verified: at this task's cut base the reserve shape was present in SKILL.md's `--ace` bullet,
-// CONTEXT.md's **Ace bisection** and **Re-entry** rows, and design.md §18 (Task 2.2 re-authored
+// CONTEXT.md's (now GLOSSARY.md's) **Ace bisection** and **Re-entry** rows, and design.md §18 (Task 2.2 re-authored
 // them), and Task 2.1 had already retired it from `disposition-eligibility.md` widening 1, the
 // `schemas.md` re-entry row, and the engine's seven comments plus its four emitted reserve-stop
 // strings (two log() calls plus the demote() and routeToSweep() reason literals they guarded)
@@ -3552,10 +3563,11 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
 // folded — the End-state check's own regex) and the retired token `floor-retry reserve` (the
 // merge-floor retry LOOP keeps its `floor-retry` label — only the reserve compound is retired).
 // ADR 0013 is exempt (append-only law — D43 proves both sides of that exemption).
-test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-retry-reserve token are absent from the six living surfaces (End state 5, PIN-7)', () => {
+test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-retry-reserve token are absent from the six living surfaces and the router (End state 5, PIN-7)', () => {
   for (const [name, text] of [
     ['skills/war/SKILL.md', skillMd],
-    ['CONTEXT.md', contextMd],
+    ['GLOSSARY.md', glossaryMd],
+    ['CONTEXT.md', routerMd],
     ['skills/war/references/design.md', designRefMd],
     ['skills/war/references/disposition-eligibility.md', eligibilityRef],
     ['skills/war/references/schemas.md', schemasMd],
@@ -3578,7 +3590,7 @@ test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-
   // satisfy the absence asserts vacuously.
   for (const [name, text] of [
     ['skills/war/SKILL.md', skillMd],
-    ['CONTEXT.md', contextMd],
+    ['GLOSSARY.md', glossaryMd],
     ['skills/war/references/design.md', designRefMd],
     ['skills/war/references/disposition-eligibility.md', eligibilityRef],
     ['skills/war/references/schemas.md', schemasMd],
@@ -3673,7 +3685,7 @@ test('refiner-evict (c) — no `#gate-failure-classification` anchor token survi
   }
 })
 
-// (D44) THE INTENT-CEILING LATITUDE MIRROR (#1513) — CONTEXT.md's **Intent ceiling / plan floor**
+// (D44) THE INTENT-CEILING LATITUDE MIRROR (#1513) — GLOSSARY.md's **Intent ceiling / plan floor**
 // glossary entry restates the `Mechanism latitude:` reading whose canonical decision record is
 // ADR 0013's `## Amendment (2026-08-17): the latitude-clause reading`. The entry landed with no
 // mechanical coverage of that half: D38 binds only the 2026-08-25 ask amendment, D43 the #1812
@@ -3684,20 +3696,20 @@ test('refiner-evict (c) — no `#gate-failure-classification` anchor token survi
 //
 // Extraction is BY CONSTRUCT on both surfaces (the D35 idiom): the bolded glossary term → next
 // bolded term or `###` heading, and the dated amendment heading → the next `## ` heading — never a
-// whole-file scan, because ADR 0013 carries several dated amendments and CONTEXT.md's neighbouring
+// whole-file scan, because ADR 0013 carries several dated amendments and GLOSSARY.md's neighbouring
 // **Disposition** entry shares this vocabulary. Each extraction must span its own tail marker (the
 // `_Avoid_` line; the amendment's never-waives bullet) so a truncated read reds instead of passing
 // vacuously. Anchor literals are copied from the post-plan-A, post-Phase-1-eviction tree — Phase 1
-// Task 5 kept the latitude clause HOT in CONTEXT.md, so these are live bytes, not evicted ones.
+// Task 5 kept the latitude clause HOT in CONTEXT.md (now GLOSSARY.md), so these are live bytes, not evicted ones.
 // Keys are token-anchored `\s+`-wrapped forms asserted on BOTH surfaces: a one-sided edit reds,
 // and sanctioned rewording latitude on either surface must not false-red.
-test("D44 — CONTEXT.md **Intent ceiling / plan floor** mirrors ADR 0013's 2026-08-17 latitude-clause amendment (#1513)", () => {
-  const entry = contextMd.match(
+test("D44 — GLOSSARY.md **Intent ceiling / plan floor** mirrors ADR 0013's 2026-08-17 latitude-clause amendment (#1513)", () => {
+  const entry = glossaryMd.match(
     /^\*\*Intent ceiling \/ plan floor\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m,
   )
   assert.ok(
     entry,
-    'could not locate the `**Intent ceiling / plan floor**` glossary entry in CONTEXT.md (bolded ' +
+    'could not locate the `**Intent ceiling / plan floor**` glossary entry in GLOSSARY.md (bolded ' +
       'term → next bolded term or `###` heading) — the extraction construct rotted',
   )
   assert.match(
@@ -3733,7 +3745,7 @@ test("D44 — CONTEXT.md **Intent ceiling / plan floor** mirrors ADR 0013's 2026
     [/ADR[-\s]0017/i, 'the ADR 0017 citation carrying that floor'],
   ]) {
     for (const [surface, text] of [
-      ['CONTEXT.md **Intent ceiling / plan floor** entry (mirror)', norm(entry[0])],
+      ['GLOSSARY.md **Intent ceiling / plan floor** entry (mirror)', norm(entry[0])],
       ['docs/adr/0013 `## Amendment (2026-08-17)` (canonical home)', canonical],
     ]) {
       assert.match(
@@ -3836,12 +3848,12 @@ test('economy-ace-flip — NEW-present: every surface carries the inherited-on f
 // (old-default-absent) THE RETIRED "ABSORB IS NEVER A DEFAULT" CONJUNCTIONS ARE ABSENT FROM THE EIGHT
 // LIVING SURFACES (plan 2026-09-03-in-band-absorb-default, End state 8 · Task 3.2; D1/D2). The
 // in-diff `absorb` default retired three conjunction shapes, base-verified at this task's cut base:
-// `absorb` and `ask` are never default* (CLAUDE.md, CONTEXT.md, SKILL.md, design.md, the card,
+// `absorb` and `ask` are never default* (CLAUDE.md, CONTEXT.md (now GLOSSARY.md), SKILL.md, design.md, the card,
 // `schemas.md`, and the three `workflow-template.js` sites Task 3.1 rewrote — the `*` covers
 // `defaults` and `defaulted`; rule 7: this row reads those last three surfaces after the dep
 // rebase), `absorb` and `ask` never defaulted (gastown-design-params.md), and the zero-token-gap
 // `absorb` is never a default (the ADR 0013 Decision 4 literal, guard-exempt here, and the earlier
-// CONTEXT.md retirement D37a still pins — never present on the other seven surfaces at base, so
+// CONTEXT.md (now GLOSSARY.md) retirement D37a still pins — never present on the other seven surfaces at base, so
 // its assert guards a first appearance, not a revert). Detection runs on a NORMALIZED
 // surface — `//`/`>`/`#` line leaders stripped by `norm` BEFORE the join (so a phrase wrapped
 // across a comment boundary flattens contiguous), then backticks and single and double quotes
@@ -3861,7 +3873,7 @@ const OLD_DEFAULT_SHAPES = [
 ]
 const OLD_DEFAULT_SURFACES = [
   ['CLAUDE.md', claudeMd],
-  ['CONTEXT.md', contextMd],
+  ['GLOSSARY.md', glossaryMd],
   ['agents/war-auditor.md', auditorCard],
   ['skills/war/SKILL.md', skillMd],
   ['skills/war/assets/workflow-template.js', workflowTemplateSrc],
@@ -3909,38 +3921,38 @@ test('old-default-absent (self-check) — the lawful rewrite passes and each sin
   assert.deepEqual(oldDefaultHits('Nit → note; `absorb` is never a default.'), ['`absorb` is never a default (zero-token gap)'])
 })
 
-// (barrier-list) CONTEXT.md's **Barrier list** glossary entry hand-spells all four BARRIER_TOKENS.
+// (barrier-list) GLOSSARY.md's **Barrier list** glossary entry hand-spells all four BARRIER_TOKENS.
 // The registry rows in workflow-template.engine-1.test.mjs bind the inline mirror, the auditor card, the
 // eligibility doc, and the schemas.md row — this row binds the fifth hand copy to the canonical
 // array literal in land-decision.mjs (ADR 0025 same-commit mirror duty; the recorded
 // [[default-flip-must-audit-all-doc-surfaces]] class), extracted by construct (bolded term to
 // the next bolded term or `###` heading), never by line number.
 const landDecisionSrc = readFileSync(join(HERE, 'land-decision.mjs'), 'utf8')
-test('barrier-list — the CONTEXT.md **Barrier list** entry names every canonical BARRIER_TOKENS member', () => {
+test('barrier-list — the GLOSSARY.md **Barrier list** entry names every canonical BARRIER_TOKENS member', () => {
   const lit = landDecisionSrc.match(/export const BARRIER_TOKENS = (\[[^\]]+\])/)
   assert.ok(lit, 'could not locate the `export const BARRIER_TOKENS = [...]` literal in land-decision.mjs')
   const canonical = JSON.parse(lit[1].replace(/'/g, '"'))
   assert.equal(canonical.length, 4, 'BARRIER_TOKENS must carry exactly four members (PIN-1)')
-  const entry = contextMd.match(/^\*\*Barrier list\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
-  assert.ok(entry, 'could not locate the `**Barrier list**` glossary entry in CONTEXT.md — the extraction construct rotted')
+  const entry = glossaryMd.match(/^\*\*Barrier list\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the `**Barrier list**` glossary entry in GLOSSARY.md — the extraction construct rotted')
   const e = norm(entry[0])
   assert.match(e, /_Avoid_/, 'the extracted **Barrier list** entry must span its `_Avoid_` line — extraction truncated')
   const named = [...new Set(e.match(/barrier:[a-z-]+/g) || [])].sort()
   assert.deepEqual(
     named,
     [...canonical].sort(),
-    'the CONTEXT.md **Barrier list** entry must name exactly the canonical BARRIER_TOKENS members — ' +
+    'the GLOSSARY.md **Barrier list** entry must name exactly the canonical BARRIER_TOKENS members — ' +
       'update this glossary copy in the same commit as land-decision.mjs (ADR 0025)',
   )
   assert.match(
     e,
     /`barrier:rationale-comment` \(the fix removes or edits a `ponytail:`\/deliberate-mirror rationale line\)/,
-    'the CONTEXT.md barrier:rationale-comment gloss must keep the canonical `removes or edits` pair',
+    'the GLOSSARY.md barrier:rationale-comment gloss must keep the canonical `removes or edits` pair',
   )
 })
 
-test('old-default-absent (a) — the three retired conjunction shapes are absent from the eight living surfaces after normalization (End state 8)', () => {
-  for (const [name, text] of OLD_DEFAULT_SURFACES) {
+test('old-default-absent (a) — the three retired conjunction shapes are absent from the eight living surfaces and the router after normalization (End state 8)', () => {
+  for (const [name, text] of [...OLD_DEFAULT_SURFACES, ['CONTEXT.md', routerMd]]) {
     const hits = oldDefaultHits(text)
     assert.deepEqual(
       hits,
@@ -3984,25 +3996,25 @@ test('old-default-absent (b) — every living surface carries the in-diff absorb
   )
 })
 
-// (demote-prefix-term) CONTEXT.md's **Demote reason prefix** glossary entry hand-spells all twelve
+// (demote-prefix-term) GLOSSARY.md's **Demote reason prefix** glossary entry hand-spells all twelve
 // DEMOTE_REASONS members (plan 2026-09-03-in-band-absorb-default, Task 4.2; D13, PIN-15). The
 // registry rows in workflow-template.engine-1.test.mjs bind the inline mirror; this row binds the glossary
 // copy to the canonical array literal in land-decision.mjs (ADR 0025 same-commit mirror duty),
 // extracted by construct (bolded term to the next bolded term or `###` heading), never by line.
-test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names every canonical DEMOTE_REASONS member', () => {
+test('demote-prefix-term — the GLOSSARY.md **Demote reason prefix** entry names every canonical DEMOTE_REASONS member', () => {
   const lit = landDecisionSrc.match(/export const DEMOTE_REASONS = (\[[^\]]+\])/)
   assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
   const canonical = JSON.parse(lit[1].replace(/'/g, '"'))
   assert.equal(canonical.length, 12, 'DEMOTE_REASONS must carry its twelve ratified members (D13)')
-  const entry = contextMd.match(/^\*\*Demote reason prefix\*\* \(`DEMOTE_REASONS`\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
-  assert.ok(entry, 'could not locate the `**Demote reason prefix**` glossary entry in CONTEXT.md — the extraction construct rotted')
+  const entry = glossaryMd.match(/^\*\*Demote reason prefix\*\* \(`DEMOTE_REASONS`\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the `**Demote reason prefix**` glossary entry in GLOSSARY.md — the extraction construct rotted')
   const e = norm(entry[0])
   assert.match(e, /_Avoid_/, 'the extracted **Demote reason prefix** entry must span its `_Avoid_` line — extraction truncated')
   const named = [...new Set(e.match(/demote:[a-z-]+/g) || [])].sort()
   assert.deepEqual(
     named,
     [...canonical].sort(),
-    'the CONTEXT.md **Demote reason prefix** entry must name exactly the canonical DEMOTE_REASONS members — ' +
+    'the GLOSSARY.md **Demote reason prefix** entry must name exactly the canonical DEMOTE_REASONS members — ' +
       'update this glossary copy in the same commit as land-decision.mjs (ADR 0025)',
   )
   for (const [re, what] of [
@@ -4010,11 +4022,11 @@ test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names
     [/a miss prepends `demote:unclassified` with a loud log, never a throw/, 'the unclassified fallback'],
     [/an ace-off run route the row to the phase-close sweep instead of demoting/, 'the failed-attempt / ace-off sweep route (D14)'],
   ]) {
-    assert.match(e, re, `the CONTEXT.md **Demote reason prefix** entry must carry ${what} (D13/D14)`)
+    assert.match(e, re, `the GLOSSARY.md **Demote reason prefix** entry must carry ${what} (D13/D14)`)
   }
 })
 
-// (unverified-triggers) CONTEXT.md's **`unverified`** (End-state status) entry restates two engine
+// (unverified-triggers) GLOSSARY.md's **`unverified`** (End-state status) entry restates two engine
 // literals it cannot de-mirror: the record-only artifact states the land-barrier endstate-check
 // dispatch stamps (`intake_lint:`, `cmd_bytes_mismatch:`), which the END-STATE CHECK seat block names
 // as `unverified` triggers (plan 2026-09-06-engine-and-audit-verdict-integrity, Task 10.2; D16,
@@ -4032,7 +4044,7 @@ test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names
 // row is extracted by construct (bolded term to the next bolded term or `###` heading), never by
 // line (the demote-prefix-term idiom). The seat block's and the auditor card's own naming of the triggers ride
 // workflow-template.engine-1.test.mjs's registry rows (Task 10.1); this row binds only the glossary copy.
-test('unverified-triggers — the CONTEXT.md **`unverified`** entry names exactly the engine\'s record-only endstate artifact states', () => {
+test('unverified-triggers — the GLOSSARY.md **`unverified`** entry names exactly the engine\'s record-only endstate artifact states', () => {
   const start = workflowTemplateSrc.indexOf('ENDSTATE-CHECK DISPATCH for WAR phase')
   const end = workflowTemplateSrc.indexOf('if (mergedTasksForGateAudit.length > 0)')
   assert.ok(start > 0 && end > start, 'could not locate the endstate build region (ENDSTATE-CHECK DISPATCH … END-STATE CHECK) in workflow-template.js — the extraction anchors rotted')
@@ -4044,21 +4056,21 @@ test('unverified-triggers — the CONTEXT.md **`unverified`** entry names exactl
   }
   const canonical = stamps.filter((t) => !FRAME.includes(t)).sort()
   assert.equal(canonical.length, 2, 'the endstate build must stamp exactly its two record-only artifact states (D16: intake_lint, cmd_bytes_mismatch)')
-  const entry = contextMd.match(/^\*\*`unverified`\*\* \(End-state status\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
-  assert.ok(entry, 'could not locate the **`unverified`** (End-state status) glossary entry in CONTEXT.md — the extraction construct rotted')
+  const entry = glossaryMd.match(/^\*\*`unverified`\*\* \(End-state status\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the **`unverified`** (End-state status) glossary entry in GLOSSARY.md — the extraction construct rotted')
   const e = norm(entry[0])
   assert.match(e, /_Avoid_/, 'the extracted **`unverified`** entry must span its `_Avoid_` line — extraction truncated')
   const named = [...new Set([...e.matchAll(/`([a-z][a-z_]*_[a-z_]+):`/g)].map((m) => m[1]))].sort()
   assert.deepEqual(
     named,
     canonical,
-    'the CONTEXT.md **`unverified`** entry must name exactly the engine\'s record-only artifact states as `unverified` triggers — ' +
+    'the GLOSSARY.md **`unverified`** entry must name exactly the engine\'s record-only artifact states as `unverified` triggers — ' +
       'update this glossary copy in the same commit as the endstate build (D16, PIN-20)',
   )
   assert.match(e, /never `unmet` \(#1781\)/, 'the **`unverified`** entry must state that a record-only artifact is never attested `unmet` (#1781)')
 })
 
-// (gate-log-stamp-glossary) CONTEXT.md's **Gate-log stamp** entry restates three engine literals it
+// (gate-log-stamp-glossary) GLOSSARY.md's **Gate-log stamp** entry restates three engine literals it
 // cannot de-mirror (plan 2026-09-06-engine-and-audit-verdict-integrity, Task 10.2 re-entry; D7/D8,
 // PIN-11/PIN-12): the two stamp lines `GATE_LOG_STAMP` builds (`tip_sha:` first, `exit_code:` last)
 // and the `GATE_LOG_UNTHREADED` fallback marker the evidence dispatch renders on an unthreaded
@@ -4073,8 +4085,8 @@ test('unverified-triggers — the CONTEXT.md **`unverified`** entry names exactl
 // the backticked `<snake_case>:` tokens the stamp literal carries, and the marker row asserts the
 // entry contains the marker text verbatim.
 const gateLogStampEntry = () => {
-  const entry = contextMd.match(/^\*\*Gate-log stamp\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
-  assert.ok(entry, 'could not locate the **Gate-log stamp** glossary entry in CONTEXT.md — the extraction construct rotted')
+  const entry = glossaryMd.match(/^\*\*Gate-log stamp\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the **Gate-log stamp** glossary entry in GLOSSARY.md — the extraction construct rotted')
   const e = norm(entry[0])
   assert.match(e, /_Avoid_/, 'the extracted **Gate-log stamp** entry must span its `_Avoid_` line — extraction truncated')
   return e
@@ -4085,7 +4097,7 @@ const ptConst = (name) => {
   return m[1]
 }
 
-test('gate-log-stamp-glossary — the CONTEXT.md **Gate-log stamp** entry names exactly the `<snake_case>:` stamp tokens GATE_LOG_STAMP builds', () => {
+test('gate-log-stamp-glossary — the GLOSSARY.md **Gate-log stamp** entry names exactly the `<snake_case>:` stamp tokens GATE_LOG_STAMP builds', () => {
   const stamp = ptConst('GATE_LOG_STAMP')
   const canonical = [...new Set([...stamp.matchAll(/`([a-z][a-z_]*_[a-z_]+):/g)].map((m) => m[1]))].sort()
   assert.deepEqual(canonical, ['exit_code', 'tip_sha'], 'GATE_LOG_STAMP must build exactly the two stamp lines (tip_sha: first, exit_code: last) — the engine literal rotted')
@@ -4093,16 +4105,16 @@ test('gate-log-stamp-glossary — the CONTEXT.md **Gate-log stamp** entry names 
   assert.deepEqual(
     named,
     canonical,
-    'the CONTEXT.md **Gate-log stamp** entry must name exactly the stamp tokens GATE_LOG_STAMP builds — update this glossary copy in the same commit as the engine literal (D7, PIN-11)',
+    'the GLOSSARY.md **Gate-log stamp** entry must name exactly the stamp tokens GATE_LOG_STAMP builds — update this glossary copy in the same commit as the engine literal (D7, PIN-11)',
   )
 })
 
-test('gate-log-stamp-glossary — the CONTEXT.md **Gate-log stamp** entry carries the GATE_LOG_UNTHREADED marker verbatim', () => {
+test('gate-log-stamp-glossary — the GLOSSARY.md **Gate-log stamp** entry carries the GATE_LOG_UNTHREADED marker verbatim', () => {
   const marker = ptConst('GATE_LOG_UNTHREADED')
   assert.match(marker, /^\(gate_log_path unthreaded/, 'GATE_LOG_UNTHREADED must be the parenthesized unthreaded-path marker — the engine literal rotted')
   assert.ok(
     gateLogStampEntry().includes('`' + marker + '`'),
-    `the CONTEXT.md **Gate-log stamp** entry must quote the engine's unthreaded marker \`${marker}\` verbatim — update this glossary copy in the same commit as GATE_LOG_UNTHREADED (D8, PIN-12)`,
+    `the GLOSSARY.md **Gate-log stamp** entry must quote the engine's unthreaded marker \`${marker}\` verbatim — update this glossary copy in the same commit as GATE_LOG_UNTHREADED (D8, PIN-12)`,
   )
 })
 
@@ -4193,17 +4205,17 @@ test('adr-0013-phase-4 — ADR 0013 carries the ace-off routing and demote-prefi
   assert.match(first[0], /the in-diff `absorb` default and the barrier list/, 'the in-diff-default amendment must stay the first 2026-09-04 section (its bare-date pins read the first match)')
 })
 
-// (terminal-pass-term) CONTEXT.md carries the Phase 5 glossary terms **Terminal pass** and
+// (terminal-pass-term) GLOSSARY.md carries the Phase 5 glossary terms **Terminal pass** and
 // **Carried queue** (plan 2026-09-03-in-band-absorb-default, Task 5.2; D3a/D3b), and the
 // **sweep-raised finding** entry no longer claims "never aced, never re-queued" — on the merged arm
 // a sweep-raised absorb joins the terminal pass (the retired merged-sweep demote arm's successor).
 // Extracted by construct (bolded term to the next bolded term or `###` heading), never by line.
 // ADR 0012 carries the one-line dated cross-reference naming the terminal pass as that successor
 // (its existing cross-reference line style; the ratified body stays byte-untouched).
-test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried queue**, retires the sweep-raised never-re-queued sentence, and ADR 0012 names the successor (Task 5.2)', () => {
+test('terminal-pass-term — GLOSSARY.md carries **Terminal pass** and **Carried queue**, retires the sweep-raised never-re-queued sentence, and ADR 0012 names the successor (Task 5.2)', () => {
   const pick = (label, re) => {
-    const m = contextMd.match(re)
-    assert.ok(m, `could not locate the \`**${label}**\` glossary entry in CONTEXT.md — the extraction construct rotted`)
+    const m = glossaryMd.match(re)
+    assert.ok(m, `could not locate the \`**${label}**\` glossary entry in GLOSSARY.md — the extraction construct rotted`)
     const e = norm(m[0])
     assert.match(e, /_Avoid_/, `the extracted **${label}** entry must span its \`_Avoid_\` line — extraction truncated`)
     return e
@@ -4218,7 +4230,7 @@ test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried 
     [/`demote:terminal-pass`/, 'the final-phase demote prefix'],
     [/`run\.ace` off/, 'the ace-off convening clause (PIN-16)'],
     [/a second pass/, 'the one-pass-per-phase Avoid'],
-  ]) assert.match(tp, re, `the CONTEXT.md **Terminal pass** entry must carry ${what}`)
+  ]) assert.match(tp, re, `the GLOSSARY.md **Terminal pass** entry must carry ${what}`)
   const cq = pick('Carried queue', /^\*\*Carried queue\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   for (const [re, what] of [
     [/`carriedPhaseClose`/, 'the phase-return key (D3b)'],
@@ -4227,28 +4239,28 @@ test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried 
     [/held phase'?s whole queue/, 'the held-phase carry'],
     [/discarded sweep'?s absorbs/, 'the discard-arm carry'],
     [/non-final terminal pass'?s rows/, 'the terminal-pass carry'],
-  ]) assert.match(cq, re, `the CONTEXT.md **Carried queue** entry must carry ${what}`)
+  ]) assert.match(cq, re, `the GLOSSARY.md **Carried queue** entry must carry ${what}`)
   // The two corrected carry-or-demote sentences (ace re-entry r3): the **Re-entry** budget-spent
   // route and the **Phase-close coherence sweep** discard clause each carry `carriedPhaseClose`
   // with its non-final qualifier. The lookahead is `**:`-anchored because the **Re-entry** body
   // opens a line with a bolded cross-reference (`**Absorb budget** (...)`) before its `_Avoid_`.
   const rr = pick('Re-entry', /^\*\*Re-entry\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
-  assert.match(rr, /sweep-discard ⇒ carried on `carriedPhaseClose` \(non-final phase\) or `follow-up` \(final\)/, 'the CONTEXT.md **Re-entry** entry must carry the budget-spent carry-or-demote route (`carriedPhaseClose`, non-final phase)')
+  assert.match(rr, /sweep-discard ⇒ carried on `carriedPhaseClose` \(non-final phase\) or `follow-up` \(final\)/, 'the GLOSSARY.md **Re-entry** entry must carry the budget-spent carry-or-demote route (`carriedPhaseClose`, non-final phase)')
   const pc = pick('Phase-close coherence sweep', /^\*\*Phase-close coherence sweep\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
-  assert.match(pc, /queue carries on `carriedPhaseClose` \(non-final phase\) or demotes to follow-up \(final\)/, 'the CONTEXT.md **Phase-close coherence sweep** entry must carry the discard-arm carry-or-demote clause (`carriedPhaseClose`, non-final phase)')
+  assert.match(pc, /queue carries on `carriedPhaseClose` \(non-final phase\) or demotes to follow-up \(final\)/, 'the GLOSSARY.md **Phase-close coherence sweep** entry must carry the discard-arm carry-or-demote clause (`carriedPhaseClose`, non-final phase)')
   // The two sentences corrected at ace re-entry r3 (same revert-green rationale as the pair above):
   // the **Absorb budget** terminal-pass charge clause and the **Drain cause** carry route.
   const ab = pick('Absorb budget', /^\*\*Absorb budget\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
-  assert.match(ab, /and the terminal pass, on the polish pseudo-task, telemetry only/, 'the CONTEXT.md **Absorb budget** entry must charge the terminal pass on the polish pseudo-task, telemetry only')
+  assert.match(ab, /and the terminal pass, on the polish pseudo-task, telemetry only/, 'the GLOSSARY.md **Absorb budget** entry must charge the terminal pass on the polish pseudo-task, telemetry only')
   const dc = pick('Drain cause', /^\*\*Drain cause\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
-  assert.match(dc, /carried on `carriedPhaseClose` on a non-final one/, 'the CONTEXT.md **Drain cause** entry must carry the discard-route non-final carry clause (`carriedPhaseClose`)')
+  assert.match(dc, /carried on `carriedPhaseClose` on a non-final one/, 'the GLOSSARY.md **Drain cause** entry must carry the discard-route non-final carry clause (`carriedPhaseClose`)')
   // The retired sentence: OLD-absent on the sweep-raised entry, NEW-present in its place.
-  const sr = contextMd.match(/^\*\*sweep-raised finding\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
-  assert.ok(sr, 'could not locate the `**sweep-raised finding**` glossary entry in CONTEXT.md — the extraction construct rotted')
+  const sr = glossaryMd.match(/^\*\*sweep-raised finding\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(sr, 'could not locate the `**sweep-raised finding**` glossary entry in GLOSSARY.md — the extraction construct rotted')
   const s = norm(sr[0])
-  assert.doesNotMatch(s, /never aced, never re-queued/i, 'the CONTEXT.md **sweep-raised finding** entry must retire "never aced, never re-queued" — a merged-arm absorb joins the terminal pass now (Task 5.2, PIN-4)')
-  assert.match(s, /on the merged arm an absorb joins the terminal pass/, 'the CONTEXT.md **sweep-raised finding** entry must carry the merged-arm terminal-pass route')
-  assert.match(s, /on the discard arm it rides the carried queue \(non-final phase\) or demotes `demote:sweep-discarded`/, 'the CONTEXT.md **sweep-raised finding** entry must carry the discard-arm carry-or-demote route')
+  assert.doesNotMatch(s, /never aced, never re-queued/i, 'the GLOSSARY.md **sweep-raised finding** entry must retire "never aced, never re-queued" — a merged-arm absorb joins the terminal pass now (Task 5.2, PIN-4)')
+  assert.match(s, /on the merged arm an absorb joins the terminal pass/, 'the GLOSSARY.md **sweep-raised finding** entry must carry the merged-arm terminal-pass route')
+  assert.match(s, /on the discard arm it rides the carried queue \(non-final phase\) or demotes `demote:sweep-discarded`/, 'the GLOSSARY.md **sweep-raised finding** entry must carry the discard-arm carry-or-demote route')
   // ADR 0012: the dated successor line, in its cross-reference line style (append-only law).
   const xref = adr0012.match(/^\*Cross-reference \(2026-09-04\):[^\n]*$/m)
   assert.ok(xref, 'ADR 0012 must carry the one-line 2026-09-04 cross-reference naming the terminal pass (Task 5.2)')
@@ -4438,14 +4450,14 @@ test('D17 (2026-09-06 engine-and-audit-verdict-integrity plan) — the split bou
   // The §4 step 3 and schemas.md gate-rule stragglers (survey-derived): the still-split-escalate arm is retired.
   assert.ok(!designRefMd.includes('still-split-escalate'), 'the retired `still-split-escalate` arm must be gone from design.md §4 step 3 (OLD-absent, base-verified 1 hit; PIN-8)')
   assert.ok(!schemasMd.includes('still-split (escalate)'), 'the retired `still-split (escalate)` arm must be gone from schemas.md’s gate rule (OLD-absent, base-verified 1 hit; PIN-8)')
-  // CONTEXT.md — the two Phase 11 glossary entries (bolded term → next bolded term or `###`).
+  // GLOSSARY.md — the two Phase 11 glossary entries (bolded term → next bolded term or `###`).
   for (const [term, keys] of [
     ['Decision-forked finding', [[/escalate_reason/, 'the escalate_reason carrier'], [new RegExp(NEW), 'the D17 sentence'], [/never escalates/, 'the mechanical-never-escalates arm'], [/two-sided boundary/, 'the two-sided boundary name']]],
     ['Seat-conflict ask', [[/parkAsk/, 'the parkAsk route'], [/fix-now \/ follow-up-and-merge fork/, 'the ask fork'], [/strike-list gate/, 'the interactive ruling site'], [/#1914/, 'the source issue']]],
   ]) {
-    const block = contextMd.match(new RegExp(`^\\*\\*${term}\\*\\*[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*|\\n### )`, 'm'))
-    assert.ok(block, `could not locate the \`**${term}**\` glossary entry in CONTEXT.md — construct rotted (Task 11.2)`)
-    for (const [re, what] of keys) assert.match(norm(block[0]), re, `CONTEXT.md's **${term}** entry must carry ${what}`)
+    const block = glossaryMd.match(new RegExp(`^\\*\\*${term}\\*\\*[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*|\\n### )`, 'm'))
+    assert.ok(block, `could not locate the \`**${term}**\` glossary entry in GLOSSARY.md — construct rotted (Task 11.2)`)
+    for (const [re, what] of keys) assert.match(norm(block[0]), re, `GLOSSARY.md's **${term}** entry must carry ${what}`)
   }
   // The reconciled Lead arms: resume-and-recovery.md's plan-defect stop-here arm and war-review's grind row.
   assert.match(norm(resumeMd), /escalated\[\]` record carries a seat's `escalate_reason` \(a \*\*decision-forked\*\* blocking finding/, "resume-and-recovery.md's step-1 adjudication arm must read a seat's escalate_reason as plan-shaped (D18)")
@@ -4474,7 +4486,7 @@ test('D17 sibling — design.md §4 step 3 restates DEFAULTS.audit.roster verbat
 
 // (D20, Task 12.2 — release-slot eligibility by literal, not by file; #2000, PIN-24) The NEW rule
 // lives INSIDE disposition-eligibility.md's absorb blockquote (the same block the write-footprint
-// row extracts, so a blank line or a `- ` bullet before it would red that row), CONTEXT.md carries
+// row extracts, so a blank line or a `- ` bullet before it would red that row), GLOSSARY.md carries
 // the **Version-literal guard** entry de-mirrored to `RELEASE_SLOT_FILES` and
 // `version-slots.test.mjs`, ADR 0013's Decision 5 is edited in place with a dated Decision-log line,
 // and SKILL.md's `--ace` bullet drops its file-based routing clause. OLD-absent (rule 6, base
@@ -4483,7 +4495,7 @@ test('D17 sibling — design.md §4 step 3 restates DEFAULTS.audit.roster verbat
 // slot` sentence there, so the decisive assert is the NEW rule beside the unchanged
 // `barrier:release-slot` bullet. The barrier bullet itself stays byte-stable: `plugin.json` /
 // `marketplace.json` only.
-test('D20 — release-slot eligibility by literal: eligibility absorb block, CONTEXT.md entry, ADR 0013 Decision 5 + log line, and the retired SKILL.md `--ace` routing clause', () => {
+test('D20 — release-slot eligibility by literal: eligibility absorb block, GLOSSARY.md entry, ADR 0013 Decision 5 + log line, and the retired SKILL.md `--ace` routing clause', () => {
   const block = eligibilityRef.match(/`disposition:'absorb'`[\s\S]*?(?=\n\n|\n- )/)
   assert.ok(block, "could not locate the `disposition:'absorb'` block in disposition-eligibility.md — construct rotted")
   const b = norm(block[0])
@@ -4499,9 +4511,9 @@ test('D20 — release-slot eligibility by literal: eligibility absorb block, CON
   assert.ok(barrier, 'the `barrier:release-slot` bullet must stay in `## Barrier list`')
   assert.match(barrier[0], /`plugin\.json` \/ `marketplace\.json`/, 'the `barrier:release-slot` bullet names the two pure version-slot JSONs only (D20 leaves it unchanged)')
   assert.ok(!/README|CHANGELOG/.test(barrier[0]), 'the `barrier:release-slot` bullet must not widen to README/CHANGELOG (by-literal eligibility, PIN-24)')
-  // CONTEXT.md — the glossary entry, de-mirrored (names the source and the guard, never the basenames as a list).
-  const entry = contextMd.match(/^\*\*Version-literal guard\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
-  assert.ok(entry, 'could not locate the `**Version-literal guard**` glossary entry in CONTEXT.md — construct rotted (Task 12.2)')
+  // GLOSSARY.md — the glossary entry, de-mirrored (names the source and the guard, never the basenames as a list).
+  const entry = glossaryMd.match(/^\*\*Version-literal guard\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the `**Version-literal guard**` glossary entry in GLOSSARY.md — construct rotted (Task 12.2)')
   const e = norm(entry[0])
   assert.match(e, /_Avoid_/, 'the extracted **Version-literal guard** entry must span its `_Avoid_` line — extraction truncated')
   for (const [re, what] of [
@@ -4509,7 +4521,7 @@ test('D20 — release-slot eligibility by literal: eligibility absorb block, CON
     [/version-slots\.test\.mjs/, 'the merge guard'],
     [/version literal/i, 'the by-literal rule'],
     [/ADR 0013/, 'the ADR pointer'],
-  ]) assert.match(e, re, `CONTEXT.md's **Version-literal guard** entry must carry ${what} (D20)`)
+  ]) assert.match(e, re, `GLOSSARY.md's **Version-literal guard** entry must carry ${what} (D20)`)
   // ADR 0013 — Decision 5 edited in place (the living-ADR ruling) and the dated Decision-log line.
   const cut = adr0013.indexOf('## Considered options')
   assert.ok(cut > 0, "ADR 0013: '## Considered options' heading not found — the Decision-body slice cannot be scoped (fail closed)")
@@ -4734,7 +4746,7 @@ test('late-defect: doctrine carve-out — each surface that taught a `note` as i
     ['SKILL.md § Audits', skillMd, /`note` \(phase report \+ servitor feed, never an issue\)/],
     ['design.md disposition routing', designRefMd, /`note` \(phase report \+ servitor feed, never an issue\)/],
     ['gastown-design-params.md severity + disposition', gastownMd, /`note` \(phase report \+ servitor feed, never an issue\)/],
-    ['CONTEXT.md **Disposition**', contextMd, /\(`note` — phase report \+ servitor feed\)/],
+    ['GLOSSARY.md **Disposition**', glossaryMd, /\(`note` — phase report \+ servitor feed\)/],
   ]
   for (const [where, text, old] of sites) {
     const t = norm(text)
@@ -4745,9 +4757,9 @@ test('late-defect: doctrine carve-out — each surface that taught a `note` as i
   }
 })
 
-test('late-defect: doctrine glossary — CONTEXT.md names the plan terms over a late-defects.md pointer and points at land-decision.mjs for FINDING_CLASSES and the reason list; late-defects.md holds each body', () => {
-  const entry = contextMd.match(/^\*\*Late defect\*\*, \*\*Late-fix pass\*\*, \*\*Finding class\*\* \(`findingClass`\), \*\*Pre-ace probe\*\*, \*\*Seeded task\*\* \/ \*\*Carried task\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
-  assert.ok(entry, 'CONTEXT.md must carry the late-defect glossary heading line naming all five terms')
+test('late-defect: doctrine glossary — GLOSSARY.md names the plan terms over a late-defects.md pointer and points at land-decision.mjs for FINDING_CLASSES and the reason list; late-defects.md holds each body', () => {
+  const entry = glossaryMd.match(/^\*\*Late defect\*\*, \*\*Late-fix pass\*\*, \*\*Finding class\*\* \(`findingClass`\), \*\*Pre-ace probe\*\*, \*\*Seeded task\*\* \/ \*\*Carried task\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'GLOSSARY.md must carry the late-defect glossary heading line naming all five terms')
   const e = norm(entry[0])
   assert.match(e, /_Avoid_/, 'the extracted entry must span its `_Avoid_` line — extraction truncated')
   assert.match(e, /read skills\/war\/references\/late-defects\.md/, 'the entry carries the late-defects.md trigger pointer')

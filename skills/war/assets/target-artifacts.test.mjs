@@ -21,7 +21,7 @@
 //      per-surface map carries a lead-in-anchored value, and that value deepEquals the export.
 //      Every bare occurrence of a lead-in must carry a shaped value, so a second occurrence
 //      that drifts to plain text reds the guard instead of being skipped.
-//      `CONTEXT.md` and `artifact-evidence-lead.md` are NOT in the map — they name constants;
+//      `GLOSSARY.md` and `artifact-evidence-lead.md` are NOT in the map — they name constants;
 //   3. the manifest path test (End-state 27, D23): the `<sha12>` placeholder sits between
 //      `<task-id>` and `.manifest.json`, two artifacts under one task resolve to two files in one
 //      plan-slug directory, and MANIFEST_KEYS is unchanged.

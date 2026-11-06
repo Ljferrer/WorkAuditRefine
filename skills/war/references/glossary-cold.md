@@ -1,27 +1,27 @@
-# Glossary cold home — evicted and born-cold CONTEXT.md entries
+# Glossary cold home — evicted and born-cold glossary entries
 
 The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) for evicted and
-born-cold `CONTEXT.md` glossary bodies. Each evicted body below was byte-identical to its pre-eviction
-`CONTEXT.md` text **at eviction time** (only repo-root-relative links were re-anchored for this file's
+born-cold glossary bodies (the glossary was `CONTEXT.md` until #2636 moved it to `GLOSSARY.md`). Each evicted body below was byte-identical to its pre-eviction
+`CONTEXT.md` text (`GLOSSARY.md` text for wave 7) **at eviction time** (only repo-root-relative links were re-anchored for this file's
 depth), moved under an additive per-term heading — and the glossary keeps the `**Term**:` heading plus
 one fixed-shape trigger pointer (`when <trigger>, read skills/war/references/glossary-cold.md`).
-A born-cold body is authored here first and has no pre-eviction text to match (waves 5 and 6): `CONTEXT.md`
+A born-cold body is authored here first and has no pre-eviction text to match (waves 5 and 6): `GLOSSARY.md`
 holds only its `**Term**:` heading plus the same trigger pointer. One
 pointer may carry several terms when a whole cold cluster leaves together (wave 4). Prose
 temperature is branch
 frequency (ADR 0042): these are cold but still authoritative — never delete a body; evict more the
-same way. **Coldness criterion** (one standing criterion; selections for waves 1-3 and 5 are recorded in
+same way. **Coldness criterion** (one standing criterion; selections for waves 1-3, 5 and 7 are recorded in
 the D32 row's comments in `skills/war/assets/skill-doc-contracts.test.mjs`, which pins those
-CONTEXT.md pointers to their bodies here — wave 4's bodies are deliberately unpinned, selected for
+GLOSSARY.md pointers to their bodies here — wave 4's bodies are deliberately unpinned, selected for
 carrying no live drift-guard key; wave 6's four born-cold merge-provenance bodies are pinned instead by
 `skills/red-team/assets/workflow-scaffold.test.mjs`): a term qualifies when it names a
 retired mechanism, or when it is fully narrated in its own operative home (a `references/` file, an
 owning skill's SKILL.md, or its ADR) so the glossary needs only a pointer — incident-only recovery
 and one-command forensics entries are the standing example. Bold glossary cross-references inside
-the moved bodies resolve in `CONTEXT.md`, their original home, or here when the referenced term has
+the moved bodies resolve in the glossary (`GLOSSARY.md`), their original home, or here when the referenced term has
 itself since been evicted — stated as the rule rather than a
 dated enumeration, which rots as bodies are added (#1908). A reference may be a shortened or
-differently-cased form of its CONTEXT.md heading (**phantom land** → `**Phantom land**`,
+differently-cased form of its GLOSSARY.md heading (**phantom land** → `**Phantom land**`,
 **Land primitive** → `**Land primitive (single land chokepoint)**`); resolve by term, not by
 byte-match.
 
@@ -99,7 +99,10 @@ git** rather than self-reported. Immediately before the push it captures the **p
 into the first-land carve-out), and it refuses a **phantom land** (exit 3) when `<merge-sha>` equals
 that pre-push origin tip **and** the local follower already sits at it; the post-push readback still
 confirms origin advanced to `<merge-sha>`, with one re-read after 2 s and a loud exit 3 on a second
-miss. `<merge-sha>` resolves to its full SHA first. Immediately before that push — and deliberately *after* the
+miss. A server-side `[remote rejected]` push is pushed again, at most 3 times after 10, 20 and 40 s,
+only while a fresh read still shows the pre-push origin tip (#2626). A retry that lands exits 0 through
+the normal readback, a retry that meets `[rejected]` exits 2, and spent retries, a moved origin or a
+failed read exit 3. `<merge-sha>` resolves to its full SHA first. Immediately before that push — and deliberately *after* the
 early-return arms, so already-landed reconciliation stays cwd-independent — it also asserts
 `HEAD == <merge-sha>`: the push source is `HEAD:`, so a wrong-cwd invocation dies with the catalogued
 `EX_WRONG_BRANCH` (6) naming both SHAs and the expected cwd (normally the detached `_refinery`) rather
@@ -192,7 +195,7 @@ _Avoid_: gate-failed (the suite is green; the task's own `Done when:` command is
 decision (the route reuses the existing floor-family slots, like `no-test`/`unpackaged`).
 
 <!-- Wave 4 (#1651, 2026-09-03): seven cold clusters, 18,562 B moved byte-identical out of
-     CONTEXT.md to bring it back under the ADR 0042 advisory line. Each cluster leaves one
+     CONTEXT.md (now GLOSSARY.md) to bring it back under the ADR 0042 advisory line. Each cluster leaves one
      grouped trigger pointer behind. Every body below was selected for carrying NO live
      drift-guard key, so none is D32-pinned; **Campaign ledger**, **Plan-index table** and
      **Staged phase script** were considered and kept hot (the first two phrase a campaign-ledger
@@ -605,3 +608,26 @@ mismatch shows after the fact; refusing a mismatched launch is filed, not built 
 `launch-identity.md` (#2485 D22).
 _Avoid_: recovering a run from a different installed version or a local checkout; reusing the
 recovered launch's `runId` (a recovery still mints a fresh one).
+
+## Relaunch attempt
+
+One Workflow run of a phase that a prior run of the same phase did not finish — a `resumeFromRunId`
+retry or a recovery relaunch. Each attempt has its own `workflowRunId` + `transcriptDir` when the
+launch envelope surfaces a fresh run id (a relaunch that repeats the prior id archives nothing; the
+transcript dir's basename is the run id); the run manifest overwrites the pair **together**, archives
+the died attempt under `attempts[]`, and sums dispatch counts across attempts (the shape lives in
+`skills/war/references/run-manifest.md` § Relaunch).
+_Avoid_: overwriting one field of the pair; dropping a died attempt's counts; reading the manifest
+on resume (it is telemetry, never resume input).
+
+## stranded upstream
+
+A local WAR branch's tracking ref pinned at the worker's pre-rebase remote SHA — the refiner
+rebases task branches locally in the serial merge queue and **never force-pushes**, so the tracked
+remote ref never advances to the rebased tip that lands. Makes `git branch -d` check
+merged-into-upstream and refuse a branch whose content is already in master. Recovery, only after
+the gate passes on the **local SHA**: `git branch --unset-upstream <branch>` then `git branch -d <branch>` (restoring
+git's own merged-into-HEAD check), never `-D`; a needs-human outcome after the unset restores
+tracking (`git branch -u`).
+_Avoid_: reading the `-d` refusal as an unmerged-work signal; escalating to `-D` in a default-mode
+sweep.

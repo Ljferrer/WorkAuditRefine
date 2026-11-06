@@ -159,3 +159,9 @@ enforcement.
 - In-repo precedent lessons: `redteam-executed-probe-cwd-reset-hits-real-remote` (a recorded self-confound
   — a sandbox probe's cwd reset hit the real remote), `verbatim-mirror-directive-context-mismatch-at-destination`,
   `gate-can-assert-mirrored-clause-presence-without-asserting-byte-identity`.
+
+## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+
+#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
+(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
+next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.

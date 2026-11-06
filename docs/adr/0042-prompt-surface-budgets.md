@@ -77,3 +77,12 @@ task as the move.
   the memory subsystem itself is untouched.
 - [ADR 0025](0025-drift-guard-discipline.md) — guards follow text: the re-anchor
   discipline that makes the shrink pass safe is the same standing duty applied to moves.
+
+## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+
+#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
+(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
+next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+
+The `CONTEXT.md` budget row moved to `GLOSSARY.md` unchanged (hard 131,072 B, advisory
+111,616 B), and `CONTEXT.md` takes a new 2,048 B hard budget. No budget rose.

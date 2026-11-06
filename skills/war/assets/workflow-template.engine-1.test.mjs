@@ -193,6 +193,8 @@ import {
   RELAND_DISC_CMD,
   RELAND_DISC_BUDGET,
   RELAND_DISC_DIVERGE,
+  RELAND_REMOTE_REJECTED,
+  RELAND_ADVANCE_TIMEOUT,
   FF_PREFLIGHT,
   FF_DEDUP_CMD,
   FF_DEDUP_RULE,
@@ -7266,6 +7268,12 @@ test('Task 1.2 — in-flow land prompt carries the rev-list discrimination + exp
     'a nonzero right count returns land_stale immediately, with no extra attempt')
   // no new status/enum: a resolved transient returns 'landed' (ADR 0005 — no new status member).
   assert.match(p, /A transient that resolves returns status: 'landed'/, 'a resolved transient returns landed, not a new status')
+  // (4) #2626: a server-side [remote rejected] with origin unmoved is a retry inside land-advance, never land_stale.
+  assert.ok(p.includes(RELAND_REMOTE_REJECTED), 'in-flow land prompt names the server-side remote rejection as a retry, never land_stale')
+  assert.ok(p.includes(RELAND_ADVANCE_TIMEOUT), 'in-flow land prompt raises the land-advance tool timeout (#2626)')
+  assert.ok(p.split('\n').some(l => l.startsWith('     - Every attempt') && l.includes(RELAND_ADVANCE_TIMEOUT)), 'the timeout rides its own every-attempt bullet, not the final-attempt bullet (#2626)')
+  assert.match(p, /\[remote rejected\] push with origin unmoved is a retry, never land_stale: land-advance retries it itself \(3 times\), and if it still exits 3, return \{ mode: 'land-phase', status: 'error'/,
+    'a server-side remote rejection that still exits 3 takes the land error arm')
   assert.ok(p.includes('no new status'), 'the prompt states no new status is introduced by the recovery path')
 })
 

@@ -244,3 +244,9 @@ rule for polish was ruled, then split into #2578, because it needs a change to h
 merge step replays commits. The sweep stays one commit that one panel judges, so ADR 0012's
 discard guard holds. The terminal pass stays one commit that one seat judges, and that pass
 forward-reverts a regression.
+
+## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+
+#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
+(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
+next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.

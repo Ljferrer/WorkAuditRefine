@@ -749,10 +749,10 @@ test('late-defect: hold — the refiner card points at late-fix-pass.md in the w
 
 // --- Arm 9: the Lead's late-defect doctrine home (2026-11-04-late-defects-fixed-in-run Task 6.2) ----
 // late-defects.md is born cold for its Lead doctrine and an eviction destination for two CONTEXT.md
-// passages (the Exclusion set and Terminal pass behavior-row sentences, CONTEXT.md @ 5d15665d), moved to
+// passages (the Exclusion set and Terminal pass behavior-row sentences, CONTEXT.md @ 5d15665d, now GLOSSARY.md), moved to
 // fund the late-defect glossary entry (ADR 0042). Each passage sits under its own `###` heading and one
 // provenance line; the digest pins the passage bytes, so a sanctioned edit re-pins it here.
-test('late-defect: doctrine eviction — SKILL.md points at late-defects.md in the when <trigger>, read shape, and the two CONTEXT.md passages landed byte-identical with a pointer left behind', () => {
+test('late-defect: doctrine eviction — SKILL.md points at late-defects.md in the when <trigger>, read shape, and the two CONTEXT.md (now GLOSSARY.md) passages landed byte-identical with a pointer left behind', () => {
   const skill = readFileSync(join(REPO_ROOT, 'skills/war/SKILL.md'), 'utf8');
   for (const trigger of ['When a late defect is carried, held or filed', 'when threading one', 'When ruling one'])
     assert.ok(skill.includes(`${trigger}, read [references/late-defects.md](references/late-defects.md)`),
@@ -762,7 +762,7 @@ test('late-defect: doctrine eviction — SKILL.md points at late-defects.md in t
   const text = readFileSync(doc, 'utf8');
   for (const literal of ['carriedTasks', 'args.seededTasks', "reason: 'late-defect'", '../assets/land-decision.mjs', 'FINDING_CLASSES'])
     assert.ok(text.includes(literal), `late-defects.md names ${literal}`);
-  const context = readFileSync(join(REPO_ROOT, 'CONTEXT.md'), 'utf8');
+  const context = readFileSync(join(REPO_ROOT, 'GLOSSARY.md'), 'utf8');
   for (const [heading, bytes, digest, pointer] of [
     ['### Exclusion set — the behavior-row sort', 381, '9e8839092a447c4f40105329845ba3436932a478b19242c09f3d71949a4c6243',
       '`behavior` row never reaches this set: when sorting one, read skills/war/references/late-defects.md.'],
@@ -775,7 +775,7 @@ test('late-defect: doctrine eviction — SKILL.md points at late-defects.md in t
     const body = after.slice(after.indexOf('\n\n') + 2);
     const passage = body.slice(0, bytes);
     assert.equal(sha256(passage), digest, `${heading}: the moved passage must be byte-identical to its pre-eviction CONTEXT.md text (ADR 0042)`);
-    assert.ok(!context.includes(passage), `CONTEXT.md still carries the passage moved under ${heading} (a duplicated body drifts)`);
-    assert.ok(context.includes(pointer), `CONTEXT.md keeps the trigger pointer in place of the passage moved under ${heading}`);
+    assert.ok(!context.includes(passage), `GLOSSARY.md still carries the passage moved under ${heading} (a duplicated body drifts)`);
+    assert.ok(context.includes(pointer), `GLOSSARY.md keeps the trigger pointer in place of the passage moved under ${heading}`);
   }
 });
