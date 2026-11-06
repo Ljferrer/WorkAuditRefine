@@ -1847,7 +1847,7 @@ const DU_LOG = '/abs/repo/.claude/worktrees/run-1/_refinery/.war/done-when-t1.lo
 // auditPrompt(), so MOST base auditPrompt clauses never reach them; they inherit those shared
 // directives only via the standing card. The exceptions are adjudicationClause (a module-level const
 // concatenated onto both auditPrompt AND the three gate-audit-family seats directly) and the
-// evidence-precedence skeleton (ADR 0041, inlined at auditPrompt AND all three seats), so those rules
+// evidence-precedence skeleton (ADR 0041, the EVIDENCE_PRECEDENCE_CLAUSE const at auditPrompt AND all three seats), so those rules
 // reach the seats without the card — the rows below still assert the card too.
 // ponytail: this registry IS the deliberate ceiling — a new both-surfaces directive lands its row here in
 // the same task (the /war-strategy new-mirror authoring rule), never an AST scanner.
@@ -3565,9 +3565,10 @@ const PROVISION_SITE_CENSUS = [
   'PROVISION_CLEAN_LINE @ PROVISION_RERUN_CLAUSE',
   'PROVISION_CLEAN_LINE @ tipWorktreeProvision',
   'PROVISION_CLEAN_LINE @ provisionStep',
-  // the refiner gate sites (D15): four merge step (a) copies, the ace-gate check and its pre-ace base
-  // check (late-defects T5.1), the integrated-tip re-run, the polish-sweep, terminal-pass and late-fix
-  // merges, the three land gates and the _refinery base re-run
+  // the refiner gate sites (D15): three merge step (a) copies (the primary merge and the floor-retry
+  // re-merge share one mergeSplitClause, named by the primary label; late-defects T6.1), the ace-gate
+  // check and its pre-ace base check (late-defects T5.1), the integrated-tip re-run, the polish-sweep,
+  // terminal-pass and late-fix merges, the three land gates and the _refinery base re-run
   'PROVISION_RERUN_CLAUSE @ ace-base-gate:',
   'PROVISION_RERUN_CLAUSE @ ace-gate:',
   'PROVISION_RERUN_CLAUSE @ classificationClause',
@@ -3578,7 +3579,6 @@ const PROVISION_SITE_CENSUS = [
   'PROVISION_RERUN_CLAUSE @ merge:${r.task.id}',
   'PROVISION_RERUN_CLAUSE @ merge:${r.task.id}:baseline-proceed',
   'PROVISION_RERUN_CLAUSE @ merge:${r.task.id}:environment-proceed',
-  'PROVISION_RERUN_CLAUSE @ merge:${r.task.id}:floor-retry:r${r.task.fixRounds}',
   'PROVISION_RERUN_CLAUSE @ merge:p${ph.id}-polish',
   'PROVISION_RERUN_CLAUSE @ merge:p${ph.id}-terminal',
   'PROVISION_RERUN_CLAUSE @ lateFixPass',
