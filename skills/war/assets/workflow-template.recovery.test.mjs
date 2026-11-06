@@ -186,6 +186,7 @@ import {
   RELAND_DISC_CMD,
   RELAND_DISC_BUDGET,
   RELAND_DISC_DIVERGE,
+  RELAND_REMOTE_REJECTED,
   FF_PREFLIGHT,
   FF_DEDUP_CMD,
   FF_DEDUP_RULE,
@@ -513,6 +514,7 @@ test('Task 1.2 — BOTH recovery re-land prompts carry the identical discriminat
     assert.ok(p.includes('dev/cls'), `${name}: the discrimination names origin/<workingBranch> (interpolated)`)
     assert.ok(p.includes(RELAND_DISC_BUDGET), `${name} re-land prompt states the identical explicit-+1 budget`)
     assert.ok(p.includes(RELAND_DISC_DIVERGE), `${name} re-land prompt names the nonzero-right-count divergence branch`)
+    assert.ok(p.includes(RELAND_REMOTE_REJECTED), `${name} re-land prompt names the server-side remote rejection as a retry (#2626)`)
     assert.match(p, /return \{ mode: 'land-phase', status: 'land_stale' \} immediately/, `${name} re-land: nonzero right count → land_stale immediately`)
   }
 })
@@ -525,6 +527,8 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   assert.ok(refinerRecoveryMd.includes(RELAND_DISC_CMD), 'refiner-recovery.md § reland discrimination runs rev-list --left-right --count <merge-sha>...origin/')
   assert.ok(refinerRecoveryMd.includes(RELAND_DISC_BUDGET), 'refiner-recovery.md states the identical explicit-+1 budget sentence')
   assert.ok(refinerRecoveryMd.includes(RELAND_DISC_DIVERGE), 'refiner-recovery.md names the nonzero-right-count divergence branch')
+  assert.ok(refinerRecoveryMd.includes(RELAND_REMOTE_REJECTED), 'refiner-recovery.md names the server-side remote rejection as a retry (#2626)')
+  assert.ok(refinerMd.includes(RELAND_REMOTE_REJECTED), 'agents/war-refiner.md names the server-side remote rejection as a retry (#2626)')
   // the discrimination must appear for BOTH the superproject land and the submodule-2A land variant.
   assert.ok((refinerRecoveryMd.match(/git rev-list --left-right --count <merge-sha>\.\.\.origin\//g) || []).length >= 2,
     'the discrimination command is present in BOTH the superproject and submodule-2A land variants')
