@@ -5,7 +5,7 @@ Verbatim evictions from `skills/war/SKILL.md` — the `## Resume` body and the `
 byte-identical to its pre-eviction SKILL.md text **at eviction time**, and its relative link targets
 have since been rewritten to resolve from this file — the link-truth pass, #1212). Positional words
 inside the moved blocks ("above", "below", "under `## Checkpoint`") refer to their original SKILL.md
-positions: the fail-closed phase classification, the Gate-2 post-servitor publication flow, and the
+positions: the fail-closed phase classification, the Gate-2 post-servitor publication flow (its promotion steps and CLAUDE.md pointer duty now in [learnings-publication.md](learnings-publication.md)), and the
 per-phase launch step remain in `skills/war/SKILL.md`; the submodule router, the submodule
 reconciliation extension, and the `held:submodule-pr` sub-procedure live in
 [submodule-flows.md](submodule-flows.md).

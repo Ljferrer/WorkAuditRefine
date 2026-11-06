@@ -22,6 +22,8 @@ const skillMd = readFileSync(join(HERE, '..', 'SKILL.md'), 'utf8')
 const resumeMd = readFileSync(join(HERE, '..', 'references', 'resume-and-recovery.md'), 'utf8')
 const dockerMd = readFileSync(join(HERE, '..', 'references', 'docker-gate.md'), 'utf8')
 const setupRefMd = readFileSync(join(HERE, '..', 'references', 'setup.md'), 'utf8')
+// #2635: the Gate 2 promotion steps and pointer duty, evicted from SKILL.md (D22/D33 read them here).
+const publicationMd = readFileSync(join(HERE, '..', 'references', 'learnings-publication.md'), 'utf8')
 const submoduleMd = readFileSync(join(HERE, '..', 'references', 'submodule-flows.md'), 'utf8')
 const tour = JSON.parse(
   readFileSync(join(HERE, '..', '..', '..', '.tours', 'architect-war-system.tour'), 'utf8'),
@@ -269,6 +271,7 @@ test('D13 — SKILL.md and its eviction destinations invoke every .sh asset with
     ['references/docker-gate.md', dockerMd],
     ['references/submodule-flows.md', submoduleMd],
     ['references/resume-and-recovery.md', resumeMd],
+    ['references/learnings-publication.md', publicationMd],
   ]) {
     const nodeSh = text.match(/node\s+\S*\.sh\b/)
     assert.ok(
@@ -303,7 +306,7 @@ test('D13 — SKILL.md and its eviction destinations invoke every .sh asset with
 test('D14 — docker bullet does not misattribute the signature list to the gate-time classifier (#799)', () => {
   // UNION on the OLD-absent misattribution clause (adjudication I); the bullet itself moved
   // verbatim into references/docker-gate.md, so the extraction read relocates there.
-  for (const text of [skillMd, setupRefMd, dockerMd, submoduleMd, resumeMd]) {
+  for (const text of [skillMd, setupRefMd, dockerMd, submoduleMd, resumeMd, publicationMd]) {
     assert.doesNotMatch(
       text,
       /signature list is what the gate-time classifier keys on/i,
@@ -795,7 +798,8 @@ test('doc-truth (T1.2) — relaunch arm, followUps literal, overrule clause, rel
   assert.match(w, /basename is the harness run id, so it must equal the phase's `workflowRunId`/, '/war-review must warn that the transcript dir basename must equal the phase `workflowRunId` (D22)')
 })
 
-// (D22) SKILL.md's Gate-2 post-servitor publication flow must carry the PRE-PUSH STAGED-FILE
+// (D22) The Gate-2 promotion flow (moved from SKILL.md into references/learnings-publication.md,
+// #2635) must carry the PRE-PUSH STAGED-FILE
 // CHECK — the fail-closed `git fetch origin` boundary refresh, the unpushed-RANGE probe, the
 // refusal, the neutralized-pair exemption, the undo that removes a condemned tip commit from
 // the working branch, AND the revert routing for a condemned commit that is not the tip — between
@@ -870,11 +874,12 @@ test('doc-truth (T1.2) — relaunch arm, followUps literal, overrule clause, rel
 // Every arm anchors INSIDE the bounded extracted region — none relies on first-token-after
 // scanning (the label-to-guard-region class).
 //
-// Extraction is BY CONSTRUCT — the `**Post-servitor publication (Gate 2` marker to the next `##`
-// heading — never a whole-file scan. `ensure-origin` token census (a dated snapshot, re-measured
-// 2026-08-18 at this task's rebased base; mechanized as the default-deny D33 census row below, so
-// this sentence can never silently re-rot): `skills/war/SKILL.md` carries FOUR tokens — one in
-// Setup step 2 (outside the region) plus three in-region: the push invocation the terminal arm
+// Extraction is BY CONSTRUCT — since #2635 moved the flow out of SKILL.md byte for byte, the
+// `## Promotion steps (Gate 2 step 2)` heading of references/learnings-publication.md to the next
+// `##` heading — never a whole-file scan. `ensure-origin` token census (mechanized as the
+// default-deny D33 census row below, so this sentence can never silently re-rot; re-measured at
+// #2635): `skills/war/SKILL.md` carries ONE token, in Setup step 2, and
+// `references/learnings-publication.md` carries three in-region: the push invocation the terminal arm
 // anchors on, and the two sanctioned prose-survivor mentions ahead of it (the fallback sentence's
 // "fork point against the `ensure-origin` push target" and the termination sentence's "proceeds
 // to the `ensure-origin` push below") that the invocation anchor is designed to skip.
@@ -1093,12 +1098,13 @@ const D22_REGION_WITHOUT_COMMIT_ANCHOR =
   'is not the tip, never rewind — `git revert` that commit instead; a conflicted revert is ' +
   '`git revert --abort` + escalate. ' +
   '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
-test('D22 — SKILL.md Gate-2 flow orders the fail-closed fetch refresh, the unpushed-range probe, its do-not-push clause, the neutralized-pair exemption, the tip-undo carve-out and the revert routing between commit and push invocation (#1083, #1136, #1192, #1288, #1287)', () => {
-  const region = skillMd.match(/\*\*Post-servitor publication \(Gate 2[\s\S]*?(?=\n## )/)
+test('D22 — the Gate-2 promotion flow orders the fail-closed fetch refresh, the unpushed-range probe, its do-not-push clause, the neutralized-pair exemption, the tip-undo carve-out and the revert routing between commit and push invocation (#1083, #1136, #1192, #1288, #1287)', () => {
+  // #2635 moved the flow from SKILL.md's Gate 2 step into learnings-publication.md, byte for byte.
+  const region = publicationMd.match(/\n## Promotion steps \(Gate 2 step 2\)\n[\s\S]*?(?=\n## |$)/)
   assert.ok(
     region,
-    'could not locate the `**Post-servitor publication (Gate 2` flow in SKILL.md (marker → next ' +
-      '`##` heading) — the extraction construct rotted',
+    'could not locate the `## Promotion steps (Gate 2 step 2)` section in learnings-publication.md ' +
+      '(heading → next `##` heading) — the extraction construct rotted',
   )
   // Non-vacuous: the region must span through the push step, so a truncated extraction reds here
   // (a distinguishable failure) instead of masquerading as a missing duty below.
@@ -1211,23 +1217,23 @@ test('D22 — SKILL.md Gate-2 flow orders the fail-closed fetch refresh, the unp
 // assertion rather than by recursion: the walk also asserts the directory holds NO subdirectory
 // (true at this row's base — the directory is flat), so a new nested carrier surface cannot appear
 // silently either. Add a recursive walk, and rewrite this sentence with it, if a subdirectory is
-// ever wanted. Counts are occurrence counts (a dated snapshot, measured 2026-08-18), never line
+// ever wanted. Counts are occurrence counts (a dated snapshot, measured 2026-08-18 and re-measured at #2635), never line
 // counts.
 test('D33 — `ensure-origin` token census: SKILL.md and every references/ file carry exactly the recorded occurrence counts (#1287, #1288)', () => {
   const count = (src) => src.split('ensure-origin').length - 1
 
-  // SKILL.md: one Setup-step-2 token outside the Gate-2 region, plus three in-region — the two
-  // sanctioned prose-survivor mentions and the push invocation the D22 terminal arm anchors on.
+  // SKILL.md: one Setup-step-2 token. The three in-flow tokens (the two sanctioned prose-survivor
+  // mentions and the push invocation the D22 terminal arm anchors on) moved with the flow into
+  // learnings-publication.md (#2635).
   assert.equal(
     count(skillMd),
-    4,
-    'SKILL.md `ensure-origin` census drifted (expected 4: Setup step 2, the two in-region prose ' +
-      'survivors, the push invocation). A dropped token means a guarded construct lost its ' +
-      'occurrence — restore it; a new token must update this census and the D22 census comment ' +
-      'in the SAME diff, never relax the count',
+    1,
+    'SKILL.md `ensure-origin` census drifted (expected 1: Setup step 2). A dropped token means a ' +
+      'guarded construct lost its occurrence — restore it; a new token must update this census ' +
+      'and the D22 census comment in the SAME diff, never relax the count',
   )
-  const region = skillMd.match(/\*\*Post-servitor publication \(Gate 2[\s\S]*?(?=\n## )/)
-  assert.ok(region, 'could not locate the `**Post-servitor publication (Gate 2` flow in SKILL.md')
+  const region = publicationMd.match(/\n## Promotion steps \(Gate 2 step 2\)\n[\s\S]*?(?=\n## |$)/)
+  assert.ok(region, 'could not locate the `## Promotion steps (Gate 2 step 2)` section in learnings-publication.md')
   assert.equal(
     count(region[0]),
     3,
@@ -1236,11 +1242,11 @@ test('D33 — `ensure-origin` token census: SKILL.md and every references/ file 
       'population — re-verify the invocation anchoring before touching either count',
   )
 
-  // Every references/ file, default-deny: only resume-and-recovery.md carries the token (twice,
-  // both in its Checkpoint absent-origin-baseline arm); everything else — setup.md included — is
-  // ZERO.
+  // Every references/ file, default-deny: resume-and-recovery.md carries the token twice (both in
+  // its Checkpoint absent-origin-baseline arm), learnings-publication.md three times (the moved
+  // Gate-2 flow above, #2635); everything else — setup.md included — is ZERO.
   const refDir = join(HERE, '..', 'references')
-  const expectedRefCounts = { 'resume-and-recovery.md': 2 }
+  const expectedRefCounts = { 'resume-and-recovery.md': 2, 'learnings-publication.md': 3 }
   const entries = readdirSync(refDir, { withFileTypes: true })
   const seen = entries.filter((e) => e.isFile())
   assert.ok(seen.length > 0, 'non-vacuity: the references/ walk discovered no files at all')
@@ -1253,7 +1259,7 @@ test('D33 — `ensure-origin` token census: SKILL.md and every references/ file 
     'skills/war/references/ gained a subdirectory, which the FLAT readdirSync census below cannot ' +
       'see — make the walk recursive and update the D22/D33 census comments in the SAME diff',
   )
-  for (const name of ['resume-and-recovery.md', 'setup.md']) {
+  for (const name of ['resume-and-recovery.md', 'setup.md', 'learnings-publication.md']) {
     assert.ok(
       seen.some((e) => e.name === name),
       `non-vacuity: references/${name} is gone — the census names it and must move with a rename`,
@@ -4617,4 +4623,72 @@ test('#2534 item 23b: /zero-in steps a quiet lens down one rung per round before
   assert.match(loop, /In a later round, that added `auto` seat runs at low at `neighbors` and is not a kept lens\. If its lens found a Critical, Major or Minor, that lens joins the kept lenses at high at `deep`/)
   assert.match(loop, /A quiet lens at high at `neighbors` steps to low at `neighbors`/, 'every start state has a next rung')
   assert.match(loop, /In a later round, pass the kept-lens count as `<seats>`, plus one for the added `auto` seat of a lone non-catalog lens/, 'a later round never asks /snipe for refill seats')
+})
+
+// (learnings-publication-evict, #2635) THE GATE 2 PROMOTION EVICTION. skills/war/SKILL.md's Gate 2
+// step 2 sub-steps (provision, copy, lint, commit, pre-push staged-file check, push, cleanup, marker
+// stamp) and its step 3 CLAUDE.md pointer duty run only when `memory.commitLearnings` is on (default
+// off), so they moved byte for byte (ADR 0042 D3) into skills/war/references/learnings-publication.md.
+// Each row's digest is the sha256 of the block's bytes in SKILL.md at base 6944d93, measured before
+// the move, so it is an oracle independent of the destination file. A reword, a dropped bullet or a
+// re-flow reds here. A sanctioned later edit re-pins the digest in the same commit, with its reason.
+const PUBLICATION_EVICTIONS = [
+  {
+    section: '## Promotion steps (Gate 2 step 2)',
+    bytes: 6153,
+    sha256: '4fb7c883e435d96dfdd86154f34fd10b618cd37ef3f244b4652610d028e847bc',
+    gone: ['Provision a transient publication worktree', 'Pre-push staged-file check', 'Neutralized-pair exemption', 'stamp each promoted local original'],
+  },
+  {
+    section: '## CLAUDE.md pointer duty (Gate 2 step 3)',
+    bytes: 885,
+    sha256: '47f203b96fc48eb69eb3f8c23943810307ea473e81328af774afe96326879772',
+    gone: ['**CLAUDE.md pointer duty (append-if-absent, same commit).**', 'The ratified pointer line, byte-identical', 'Durable engineering lessons live'],
+  },
+]
+// The section body: the text after its heading's blank line, up to the next `## ` heading or EOF.
+function publicationSection(text, heading) {
+  const at = text.indexOf(`\n${heading}\n\n`)
+  assert.ok(at >= 0, `learnings-publication.md lost its \`${heading}\` heading`)
+  assert.equal(text.indexOf(`\n${heading}\n`, at + 1), -1, `expected exactly one \`${heading}\` heading`)
+  const start = at + heading.length + 3
+  const next = text.indexOf('\n## ', start)
+  return text.slice(start, next === -1 ? undefined : next)
+}
+test('learnings-publication-evict (a) — each evicted Gate 2 block is in learnings-publication.md byte for byte (ADR 0042 D3, #2635)', () => {
+  const text = publicationMd
+  for (const row of PUBLICATION_EVICTIONS) {
+    const body = publicationSection(text, row.section)
+    assert.equal(Buffer.byteLength(body, 'utf8'), row.bytes, `${row.section}: the moved block is ${row.bytes} B`)
+    assert.equal(
+      createHash('sha256').update(body, 'utf8').digest('hex'),
+      row.sha256,
+      `${row.section}: the moved block must equal its pre-eviction SKILL.md bytes (ADR 0042 byte-identical move)`,
+    )
+  }
+})
+test('learnings-publication-evict (c) — the eviction file header sends a reader to Gate 2 steps 0 and 1 first and step 3 after (#2635)', () => {
+  const header = publicationMd.slice(0, publicationMd.indexOf('\n## '))
+  assert.match(header, /run Gate 2 steps 0 and 1 in `skills\/war\/SKILL\.md` first[^.]*, and step 3 \(render-index\) after\./,
+    'a reader who reaches learnings-publication.md from the router must learn that steps 0, 1 and 3 stay in SKILL.md')
+})
+test('learnings-publication-evict (b) — SKILL.md no longer carries the moved blocks and points at them with a trigger (#2635)', () => {
+  for (const row of PUBLICATION_EVICTIONS) {
+    // Every non-empty moved line, trimmed of its indent, is absent, so no re-inlined bullet hides.
+    const lines = publicationSection(publicationMd, row.section).split('\n').map((l) => l.trim()).filter(Boolean)
+    assert.ok(lines.length > 0, `${row.section}: non-vacuity, the moved section has no lines`)
+    for (const line of lines) {
+      assert.ok(!skillMd.includes(line), `SKILL.md still carries a moved ${row.section} line: "${line.slice(0, 80)}"`)
+    }
+    for (const literal of row.gone) {
+      assert.ok(!skillMd.includes(literal), `SKILL.md still carries the evicted literal "${literal}" — it lives in learnings-publication.md only`)
+    }
+  }
+  const pointer = /when [^\n]*`(?:memory\.)?commitLearnings` is on[^\n]*, read \[references\/learnings-publication\.md\]\(references\/learnings-publication\.md\) \(§ /g
+  const sites = skillMd.match(pointer) || []
+  assert.equal(sites.length, PUBLICATION_EVICTIONS.length, 'SKILL.md needs one trigger pointer per evicted block (when <trigger>, read references/learnings-publication.md)')
+  for (const row of PUBLICATION_EVICTIONS) {
+    const name = row.section.replace(/^## /, '').replace(/ \(Gate 2 step \d\)$/, '')
+    assert.ok(skillMd.includes(`read [references/learnings-publication.md](references/learnings-publication.md) (§ ${name})`), `no SKILL.md pointer names § ${name}`)
+  }
 })
