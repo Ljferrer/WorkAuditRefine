@@ -2202,16 +2202,17 @@ test('doc-contract: SKILL.md Gate 2 render-index passes --local AND --repo (read
 })
 
 test('doc-contract: SKILL.md Gate 2 has the append-if-absent CLAUDE.md pointer duty (#534)', () => {
-  const text = readDoc('skills/war/SKILL.md')
+  // #2635 moved the duty, with the ratified line, from SKILL.md into its Gate 2 eviction file.
+  const text = readDoc('skills/war/references/learnings-publication.md')
   // The pointer duty: append (if absent) the ratified pointer line to the target repo's CLAUDE.md,
   // in the same docs(learnings) commit. Guard the duty prose AND the ratified line's unique phrase.
   assert.ok(
     text.includes('CLAUDE.md') && text.includes('append'),
-    'SKILL.md must state the append-if-absent CLAUDE.md pointer duty in the Gate 2 publication step (#534)'
+    'learnings-publication.md must state the append-if-absent CLAUDE.md pointer duty of the Gate 2 publication step (#534)'
   )
   assert.ok(
     text.includes('Durable engineering lessons live in'),
-    'SKILL.md must carry the ratified CLAUDE.md pointer line verbatim (`Durable engineering lessons live in …`) (#534)'
+    'learnings-publication.md must carry the ratified CLAUDE.md pointer line verbatim (`Durable engineering lessons live in …`) (#534)'
   )
 })
 
@@ -2228,7 +2229,8 @@ test('doc-contract: SKILL.md Gate 2 has the append-if-absent CLAUDE.md pointer d
 test('pointer byte-identity: the ratified pointer line is byte-identical across the three canonical surfaces (#656, D4)', () => {
   const ANCHOR = 'Durable engineering lessons live'
   const LEAD = '📚'
-  const SURFACES = ['CLAUDE.md', 'skills/war/SKILL.md', 'skills/lessons-learned/references/migration.md']
+  // #2635: the /war copy of the line moved from skills/war/SKILL.md into learnings-publication.md.
+  const SURFACES = ['CLAUDE.md', 'skills/war/references/learnings-publication.md', 'skills/lessons-learned/references/migration.md']
   const extractPointer = relPath => {
     const text = readDoc(relPath)
     const anchorIdx = text.indexOf(ANCHOR)
@@ -2266,13 +2268,18 @@ function setupTwoRootsSection() {
   return text.slice(start, end === -1 ? undefined : end)
 }
 
-// Slice the Gate-2 publication step from its anchor to the next top-level heading.
+// Slice the Gate-2 publication step from its anchor to the next top-level heading, then append
+// the promotion steps and pointer duty that #2635 moved out of it into learnings-publication.md,
+// so each pin below reads its token where the token now lives.
 function gate2Section() {
   const text = readDoc('skills/war/SKILL.md')
   const start = text.indexOf('**Post-servitor publication (Gate 2')
   assert.ok(start >= 0, 'SKILL.md must retain the Gate 2 post-servitor publication step')
   const end = text.indexOf('\n## ', start)
-  return text.slice(start, end === -1 ? undefined : end)
+  const evicted = readDoc('skills/war/references/learnings-publication.md')
+  const body = evicted.indexOf('\n## Promotion steps')
+  assert.ok(body >= 0, 'learnings-publication.md must retain its `## Promotion steps` section')
+  return text.slice(start, end === -1 ? undefined : end) + '\n' + evicted.slice(body)
 }
 
 test('doc-contract: SKILL.md Setup step 4 threads memoryLocalRoot and names the memory-probe omission producer (#584)', () => {
@@ -2294,6 +2301,7 @@ test('doc-contract: SKILL.md drops the retired scope-hook-glob compatibility cla
     'skills/war/references/docker-gate.md',
     'skills/war/references/submodule-flows.md',
     'skills/war/references/resume-and-recovery.md',
+    'skills/war/references/learnings-publication.md', // #2635 Gate 2 promotion eviction
   ]) {
     const text = readDoc(relPath)
     assert.ok(
@@ -2376,6 +2384,7 @@ test('doc-contract: swept surfaces no longer offer docs/learnings as a servitor-
     'skills/war/references/docker-gate.md',
     'skills/war/references/submodule-flows.md',
     'skills/war/references/resume-and-recovery.md',
+    'skills/war/references/learnings-publication.md', // #2635 Gate 2 promotion eviction
   ]
   for (const relPath of sweptSurfaces) {
     const text = readDoc(relPath)
@@ -2508,6 +2517,7 @@ test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename t
     'skills/war/references/docker-gate.md',
     'skills/war/references/submodule-flows.md',
     'skills/war/references/resume-and-recovery.md',
+    'skills/war/references/learnings-publication.md', // #2635 Gate 2 promotion eviction
     // UNION extension (verdict-adjudication-integrity D14 eviction, #1265/#1357): the glossary (then CONTEXT.md, now GLOSSARY.md)
     // glossary-eviction destination joins the same anchored list, so a future retirement sweep
     // cannot silently skip the cold home.

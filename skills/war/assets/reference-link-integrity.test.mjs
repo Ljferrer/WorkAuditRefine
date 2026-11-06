@@ -359,6 +359,8 @@ const QUALIFIED_HEADERS = [
   'pin-transfer.md',
   // #2545: the skills/war/SKILL.md retired-token sweep eviction destination, joined on creation.
   'retired-token-sweep.md',
+  // #2635: the skills/war/SKILL.md Gate 2 promotion eviction destination, joined on creation.
+  'learnings-publication.md',
 ];
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {

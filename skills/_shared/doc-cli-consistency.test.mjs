@@ -149,6 +149,10 @@ const EVICTION_DESTINATIONS = [
   // #2545: the retired-token sweep clause evicted from skills/war/SKILL.md phrases
   // `war-memory.mjs query`, so its verb claim moves with it and stays scanned.
   'skills/war/references/retired-token-sweep.md',
+  // #2635: the Gate 2 promotion steps evicted from skills/war/SKILL.md phrase
+  // `war-memory.mjs lint` and `provision-worktrees.sh ensure-origin`, so those verb claims move
+  // with them and stay scanned.
+  'skills/war/references/learnings-publication.md',
   'skills/war/references/setup.md',
   'skills/war/references/docker-gate.md',
   'skills/war/references/submodule-flows.md',
