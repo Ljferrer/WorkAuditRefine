@@ -159,9 +159,22 @@ function moveSides() {
     if (!at) return { before: git(['show', 'HEAD:./CONTEXT.md']), moved: read('GLOSSARY.md') }
     return { before: git(['show', `${at}^:./CONTEXT.md`]), moved: git(['show', `${at}:./GLOSSARY.md`]) }
   } catch (err) {
-    if (git(['rev-parse', '--is-shallow-repository']).trim() === 'true') return null
+    return unreadableSide(err, () => git(['rev-parse', '--is-shallow-repository']).trim() === 'true')
+  }
+}
+
+// The skip-or-fail choice when git cannot read a side of the move: null (skip) only if
+// isShallow() says the clone is shallow. Otherwise it rethrows err. If isShallow() itself
+// throws, err is rethrown, so the read error stays the one the test reports.
+export function unreadableSide(err, isShallow) {
+  let shallow
+  try {
+    shallow = isShallow()
+  } catch {
     throw err
   }
+  if (shallow === true) return null
+  throw err
 }
 
 const router = read('CONTEXT.md')
@@ -236,4 +249,14 @@ test('identity — planted faults go red (#2636)', () => {
     const got = identityFaults(...args)
     assert.ok(got.some((f) => f.startsWith(want.replace(/ \(duplicate\)$/, ''))), `${want}: got ${JSON.stringify(got)}`)
   }
+})
+
+test('identity — an unreadable side skips only in a shallow clone, else the read error fails the test (#2636)', () => {
+  const err = new Error('fatal: invalid object name')
+  assert.equal(unreadableSide(err, () => true), null, 'shallow clone: skip')
+  assert.throws(() => unreadableSide(err, () => false), (e) => e === err, 'full clone: the read error fails the test')
+  const probeErr = () => {
+    throw new Error('unknown option --is-shallow-repository')
+  }
+  assert.throws(() => unreadableSide(err, probeErr), (e) => e === err, 'failed probe: the read error, not the probe error')
 })
