@@ -4638,3 +4638,136 @@ test('#2534 item 23b: /zero-in steps a quiet lens down one rung per round before
   assert.match(loop, /A quiet lens at high at `neighbors` steps to low at `neighbors`/, 'every start state has a next rung')
   assert.match(loop, /In a later round, pass the kept-lens count as `<seats>`, plus one for the added `auto` seat of a lone non-catalog lens/, 'a later round never asks /snipe for refill seats')
 })
+
+// ---- late-defect: doctrine (plan 2026-11-04-late-defects-fixed-in-run, Task 6.2, End state 11) ----
+// The Lead's half of the late-defect contract: the objective (PIN-1), the carriedTasks → args.seededTasks
+// thread (D9) and the behavior leg of the follow-up filing floor. The detail lives in
+// references/late-defects.md behind trigger pointers (ADR 0042), so each row reads the operative
+// surface for the binding sentence and the reference for the detail. Read lazily, so a missing file reds
+// these rows with ENOENT and leaves the rest of the suite running.
+const lateDefectsRead = () => readFileSync(join(HERE, '..', 'references', 'late-defects.md'), 'utf8')
+const LATE_DEFECTS_POINTER = /read \[references\/late-defects\.md\]\(references\/late-defects\.md\)/
+// The behavior leg of the floor, as one predicate, so the live bullet and the pre-change mutant run
+// through the same reads: the leg names the projection, the behavior class, the retired sufficiency of a
+// non-null issue, and both rulings.
+const floorCoversBehavior = (b) =>
+  /`handoff\.followUps\[\]` entry projects the top-level `minorsFiled\[\]` row at the same index/.test(b) &&
+  /`findingClass: 'behavior'`/.test(b) &&
+  /a non-null `issue` alone no longer passes/.test(b) &&
+  /fix-now \(a seeded task\)/.test(b) &&
+  /accept-with-a-written-reason/.test(b)
+const floorBullet = () => {
+  const checkpoint = skillMd.match(/^## Checkpoint[\s\S]*?(?=\n## )/m)
+  assert.ok(checkpoint, 'could not locate the SKILL.md `## Checkpoint` section — construct rotted')
+  const bullet = checkpoint[0].match(/^- \*\*Follow-up filing floor[\s\S]*?(?=\n- \*\*|\n## |$)/m)
+  assert.ok(bullet, 'could not locate the follow-up filing floor bullet in `## Checkpoint` — construct rotted')
+  return norm(bullet[0])
+}
+
+test('late-defect: doctrine objective — SKILL.md states the run objective (PIN-1) over a trigger pointer, and late-defects.md carries it with the never-dropped rule', () => {
+  const lead = skillMd.match(/^You are the \*\*Lead\*\*[\s\S]*?(?=\n## )/m)
+  assert.ok(lead, 'could not locate the SKILL.md Lead preamble (from "You are the **Lead**" to the first `## `) — construct rotted')
+  const obj = norm(lead[0]).match(/\*\*Objective \(PIN-1, ADR 0058\):\*\*[^\n]*?late-defects\.md\)\./)
+  assert.ok(obj, 'the SKILL.md Lead preamble must carry the `**Objective (PIN-1, ADR 0058):**` paragraph ending in its late-defects.md pointer')
+  for (const [re, what] of [
+    [/a real behavior defect the run finds is fixed in the run, before land\./, 'the fixed-in-the-run objective'],
+    [/If its fix rounds run out, it carries to the next phase or holds the final phase for your ruling\./, 'the carry-or-hold cap rule'],
+    [/Filing it is the last resort, with a stated reason\./, 'the last-resort filing rule'],
+    [/When a late defect is carried, held or filed, read \[references\/late-defects\.md\]/, 'the `when <trigger>, read` pointer'],
+  ]) assert.match(obj[0], re, `the SKILL.md objective must carry ${what} (PIN-1)`)
+  const ld = norm(lateDefectsRead())
+  assert.match(ld, /A late defect is never dropped: it is fixed, carried, held or filed with a stated reason \(PIN-1\)\./, 'late-defects.md carries the never-dropped rule')
+  assert.match(ld, /A cosmetic row, and a row with no `findingClass`, keep today's routes\./, 'late-defects.md scopes the objective to behavior rows')
+})
+
+test('late-defect: doctrine thread — SKILL.md threads carriedTasks as args.seededTasks beside the seededPhaseClose sentence, at every launch, and resume-and-recovery.md and late-defects.md carry the relaunch order (D9, PIN-9)', () => {
+  const line = skillMd.split('\n').find(l => l.includes('verbatim as `args.seededPhaseClose`'))
+  assert.ok(line, 'could not locate the SKILL.md `carriedPhaseClose` → `args.seededPhaseClose` sentence — construct rotted')
+  const l = norm(line)
+  const seeded = l.indexOf('verbatim as `args.seededPhaseClose`')
+  const thread = l.search(/Thread the prior phase return's `carriedTasks` verbatim as `args\.seededTasks` at every launch, landed or held, plus each behavior follow-up you ruled fix-now/)
+  assert.ok(thread > seeded, 'the carriedTasks → args.seededTasks thread must follow the seededPhaseClose sentence on the same per-phase launch line (D9)')
+  assert.ok(thread - seeded < 400, 'the carriedTasks thread must sit next to the seededPhaseClose sentence, not elsewhere on the line')
+  const relaunch = resumeMd.match(/^### Recovery relaunch[\s\S]*?(?=\n### )/m)
+  assert.ok(relaunch, 'could not locate the `### Recovery relaunch` section in resume-and-recovery.md — construct rotted')
+  const bullet = relaunch[0].match(/^- \*\*Task carry \(late-defects D9\/PIN-9\)\*\*[^\n]*/m)
+  assert.ok(bullet, 'resume-and-recovery.md must carry the `- **Task carry (late-defects D9/PIN-9)**` bullet in the Recovery-relaunch mechanics')
+  for (const [re, what] of [
+    [/every phase return carries a top-level `carriedTasks` array, landed or held/, 'the every-return clause'],
+    [/Thread it \*\*verbatim\*\* into the next launch's `args\.seededTasks`/, 'the verbatim thread'],
+    [/keep the held launch's own `args\.seededTasks` rows first, in their order/, 'the relaunch order rule'],
+    [/read \[late-defects\.md\]\(late-defects\.md\)/, 'the late-defects.md pointer'],
+  ]) assert.match(norm(bullet[0]), re, `the resume-and-recovery.md Task carry bullet must carry ${what}`)
+  const ld = norm(lateDefectsRead())
+  assert.match(ld, /Thread it verbatim as the next launch's `args\.seededTasks`/, 'late-defects.md carries the thread')
+  assert.match(ld, /so each seed derives the same branch/, 'late-defects.md gives the reason for the relaunch order')
+  assert.match(ld, /Never edit a carried row\./, 'late-defects.md forbids editing a carried row')
+})
+
+test('late-defect: doctrine floor — a behavior follow-up halts the DAG advance until the Lead rules fix-now or accept-with-a-written-reason, and the old non-null `issue` floor no longer covers a behavior row', () => {
+  const b = floorBullet()
+  assert.match(b, /Never advance over a null `issue`\./, 'the floor bullet must keep its null-issue rule (the cosmetic and classless leg)')
+  assert.ok(floorCoversBehavior(b), 'the SKILL.md follow-up filing floor must carry the behavior leg: projection, class, "a non-null `issue` alone no longer passes", fix-now (a seeded task) and accept-with-a-written-reason')
+  assert.match(b, /halt the advance until you rule/, 'the behavior leg halts the DAG advance')
+  assert.match(b, /When ruling one, read \[references\/late-defects\.md\]/, 'the behavior leg points at late-defects.md in the `when <trigger>, read` shape')
+  // Red proof: the pre-change floor — the bullet cut at its old null-issue tail — passes every row on a
+  // non-null issue, so the same predicate must reject it.
+  const old = b.slice(0, b.indexOf('Never advance over a null `issue`.') + 'Never advance over a null `issue`.'.length)
+  assert.ok(old.length < b.length, 'the behavior leg follows the old null-issue tail (mutation target is live)')
+  assert.ok(!floorCoversBehavior(old), 'the old non-null-`issue` floor must not read as covering a behavior row')
+  const floorRaw = lateDefectsRead().match(/^## The behavior follow-up floor\n[\s\S]*?(?=\n## )/m)
+  assert.ok(floorRaw, 'could not locate `## The behavior follow-up floor` in late-defects.md — construct rotted')
+  const floor = [norm(floorRaw[0])]
+  for (const [re, what] of [
+    [/a non-null `issue` alone no longer passes the floor/, 'the retired sufficiency'],
+    [/\*\*fix-now:\*\* the row becomes a seeded task\./, 'the fix-now ruling'],
+    [/On the final phase there is no next phase, so launch one seed-only phase/, 'the final-phase fix-now launch'],
+    [/\*\*accept-with-a-written-reason:\*\*/, 'the accept ruling'],
+    [/A cosmetic or classless row passes on a non-null `issue`, as before\./, 'the unchanged cosmetic leg'],
+    [/Under `--afk` you rule each row yourself/, 'the --afk self-ruling'],
+  ]) assert.match(floor[0], re, `late-defects.md § The behavior follow-up floor must carry ${what}`)
+})
+
+test('late-defect: doctrine carve-out — each surface that taught a `note` as informational carries the behavior carve-out, and the old note-only sentence is gone (OLD-absent)', () => {
+  const NEW = /a `behavior` note never stays a note/
+  const sites = [
+    ['SKILL.md § Audits', skillMd, /`note` \(phase report \+ servitor feed, never an issue\)/],
+    ['design.md disposition routing', designRefMd, /`note` \(phase report \+ servitor feed, never an issue\)/],
+    ['gastown-design-params.md severity + disposition', gastownMd, /`note` \(phase report \+ servitor feed, never an issue\)/],
+    ['CONTEXT.md **Disposition**', contextMd, /\(`note` — phase report \+ servitor feed\)/],
+  ]
+  for (const [where, text, old] of sites) {
+    const t = norm(text)
+    assert.doesNotMatch(t, old, `${where} still teaches a note as informational only (OLD-absent)`)
+    const at = t.search(/`note` (?:\(|— )phase report \+ servitor feed/)
+    assert.ok(at >= 0, `could not locate the ${where} note clause — construct rotted`)
+    assert.match(t.slice(at, at + 260), NEW, `${where} must carry the behavior carve-out beside the note clause`)
+  }
+})
+
+test('late-defect: doctrine glossary — CONTEXT.md names the plan terms over a late-defects.md pointer and points at land-decision.mjs for FINDING_CLASSES and the reason list; late-defects.md holds each body', () => {
+  const entry = contextMd.match(/^\*\*Late defect\*\*, \*\*Late-fix pass\*\*, \*\*Finding class\*\* \(`findingClass`\), \*\*Pre-ace probe\*\*, \*\*Seeded task\*\* \/ \*\*Carried task\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'CONTEXT.md must carry the late-defect glossary heading line naming all five terms')
+  const e = norm(entry[0])
+  assert.match(e, /_Avoid_/, 'the extracted entry must span its `_Avoid_` line — extraction truncated')
+  assert.match(e, /read skills\/war\/references\/late-defects\.md/, 'the entry carries the late-defects.md trigger pointer')
+  assert.match(e, /`FINDING_CLASSES`/, 'the entry names FINDING_CLASSES')
+  assert.match(e, /`HARD_ESCALATION_REASONS`/, 'the entry names the reason list')
+  assert.match(e, /`skills\/war\/assets\/land-decision\.mjs`/, 'the entry points at land-decision.mjs')
+  assert.doesNotMatch(e, /'cosmetic'|`cosmetic`/, 'the entry never restates the class values (de-mirror)')
+  const ld = lateDefectsRead()
+  const g = ld.match(/^## Glossary[\s\S]*?(?=\n## )/m)
+  assert.ok(g, 'could not locate `## Glossary` in late-defects.md — construct rotted')
+  for (const term of ['Late defect', 'Late-fix pass', 'Finding class', 'Pre-ace probe', 'Seeded task', 'Carried task'])
+    assert.match(g[0], new RegExp('\\*\\*' + term + '\\*\\*'), `late-defects.md § Glossary must define **${term}**`)
+})
+
+test('late-defect: doctrine ADR — ADR 0058 records the in-run fix and amends ADR 0012, 0013, 0026 and 0054 by reference', () => {
+  const adr = readFileSync(join(HERE, '..', '..', '..', 'docs', 'adr', '0058-late-defects-are-fixed-in-the-run.md'), 'utf8')
+  assert.match(adr, /^# Late defects are fixed in the run/m, 'the ADR title')
+  assert.match(adr, /\*\*Status:\*\* accepted/, 'the ADR status')
+  const amends = adr.match(/^## Amends by reference[\s\S]*?(?=\n## )/m)
+  assert.ok(amends, 'ADR 0058 must carry an `## Amends by reference` section')
+  for (const n of ['0012', '0013', '0026', '0054'])
+    assert.match(amends[0], new RegExp('\\[ADR ' + n + '\\]\\(' + n + '-'), `ADR 0058 amends ADR ${n} by a link`)
+})
