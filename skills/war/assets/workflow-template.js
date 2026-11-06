@@ -67,6 +67,8 @@ export const meta = {
 //                                     // (no recovery gate); wins over the barrier map, logged; a non-object map is logged and ignored.
 //     seededPhaseClose?,              // optional [finding rows] — a prior phase return's carriedPhaseClose, threaded by the Lead at a
 //                                     // relaunch (D3b, PIN-5); entry-validated + #1413 provenance-floored; drains into this phase's sweep queue.
+//     seededTasks?,                   // optional [carried rows] — the prior phase return's carriedTasks (late-defects D9, PIN-9);
+//                                     // entry-validated + #1413 provenance-floored; each row becomes a task or joins its file owner's slice.
 //     finalPhase?,                    // optional boolean — the terminal pass's finality signal (D3a): false ⇒ a terminal-born absorb
 //                                     // rides carriedPhaseClose; true/absent ⇒ it demotes (absent reads as FINAL); non-boolean refused at entry.
 //     evidence?,                      // optional boolean (REA artifact evidence D8/D10) — the Lead-resolved presence half of the evidence
@@ -520,8 +522,9 @@ const asks = []
 // args.seededPhaseClose at the relaunch.
 const carriedPhaseClose = []
 // carriedTasks (late-defects D9/D20/D21, PIN-9/PIN-20/PIN-21): the late defects whose late-fix rounds ran
-// out on a non-final phase, and the behavior rows raised after the late-fix pass (carryLate), one row each — the defect, its file and fix, its origin `task`, its findingClass,
-// the origin's spent fixRounds, planSlug and carriedFrom { phase, reason }. TOP-LEVEL at both return
+// out on a non-final phase, the behavior rows raised after the late-fix pass (carryLate), and the seeded tasks
+// that ran out of fix rounds (seedCapped), one row each — the defect, its file and fix, its origin `task`, its findingClass,
+// the origin's spent fixRounds and roster, planSlug and carriedFrom { phase, reason }. TOP-LEVEL at both return
 // sites, [] when nothing carried. The Lead threads it as the next launch's args.seededTasks.
 const carriedTasks = []
 // --ace provenance (D3): aced findings recorded as { task, finding, sha } — a return ATTRIBUTE, not a
@@ -1023,7 +1026,9 @@ const hasPhaseIdentity = (Number.isSafeInteger(ph?.id) || typeof ph?.id === 'str
 if (!hasRunIdentity) problems.push('runId is missing or invalid: every launch requires a nonempty string; mint a new ID for each fresh launch, reuse it only for journal replay')
 if (!hasPhaseIdentity) problems.push('phase.id is missing or invalid: every launch requires a nonnegative safe integer or digit-only string')
 let derivationProblem = false
-if ((tasks || []).some(t => !t.branch || !t.worktree)) {
+// Seeded tasks (class 11) derive their branch and worktree, and their prompts read plan.file.
+const seedCount = Array.isArray(A.seededTasks) ? A.seededTasks.length : 0
+if ((tasks || []).some(t => !t.branch || !t.worktree) || seedCount) {
   const missingTrio = [['planSlug', planSlug], ['runId', runId], ['worktreeRoot', worktreeRoot]]
     .filter(([, v]) => !v).map(([k]) => k)
   const phaseIdMissing = ph == null || ph.id === undefined || ph.id === null || ph.id === ''
@@ -1035,15 +1040,15 @@ const missingPhaseFields = [['title', ph == null ? undefined : ph.title], ['work
 if (missingPhaseFields.length) problems.push(`workflow-template: requires phase { title, workingBranch, integrationBranch } — missing: [${missingPhaseFields.join(', ')}]`)
 //   (3) PLAN-FILE class (#1430) — plan.file, its OWN problem class (never inside missingTrio: that
 //       class is gated behind a derivation-needing task, while every dispatched worker/fix prompt
-//       interpolates plan.file regardless of explicit paths). Gated behind a NON-EMPTY task list
-//       (/red-team 2026-08-16): the two ratified plan-less zero-task launch shapes (the
+//       interpolates plan.file regardless of explicit paths). Gated behind a NON-EMPTY task list,
+//       args.seededTasks rows counted (/red-team 2026-08-16): the two ratified plan-less zero-task launch shapes (the
 //       gate-composition no-op and the claims-bearing endStateBlock) stay legal — a phase that
 //       dispatches no worker needs no plan file. The trio and phase-field messages above stay
 //       byte-unchanged (the exact-equality aggregate fixture + the LITERAL_REGISTRY census row pin
 //       them); this push is a plain string, so the census is untouched. The observed incident (plan 5
 //       phase 1) spawned Provision first and drained every task to escalate — this refusal is
 //       at-entry, zero agent spawns.
-if ((tasks || []).length > 0 && !(plan && typeof plan.file === 'string' && plan.file)) {
+if ((tasks || []).length + seedCount > 0 && !(plan && typeof plan.file === 'string' && plan.file)) {
   problems.push('workflow-template: requires plan.file — the launch carries tasks but no plan.file (every worker/fix prompt interpolates it); thread plan: { file: "docs/plans/<slug>.md" } (#1430)')
 }
 //   (4) TASK-FIELD class (D5, engine-reliability) — per-task shape validation at args intake.
@@ -1106,7 +1111,7 @@ if (A.sweepExclude !== undefined && A.sweepExclude !== null) {
 //       Lead's relaunch carry of a prior phase return's carriedPhaseClose: absent/null, or an array of
 //       finding rows ({ severity, title, file?, … }). Any other shape is a malformed launch, refused at
 //       entry naming the entry index and field — never coerced, never a guessed queue.
-// Shared finding-row validator for the two seeded-row classes (6 and 8): each row is an object with a
+// Shared finding-row validator for the seeded-row classes (6, 8 and 11): each row is an object with a
 // non-empty title and severity and a string-or-null file; every refusal names the row path and field.
 const pushFindingRowProblems = (at, rows, tag, severities = null) => rows.forEach((e, i) => {
   if (!e || typeof e !== 'object' || Array.isArray(e)) { problems.push('workflow-template: ' + at + '[' + i + '] must be a finding row object { severity, title, file? } (' + tag + ')'); return }
@@ -1158,6 +1163,18 @@ if (A.targetArtifacts !== undefined) {
     }
   })
 }
+//   (11) SEEDED-TASKS class (late-defects D9, PIN-9) — args.seededTasks is the Lead's thread of the prior
+//        phase return's carriedTasks: absent/null, or an array of carried rows — the class-6 finding row
+//        plus the origin `task`, a FINDING_CLASSES `findingClass`, a string `suggested_fix` when present and
+//        an array `roster` when present. Any other shape refuses at entry naming the row index and field.
+if (A.seededTasks != null) {
+  if (!Array.isArray(A.seededTasks) || seedCount && !Array.isArray(tasks)) problems.push('workflow-template: args.seededTasks must be an array of carried rows, beside an args.tasks array (D9)')
+  else pushFindingRowProblems('args.seededTasks', A.seededTasks, 'D9'), A.seededTasks.forEach((e, i) => {
+    const ok = e && typeof e === 'object' ? { task: typeof e.task === 'number' || typeof e.task === 'string' && e.task, findingClass: FINDING_CLASSES.includes(e.findingClass),
+      suggested_fix: e.suggested_fix == null || typeof e.suggested_fix === 'string', roster: e.roster == null || Array.isArray(e.roster) } : {}
+    for (const k in ok) if (!ok[k]) problems.push('workflow-template: args.seededTasks[' + i + '].' + k + ' is malformed (D9, schemas.md)')
+  })
+}
 if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem && hasRunIdentity && hasPhaseIdentity ? ' (or supply explicit branch/worktree per task)' : ''}`)
 // REA artifact evidence: reaOn and targetArtifacts are defined beside defaultRoster above (the
 // evidence-row drop reads them there); the one loud OFF line is logged after the phase-start roster
@@ -1192,7 +1209,7 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
 //     adjudications row's text, exempt rows included — a source:'auto' row is set by the same
 //     Lead-assembled channel a foreign args blob rides, so a flag that channel sets cannot buy a
 //     bypass of the foreign-id refusal. The scan's refusal and warning cover only intent, backstops
-//     and adjudications (#2208, #2197): a ruledAsks or seededPhaseClose row describes finding work
+//     and adjudications (#2208, #2197): a ruledAsks, seededPhaseClose or seededTasks row describes finding work
 //     that may name any plan path, and its planSlug field is the provenance coordinate, so a foreign
 //     path in one never halts a launch.
 //   - VALUE rows (D10, #1480): an adjudications row in the canonical version-adjudication shape —
@@ -1339,6 +1356,8 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     ['adjudications', adjudications.map(rowText)],
     ['ruledAsks', Array.isArray(A.ruledAsks) ? A.ruledAsks.map(ruledAskRowText) : []],
     ['seededPhaseClose', Array.isArray(A.seededPhaseClose) ? A.seededPhaseClose.map(seededPhaseCloseRowText) : []],
+    // seededTasks rows (D9) are carried finding rows with the same planSlug stamp: the same discipline.
+    ['seededTasks', Array.isArray(A.seededTasks) ? A.seededTasks.map(seededPhaseCloseRowText) : []],
   ]
   for (const [argName, rows] of provenanceSurfaces) {
     const stamped = rows.find(r => r.foreignStamp)
@@ -1351,7 +1370,7 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     // own-token satisfaction may come from an exempt row (#1666 stands, never narrowed). The
     // foreign-plan-id scan reads every row's text, exempt rows included (#1749), with citations
     // stripped only where a row sets idText. Intent warns and launches (#2375), backstops and
-    // adjudications refuse, and ruledAsks and seededPhaseClose rows neither refuse nor warn (#2208,
+    // adjudications refuse, and ruledAsks, seededPhaseClose and seededTasks rows neither refuse nor warn (#2208,
     // #2197). A foreign path outside a stripped citation never vouches for the plan, so the own-token
     // search reads past each one: else a path like docs/plans/<own-word>-sibling.md would pass an
     // intent the foreign arm no longer refuses. A stripped citation stays evidence, because stacked
@@ -1441,6 +1460,26 @@ for (const s of (Array.isArray(A.seededPhaseClose) ? A.seededPhaseClose : [])) {
   log('held-carry (D3b): seeded phase-close row "' + f.title + '" (task ' + f.task + ', ' + (s.carriedFrom && s.carriedFrom.phase != null ? 'carried from phase ' + s.carriedFrom.phase : 'carried from a prior launch') + ') drains into this phase\'s sweep queue.')
   phaseCloseQueue.push(f)
 }
+// Seeded tasks (late-defects D9, PIN-9): each args.seededTasks row (entry-validated and provenance-floored
+// above) becomes one task: Files: the defect's file, the slice the defect and its fix, requiresTest true,
+// the origin task's roster (the row's stamped roster, else the origin task's when it is in this phase,
+// else audit.roster, logged; none refuses the launch). A task already in the phase that owns the file —
+// a plan task or an earlier seed — takes the defect into its slice instead, so the phase stays
+// file-disjoint. A fileless row (the baseline row) never collides. The id is the row's 1-based index, so
+// a relaunch with the same rows derives the same branches. t.seed keeps the row for the cap rule below.
+const seedRel = p => typeof p === 'string' && p ? p.replace(/^(?:\.\/)+/, '') : null
+for (const [i, s] of (A.seededTasks || []).entries()) {
+  const file = seedRel(s.file), owner = file && tasks.find(t => (Array.isArray(t.files) ? t.files : []).some(p => seedRel(p) === file))
+  const text = 'the carried late defect [' + s.severity + '] "' + s.title + '" of task ' + s.task + ' (' + (file || 'no file') + '): ' + (s.rationale || '') + ' Fix: ' + (s.suggested_fix || 'none carried, derive it from the defect')
+  if (owner) { owner.planSlice += '\nCARRIED DEFECT (PIN-9): fix ' + text; log('seeded task: ' + text + ' joins task ' + owner.id + ', which owns the file (PIN-9).'); continue }
+  let id = 'seed-' + (i + 1), host = tasks.find(t => t.id === s.task), roster = s.roster || host && host.roster || defaultRoster.length && defaultRoster
+  while (tasks.some(t => t.id === id)) id += '-1'
+  if (!roster) throw new Error('workflow-template: args.seededTasks[' + i + '] has no roster, and no audit.roster to fall back to (D9)')
+  tasks.push({ id, title: 'carried defect: ' + s.title, roster: [...roster], files: file ? [file] : [], requiresTest: true, seed: s, planSlice: 'Fix ' + text })
+  log('seeded task ' + id + ': ' + text + (s.roster || host ? '' : ' (roster: audit.roster)') + ' (PIN-9).')
+}
+// seedCapped: the seeded tasks that ran out of fix rounds; resolved by the late-fix cap rule before the land decision.
+const seedCapped = []
 
 // GATE COMPOSITION POINT (engine-owned, ADR 0036): normalize plan.gate ONCE here, immediately after entry
 // validation and before ANY gate-bearing dispatch site interpolates ${plan.gate}. resolveGate is
@@ -5094,7 +5133,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
       }
 
-      let round = 0, verdict = null, seats = [], expected = 0, blocked = null, escalateReason = null, died = null
+      let round = 0, verdict = null, seats = [], expected = 0, blocked = null, escalateReason = null, died = null, spent = false
       const workerTests = impl && impl.tests ? impl.tests : null
       // D2: the worker's committed tip — the pin each audit seat's audit_sha must match
       let pin = impl && impl.head_sha
@@ -5167,7 +5206,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             }
           }
           log('Task ' + task.id + ': ' + blocked + ' — escalating.')
-          verdict = capSpent ? 'audit-blocked' : 'escalate'; break
+          spent = capSpent; verdict = capSpent ? 'audit-blocked' : 'escalate'; break
         }
         log('Task ' + task.id + ': all surviving blockers have a suggested_fix — dispatching a fix round and a full-roster re-audit.')
 
@@ -5216,7 +5255,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         round++
       }
       if (verdict === null) verdict = 'audit-blocked'
-      const r = { task, verdict, seats, expected, round, blocked, escalateReason }
+      // spent: the cap ended the loop, read by the seeded-task cap rule (PIN-9)
+      const r = { task, verdict, seats, expected, round, blocked, escalateReason, spent }
       // Budget seed at the audit-loop exit (PIN-5/PIN-13): fixRounds records the blocking fix rounds
       // the merge-floor retry loop later continues from; the hoisted ace stage below never charges it
       // (D5 — ace commits charge absorbRounds), and the merge slot only never-lowers this seed.
@@ -5853,7 +5893,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           const isBudgetExhaustion = floorMr.status === 'budget-uncited'
           const exhaustedBudgetDetail = !exhaustedDiag && isBudgetExhaustion
             ? { detail: 'budget-uncited: a prompt-surface budget ceiling raise still lacks its Budget-Raise trailer after ' + r.task.fixRounds + ' fix round(s)' } : {}
-          escalated.push({ task: r.task.id, reason: floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
+          // a seeded task out of rounds follows the late-fix cap rule (seedCapped, PIN-9/PIN-20)
+          if (r.task.seed) seedCapped.push({ task: r.task, why: 'the ' + floorMr.status + ' floor still trips' })
+          else escalated.push({ task: r.task.id, reason: floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
           auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:exhausted`, fixRounds: r.task.fixRounds, findings: [], ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
           continue
         }
@@ -6023,7 +6065,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // blocked text is sentinel-prefixed; absent otherwise (§4.3, orthogonal to reason).
         // escalate_reason (D18, PIN-22, #1664): the seat-supplied decision-forked reason, when an
         // explicit `escalate` verdict ended the audit loop; absent on every other route.
-        escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked, ...(typeof r.escalateReason === 'string' && r.escalateReason ? { escalate_reason: r.escalateReason } : {}), ...defectClassOf(r.blocked) })
+        // A seeded task at the cap follows the late-fix cap rule (seedCapped, PIN-9/PIN-20), never audit-blocked.
+        if (r.spent && r.task.seed) seedCapped.push({ task: r.task, why: r.blocked })
+        else escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked, ...(typeof r.escalateReason === 'string' && r.escalateReason ? { escalate_reason: r.escalateReason } : {}), ...defectClassOf(r.blocked) })
       }
     }
   }
@@ -6800,7 +6844,7 @@ const lateFixPass = async () => {
       escalated.push({ task: origin.id, reason: 'late-defect', fixRounds: origin.fixRounds, detail })
     } else {
       log('late-fix pass: ' + detail + ' — carried to the next phase on carriedTasks.')
-      carriedTasks.push({ ...f, task: origin.id, findingClass: f.findingClass || 'behavior', fixRounds: origin.fixRounds, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: detail } })
+      carriedTasks.push({ ...f, task: origin.id, findingClass: f.findingClass || 'behavior', fixRounds: origin.fixRounds, roster: origin.roster, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: detail } })
     }
   }
 }
@@ -6857,7 +6901,18 @@ const carryLate = (f, why) => {
   const origin = lateOriginOf(f)
   queuedKeys.add(remintKey(f))
   log('carriedTasks: "' + f.title + '" — ' + why + ' (PIN-21).')
-  carriedTasks.push({ ...f, task: origin ? origin.id : f.task, raisedTask: f.task, findingClass: 'behavior', fixRounds: origin ? spentOf(origin.fixRounds) : 0, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
+  carriedTasks.push({ ...f, task: origin ? origin.id : f.task, raisedTask: f.task, findingClass: 'behavior', fixRounds: origin ? spentOf(origin.fixRounds) : 0, ...(origin ? { roster: origin.roster } : {}), planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
+}
+// Seeded-task cap rule (late-defects D9/D20, PIN-9/PIN-20): a seeded task out of fix rounds follows the
+// late-fix pass's cap rule. On the final phase, or a phase another hard escalation holds, it holds
+// 'late-defect' for a Lead ruling; else its row carries again on carriedTasks with the spent fixRounds.
+// The origin `task` stays the row's own, so the next round trip seeds it the same way. Never dropped (PIN-1).
+for (const { task: t, why } of seedCapped) {
+  const n = spentOf(t.fixRounds), detail = 'seeded task ' + t.id + ' ran out of fix rounds (fixRounds ' + n + ') on "' + t.seed.title + '" of task ' + t.seed.task + ': ' + why
+  const hold = finalPhase || escalated.some(e => e && HARD_ESCALATION_REASONS.includes(e.reason))
+  log('seeded task: ' + detail + (hold ? ', held (late-defect).' : ', carried on carriedTasks.'))
+  if (hold) escalated.push({ task: t.id, reason: 'late-defect', fixRounds: n, detail })
+  else carriedTasks.push({ ...t.seed, fixRounds: n, roster: t.roster, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: detail } })
 }
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
