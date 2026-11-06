@@ -275,11 +275,15 @@ function lineStarting(raw, prefix) {
 const whole = (raw) => raw;
 
 // The merge form, read from the engine's merge-step prompt literal. Every task merge site spells
-// the same two-step command, so the regex must match at least the four step copies (ES6).
+// the same two-step command (ES6). The four dispatched step copies come from three source literals:
+// the primary and floor-retry merges share one mergeSplitClause (late-defects T6.1), so the regex
+// must match at least three, and that shared clause must ride both of its merge prompts.
 const MERGE_STEP_RE = /run exactly \\`git -c core\.hooksPath=\/dev\/null (merge --no-ff --no-commit) \$\{r\.task\.branch\} && git -c core\.hooksPath=\/dev\/null commit --no-verify -m "[^"]*" (--trailer "WAR-Task: )\$\{r\.task\.branch\}"/g;
 function engineMergeForm() {
   const hits = [...readRel(ENGINE_PATH).matchAll(MERGE_STEP_RE)];
-  assert.ok(hits.length >= 4, `the engine merge-step literal matched ${hits.length} times; expected the four task merge sites`);
+  assert.ok(hits.length >= 3, `the engine merge-step literal matched ${hits.length} times; expected the three source literals of the four task merge sites`);
+  const shared = (readRel(ENGINE_PATH).match(/^ *\+ mergeSplitClause$/gm) || []).length;
+  assert.equal(shared, 2, `mergeSplitClause rides ${shared} merge prompts; expected the primary and floor-retry merges`);
   const forms = new Set(hits.map((m) => `${m[1]}\u0000${m[2]}`));
   assert.equal(forms.size, 1, 'the task merge sites spell different merge forms');
   return [hits[0][1], hits[0][2]];

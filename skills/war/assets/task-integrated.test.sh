@@ -21,7 +21,9 @@
 #  17-23. any other later change to an owned path -> NO_TASK_PROOF ... changed outside a sibling task merge
 #  24-25. owned content at the merge commit differs from the task tip -> NO_TASK_PROOF ... at its merge commit
 #  16, 26-27. a later change off the owned paths, including a glob-shaped name     -> TASK_INTEGRATED
-#  28-30. a failed walk, parent read, trailer read or content compare             -> exit 2, no marker
+#  28-30b. a failed walk, parent read, trailer read (task or late-fix) or content compare -> exit 2, no marker
+#  31. a single-parent late-fix commit whose Late-Fix trailer names this task      -> TASK_INTEGRATED
+#  31b-31e. a Late-Fix naming another task, a near-miss id, a bad index, or on a merge -> NO_TASK_PROOF
 #
 # Exit 0 = all cases passed; non-zero = at least one failed.
 set -u
@@ -377,6 +379,51 @@ put ab 'plain edit of a file the glob would match'; g commit -m 'plain commit'
 expect 'case 27: a glob-shaped owned path matches only itself' \
   "0 TASK_INTEGRATED $TASK $M $(tip)" "$(probe "$TASK" integration working)"
 
+# Case 31 (late-defects PIN-25): the late-fix pass fast-forwards a one-parent commit onto an owned path,
+# with the trailer `Late-Fix: <bare task id>:<n>`; the bare id is the branch leaf after `p3-`.
+task_a c31
+put feature 'late fix'; g commit -m 'late fix
+
+Late-Fix: 3.1:1'
+later_task "$OTHER" unrelated 'sibling after the late fix'
+put feature 'second late fix'; g commit -m 'second late fix
+
+Late-Fix: 3.1:2'
+expect 'case 31: a single-parent late-fix commit naming this task leaves the task proved' \
+  "0 TASK_INTEGRATED $TASK $M $(tip)" "$(probe "$TASK" integration working)"
+
+# Case 31b: a late-fix commit that names another task is not this task's.
+task_a c31b
+put feature 'late fix'; g commit -m 'late fix
+
+Late-Fix: 3.2:1'
+expect 'case 31b: a late-fix commit naming another task refuses' "$REFUSED" "$(probe "$TASK" integration working)"
+
+# Case 31c: ids that only contain this task's id, or a dot-as-wildcard spelling, never match it.
+task_a c31c
+put feature 'late fix'; g commit -m 'late fix
+
+Late-Fix: 13.1:1
+Late-Fix: 3.1.1:1
+Late-Fix: 3x1:1'
+expect 'case 31c: a near-miss Late-Fix id refuses' "$REFUSED" "$(probe "$TASK" integration working)"
+
+# Case 31d: the index must be an integer.
+task_a c31d
+put feature 'late fix'; g commit -m 'late fix
+
+Late-Fix: 3.1:one'
+expect 'case 31d: a Late-Fix trailer without an integer index refuses' "$REFUSED" "$(probe "$TASK" integration working)"
+
+# Case 31e: the trailer proves only a one-parent commit, never a merge that carries it.
+task_a c31e
+g checkout -b side integration
+put feature 'side edit'; g commit -m 'side work'
+g checkout integration
+g -c core.hooksPath=/dev/null merge --no-ff --no-commit side
+g -c core.hooksPath=/dev/null commit --no-verify -m 'Merge side' --trailer 'Late-Fix: 3.1:1'
+expect 'case 31e: a merge commit carrying a Late-Fix trailer refuses' "$REFUSED" "$(probe "$TASK" integration working)"
+
 # probe_shim <args fragment>: run the helper with a git that exits 128 on any call holding the fragment.
 # If SHIM_PASS_FIRST names an absent file, the first matching call passes.
 REAL_GIT="$(command -v git)"
@@ -426,6 +473,15 @@ task_a c30
 expect 'case 30: a failed compare at the merge commit exits 2' \
   '2 shim: forced failure
 task-integrated: cannot compare current task content' "$(probe_shim "--quiet $A_TIP $M")"
+
+# Case 30b: a failed Late-Fix trailer read on a later single-parent commit exits 2.
+task_a c30b
+put feature 'late fix'; g commit -m 'late fix
+
+Late-Fix: 3.1:1'
+expect 'case 30b: a failed late-fix trailer read on a later commit exits 2' \
+  '2 shim: forced failure
+task-integrated: cannot read later late-fix trailer' "$(probe_shim "key=Late-Fix,valueonly) $(tip)")"
 
 printf '\ntask-integrated: %d check(s) passed, %d check(s) failed.\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

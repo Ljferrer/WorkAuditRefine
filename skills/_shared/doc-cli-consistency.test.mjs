@@ -149,6 +149,10 @@ const EVICTION_DESTINATIONS = [
   // #2545: the retired-token sweep clause evicted from skills/war/SKILL.md phrases
   // `war-memory.mjs query`, so its verb claim moves with it and stays scanned.
   'skills/war/references/retired-token-sweep.md',
+  // late-fix-pass.md (2026-11-04-late-defects-fixed-in-run Task 3.1): the born-cold late-fix pass
+  // doctrine behind the agents/war-refiner.md late-fix worktree pointer; it phrases the
+  // provision-worktrees.sh `ensure-worktree` step, so it stays under the verb scan.
+  'skills/war/references/late-fix-pass.md',
   // #2635: the Gate 2 promotion steps evicted from skills/war/SKILL.md phrase
   // `war-memory.mjs lint` and `provision-worktrees.sh ensure-origin`, so those verb claims move
   // with them and stay scanned.
@@ -228,6 +232,11 @@ const VERB_SCAN_EXCLUSIONS = [
   // prompts. Its only command prose is a `grep` sibling sweep — no scanned-module verb, and the file
   // makes no byte-identity claim over an evicted card block, so no QUALIFIED_HEADERS row is owed.
   'skills/war/references/fix-round-doctrine.md',
+  // late-defects.md (2026-11-04-late-defects-fixed-in-run Task 6.2) holds the born-cold Lead doctrine
+  // for late defects behind the skills/war/SKILL.md objective, carry-thread and follow-up-floor pointers,
+  // plus two passages evicted byte-identical from CONTEXT.md (ADR 0042). It names land-decision.mjs only
+  // beside its EXPORTS and phrases only gh-preflight.sh — no scanned-module verb.
+  'skills/war/references/late-defects.md',
   // gate-audit-checklist.md holds the `execution-evidence` gate-audit checklist section evicted
   // byte-identical from agents/war-auditor.md (in-band-absorb-default D16, ADR 0042); its only
   // command prose is read-only git (`cat-file -t` / `rev-parse`) — no scanned-module verb.
@@ -236,6 +245,11 @@ const VERB_SCAN_EXCLUSIONS = [
   // agents/war-auditor.md (2026-10-27-memory-query-mcp-tool Task 1.3, ADR 0042); its only command
   // prose is read-only git (`git diff --name-only`, `git patch-id --stable`) — no scanned-module verb.
   'skills/war/references/pin-transfer.md',
+  // finding-class.md holds the born-cold finding-class doctrine and the stale-looking-but-correct
+  // calibration block evicted byte-identical from agents/war-auditor.md (2026-11-04-late-defects-fixed-
+  // in-run Task 2.1, ADR 0042); it names land-decision.mjs only beside its EXPORT `FINDING_CLASSES`
+  // and phrases no CLI command — no scanned-module verb.
+  'skills/war/references/finding-class.md',
   'skills/war/references/file-followups.md',        // no shell-out prose for the scanned modules (gh + gh-preflight.sh only)
   'skills/war/references/worker-servitor-edges.md', // no shell-out prose for the scanned modules
   // run-manifest.md holds the SKILL.md Run-manifest per-stamp field detail (evicted to byte-fund
@@ -245,7 +259,7 @@ const VERB_SCAN_EXCLUSIONS = [
   'skills/war/references/run-manifest.md',
   'skills/red-team/references/lenses.md',           // no shell-out prose for the scanned modules
   'skills/red-team/references/loop-budget.md',      // no shell-out prose for the scanned modules
-  // glossary-cold.md holds evicted glossary bodies (from CONTEXT.md, now GLOSSARY.md) (incident/recovery doctrine, Executor gate, Decisive slot) and
+  // glossary-cold.md holds evicted glossary bodies (from CONTEXT.md, now GLOSSARY.md) (incident/recovery doctrine, Executor gate, Decisive slot, Relaunch attempt) and
   // born-cold bodies that never lived in the glossary file (fork trial, pair beat, Trials run block;
   // plan 2026-10-26-interview-fork-trials-and-pair-beats D14); no shell-out prose for the
   // scanned modules (re-verified at the 2026-08-16 land base, D10).

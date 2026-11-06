@@ -1,12 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, writeFileSync, mkdtempSync, symlinkSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdtempSync, symlinkSync, existsSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, isAbsolute } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR, SCRIPT_BYTE_CAP, deriveName, deriveDescription, stripFullLineComments } from './stage-workflow.mjs'
-import { extractInterpolations, ptSpanRanges } from './assert-args-complete.mjs'
+import { extractInterpolations, extractArgsFields, unguardedTopLevelKeys, ptSpanRanges } from './assert-args-complete.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const STAGER = join(HERE, 'stage-workflow.mjs')
@@ -18,7 +18,9 @@ const TEMPLATE = join(HERE, 'workflow-template.js')
 // the embedded-args ENTRY-VALIDATION harness — it builds a staged copy into an AsyncFunction with
 // every effect handle stubbed and reads the returned object, which exercises the top-level arg entry
 // guard and nothing beyond it (no import(), no real dispatch). Any other execution of staged text
-// stays out of this suite.
+// stays out of this suite. The `indent-strip: harness runs the staged form` row is no such execution:
+// its child process imports workflow-template.test-harness.mjs and COMPILES the template with build(),
+// reading the compiled bytes back, but never calls the result.
 function runStager(args, { expectFail = false } = {}) {
   const r = spawnSync(process.execPath, [STAGER, ...args], { encoding: 'utf8' })
   if (!expectFail && r.status !== 0) {
@@ -80,12 +82,13 @@ test('(b) minimal fixture: staged text carries derived literals, differs only in
   assert.ok(staged.includes(`name: '${name}'`), 'staged carries the derived name literal')
   assert.ok(staged.includes(`description: '${desc}'`), 'staged carries the derived description literal')
   const restored = staged.split(`name: '${name}'`).join(NAME_ANCHOR).split(desc).join(DESCRIPTION_ANCHOR)
-  assert.equal(restored, MINIMAL_TEMPLATE)
+  assert.equal(restored, stripFullLineComments(MINIMAL_TEMPLATE), 'against the stripped fixture: the strip drops the meta lines\' indent (arm (s))')
 })
 
-// The shipped-template arms compare against the COMMENT-STRIPPED template (#2099): the stager blanks
-// full-line code comments before it substitutes, so "differs only in the two literals" holds against
-// stripFullLineComments(original), and the strip itself is proven separately in (p).
+// The shipped-template arms compare against the COMMENT- AND INDENT-STRIPPED template (#2099, #2613): the
+// stager blanks full-line code comments and drops top-level indent before it substitutes, so "differs only
+// in the two literals" holds against stripFullLineComments(original), and the strip itself is proven
+// separately in (p) and (s).
 test('(b) shipped template: staged text carries derived literals, differs only in the two literals', () => {
   const dir = scratch('stage-ship-')
   const original = stripFullLineComments(readFileSync(TEMPLATE, 'utf8'))
@@ -626,12 +629,13 @@ test('(p) stripFullLineComments blanks only full-line code comments, keeps every
 })
 
 // (p) On the shipped template the strip is proven by three oracles that do not share the scanner
-// under test. (1) Line shape: every changed line was a `//`-led line and is now empty. (2) Prompt
+// under test. (1) Line shape: every changed line was a `//`-led line and is now empty, or lost only
+// its leading indent (the indent strip; arm (s) holds its own line-for-line oracle). (2) Prompt
 // bytes: `ptSpanRanges` (assert-args-complete.mjs — seeded on the pt` tag, its own state machine)
 // locates every prompt span in the stripped copy, nested spans included, with each span's `${…}`
 // expression bodies; for a blanked line the INNERMOST enclosing span is judged, and the line may not
 // fall in that span's prose (a blank inside an expression body is a code comment inside the
-// interpolation — legal). This is what catches a prompt line that begins with `//` and was wrongly
+// interpolation — legal). An unindented line may not fall inside any span at all. This is what catches a prompt line that begins with `//` and was wrongly
 // blanked, which oracle (1) alone would accept. Scope: the oracle proves pt-tagged prompt spans; a
 // plain (untagged) template literal is outside it and rests on oracle (1) plus the fixture arms. (3) `node --check` parses the result, and the fallback-free interpolation census the
 // args preflight reads is unchanged, occurrence counts included. The staged size must also sit under
@@ -646,10 +650,12 @@ function assertStripKeptPromptBytes (original, stripped) {
   const b = stripped.split('\n')
   assert.equal(b.length, a.length, 'line count preserved')
   const blanked = [] // 1-based line numbers
+  const unindented = [] // 1-based: lines that lost only their leading indent (the indent strip, arm (s))
   for (let k = 0; k < a.length; k++) {
     if (a[k] === b[k]) continue
-    assert.ok(a[k].trim().startsWith('//') && b[k] === '', `line ${k + 1}: a non-comment line changed: ${JSON.stringify(a[k].slice(0, 80))} → ${JSON.stringify(b[k].slice(0, 80))}`)
-    blanked.push(k + 1)
+    if (a[k].trim().startsWith('//') && b[k] === '') { blanked.push(k + 1); continue }
+    assert.ok(b[k] === a[k].replace(/^[ \t]+/, ''), `line ${k + 1}: a non-comment line changed beyond its leading indent: ${JSON.stringify(a[k].slice(0, 80))} → ${JSON.stringify(b[k].slice(0, 80))}`)
+    unindented.push(k + 1)
   }
   assert.ok(!/\/\/[^\n]*\bpt`/.test(stripped), 'no comment-seeded pt` byte-run survives the strip, so ptSpanRanges reads real prompt spans only')
   const lineStarts = [0]
@@ -659,6 +665,10 @@ function assertStripKeptPromptBytes (original, stripped) {
     start, end, lo: lineOf(start), hi: lineOf(end - 1), exprs: exprs.map(([x, y]) => [lineOf(x), lineOf(y - 1)]),
   }))
   const inExpr = (sp, k) => sp.exprs.some(([x, y]) => k >= x && k <= y)
+  for (const k of unindented) {
+    const hit = spans.find((sp) => k > sp.lo && k <= sp.hi)
+    assert.ok(!hit, `line ${k} lost its indent inside the pt prompt span on lines ${hit && hit.lo}-${hit && hit.hi} — the strip touched a span's bytes`)
+  }
   let insideExpr = 0
   for (const k of blanked) {
     const hit = spans.filter((sp) => k > sp.lo && k <= sp.hi).sort((a, b) => (a.end - a.start) - (b.end - b.start))[0] // innermost
@@ -681,6 +691,9 @@ test('(p) the prompt-byte oracle refuses a blanked `//` line inside prompt prose
   assert.equal(insideExpr, 1)
   const inner = 'const p = pt`a ${c ? pt`b\n// inner prose, inside the outer span\'s expression\n` : \'\'} d`\n'
   assert.throws(() => assertStripKeptPromptBytes(inner, inner.replace('// inner prose, inside the outer span\'s expression', '')), /inside the prose of the pt prompt span/, 'a nested span\'s prose is judged by the innermost span, not excused as the outer span\'s expression')
+  const indentedProse = 'const p = pt`run this:\n  an indented prompt line ${a}`\n'
+  assert.throws(() => assertStripKeptPromptBytes(indentedProse, indentedProse.replace('\n  an indented', '\nan indented')), /lost its indent inside the pt prompt span/, 'an unindented line inside a span is refused')
+  assert.equal(stripFullLineComments(indentedProse), indentedProse, 'and the real strip keeps the indented prompt line')
   assert.equal(stripFullLineComments(prose), prose, 'and the real strip leaves the prose line alone')
   assert.equal(stripFullLineComments(inner), inner, 'and the real strip leaves the nested prose line alone')
 })
@@ -703,6 +716,471 @@ test('(p) shipped template: only `//`-led lines blank, no prompt byte moves, the
   assert.ok(bytes + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP, `stripped template is ${bytes} bytes; it must leave at least ${ARGS_HEADROOM_BYTES} bytes under the ${SCRIPT_BYTE_CAP}-byte cap for embedded args`)
 })
 
+// (s) Indent strip (plan 2026-11-04-late-defects-fixed-in-run, Task 1.1; PIN-16, PIN-17, PIN-18,
+// PIN-26). The strip also drops the leading spaces and tabs of every line that STARTS in the top-level
+// code frame; a line that starts inside a string continuation, a template literal, a `${…}` body or a
+// block comment keeps every byte, and every line survives. Four independent oracles prove it on the
+// shipped template: (a) the line-for-line oracle, judged by lineStartFrames below (its own state
+// machine, not the scanner under test); (b) the prompt-byte oracle over every pt span (ptSpanRanges,
+// a third state machine) and every plain template literal (lineStartFrames' blocks); (c) idempotence
+// and `node --check`; (d) the harness row, which runs workflow-template.test-harness.mjs under
+// WAR_TEMPLATE_STRIPPED=1 and proves the bytes it executes are the staged ones. Each shipped-template
+// row first asserts the strip removed indent at all (stripRemovedIndent), so every row is red on a
+// scanner that strips no indent. The fixture arms carry hand-written expected bytes, one arm per
+// scanner branch, and each `indent-strip: mutant <branch>` row edits the exported scanner's source in
+// memory, loads it, and proves its arm's oracle fails while the unmutated copy passes it.
+
+// lineStartFrames(text): the frame each line STARTS in — 'top' (top-level code), 'interp' (code in a
+// `${…}` body), 'template', 'string' (a `\`-continued string) or 'block' (a block comment) — plus the
+// [start, end) offsets of every top-level template literal (a nested literal rides inside its
+// enclosing one). Built on the comment, string and template arms of extractTopLevelTemplateLiterals in
+// prompt-surface-budgets.test.mjs, which is proven clean on the shipped template there. Like that
+// scanner it has no regex arm, so it judges the shipped template only; the fixture arms below hold
+// regex literals and are judged by their hand-written expected bytes instead.
+function lineStartFrames (text) {
+  const frames = ['top']
+  const blocks = []
+  const stack = [{ t: 'code', depth: 0 }]
+  let mode = '' // '' | 'line' | 'block' | "'" | '"'
+  let open = -1
+  const now = () => mode === 'block' ? 'block' : mode === "'" || mode === '"' ? 'string'
+    : stack[stack.length - 1].t === 'tpl' ? 'template' : stack.length === 1 ? 'top' : 'interp'
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    const top = stack[stack.length - 1]
+    if (mode === 'line') { if (c === '\n') { mode = ''; frames.push(now()) } continue }
+    if (mode === 'block') {
+      if (c === '*' && text[i + 1] === '/') { mode = ''; i++ } else if (c === '\n') frames.push(now())
+      continue
+    }
+    if (mode) { // inside a ' or " string
+      if (c === '\\') { i++; if (text[i] === '\n') frames.push(now()); continue }
+      if (c === mode) mode = ''
+      else if (c === '\n') { mode = ''; frames.push(now()) }
+      continue
+    }
+    if (top.t === 'tpl') {
+      if (c === '\\') { i++; if (text[i] === '\n') frames.push(now()); continue }
+      if (c === '`') { stack.pop(); if (stack.length === 1) blocks.push([open, i + 1]); continue }
+      if (c === '$' && text[i + 1] === '{') { stack.push({ t: 'code', depth: 0 }); i++; continue }
+      if (c === '\n') frames.push(now())
+      continue
+    }
+    if (c === '\n') { frames.push(now()); continue }
+    if (c === '/' && text[i + 1] === '/') { mode = 'line'; i++; continue }
+    if (c === '/' && text[i + 1] === '*') { mode = 'block'; i++; continue }
+    if (c === "'" || c === '"') { mode = c; continue }
+    if (c === '`') { if (stack.length === 1) open = i; stack.push({ t: 'tpl' }); continue }
+    if (stack.length > 1) {
+      if (c === '{') top.depth++
+      else if (c === '}') { if (top.depth === 0) stack.pop(); else top.depth-- }
+    }
+  }
+  return { frames, blocks, clean: stack.length === 1 && (mode === '' || mode === 'line') }
+}
+
+// The leading-whitespace bytes the strip removed from lines it did not blank. Zero on a scanner that
+// strips no indent, so a shipped-template row that asserts it is red there.
+const stripRemovedIndent = (original, stripped) => {
+  const a = original.split('\n')
+  const b = stripped.split('\n')
+  let bytes = 0
+  for (let k = 0; k < a.length; k++) if (b[k] !== '' && a[k] !== b[k]) bytes += a[k].length - b[k].length
+  return bytes
+}
+
+// Oracle (a), line for line: an unchanged line is fine unless it starts in the top-level code frame
+// with leading whitespace (the strip missed it); a blanked line was `//`-led and starts in code; any
+// other changed line equals its original with only its leading spaces and tabs removed, and starts in
+// the top-level code frame. The frames are also identical on both copies.
+function assertIndentOracle (original, stripped) {
+  const a = original.split('\n')
+  const b = stripped.split('\n')
+  assert.equal(b.length, a.length, 'every line survives the strip (PIN-17)')
+  const fa = lineStartFrames(original)
+  const fb = lineStartFrames(stripped)
+  assert.ok(fa.clean && fb.clean, 'the frame scan stays in sync on both copies')
+  assert.equal(fa.frames.length, a.length, 'one frame per line')
+  assert.deepEqual(fb.frames, fa.frames, 'every line starts in the same frame before and after the strip')
+  let indented = 0
+  for (let k = 0; k < a.length; k++) {
+    const at = `line ${k + 1} (${fa.frames[k]})`
+    if (a[k] === b[k]) {
+      assert.ok(fa.frames[k] !== 'top' || !/^[ \t]/.test(a[k]), `${at}: a top-level code line kept its leading indent: ${JSON.stringify(a[k].slice(0, 80))}`)
+      continue
+    }
+    if (b[k] === '' && /^[ \t]*\/\//.test(a[k])) {
+      assert.ok(fa.frames[k] === 'top' || fa.frames[k] === 'interp', `${at}: a \`//\`-led line was blanked outside code`)
+      continue
+    }
+    assert.equal(b[k], a[k].replace(/^[ \t]+/, ''), `${at}: changed beyond its leading whitespace`)
+    assert.equal(fa.frames[k], 'top', `${at}: lost its indent outside the top-level code frame: ${JSON.stringify(a[k].slice(0, 80))}`)
+    indented++
+  }
+  return { indented }
+}
+
+// Oracle (b), literal bytes: every pt span (ptSpanRanges, nested spans included) and every top-level
+// template literal (lineStartFrames' blocks — so every plain literal and every literal nested in one)
+// keeps its bytes. From its opener to the end of its first line, and on every later line it spans,
+// nothing changes; the one exception is a `//`-led line inside a `${…}` body, which the comment strip
+// blanks (a code comment, never prompt prose). For a pt span the body is judged by ptSpanRanges' own
+// expression offsets; for a template literal by the frame lineStartFrames reports.
+function assertLiteralBytesKept (original, stripped) {
+  const a = original.split('\n')
+  const b = stripped.split('\n')
+  assert.equal(b.length, a.length, 'every line survives the strip (PIN-17)')
+  const starts = [0]
+  for (let i = 0; i < stripped.length; i++) if (stripped[i] === '\n') starts.push(i + 1)
+  const lineAt = (off) => { let lo = 0, hi = starts.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (starts[mid] <= off) lo = mid; else hi = mid - 1 } return lo }
+  const commentBlank = (k) => b[k] === '' && /^[ \t]*\/\//.test(a[k])
+  const keep = (start, end, label, inBody) => {
+    const l0 = lineAt(start)
+    const l1 = lineAt(end - 1)
+    const c0 = start - starts[l0]
+    const shift = a[l0].length - b[l0].length
+    assert.equal(b[l0].slice(c0), a[l0].slice(c0 + shift), `${label} (line ${l0 + 1}): a byte moved on the opening line`)
+    for (let k = l0 + 1; k <= l1; k++) {
+      if (a[k] === b[k]) continue
+      assert.ok(commentBlank(k) && inBody(k), `${label}: line ${k + 1} changed inside the literal: ${JSON.stringify(a[k].slice(0, 80))} → ${JSON.stringify(b[k].slice(0, 80))}`)
+    }
+  }
+  assert.ok(!/\/\/[^\n]*\bpt`/.test(stripped), 'no comment-seeded pt` byte-run survives the strip, so ptSpanRanges reads real prompt spans only')
+  const spans = ptSpanRanges(stripped, { nested: true })
+  for (const sp of spans) keep(sp.start, sp.end, `pt span at line ${lineAt(sp.start) + 1}`, (k) => sp.exprs.some(([x, y]) => starts[k] > x && starts[k] < y))
+  const { frames, blocks, clean } = lineStartFrames(stripped)
+  assert.ok(clean, 'the template-literal scan stays in sync on the stripped copy')
+  for (const [s, e] of blocks) keep(s, e, `template literal at line ${lineAt(s) + 1}`, (k) => frames[k] === 'interp')
+  const plain = blocks.filter(([s]) => !/\bpt$/.test(stripped.slice(Math.max(0, s - 3), s)))
+  return { spans: spans.length, blocks: blocks.length, plain: plain.length }
+}
+
+// Fixture arms, one per scanner branch. Each holds a line the strip must keep whole and a top-level
+// line it must unindent, so the arm reds both on a scanner that strips no indent and on a scanner
+// whose branch is broken.
+const L = (...lines) => lines.join('\n') + '\n'
+const INDENT_ARMS = {
+  'single string': [
+    L("const a = 'one ` tick'", '  foo()', "const b = 'two ` tick'", '  bar()'),
+    L("const a = 'one ` tick'", 'foo()', "const b = 'two ` tick'", 'bar()')],
+  'double string': [
+    L('const a = "one ` tick"', '  foo()', 'const b = "two ` tick"', '  bar()'),
+    L('const a = "one ` tick"', 'foo()', 'const b = "two ` tick"', 'bar()')],
+  'backslash continuation': [
+    L("const s = 'one \\", "  two'", '  after()'),
+    L("const s = 'one \\", "  two'", 'after()')],
+  'template literal': [
+    L('const t = `one', '  two', '`', '  after()'),
+    L('const t = `one', '  two', '`', 'after()')],
+  'nested template': [
+    L('const t = `a ${x ? `nested', '// a line inside a nested template', '  indented nested', "` : ''} b`", '  after()'),
+    L('const t = `a ${x ? `nested', '// a line inside a nested template', '  indented nested', "` : ''} b`", 'after()')],
+  'regex literal with a backtick': [
+    L('const r = /[`]/g', '  after()', 'const r2 = /[`]/g', '  end()'),
+    L('const r = /[`]/g', 'after()', 'const r2 = /[`]/g', 'end()')],
+  'block comment with a backtick': [
+    L('/* a ` tick', '  inside block', '*/', '  after()'),
+    L('/* a ` tick', '  inside block', '*/', 'after()')],
+  'line comment inside a template': [
+    L('const t = `x', '// a line inside a template', '  indented', '`', '  after()'),
+    L('const t = `x', '// a line inside a template', '  indented', '`', 'after()')],
+  'interp frame': [
+    L('const t = `a ${ { k: 1 }', '  .k } b`', '\t  after()'),
+    L('const t = `a ${ { k: 1 }', '  .k } b`', 'after()')],
+}
+// The arm oracle: the strip's output equals the hand-written bytes, line count included.
+const checkArm = (strip, [input, expected]) => {
+  const out = strip(input)
+  assert.equal(out.split('\n').length, input.split('\n').length, 'every line survives the strip (PIN-17)')
+  assert.equal(out, expected)
+}
+for (const [branch, arm] of Object.entries(INDENT_ARMS)) {
+  test(`indent-strip: fixture ${branch}`, () => {
+    checkArm(stripFullLineComments, arm)
+    assert.equal(stripFullLineComments(arm[1]), arm[1], 'the expected bytes are a fixed point of the strip')
+  })
+}
+
+// Mutants (PIN-26): each row edits the exported scanner's source text at one anchor (exactly once),
+// loads the edited copy in memory with new Function, and proves its arm's oracle fails, while the
+// unedited copy, loaded the same way, passes it. Branch → [arm, anchor, replacement].
+const STAGER_SRC = readFileSync(STAGER, 'utf8')
+const loadScanner = (moduleText) => {
+  const s = moduleText.indexOf('const REGEX_AFTER_WORD')
+  const f = moduleText.indexOf('export function stripFullLineComments(')
+  const e = moduleText.indexOf('\n}\n', f)
+  assert.ok(s !== -1 && f > s && e > f, 'the scanner and its two constants are locatable in stage-workflow.mjs')
+  return new Function(moduleText.slice(s, e + 2).replace('export function', 'function') + '\nreturn stripFullLineComments')()
+}
+const INDENT_MUTANTS = {
+  'single string': ['single string', `c === "'" || c === '"'`, `c === '"'`],
+  'double string': ['double string', `c === "'" || c === '"'`, `c === "'"`],
+  'backslash continuation': ['backslash continuation', String.raw`if (src[j] === '\\') j++`, ''],
+  'template literal': ['template literal', "stack.push({ type: 'template' })", ''],
+  'nested template': ['nested template', "if (c === '`') {\n        stack.push", "if (c === '`' && !ctx.interp) {\n        stack.push"],
+  'regex literal with a backtick': ['regex literal with a backtick', "if (c === '/' && (lastSig === ''", "if (false && c === '/' && (lastSig === ''"],
+  'block comment with a backtick': ['block comment with a backtick', "if (c === '/' && c2 === '*') {", 'if (false) {'],
+  'line comment inside a template': ['line comment inside a template', String.raw`if (c === '\\') { i += 2; continue }`,
+    String.raw`if (c === '/' && c2 === '/' && src.slice(src.lastIndexOf('\n', i - 1) + 1, i).trim() === '') { const e = src.indexOf('\n', i); drop.push([src.lastIndexOf('\n', i - 1) + 1, e === -1 ? n : e]); i = e === -1 ? n : e; continue }
+    if (c === '\\') { i += 2; continue }`],
+  'interp frame': ['interp frame', 'stack.length === 1 && ', ''],
+}
+for (const [branch, [armName, anchor, replacement]] of Object.entries(INDENT_MUTANTS)) {
+  test(`indent-strip: mutant ${branch}`, () => {
+    const arm = INDENT_ARMS[armName]
+    checkArm(loadScanner(STAGER_SRC), arm)
+    assert.equal(STAGER_SRC.split(anchor).length - 1, 1, `the mutation anchor occurs exactly once in stage-workflow.mjs: ${anchor}`)
+    const mutant = loadScanner(STAGER_SRC.split(anchor).join(replacement))
+    assert.throws(() => checkArm(mutant, arm), assert.AssertionError, `the ${branch} mutant must fail its arm's oracle`)
+  })
+}
+
+const SHIPPED = readFileSync(TEMPLATE, 'utf8')
+const shippedStripped = () => {
+  const stripped = stripFullLineComments(SHIPPED)
+  const removed = stripRemovedIndent(SHIPPED, stripped)
+  assert.ok(removed > 10000, `non-vacuity: the strip removed ${removed} bytes of leading indent from the shipped template's code lines`)
+  return stripped
+}
+test('indent-strip: line-for-line oracle on the shipped template', () => {
+  const { indented } = assertIndentOracle(SHIPPED, shippedStripped())
+  assert.ok(indented > 3000, `non-vacuity: ${indented} code lines lost their indent`)
+})
+test('indent-strip: prompt-byte oracle over every pt span and every plain template literal', () => {
+  const { spans, blocks, plain } = assertLiteralBytesKept(SHIPPED, shippedStripped())
+  assert.ok(spans > 300, `non-vacuity: ${spans} pt spans judged`)
+  assert.ok(blocks > 300 && plain > 20, `non-vacuity: ${blocks} template literals judged, ${plain} of them untagged`)
+})
+test('indent-strip: idempotent on the shipped template and every fixture arm', () => {
+  const stripped = shippedStripped()
+  assert.equal(stripFullLineComments(stripped), stripped, 'strip(strip(x)) === strip(x) on the shipped template')
+  for (const [input] of Object.values(INDENT_ARMS)) assert.equal(stripFullLineComments(stripFullLineComments(input)), stripFullLineComments(input))
+})
+test('indent-strip: node --check parses the staged form', () => {
+  const p = join(scratch('stage-indent-check-'), 'stripped.js')
+  writeFileSync(p, shippedStripped())
+  const check = spawnSync(process.execPath, ['--check', p], { encoding: 'utf8' })
+  assert.equal(check.status, 0, `the indent-stripped template must parse: ${check.stderr}`)
+})
+test('indent-strip: the fallback-free interpolation census is unchanged', () => {
+  const census = [...extractInterpolations(shippedStripped())]
+  assert.ok(census.length > 50, `non-vacuity: ${census.length} interpolation chains`)
+  assert.deepEqual(census, [...extractInterpolations(SHIPPED)], 'occurrence counts included')
+})
+// The args preflight (`assert-args-complete.mjs --template <staged path>`) reads top-level bindings by
+// their column-0 position, and the indent strip moves every top-level-frame line to column 0. On a
+// template holding an indented function-local `const z = A.zz`, the stripped copy would bind a field
+// the raw template never binds — the fixture below is that template, and it must fail this oracle.
+const assertArgsFieldCensusUnchanged = (original) => {
+  const stripped = stripFullLineComments(original)
+  assert.deepEqual([...unguardedTopLevelKeys(stripped)], [...unguardedTopLevelKeys(original)], 'the column-0 top-level binding set is unchanged on the staged form')
+  assert.deepEqual(extractArgsFields(stripped), extractArgsFields(original), 'the args preflight field set is unchanged on the staged form')
+}
+test('indent-strip: the args-field census is unchanged', () => {
+  shippedStripped() // non-vacuity: the strip removed indent from the shipped template at all
+  assert.ok(unguardedTopLevelKeys(SHIPPED).size > 5 && extractArgsFields(SHIPPED).length > 10, 'non-vacuity: the shipped template binds args fields')
+  assertArgsFieldCensusUnchanged(SHIPPED)
+  const indentedLocal = 'const A = args\nconst p = A.planSlug\nfunction f () {\n  const z = A.zz\n  return pt`${p} ${z}`\n}\n'
+  assert.deepEqual(extractArgsFields(indentedLocal), ['planSlug'], 'the raw fixture binds only the column-0 field')
+  assert.deepEqual(extractArgsFields(stripFullLineComments(indentedLocal)), ['planSlug', 'zz'], 'the stripped fixture binds the function-local field too')
+  assert.throws(() => assertArgsFieldCensusUnchanged(indentedLocal), /binding set is unchanged/, 'an indented function-local `const z = A.zz` is refused')
+})
+test('indent-strip: NAME_ANCHOR and ARGS_FALLBACK_ANCHOR substitute on the staged form', () => {
+  const dir = scratch('stage-indent-anchor-')
+  const slug = 'indent-anchor'
+  const { stdout } = runStager([TEMPLATE, dir, slug, '1', '--args', writeArgs(dir, { k: 1 })])
+  const staged = readFileSync(stdout.trim(), 'utf8')
+  const stripped = shippedStripped()
+  assert.equal(staged.split('\n').length, SHIPPED.split('\n').length + 2, 'only the two prelude lines are added')
+  assert.match(staged, new RegExp(`\\nname: '${deriveName(slug, '1')}',\\n`), 'the name substitution lands on the unindented meta line')
+  assert.equal(staged.split('\n})() : (args || EMBEDDED_ARGS)\n').length - 1, 1, 'the args fallback is rewritten exactly once, on its column-0 line')
+  const restored = staged
+    .split(`name: '${deriveName(slug, '1')}'`).join(NAME_ANCHOR)
+    .split(deriveDescription(slug, '1')).join(DESCRIPTION_ANCHOR)
+    .split(': (args || EMBEDDED_ARGS)').join(ARGS_FALLBACK_ANCHOR)
+    .replace(PRELUDE_STRIP, '')
+  assert.equal(restored, stripped, 'reversing the substitutions restores the indent-stripped template')
+})
+test('indent-strip: the oracles refuse a synthetic corruption', () => {
+  const code = 'const t = `one\n  kept\n`\nconst p = pt`a\n  prose ${x}`\n  f()\n'
+  const good = 'const t = `one\n  kept\n`\nconst p = pt`a\n  prose ${x}`\nf()\n'
+  assert.equal(stripFullLineComments(code), good, 'the real strip produces the copy both oracles accept')
+  assertIndentOracle(code, good)
+  assertLiteralBytesKept(code, good)
+  assert.throws(() => assertIndentOracle(code, good.replace('\n  kept', '\nkept')), /outside the top-level code frame/, 'an unindented template line is refused')
+  assert.throws(() => assertIndentOracle(code, code), /kept its leading indent/, 'a top-level line left indented is refused')
+  assert.throws(() => assertIndentOracle(code, good.replace('f()', 'g()')), /beyond its leading whitespace/, 'a change past the indent is refused')
+  assert.throws(() => assertLiteralBytesKept(code, good.replace('\n  kept', '\nkept')), /changed inside the literal/, 'a plain template literal line is refused')
+  assert.throws(() => assertLiteralBytesKept(code, good.replace('\n  prose', '\nprose')), /changed inside the literal/, 'a pt span prose line is refused')
+})
+
+// (d) The harness row. A child process imports workflow-template.test-harness.mjs with and without
+// WAR_TEMPLATE_STRIPPED=1 and reports what `build()` compiles. With the flag the compiled body is the
+// staged bytes (the stager's own output with its substitutions reversed), not the raw template, and
+// a mutated source a fixture passes is staged too; without it the body is the raw template. The
+// exported `src` stays raw either way, for the source-reading tests.
+const HARNESS = join(HERE, 'workflow-template.test-harness.mjs')
+const probeHarness = (flag) => {
+  const code = `const h = await import(${JSON.stringify(pathToFileURL(HARNESS).href)})
+const { stripFullLineComments } = await import(${JSON.stringify(pathToFileURL(STAGER).href)})
+const { readFileSync } = await import('node:fs')
+const raw = readFileSync(${JSON.stringify(TEMPLATE)}, 'utf8').replace(/^export const meta/m, 'const meta')
+const body = h.build().toString()
+const mutated = h.src + '\\n;void 0\\n'
+process.stdout.write('\\nPROBE ' + JSON.stringify({ srcRaw: h.src === raw, raw: body.includes(h.src), staged: body.includes(stripFullLineComments(h.src)), mutatedStaged: h.build(mutated).toString().includes(stripFullLineComments(mutated)), body }) + '\\n')`
+  const env = { ...process.env }
+  delete env.NODE_TEST_CONTEXT
+  if (flag) env.WAR_TEMPLATE_STRIPPED = '1'; else delete env.WAR_TEMPLATE_STRIPPED
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', env, maxBuffer: 1 << 26 })
+  assert.equal(r.status, 0, r.stderr)
+  return JSON.parse(r.stdout.split('\nPROBE ').pop())
+}
+// The compile-site census over the harness source. The probe above proves build() alone; the other
+// sites that compile a `src`-derived slice (inlineHelpers, makeDispatch, registrySlice, grabSchema,
+// mergeResultSchema) are proven by text: each site is a `new Function(` / `new AsyncFunction(` call,
+// named by the column-0 declaration that encloses it, and read from the call to the next blank line
+// (makeDispatch's runForm calls sit on the lines after its opener). A site outside the exempt list
+// must wrap runForm; an exempt site must not, so the list cannot go stale silently. The two exempt
+// sites evaluate a pt literal, whose bytes oracle (b) proves the strip never moves. The same window
+// rule runs over every sibling workflow-template.*.test.mjs file: a test-local compile of a
+// src-derived slice (an engine slice, an extracted arrow, a regex literal) imports runForm from the
+// harness and wraps it, so under the flag it runs the staged form too. No test-local site evaluates a
+// pt literal, so that census has no exempt list, and a site is named by file and line.
+const HARNESS_COMPILE_EXEMPT = {
+  evalPt: 'a pt literal whose bytes oracle (b) proves invariant',
+  evalTemplateConst: 'a pt literal whose bytes oracle (b) proves invariant',
+}
+const compileSiteWindows = (text) => {
+  const sites = []
+  const re = /new (?:Async)?Function\(/g
+  let m
+  while ((m = re.exec(text))) {
+    const stop = text.indexOf('\n\n', m.index)
+    const next = text.slice(re.lastIndex).search(/new (?:Async)?Function\(/)
+    const ends = [stop, next === -1 ? -1 : re.lastIndex + next, text.length].filter((e) => e !== -1)
+    sites.push({ index: m.index, line: text.slice(0, m.index).split('\n').length, window: text.slice(m.index, Math.min(...ends)) })
+  }
+  return sites
+}
+const harnessCompileSites = (text) => compileSiteWindows(text).map(({ index, window }) => {
+  const decl = [...text.slice(0, index).matchAll(/^(?:const|let|function) ([A-Za-z_$][\w$]*)/gm)].pop()
+  assert.ok(decl, `a compile site at offset ${index} sits under a column-0 declaration`)
+  return { name: decl[1], window }
+})
+const TEST_FILE_RE = /^workflow-template\..*\.test\.mjs$/
+const testFileTexts = () => readdirSync(HERE).filter((f) => TEST_FILE_RE.test(f)).sort().map((f) => [f, readFileSync(join(HERE, f), 'utf8')])
+const assertTestFilesCompileStaged = (texts) => {
+  let seen = 0
+  for (const [file, text] of texts) {
+    for (const { line, window } of compileSiteWindows(text)) {
+      seen++
+      assert.ok(window.includes('runForm('), `${file}:${line} compiles a src-derived slice and must wrap it in runForm(...)`)
+    }
+  }
+  return seen
+}
+const assertHarnessCompilesStaged = (text) => {
+  const sites = harnessCompileSites(text)
+  assert.deepEqual(sites.map((s) => s.name).sort(), ['build', 'evalPt', 'evalTemplateConst', 'grabSchema', 'inlineHelpers', 'makeDispatch', 'mergeResultSchema', 'registrySlice'], 'the harness compile-site census is closed: a new site wraps runForm or joins HARNESS_COMPILE_EXEMPT')
+  for (const { name, window } of sites) {
+    const wraps = window.includes('runForm(')
+    if (name in HARNESS_COMPILE_EXEMPT) assert.ok(!wraps, `${name} is exempt (${HARNESS_COMPILE_EXEMPT[name]}) and compiles the raw slice`)
+    else assert.ok(wraps, `${name} compiles a src-derived slice and must wrap it in runForm(...)`)
+  }
+}
+test('indent-strip: harness runs the staged form', () => {
+  const harnessText = readFileSync(HARNESS, 'utf8')
+  assertHarnessCompilesStaged(harnessText)
+  // Red proofs, one per window shape: build's call sits on the opener line; makeDispatch's calls sit
+  // on the lines after its opener, so both are dropped to prove the window reads past that line.
+  for (const [site, calls] of [['build', ['runForm(source)']], ['makeDispatch', ['${runForm(semBlock)}', '${runForm(dispatchBlock)}']]]) {
+    let dropped = harnessText
+    for (const call of calls) {
+      assert.equal(harnessText.split(call).length - 1, 1, `the mutation anchor occurs exactly once in the harness: ${call}`)
+      dropped = dropped.replace(call, call.replace(/runForm\((\w+)\)/, '$1'))
+    }
+    assert.throws(() => assertHarnessCompilesStaged(dropped), new RegExp(`${site} compiles a src-derived slice`), `dropping ${site}'s runForm calls reds the census`)
+  }
+  // The test-file census: every site wraps, the census is non-vacuous, and each test file with a site
+  // imports runForm. Red proofs, both window shapes: the first site whose runForm sits on the opener
+  // line and the first whose runForm sits on a later line each lose their wrapper.
+  const texts = testFileTexts()
+  assert.ok(assertTestFilesCompileStaged(texts) > 0, 'non-vacuity: at least one test-file-local compile site exists')
+  for (const [file, text] of texts) {
+    if (compileSiteWindows(text).length) assert.match(text, /^  runForm,$/m, `${file} imports runForm from the harness`)
+  }
+  const shapes = { opener: null, later: null }
+  for (const [file, text] of texts) {
+    for (const site of compileSiteWindows(text)) {
+      const at = site.window.indexOf('runForm(')
+      const shape = site.window.slice(0, at).includes('\n') ? 'later' : 'opener'
+      if (!shapes[shape]) shapes[shape] = { file, text, site }
+    }
+  }
+  for (const [shape, hit] of Object.entries(shapes)) {
+    assert.ok(hit, `a test-file-local site with runForm on the ${shape} line exists for the red proof`)
+    const { file, text, site } = hit
+    const dropped = text.slice(0, site.index) + site.window.replace('runForm(', '(') + text.slice(site.index + site.window.length)
+    assert.throws(() => assertTestFilesCompileStaged([[file, dropped]]), new RegExp(`${file.replace(/\./g, '\\.')}:${site.line} compiles a src-derived slice`), `dropping the ${shape}-line runForm at ${file}:${site.line} reds the census`)
+  }
+  const on = probeHarness(true)
+  assert.ok(on.srcRaw, 'the exported src stays the raw template for source-reading tests')
+  assert.ok(on.staged && !on.raw, 'under the flag build() compiles the staged form, not the raw template')
+  assert.ok(on.mutatedStaged, 'under the flag a fixture-mutated source is staged before it runs')
+  const dir = scratch('stage-indent-harness-')
+  const slug = 'harness-probe'
+  const staged = readFileSync(runStager([TEMPLATE, dir, slug, '1']).stdout.trim(), 'utf8')
+    .split(`name: '${deriveName(slug, '1')}'`).join(NAME_ANCHOR)
+    .split(deriveDescription(slug, '1')).join(DESCRIPTION_ANCHOR)
+    .replace(/^export const meta/m, 'const meta')
+  assert.ok(stripRemovedIndent(SHIPPED, staged) > 10000, 'non-vacuity: the stager output is indent-stripped')
+  assert.ok(on.body.includes(staged), 'the executed bytes are the stager\'s staged bytes')
+  const off = probeHarness(false)
+  assert.ok(off.raw && !off.staged, 'without the flag build() compiles the raw template')
+})
+
+// The closed census of workflow-template tests that cannot pass on the staged form and so skip under
+// WAR_TEMPLATE_STRIPPED=1. It is EMPTY: every such test passes on the staged form, because `src`
+// stays raw for the source-reading tests and only execution runs staged. The row is default-deny on
+// two signals: the flag may be read in exactly one place (the harness's STAGED_RUN line), and no
+// `{ skip:` option or `.skip(` call may sit within SKIP_WINDOW lines of a `runForm` or `STAGED_RUN` read
+// (a skip keyed on `runForm(src) !== src` names no flag). A test that starts skipping on either
+// signal reds here until it joins this census with its own `indent-strip: census …` row. The skip
+// scan is a helper over `[file, lines]` pairs, so its red proofs run on synthetic sources: at the
+// pin no live test file carries a `.skip(` or `{ skip:` at all, and the live assertion alone is a
+// match against an empty result.
+const STAGED_SKIP_CENSUS = []
+const SKIP_WINDOW = 3
+const skipsNearStaged = (sources) => sources.flatMap(([f, lines]) => lines.flatMap((line, i) =>
+  (/\{\s*skip\s*:|\.skip\(/.test(line) && lines.slice(Math.max(0, i - SKIP_WINDOW), i + SKIP_WINDOW + 1).some((l) => /runForm|STAGED_RUN/.test(l))) ? [`${f}:${i + 1}: ${line.trim()}`] : []))
+test('indent-strip: census of tests skipped on the staged form is closed', () => {
+  const files = readdirSync(HERE).filter((f) => /^workflow-template\..+\.test\.mjs$/.test(f) || f === 'workflow-template.test-harness.mjs').sort()
+  assert.ok(files.length > 10, `non-vacuity: ${files.length} template test files scanned`)
+  const sources = files.map((f) => [f, readFileSync(join(HERE, f), 'utf8').split('\n')])
+  const reads = sources.flatMap(([f, lines]) => lines.filter((line) => line.includes('WAR_TEMPLATE_STRIPPED') && !/^\s*\/\//.test(line)).map((line) => `${f}: ${line.trim()}`))
+  assert.deepEqual(reads, ["workflow-template.test-harness.mjs: const STAGED_RUN = process.env.WAR_TEMPLATE_STRIPPED === '1'"], 'the flag is read only by the harness switch, so no test skips under it')
+  assert.deepEqual(skipsNearStaged(sources), [], `no \`{ skip:\` or \`.skip(\` sits within ${SKIP_WINDOW} lines of a runForm or STAGED_RUN read, so no test skips on another staged-form signal`)
+  assert.deepEqual(STAGED_SKIP_CENSUS, [], 'no test is skipped on the staged form')
+})
+// Red proofs for the skip scan on synthetic sources, one per arm the scan branches on: the `{ skip:`
+// option beside a STAGED_RUN read, the `.skip(` call under a runForm call at the window's last line
+// and one line past it (the boundary, zero hits), the same pair with the runForm call under the skip
+// (the window reads both ways), a skip with no signal near it (zero hits, so the skip pattern alone
+// is not a hit), and a signal with no skip near it (zero hits).
+test('indent-strip: skip-signal scan lists a skip near a staged-form signal and nothing past the window', () => {
+  const pad = (n) => Array.from({ length: n }, (_, k) => `  const pad${k} = ${k}`)
+  const optionSkip = ['f.mjs', ["test('x', { skip: STAGED_RUN }, () => {})"]]
+  assert.deepEqual(skipsNearStaged([optionSkip]), ["f.mjs:1: test('x', { skip: STAGED_RUN }, () => {})"], 'a `{ skip: STAGED_RUN }` option on the same line as the signal is one hit')
+  const skipUnder = (gap) => ['g.mjs', ['const fn = runForm(src)', ...pad(gap - 1), "test.skip('y', () => {})"]]
+  assert.deepEqual(skipsNearStaged([skipUnder(SKIP_WINDOW)]), [`g.mjs:${SKIP_WINDOW + 1}: test.skip('y', () => {})`], `a \`.skip(\` call ${SKIP_WINDOW} lines under a runForm call is one hit, the window's last line`)
+  assert.deepEqual(skipsNearStaged([skipUnder(SKIP_WINDOW + 1)]), [], `a \`.skip(\` call ${SKIP_WINDOW + 1} lines under a runForm call is zero hits, the window boundary`)
+  const skipOver = (gap) => ['j.mjs', ["test.skip('y', () => {})", ...pad(gap - 1), 'const fn = runForm(src)']]
+  assert.deepEqual(skipsNearStaged([skipOver(SKIP_WINDOW)]), ["j.mjs:1: test.skip('y', () => {})"], `a \`.skip(\` call ${SKIP_WINDOW} lines over a runForm call is one hit, the window reads forward too`)
+  assert.deepEqual(skipsNearStaged([skipOver(SKIP_WINDOW + 1)]), [], `a \`.skip(\` call ${SKIP_WINDOW + 1} lines over a runForm call is zero hits, the forward boundary`)
+  assert.deepEqual(skipsNearStaged([['h.mjs', [...pad(2), "test.skip('z', () => {})", ...pad(2)]]]), [], 'a `.skip(` call with no signal within the window is zero hits')
+  assert.deepEqual(skipsNearStaged([['i.mjs', ['const fn = runForm(src)', ...pad(SKIP_WINDOW + 2)]]]), [], 'a signal with no skip near it is zero hits')
+})
+
 // (q) Size floor (#2099). Matchers anchor on narrow fragments built from the imported constant
 // (spec §8 — never the full message bytes, never a hand-copied number). Arms: an over-cap fresh
 // stage exits non-zero, names both contributing sizes, writes nothing; comment bytes do not count;
@@ -721,7 +1199,7 @@ test('(q) over-cap fresh stage: exits non-zero, names the sizes, writes nothing;
   const over = runStager([padFixture(dir, 'padded.js', SCRIPT_BYTE_CAP), dir, 'cap-slug', '1'], { expectFail: true })
   assert.notEqual(over.status, 0, 'an over-cap staged copy must not exit 0')
   assert.match(over.stderr, CAP_FRAGMENT)
-  assert.match(over.stderr, /comment-stripped template \d+ bytes/)
+  assert.match(over.stderr, /\(stripped template \d+ bytes;/, 'the size floor labels the comment- and indent-stripped size as the stripped template')
   assert.match(over.stderr, /embedded args 0 bytes/)
   assert.ok(!existsSync(join(dir, deriveName('cap-slug', '1') + '.js')), 'nothing is written on refusal')
 

@@ -2,7 +2,7 @@
 
 The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) for evicted and
 born-cold glossary bodies (the glossary was `CONTEXT.md` until #2636 moved it to `GLOSSARY.md`). Each evicted body below was byte-identical to its pre-eviction
-`CONTEXT.md` text **at eviction time** (only repo-root-relative links were re-anchored for this file's
+`CONTEXT.md` text (`GLOSSARY.md` text for wave 7) **at eviction time** (only repo-root-relative links were re-anchored for this file's
 depth), moved under an additive per-term heading — and the glossary keeps the `**Term**:` heading plus
 one fixed-shape trigger pointer (`when <trigger>, read skills/war/references/glossary-cold.md`).
 A born-cold body is authored here first and has no pre-eviction text to match (waves 5 and 6): `GLOSSARY.md`
@@ -10,7 +10,7 @@ holds only its `**Term**:` heading plus the same trigger pointer. One
 pointer may carry several terms when a whole cold cluster leaves together (wave 4). Prose
 temperature is branch
 frequency (ADR 0042): these are cold but still authoritative — never delete a body; evict more the
-same way. **Coldness criterion** (one standing criterion; selections for waves 1-3 and 5 are recorded in
+same way. **Coldness criterion** (one standing criterion; selections for waves 1-3, 5 and 7 are recorded in
 the D32 row's comments in `skills/war/assets/skill-doc-contracts.test.mjs`, which pins those
 GLOSSARY.md pointers to their bodies here — wave 4's bodies are deliberately unpinned, selected for
 carrying no live drift-guard key; wave 6's four born-cold merge-provenance bodies are pinned instead by
@@ -608,3 +608,26 @@ mismatch shows after the fact; refusing a mismatched launch is filed, not built 
 `launch-identity.md` (#2485 D22).
 _Avoid_: recovering a run from a different installed version or a local checkout; reusing the
 recovered launch's `runId` (a recovery still mints a fresh one).
+
+## Relaunch attempt
+
+One Workflow run of a phase that a prior run of the same phase did not finish — a `resumeFromRunId`
+retry or a recovery relaunch. Each attempt has its own `workflowRunId` + `transcriptDir` when the
+launch envelope surfaces a fresh run id (a relaunch that repeats the prior id archives nothing; the
+transcript dir's basename is the run id); the run manifest overwrites the pair **together**, archives
+the died attempt under `attempts[]`, and sums dispatch counts across attempts (the shape lives in
+`skills/war/references/run-manifest.md` § Relaunch).
+_Avoid_: overwriting one field of the pair; dropping a died attempt's counts; reading the manifest
+on resume (it is telemetry, never resume input).
+
+## stranded upstream
+
+A local WAR branch's tracking ref pinned at the worker's pre-rebase remote SHA — the refiner
+rebases task branches locally in the serial merge queue and **never force-pushes**, so the tracked
+remote ref never advances to the rebased tip that lands. Makes `git branch -d` check
+merged-into-upstream and refuse a branch whose content is already in master. Recovery, only after
+the gate passes on the **local SHA**: `git branch --unset-upstream <branch>` then `git branch -d <branch>` (restoring
+git's own merged-into-HEAD check), never `-D`; a needs-human outcome after the unset restores
+tracking (`git branch -u`).
+_Avoid_: reading the `-d` refusal as an unmerged-work signal; escalating to `-D` in a default-mode
+sweep.

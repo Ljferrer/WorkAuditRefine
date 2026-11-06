@@ -1,7 +1,8 @@
 ---
 name: workflow-template-growth-is-capped-by-the-staged-copy-headroom-floor-not-just-file-size
 description: "workflow-template.js growth is bounded by stage-workflow.test.mjs's stripped-copy + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP floor, a file this task never touches"
-metadata: 
+metadata:
+  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-13
   node_type: memory
   type: project
   provenance: code-verified
@@ -18,13 +19,14 @@ metadata:
     - Workflow tool scriptPath cap
     - release risk
     - card headroom
+    - indent strip
   tags: 
     - engine
     - budget
     - release
   created: 2026-09-08
   originSessionId: e8da971f-dacd-4f27-a998-5f603270dabe
-  modified: 2026-09-09T02:59:29.888Z
+  modified: 2026-11-05T06:04:36.408Z
 ---
 
 # `workflow-template.js` growth is arbitered by a stripped-copy headroom floor in a sibling test file, not by the engine file's own size
@@ -65,3 +67,10 @@ a standing release risk: track the trend, not just the latest diff's delta, sinc
 shared across the whole file's history, not reset per phase.
 
 > archived 2026-10-27: resolved — moved to archive
+
+**Update (2026-11-04, plan 2026-11-04-late-defects-fixed-in-run phase 1, code-verified).**
+The literal above is stale: `ARGS_HEADROOM_BYTES` is now `121856` (119 KiB) in `skills/war/assets/stage-workflow.test.mjs`.
+The floor check `bytes + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP` still exists, and `SCRIPT_BYTE_CAP` is still 524288 in `skills/war/assets/stage-workflow.mjs`.
+`stripFullLineComments` now also drops the leading indent of top-level code lines (#2613), so the staged copy is smaller than a comment-only strip.
+Read in the run's `_refinery` worktree at 6c4f0f4e, the gate-audited sha whose tree the land merge 99d325fd keeps.
+See [[the-staged-form-execution-run-is-not-in-the-repo-gate]].

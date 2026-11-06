@@ -75,6 +75,14 @@ sanctioned surface for both display identity and approved stage injection.**
    doctrine: `skills/war/references/staged-script.md`; arbiter: `stage-workflow.test.mjs` arms
    (p), (q) and (r).
 
+   **Amendment (2026-11-04, #2613, plan `2026-11-04-late-defects-fixed-in-run` Task 1.1):** append-only,
+   the sentences above stay byte-intact. The strip also drops the leading spaces and tabs of every
+   line that starts in the top-level code frame. A line that starts in a string continuation, a
+   template literal, a `${…}` body or a block comment keeps every byte, and no line is removed, so the
+   line count is unchanged. A `--force` restage (decision 3's amendment) is therefore a fresh comment-
+   and indent-stripped substitution. Arbiter: `stage-workflow.test.mjs` arm (s) joins arms (p), (q)
+   and (r).
+
 3. **Write-if-absent, with an explicit `--force` restage.** If the derived staged path already exists,
    the stager leaves it **byte-untouched**, prints its absolute path, and exits 0 — the existing file
    *is* the run's script. This is deliberate, not an oversight: an operator may have hand-edited the

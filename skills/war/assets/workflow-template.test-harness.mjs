@@ -54,16 +54,21 @@ import { dirname, join, resolve as resolvePath } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS } from './land-decision.mjs'
+import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS, FINDING_CLASSES } from './land-decision.mjs'
 import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS, SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES, MODELS, MODEL_RANK, EFFORTS, AUDITOR_TIERS } from './war-config.mjs'
 import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS } from './assert-args-complete.mjs'
 import { MANIFEST_PATH_TEMPLATE, MANIFEST_KEYS } from './target-artifacts.mjs'
+import { stripFullLineComments } from './stage-workflow.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
 // (auditor-evict, D16) the references home of the evicted `execution-evidence` gate-audit checklist —
 // every assert that reads a checklist DUTY reads this file; heading + trigger pointer stay on the card.
 const gateAuditChecklistMd = readFileSync(join(here, '../references/gate-audit-checklist.md'), 'utf8')
+// (late-defects Task 2.1, ADR 0042) the references home of the evicted stale-looking-but-correct
+// calibration block and the born-cold finding-class doctrine — the calibration asserts that read the
+// standing rule bodies read this file; the heading + trigger pointer stay on the card.
+const findingClassMd = readFileSync(join(here, '../references/finding-class.md'), 'utf8')
 // UNION surface (prompt-surface simplification, adjudication I): Task 3.1 evicted the guard-contract
 // teach prose from the card into this reference file — every OLD-absent key over the card scans it too.
 const auditorTeachMd = readFileSync(join(here, '../references/auditor-teach.md'), 'utf8')
@@ -94,8 +99,30 @@ const fixtureContentId = (repo, base, tip) => {
   return r.stdout.trim()
 }
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+// WAR_TEMPLATE_STRIPPED=1 (plan 2026-11-04-late-defects-fixed-in-run, Task 1.1): every site in this
+// harness that compiles template code (build, inlineHelpers, makeDispatch, registrySlice, grabSchema,
+// mergeResultSchema) runs the STAGED form — stage-workflow.mjs's stripFullLineComments of the code it
+// was handed — so the engine suites prove the bytes a /war phase dispatches. The exceptions are the
+// pt-literal evaluators evalPt and evalTemplateConst: they evaluate a pt literal, whose bytes the strip
+// never moves (stage-workflow.test.mjs oracle (b)), so they compile the raw slice. `src` stays the raw
+// template either way: the source-reading tests read comments and indent from it. A fixture that
+// mutates `src` for a delete-and-trace control mutates the raw text, and the mutated copy is staged
+// when it runs. The staged form of `src` itself is computed once; a mutated copy is staged on each
+// build. stage-workflow.test.mjs row `indent-strip: harness runs the staged form` proves the executed
+// bytes and holds the census of these compile sites (a new site must wrap runForm or join its exempt list).
+// runForm is exported: a test-file-local compile of a src-derived slice (an engine slice, an extracted
+// arrow, a regex literal) wraps it too, and the same row's census over every workflow-template.*.test.mjs
+// file holds those sites to it (no exempt list there: no test-local site evaluates a pt literal).
+const STAGED_RUN = process.env.WAR_TEMPLATE_STRIPPED === '1'
+let stagedSrc = null
+const runForm = (code) => {
+  if (!STAGED_RUN) return code
+  if (code !== src) return stripFullLineComments(code)
+  if (stagedSrc === null) stagedSrc = stripFullLineComments(src)
+  return stagedSrc
+}
 // `source` defaults to the live template; a fixture passes a mutated copy for a delete-and-trace control.
-const build = (source = src) => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', source)
+const build = (source = src) => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', runForm(source))
 
 // --- Behavioral harness (mirrors red-team workflow-scaffold.test.mjs) ----------------------
 // Run the template with a mock `agent` that records every { prompt, opts } in call order, plus a
@@ -120,6 +147,10 @@ const NEW_SEAT_DEFAULTS = {
   // refiner returns.
   'ace-gate': (prompt) => ({ gate_green: true, head_sha: (String(prompt).match(/at the ace tip ([0-9a-f]{7,40})/) || [])[1] }),
   'pin-transfer': { status: 'error' },
+  // late-defects T5.1: the base gate at the pre-ace tip answers green (so a red ace gate keeps the red
+  // arm), and the pre-ace probe answers 'no' (so a regressed re-audit keeps today's arms).
+  'ace-base-gate': (prompt) => ({ gate_green: true, head_sha: (String(prompt).match(/at the pre-ace tip ([0-9a-f]{7,40})/) || [])[1] }),
+  'pre-ace-probe': { exists: 'no', evidence: 'harness default' },
   'audit-pin': prompt => {
     const reported = fixturePinRequest(prompt)
     return reported.length && reported.every(x => typeof x === 'string' && /^[0-9a-f]{7,40}$/.test(x))
@@ -205,7 +236,7 @@ const isHexSha = s => typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s)
 const fixtureTree = name => createHash('sha1').update('tree:' + name).digest('hex')
 const branchOfPrompt = prompt => (String(prompt).match(/\(branch ([^,)\s]+)/) || [])[1] || null
 const FIXTURE_REF_TIP = 'feed0000'.padEnd(40, '0')
-const NEW_SEAT_KINDS = ['ace-gate', 'pin-transfer', 'diff-probe', 'pin-confirm', 'pin-snapshot', 'target-reconcile', 'merge-confirm', 'merge-snapshot', 'merge-reconcile', 'audit-pin', 'tip-probe', 'ace-revert']
+const NEW_SEAT_KINDS = ['ace-gate', 'ace-base-gate', 'pre-ace-probe', 'pin-transfer', 'diff-probe', 'pin-confirm', 'pin-snapshot', 'target-reconcile', 'merge-confirm', 'merge-snapshot', 'merge-reconcile', 'audit-pin', 'tip-probe', 'ace-revert']
 
 // Scripted Git proof for neutral flow fixtures; real Git integrity tests supply their own
 // independent resolver and raw responses. This helper never changes worker/auditor responses.
@@ -268,7 +299,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
 
 const seatOf = (opts) => (opts.agentType || '').split(':').pop()
 const defaultImpl = (prompt, opts) => {
-  if (opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin' || opts.dispatchKind === 'tip-probe' || opts.dispatchKind === 'ace-revert') return answerNewSeat({}, prompt, opts)
+  if (opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin' || opts.dispatchKind === 'tip-probe' || opts.dispatchKind === 'ace-revert' || opts.dispatchKind === 'ace-base-gate' || opts.dispatchKind === 'pre-ace-probe') return answerNewSeat({}, prompt, opts)
   const seat = seatOf(opts)
   // Provision dispatches now return the ENV_OUTCOME shape: the git-topology barrier
   // (dispatchKind 'provision-barrier') AND the per-task provision-run (dispatchKind 'provision-run')
@@ -278,6 +309,8 @@ const defaultImpl = (prompt, opts) => {
   // (Tested BEFORE the generic refiner branch below.)
   if (seat === 'war-refiner' && (opts.dispatchKind === 'provision-barrier' || opts.dispatchKind === 'provision-run')) return { ok: true }
   if (seat === 'war-refiner' && opts.dispatchKind === 'polish-worktree') return { ok: true }
+  // The late-fix worktree (late-defects PIN-13) shares the polish worktree's env-outcome provision.
+  if (seat === 'war-refiner' && opts.dispatchKind === 'late-fix-worktree') return { ok: true }
   if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
   // Every SEAT_AGENT_TYPES member answers as an auditor: an evidence seat dispatched under its own
   // agentType (End state 11) gets a verdict here, not {}.
@@ -318,7 +351,9 @@ const idx = (calls, pred) => calls.findIndex(pred)
 const isProvision = (c) => c.opts.dispatchKind === 'provision-barrier'
 const isWorker = (c) => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Work'
 const isFixWorker = (c) => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Audit'
-const isAuditor = (c) => seatOf(c.opts) === 'war-auditor'
+// The pre-ace probe (late-defects T5.1) is a war-auditor seat that answers { exists, evidence }, never a
+// verdict, so it is no audit dispatch here; its own rows find it by dispatchKind 'pre-ace-probe'.
+const isAuditor = (c) => seatOf(c.opts) === 'war-auditor' && c.opts.dispatchKind !== 'pre-ace-probe'
 const isServitor = (c) => seatOf(c.opts) === 'war-servitor'
 
 // --- Part B: per-task run.provision execution in the refiner barrier ------------------------
@@ -349,7 +384,7 @@ const isProvisionTopology = (c) =>
 // discriminator, never a label-prefix regex.
 // #1937: the exclusion list is a completeness claim, so the census test below derives the real set
 // from the template source and fails when a new Refine-phase refiner dispatch is added without it.
-const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check', 'terminal-revert', 'pin-confirm', 'pin-snapshot', 'target-reconcile', 'merge-confirm', 'merge-snapshot', 'merge-reconcile']
+const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'late-fix-worktree', 'evidence', 'endstate-check', 'terminal-revert', 'pin-confirm', 'pin-snapshot', 'target-reconcile', 'merge-confirm', 'merge-snapshot', 'merge-reconcile']
 const isMergeTask = (c) =>
   seatOf(c.opts) === 'war-refiner' && c.opts.phase === 'Refine' &&
   !MERGE_TASK_EXCLUDES.includes(c.opts.dispatchKind)
@@ -766,7 +801,9 @@ const CALIBRATION_SHARED = 'judge on evidence only — never soften, downgrade, 
 const COST_CLAIM_SHARED = 'a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.'
 
 // Task 1.4 — Stale-looking-but-correct calibration (spec criterion 4/5, ADR 0030): the four rule
-// bodies live in agents/war-auditor.md AND are mirrored into auditPrompt(). Anchor on ONE
+// bodies live in skills/war/references/finding-class.md (evicted byte-identical from the
+// agents/war-auditor.md subsection, late-defects Task 2.1, ADR 0042) AND are mirrored into
+// auditPrompt(). The standing surface the asserts read is findingClassMd. Anchor on ONE
 // casing/position-stable MID-SENTENCE phrase per rule (never a quote/backtick-bearing byte literal —
 // shared-string-constant-quote-literal-byte-anchor-fragility) and assert it on BOTH surfaces, so the
 // test fails if EITHER surface drops a rule. Plus a floor-lock: each rule retains its
@@ -782,8 +819,9 @@ const CALIBRATION_RULE_ANCHORS = [
 // anchor i searched from anchor i-1's match end — so a rule REORDER surfaces as a distinct
 // 'anchor-missing' status (the out-of-order anchor is not found searching forward), never as a
 // mis-sliced window misread as qualifier drift. Window i = [anchor i start, anchor i+1 start); window
-// 4 runs to the first `\n#` heading after anchor 4, else end-of-text — so on the standing card window 4
-// deliberately spans rule 5's qualifier-free line (it stops before `## Verdict`), and on the isolated
+// 4 runs to the first `\n#` heading after anchor 4, else end-of-text — so on the standing surface
+// (finding-class.md, where the moved block ends the file) window 4 deliberately spans rule 5's
+// qualifier-free line to end-of-text, and on the isolated
 // dispatched line (no `\n#`) it stops at the clause end. Per rule the helper returns { status: 'ok' |
 // 'qualifier-missing' | 'anchor-missing', anchor, start, end }; the [start,end) offsets feed the
 // companion mutation test's window-scoped splice surgery. It never throws — anchor PRESENCE is the
@@ -1043,7 +1081,7 @@ const crossTaskImpl = (prompt, opts) => {
 // #990 — the LANDED-TIP ANCHOR is hoisted above the Wrap-up gate and THREADED into the servitor
 // prompt. Same computation the handoff block used to own (the test above pins its semantics
 // unchanged); these three pin the RENDERED value at each rung of its fallback chain:
-// landed working_sha → lastLandedTip (the last task merge commit) → the named placeholder. The placeholder rung is the
+// landed working_sha → lastLandedTip (the last task merge commit or merged late-fix tip) → the named placeholder. The placeholder rung is the
 // ADR 0034 proof: `pt` throws on undefined, so the null case must be pre-resolved BEFORE interpolation.
 // ---------------------------------------------------------------------------
 const TIP_PLACEHOLDER = /landed tip unrecorded — ground via the gate-audit auditSha entries in your audit-log input/
@@ -1466,7 +1504,7 @@ const inlineHelperBlock = (() => {
   return { ok: s !== -1 && e > s, block: s !== -1 && e > s ? src.slice(s, e) : '' }
 })()
 const inlineHelpers = (agents = {}) =>
-  new Function('agents', inlineHelperBlock.block + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, AUDITOR_TIER_DEFAULTS, isDocsTask, resolveGate }')(agents)
+  new Function('agents', runForm(inlineHelperBlock.block) + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, AUDITOR_TIER_DEFAULTS, isDocsTask, resolveGate }')(agents)
 
 const AGENTS_FIXTURES = [
   {},                                                                          // all omitted → ROLE_MODEL/DEFAULTS fallback
@@ -1811,7 +1849,7 @@ const DU_LOG = '/abs/repo/.claude/worktrees/run-1/_refinery/.war/done-when-t1.lo
 // auditPrompt(), so MOST base auditPrompt clauses never reach them; they inherit those shared
 // directives only via the standing card. The exceptions are adjudicationClause (a module-level const
 // concatenated onto both auditPrompt AND the three gate-audit-family seats directly) and the
-// evidence-precedence skeleton (ADR 0041, inlined at auditPrompt AND all three seats), so those rules
+// evidence-precedence skeleton (ADR 0041, the EVIDENCE_PRECEDENCE_CLAUSE const at auditPrompt AND all three seats), so those rules
 // reach the seats without the card — the rows below still assert the card too.
 // ponytail: this registry IS the deliberate ceiling — a new both-surfaces directive lands its row here in
 // the same task (the /war-strategy new-mirror authoring rule), never an AST scanner.
@@ -2228,9 +2266,9 @@ const dispatchBlock = (() => {
   return m ? m[0] : null
 })()
 const makeDispatch = (agent, maxParallel) => new Function('agent', 'maxParallel', `
-  ${semBlock}
+  ${runForm(semBlock)}
   const dispatchSemaphore = makeSemaphore(maxParallel)
-  ${dispatchBlock}
+  ${runForm(dispatchBlock)}
   return { dispatch, dispatchSemaphore }
 `)(agent, maxParallel)
 
@@ -2299,6 +2337,10 @@ const BARE_INTERPOLATION_CENSUS = [
   // re-entry tip (the tip probe's tip_sha, isSha-checked by usableTipProbe), construction-guaranteed
   // a string.
   'aceTipSha',
+  // preAceSha (late-defects T5.1): the ace base gate's and the pre-ace probe's pre-ace tip — r.preAceSha,
+  // set from approvedShaOf at the batch dispatch and read only behind an isSha guard (the base gate) or
+  // on the regressed batch arm, whose re-audit pinned it — construction-guaranteed a string.
+  'preAceSha',
   // aceCharge (absorb-budget, D5): the `Ace-Charge: <task>:<n>` trailer value at the three ace-side
   // commit prompts — concatenation-built from r.task.id (entry-validated) and r.task.absorbRounds
   // (barrier-seeded, then integer-guarded at the wave thunk) — construction-guaranteed a string.
@@ -2315,6 +2357,12 @@ const BARE_INTERPOLATION_CENSUS = [
   // seeded integer counter) and the terminal tip probe's tip_sha (isSha-checked by usableTipProbe)
   // before the prompts that interpolate it are built — both construction-guaranteed strings.
   'terminalCharge', 'terminalSha',
+  // The late-fix pass (late-defects PIN-13/PIN-25): tipWorktreeProvision's params (provWhat a literal or a
+  // pt-built phrase at both callers, provWorktree/provBranch the polish or late-fix path pair, each
+  // concatenation-built from fallback-guarded parts), and the pass's locals — lfOriginId (an
+  // entry-validated task id), lfRound (an integer), lfWorktree/lfBranch (concatenation-built) and lfPrior
+  // (a string, ternary-gated at its one span) — all construction-guaranteed strings or integers.
+  'provWhat', 'provWorktree', 'provBranch', 'lfOriginId', 'lfRound', 'lfWorktree', 'lfBranch', 'lfPrior',
   'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
   'r.task.worktree', 'r.unsupported', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
   's.seat', 's.verdict', 'submodLandTask.targetRepo', 'submodPath', 't.id', 'task.branch',
@@ -2452,14 +2500,14 @@ const registrySlice = (runOverride = {}) => {
   const sliceEnd = src.indexOf('const allApprove')
   assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the dispositionOf→allApprove registry slice is locatable')
   // aceRelPath is declared inside the slice (file scope, below askContentKey); RELEASE_SLOT_FILES /
-  // BARRIER_TOKENS / DEMOTE_REASONS are the module-top mirrors — injected as the canonical exports
+  // BARRIER_TOKENS / DEMOTE_REASONS / FINDING_CLASSES are the module-top mirrors — injected as the canonical exports
   // (the D2 registry rows deepEqual them).
-  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS',
-    src.slice(sliceStart, sliceEnd)
+  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'carriedTasks', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS', 'FINDING_CLASSES',
+    runForm(src.slice(sliceStart, sliceEnd))
     + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, mergeSeat, seatsListOf, normalizeFinding, normalizeSeat, queuedKeys, liveTaskRecords, diffFilesByTask, dispositionOf, intakeFloor, demote }')
-  const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [] }
+  const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [], carriedTasks: [] }
   const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
-  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true, ...runOverride }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
+  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, state.carriedTasks, minorsOf, { ace: true, ...runOverride }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS, FINDING_CLASSES)
   return { ...state, ...api }
 }
 
@@ -2570,9 +2618,10 @@ const grabSchema = (name) => {
   const j = src.indexOf('{', i)
   for (let k = j; k < src.length; k++) {
     if (src[k] === '{') d++
-    // The literal references the inline BARRIER_TOKENS mirror (barrier-list, D1) — bound here from the
-    // canonical export (the D2 mirror registry deepEquals the two).
-    if (src[k] === '}') { d--; if (d === 0) return new Function('BARRIER_TOKENS', 'return (' + src.slice(j, k + 1) + ')')(BARRIER_TOKENS) }
+    // The literal references the inline BARRIER_TOKENS mirror (barrier-list, D1) and the inline
+    // FINDING_CLASSES mirror (finding-class, late-defects D24) — bound here from the canonical exports
+    // (the D2 mirror registry deepEquals each pair).
+    if (src[k] === '}') { d--; if (d === 0) return new Function('BARRIER_TOKENS', 'FINDING_CLASSES', 'return (' + runForm(src.slice(j, k + 1)) + ')')(BARRIER_TOKENS, FINDING_CLASSES) }
   }
   throw new Error('unbalanced ' + name)
 }
@@ -2639,6 +2688,8 @@ const p4Base = ({ queued = [], gate = [], evidence = null, worker = null, seatsO
   const seat = seatOf(opts), label = opts.label || ''
   if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
   if (seat === 'war-refiner' && /^polish-worktree:/.test(label)) return { ok: true }
+  // The late-fix worktree (late-defects PIN-13) shares the polish worktree's env-outcome provision.
+  if (seat === 'war-refiner' && opts.dispatchKind === 'late-fix-worktree') return { ok: true }
   if (seat === 'war-refiner' && /^evidence:/.test(label)) return evidence ?? { perTask: [] }
   if (seat === 'war-worker') {
     const w = worker && worker(label)
@@ -2742,11 +2793,42 @@ const terminalCalls = calls => calls.filter(c => (c.opts.label || '') === 'termi
 const carriedOf = (out, title) => (out.carriedPhaseClose || []).find(f => f && f.title === title)
 
 // ===========================================================================
+// LATE-FIX PASS (plan 2026-11-04-late-defects-fixed-in-run, Task 3.1; PIN-5/PIN-8/PIN-13/PIN-20/PIN-25).
+// LATE_FIX_ARGS: one task t1 that owns src/a.js. lateFixImpl answers the gate-audit-family seats with
+// `gaFindings` under `gaVerdict` (the per-task seat, or the end-state-only seat on a requiresTest:false
+// task), the late-fix worker (head_sha abcdef<round>), the late-fix re-audit (request_changes for its
+// first `rejects` rounds), and the late-fix merge (`mergeStatus`); every other seat rides defaultImpl.
+// GA_MAJOR replays AutoIndex f65e7e37: a gate-audit request_changes with one Major and a full fix.
+// ---------------------------------------------------------------------------
+const GA_MAJOR = (over = {}) => ({ severity: 'Major', title: 'mapped test never ran', file: 'src/a.test.js', line: 3,
+  rationale: 'src/a.test.js is in the diff but the captured gate log never executes it', suggested_fix: 'add src/a.test.js to the gate breadth list so the gate runs it', ...over })
+const LATE_TASK = (over = {}) => ({ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], files: ['src/a.js'], ...over })
+const LATE_FIX_ARGS = (over = {}) => PROVISION_ARGS({ tasks: [LATE_TASK()], ...over })
+const isLateFixWorker = c => /^late-fix:/.test(c.opts.label || '')
+const lateFixImpl = ({ gaFindings = [GA_MAJOR()], gaVerdict = 'request_changes', rejects = 0, mergeStatus = 'merged' } = {}) => {
+  let reaudits = 0, round = 0
+  return (prompt, opts) => {
+    const label = opts.label || ''
+    if (/^gate-audit:/.test(label)) return { seat: label, lens: 'execution-evidence', verdict: gaVerdict, findings: gaFindings, confidence: 'high' }
+    if (/^late-fix:/.test(label)) return { task_id: 't1', status: 'implemented', head_sha: 'abcdef' + (++round), tests: { unit: 1 } }
+    if (/^audit:p\d+-latefix-/.test(label)) {
+      return ++reaudits <= rejects
+        ? { seat: label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+            findings: [{ severity: 'Major', title: 'fix incomplete', file: 'src/a.js', rationale: 'the breadth list still misses it', suggested_fix: 'add the missing row' }] }
+        : { seat: label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (/^merge:p\d+-latefix-/.test(label)) return { mode: 'merge-task', status: mergeStatus, integration_sha: '3'.repeat(40) }
+    return defaultImpl(prompt, opts)
+  }
+}
+
+// ===========================================================================
 // FIX-ROUND DOCTRINE (#2097, engine-and-audit-verdict-integrity Task 1.4, D24/PIN-27) — the
 // `## The rules` section of skills/war/references/fix-round-doctrine.md is the canonical body; the
 // enumerated fix-applying builds (FIX_NEEDED, ACE BISECTION SUBSET, ACE RE-ENTRY BATCH, the batch ace
 // ADVISORY POLISH (--ace) build, the PHASE-CLOSE COHERENCE SWEEP build and the TERMINAL PASS build,
-// per the #2127 ruling) interpolate ONE shared constant carrying it byte-equal. The floor family
+// per the #2127 ruling, and the LATE-FIX PASS build, late-defects Task 3.1) interpolate ONE shared
+// constant carrying it byte-equal. The floor family
 // stays out, because the ruling names only these builds. The first-pass worker prompt and the
 // auditor prompts carry nothing.
 // Controls: a delete-and-trace per build (drop that build's interpolation ⇒ its prompt loses the
@@ -2780,6 +2862,10 @@ const FIX_APPLYING_BUILDS = [
   { site: 'TERMINAL PASS prompt', head: 'pt`TERMINAL PASS for WAR phase',
     run: (source) => runPhase(SWEEP_ARGS(), terminalImpl(), {}, source),
     find: (c) => c.find(x => (x.opts.label || '') === 'terminal:phase-3') },
+  // late-defects Task 3.1: the late-fix pass worker (no backward-chain clause, so no CHAIN_FIX_BUILDS row).
+  { site: 'LATE-FIX PASS prompt', head: 'pt`LATE-FIX PASS for WAR task',
+    run: (source) => runPhase(LATE_FIX_ARGS(), lateFixImpl(), {}, source),
+    find: (c) => c.find(x => /^late-fix:t1:/.test(x.opts.label || '')) },
 ]
 // Drop the interpolation line at ONE build only: the first `+ FIX_ROUND_DOCTRINE_CLAUSE` after that
 // build's head string. The census below proves the mutation targets exactly one site.
@@ -3111,8 +3197,8 @@ const evidenceCardMd = readFileSync(join(here, '../../../agents/war-evidence-aud
 const isEvidenceSeat = c => seatOf(c.opts) === 'war-evidence-auditor'
 const reaLoudLines = logs => logs.filter(l => typeof l === 'string' && /^REA ARTIFACT EVIDENCE OFF \(loud\):/.test(l))
 const promptsOf = calls => calls.map(c => stableGatePrompt(String(c.prompt)))
-// The eight worker spawn sites: the primary work dispatch plus the seven fix-applying builds
-// (the CHAIN_FIX_BUILDS fixtures, re-run here with the evidence args threaded). Each `impl` is a
+// The nine worker spawn sites: the primary work dispatch, the seven chained fix-applying builds
+// (the CHAIN_FIX_BUILDS fixtures, re-run here with the evidence args threaded) and the late-fix pass. Each `impl` is a
 // fresh closure per run — several fixtures count rounds internally.
 // `resolved` names whether a task is in scope at the site: the clause then carries the resolved
 // manifest path (REA_RESOLVED_PATH, PROVISION_ARGS planSlug + task t1); the sweep and terminal sites do not.
@@ -3136,6 +3222,8 @@ const REA_WORKER_SITES = [
     find: c => c.find(x => (x.opts.label || '') === 'polish:phase-3'), resolved: false },
   { site: 'terminal pass', args: o => SWEEP_ARGS(o), impl: () => terminalImpl(),
     find: c => c.find(x => (x.opts.label || '') === 'terminal:phase-3'), resolved: false },
+  { site: 'late-fix pass', args: o => LATE_FIX_ARGS(o), impl: () => lateFixImpl(),
+    find: c => c.find(isLateFixWorker), resolved: true },
 ]
 
 // ---------------------------------------------------------------------------
@@ -3377,6 +3465,8 @@ const READER_CENSUS = [
   ['gate-audit seat prompt', /await parallel\(mergedTasksForGateAudit\.map\(\(\{ taskId, gateOutput|const pinStatusLine = pinStatus$|\? pt`\$\{pinStatus\}|the gate ran at gate-HEAD sha \$\{gateHeadSha\}|Gate-HEAD sha \(the rebased task tip the gate ran at|PIN STATUS: \$\{pinStatusLine\}|it should equal the observed tip \$\{observedHead \|\| gateHeadSha\}|the expected gate-HEAD sha \$\{gateHeadSha\}/, 8],
   ['gate-audit entry: pin and expectedPin', /const pin = observedHead \|\| gateHeadSha$|\.\.\.\(mismatch \? \{ pinMismatch: true, expectedPin: pin \} : \{\}\), gateHeadSha, auditSha/, 2],
   ['handoff tipSha fallback (lastLandedTip)', /: \(isSha\(lastLandedTip\) \? lastLandedTip : null\)$/, 1],
+  // late-defects Task 3.1: a merged late fix (a --ff-only merge, so integration_sha is the late-fix tip) moves the tracker.
+  ['lateFixPass: lastLandedTip from a merged late fix', /^\s+if \(isSha\(mr\.integration_sha\)\) lastLandedTip = mr\.integration_sha$/, 1],
   ["auditEvidenceOf's fallback (landedShaByTask)", /const g = auditLog\.find\(e => e && e\.task === t && e\.gateEvidence && typeof e\.gateHeadSha|sha: g \? g\.gateHeadSha : \(landedShaByTask\.get\(t\) \?\? 'unrecorded'\)/, 2],
 ]
 const readerCensusOf = source => {
@@ -3397,7 +3487,7 @@ const mergeResultSchema = () => {
   const literal = src.match(/const\s+MERGE_RESULT\s*=[^]*?(?=\n\n)/)[0]
   const envLit = src.match(/const ENV_OUTCOME = \{[^]*?absorbCharges: \{ type: 'object' \} \} \}\n/)[0]
   const pick = src.match(/const MERGE_PROVISION_KEYS = [^\n]*\nMERGE_RESULT\.properties\.provision = [^]*?\)\) \}\n/)[0]
-  return new Function(literal + '\n' + envLit + pick + 'return { MERGE_RESULT, ENV_OUTCOME }')()
+  return new Function(runForm(literal + '\n' + envLit + pick) + 'return { MERGE_RESULT, ENV_OUTCOME }')()
 }
 
 // ES17 (D18, PIN-18): the barrier's absorb-charge read runs the EXACT dispatched bash spelling against
@@ -3474,13 +3564,16 @@ const provisionSiteCensus = text => {
 }
 const PROVISION_SITE_CENSUS = [
   // the cleanliness sentence: the re-run clause and the provision runs that may touch tracked files
-  // (per-task and _refinery provision-run, the polish worktree provision); depClause and the end-state
+  // (per-task and _refinery provision-run, tipWorktreeProvision for the polish and late-fix worktrees); depClause and the end-state
   // install deliberately carry no row (see the PROVISION_CLEAN_LINE header comment)
   'PROVISION_CLEAN_LINE @ PROVISION_RERUN_CLAUSE',
-  'PROVISION_CLEAN_LINE @ polish-worktree:phase-${ph.id}',
+  'PROVISION_CLEAN_LINE @ tipWorktreeProvision',
   'PROVISION_CLEAN_LINE @ provisionStep',
-  // the twelve refiner gate sites (D15): four merge step (a) copies, the ace-gate check, the integrated-tip
-  // re-run, the polish-sweep and terminal-pass merges, the three land gates and the _refinery base re-run
+  // the refiner gate sites (D15): three merge step (a) copies (the primary merge and the floor-retry
+  // re-merge share one mergeSplitClause, named by the primary label; late-defects T6.1), the ace-gate
+  // check and its pre-ace base check (late-defects T5.1), the integrated-tip re-run, the polish-sweep,
+  // terminal-pass and late-fix merges, the three land gates and the _refinery base re-run
+  'PROVISION_RERUN_CLAUSE @ ace-base-gate:',
   'PROVISION_RERUN_CLAUSE @ ace-gate:',
   'PROVISION_RERUN_CLAUSE @ classificationClause',
   'PROVISION_RERUN_CLAUSE @ evidence:phase-${ph.id}',
@@ -3490,15 +3583,15 @@ const PROVISION_SITE_CENSUS = [
   'PROVISION_RERUN_CLAUSE @ merge:${r.task.id}',
   'PROVISION_RERUN_CLAUSE @ merge:${r.task.id}:baseline-proceed',
   'PROVISION_RERUN_CLAUSE @ merge:${r.task.id}:environment-proceed',
-  'PROVISION_RERUN_CLAUSE @ merge:${r.task.id}:floor-retry:r${r.task.fixRounds}',
   'PROVISION_RERUN_CLAUSE @ merge:p${ph.id}-polish',
   'PROVISION_RERUN_CLAUSE @ merge:p${ph.id}-terminal',
+  'PROVISION_RERUN_CLAUSE @ lateFixPass',
   // the marker: readers (the re-run clause, the dep-wave worker clause) and writers (per-task and _refinery
-  // provision-run, the polish worktree provision, the end-state check install)
+  // provision-run, tipWorktreeProvision for the polish and late-fix worktrees, the end-state check install)
   'PROVISION_TREE_LINE @ PROVISION_RERUN_CLAUSE',
   'PROVISION_TREE_LINE @ depClause',
   'PROVISION_TREE_LINE @ endstate-check:phase-${ph.id}',
-  'PROVISION_TREE_LINE @ polish-worktree:phase-${ph.id}',
+  'PROVISION_TREE_LINE @ tipWorktreeProvision',
   'PROVISION_TREE_LINE @ provisionStep',
 ]
 
@@ -3515,6 +3608,9 @@ const debtSeed = (base, ids = DEBT_IDS) => (prompt, opts) => {
   const label = opts.label || ''
   if (seatOf(opts) === 'war-refiner' && label === 'merge:t1') return { mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ids, gate_base_sha: DEBT_BASE, gate_output: 'pre-existing red' }
   if (seatOf(opts) === 'war-refiner' && label === 'merge:t1:baseline-proceed') return { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe12' }
+  // The merged baseline-proceed queues one baseline late defect (late-defects PIN-12): its late-fix
+  // worktree provisions, so the pass runs and the phase reaches the sweep these rows read.
+  if (seatOf(opts) === 'war-refiner' && opts.dispatchKind === 'late-fix-worktree') return { ok: true }
   return base(prompt, opts)
 }
 // The sweep-family debt clause as the prompt carries it, cut out so the rest compares byte-equal.
@@ -3547,6 +3643,7 @@ export {
   BARRIER_TOKENS,
   RELEASE_SLOT_FILES,
   DEMOTE_REASONS,
+  FINDING_CLASSES,
   spawnOpts,
   validateRoster,
   widenRoster,
@@ -3569,6 +3666,7 @@ export {
   here,
   auditorMd,
   gateAuditChecklistMd,
+  findingClassMd,
   auditorTeachMd,
   refinerMd,
   schemasMdForAbsorb,
@@ -3581,6 +3679,7 @@ export {
   exactGitDiffRecipe,
   fixtureContentId,
   AsyncFunction,
+  runForm,
   build,
   fakeParallel,
   NEW_SEAT_DEFAULTS,
@@ -3850,6 +3949,11 @@ export {
   fixRoundDoctrineMd,
   fixRoundRulesSection,
   FIX_APPLYING_BUILDS,
+  GA_MAJOR,
+  LATE_TASK,
+  LATE_FIX_ARGS,
+  isLateFixWorker,
+  lateFixImpl,
   dropDoctrineAt,
   chainRefMd,
   chainRulesSection,

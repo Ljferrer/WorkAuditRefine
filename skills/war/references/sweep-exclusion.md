@@ -6,6 +6,8 @@ The unbudgeted cold home (ADR 0042) for the Lead duty pointed at from `skills/wa
 
 The phase-close sweep and the terminal pass fix absorb rows in this run. A file that another campaign plan still owns must not be touched here, or that plan rebase-conflicts at its serial merge. The engine builds the sweep-time exclusion set from three sources: this list, the `Files:` of every task not `merged` this phase, and `RELEASE_SLOT_FILES`. The sweep and terminal prompts name these files as the fix-round fence. ADVISORY POLISH builds its own fence from the same three sources at dispatch, less its task's own files, and sends a listed row in a fenced file to the sweep. Only the first source is the Lead's to build. The engine keeps the owning `slug` for the demotion reason (`demote:exclusion-set`, naming the plan slug).
 
+Each entry also carries `mode`: `stacked` or `parallel` (late-defects D19, PIN-19). Under stack-and-plow (ADR 0011) a queued plan has no branch of its own yet, so every ledger entry is `stacked`. A `behavior` row on a stacked-owned file goes to the late-fix pass and is fixed in this run. A `behavior` row on a `parallel`-owned file, a file of a task not `merged` this phase, or a release-slot file demotes `demote:exclusion-set` with the reason stated. A `cosmetic` or classless row on any listed file, stacked included, still demotes `demote:exclusion-set`. A hand-built entry with no `mode` reads `parallel`, and any other `mode` value refuses the launch.
+
 ## When
 
 At **every** per-phase Workflow launch of a run started under a campaign (`--campaign-ordinal <K>` present, or a campaign ledger lists this plan). The set is rebuilt at each launch because sibling plans land between phases. `/war` still never derives its ordinal from a ledger; it reads the ledger only for this contention set.
@@ -18,7 +20,7 @@ The campaign ledger is `$MAIN/.claude/campaigns/<id>/ledger.json` under the **ma
 
 ## Build the list
 
-One entry per ledger plan that is **not this plan** and whose `status` is **not `landed`** (`queued` today, and any other non-landed status a future lifecycle writes). Shape: `[{ slug, files[] }]`, `slug` the entry's `slug`, `files` the re-extracted footprint (repo-relative paths, as the plan writes them, no normalization; the engine `aceRelPath`-normalizes both sides).
+One entry per ledger plan that is **not this plan** and whose `status` is **not `landed`** (`queued` today, and any other non-landed status a future lifecycle writes). Shape: `[{ slug, files[], mode }]`, `slug` the entry's `slug`, `files` the re-extracted footprint (repo-relative paths, as the plan writes them, no normalization; the engine `aceRelPath`-normalizes both sides), and `mode` always `"stacked"` (PIN-22: the one-liner writes it on every entry; the ledger stores no mode).
 
 ```bash
 # $CLAUDE_PLUGIN_ROOT = the plugin root; $LEDGER = the resolved ledger path; $SLUG = this run's planSlug.
@@ -31,12 +33,12 @@ CLAUDE_PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT" node --input-type=module -e '
   const { plans } = JSON.parse(readFileSync(ledger, "utf8"))
   const out = plans
     .filter((p) => p.slug !== slug && p.status !== "landed")
-    .map((p) => ({ slug: p.slug, files: extractFilesFromPlanFile(p.plan) }))
+    .map((p) => ({ slug: p.slug, files: extractFilesFromPlanFile(p.plan), mode: "stacked" }))
   console.log(JSON.stringify(out))
 ' -- "$LEDGER" "$SLUG"
 ```
 
-Thread the printed array **verbatim** as `args.sweepExclude` (through `--args <file>` when the phase args ride the staged script). The engine entry-validates each row (a missing `slug` or a non-string-array `files` refuses the launch, naming the entry index and field), so never hand-edit a row. A non-zero exit means a qualifying entry's plan file is unreadable (`extractFilesFromPlanFile` throws ENOENT). Repair the ledger entry and re-run; never omit the key (that reads as an absent ledger) and never thread an empty list (that reads as a genuinely empty contention set, silently disabling the campaign arm) on a failed run. The step stops with the node error before any output, so never thread a truncated or empty list as though the union were empty.
+Thread the printed array **verbatim** as `args.sweepExclude` (through `--args <file>` when the phase args ride the staged script). The engine entry-validates each row (a missing `slug`, a non-string-array `files`, or a `mode` other than `stacked` or `parallel` refuses the launch, naming the entry index and field), so never hand-edit a row. A non-zero exit means a qualifying entry's plan file is unreadable (`extractFilesFromPlanFile` throws ENOENT). Repair the ledger entry and re-run; never omit the key (that reads as an absent ledger) and never thread an empty list (that reads as a genuinely empty contention set, silently disabling the campaign arm) on a failed run. The step stops with the node error before any output, so never thread a truncated or empty list as though the union were empty.
 
 ## Log lines (one each, at launch)
 

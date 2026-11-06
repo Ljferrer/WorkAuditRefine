@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { decideLand, HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS } from './land-decision.mjs'
+import { decideLand, HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS, FINDING_CLASSES } from './land-decision.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const readAsset = (rel) => readFileSync(join(HERE, rel), 'utf8')
@@ -61,6 +61,15 @@ test('budget-uncited is a hard escalation reason (D6, ADR 0005: an uncited ceili
   assert.ok(HARD_ESCALATION_REASONS.includes('budget-uncited'))
 })
 
+// ---- late-defect (late-defects-fixed-in-run D20, PIN-20): the late-fix pass cap hold on the final phase ----
+test('late-defect: hold — late-defect is a hard escalation reason, so a spent late fix holds a phase that merged work', () => {
+  assert.ok(HARD_ESCALATION_REASONS.includes('late-defect'), 'late-defect is a HARD_ESCALATION_REASONS member')
+  assert.equal(decideLand({ landed: ['t1'], escalated: [{ task: 't1', reason: 'late-defect', fixRounds: 6, detail: 'spent' }] }), 'held:escalation')
+  assert.equal(decideLand({ landed: ['t1'], escalated: [] }), 'landed', 'the carry arm (no escalation, a carriedTasks row) lands')
+  assert.ok(!KNOWN_LAND_DECISIONS.some(d => d.includes('late-defect')), 'no new land decision: the hold reads held:escalation')
+  assert.ok(!SOFT_ENV_REASONS.includes('late-defect') && !DEMOTE_REASONS.some(d => d.includes('late-defect')), 'never a soft or demote member')
+})
+
 // ---- BARRIER_TOKENS (in-band-absorb-default D1, PIN-1/PIN-2) — the seat's structured `barrier` enum ----
 // Exactly four members, in order: three follow-up barriers plus `barrier:trade-off` (an ask route).
 // Finding-level tokens only — disjoint from every land-path enum; the inline hand-mirror lives in
@@ -106,6 +115,19 @@ test('demote-census — DEMOTE_REASONS is exactly the twelve canonical prefixes,
     assert.ok(!SOFT_ENV_REASONS.includes(t), `${t} is never a SOFT_ENV_REASONS member`)
     assert.ok(!KNOWN_LAND_DECISIONS.includes(t), `${t} is never a landDecision value`)
     assert.ok(!BARRIER_TOKENS.includes(t), `${t} is never a barrier token (a seat cites barriers; the engine cites demote prefixes)`)
+  }
+})
+
+// ---- FINDING_CLASSES (late-defects-fixed-in-run D7/D24, PIN-7/PIN-24) — the seat's finding class ----
+// Two members, the behavior/cosmetic pair; a finding-level tag, disjoint from every land-path,
+// barrier and demotion enum. The inline mirror lives in workflow-template.js.
+test('late-defect: class census — FINDING_CLASSES is exactly behavior then cosmetic, disjoint from every land-path, barrier and demote enum', () => {
+  assert.deepEqual(FINDING_CLASSES, ['behavior', 'cosmetic'], 'the canonical pair, in order (D7)')
+  for (const c of FINDING_CLASSES) {
+    for (const [name, en] of [['HARD_ESCALATION_REASONS', HARD_ESCALATION_REASONS], ['SOFT_ENV_REASONS', SOFT_ENV_REASONS],
+      ['KNOWN_LAND_DECISIONS', KNOWN_LAND_DECISIONS], ['BARRIER_TOKENS', BARRIER_TOKENS], ['DEMOTE_REASONS', DEMOTE_REASONS]]) {
+      assert.ok(!en.includes(c), `${c} is never a ${name} member`)
+    }
   }
 })
 
@@ -367,7 +389,8 @@ const MERGE_TASK_FLOOR_ONLY = ['no-test', 'unpackaged', 'done-unmet', 'budget-un
 // held:escalation at land-decision time — carried in `escalated[]` from the work/audit/merge phases
 // (escalate/audit-blocked/conflict/dep-failed/gate-evidence/unrunnable-deps) or emitted by the land
 // prompt itself (land_stale). It is exactly HARD_ESCALATION_REASONS minus the merge-task-floor reasons.
-const LAND_PHASE_REACHABLE = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps']
+// late-defect (late-defects Task 3.1) joins it: the late-fix pass pushes it into `escalated[]` before the land decision.
+const LAND_PHASE_REACHABLE = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'late-defect']
 
 // The land-dispatch block: from the relandDiscrimination helper (which emits land_stale) through the end
 // of the `if (landDecision === 'landed')` land-prompt branches. `block` = land-phase prompts; `outside`

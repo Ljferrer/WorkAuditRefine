@@ -140,8 +140,13 @@ task's merge commit never prove this task. The owned paths are the merge's own c
 `<merge>^1..<merge>^2`, preserving rename sides, Gitlinks, modes and deletions, so a task whose
 commits net back to the phase base still proves. Task content must match at the merge commit on
 every owned path. Every later first-parent commit that changes an owned path must be a two-parent
-merge commit whose parsed `WAR-Task` trailer names one other task branch. Any other later change,
-including a direct commit, a polish commit, a revert or a merge naming this task, is no proof.
+merge commit whose parsed `WAR-Task` trailer names one other task branch, or a one-parent late-fix
+commit whose `Late-Fix: <task id>:<n>` trailer names this task's bare id (the branch leaf after its
+`p<phase>-` prefix, an integer index): the late-fix pass fast-forwards such a commit after its own
+re-audit (late-defects PIN-25). Any other later change, including a direct commit, a polish commit,
+a revert, a late-fix commit naming another task, or a merge naming this task, is no proof. On a
+proved task, the LATE-FIX CHARGE READ returns the highest such index after the merge commit as
+`lateFixCharges`, which seeds the task's `fixRounds`.
 A sibling's merge can rewrite an owned path and still pass, because that merge passed its own audit.
 NUL-delimited literal paths preserve filename syntax; input refs are re-read before success.
 Only the complete result permits `preMerged`. Exit 1 (`NO_TASK_PROOF`) takes ordinary ensure-worktree

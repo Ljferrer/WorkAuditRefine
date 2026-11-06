@@ -359,6 +359,12 @@ const QUALIFIED_HEADERS = [
   'pin-transfer.md',
   // #2545: the skills/war/SKILL.md retired-token sweep eviction destination, joined on creation.
   'retired-token-sweep.md',
+  // 2026-11-04-late-defects-fixed-in-run Task 2.1: the agents/war-auditor.md stale-looking-but-correct
+  // calibration block's eviction destination (byte-funding the card's findingClass sentences), joined on creation.
+  'finding-class.md',
+  // 2026-11-04-late-defects-fixed-in-run Task 6.2: the CONTEXT.md Exclusion set and Terminal pass
+  // behavior-row passages' eviction destination (byte-funding the late-defect glossary entry), joined on creation.
+  'late-defects.md',
   // #2635: the skills/war/SKILL.md Gate 2 promotion eviction destination, joined on creation.
   'learnings-publication.md',
 ];
@@ -685,19 +691,93 @@ test('reference link integrity — the refiner card keeps a trigger pointer per 
 // 1,594 B at eviction, card lines 138-145 @ 68160232); a sanctioned edit re-pins it here with its rationale.
 // Re-pinned (#2485 merge of master into PR #2529): the re-running-seat duty paragraph names the tip probe
 // as the claimant and the `git diff --no-renames --name-only` read, the text #2485 Phase 1 wrote on the card.
+// Re-pinned (late-defects phase 6 polish): the closing no-approval rule names its one exception, the ace base gate
+// (aceBaseIds, PIN-10), because Phase 5 lets an ace tip proceed when its only reds were red at the pre-ace tip.
 test('reference link integrity — the auditor-card pin-transfer block landed byte-identical in pin-transfer.md and the card keeps a trigger pointer, not the body', () => {
   const text = readFileSync(join(REPO_ROOT, REFERENCES_DIR, 'pin-transfer.md'), 'utf8');
   const heading = '## Pin transfer (#1913)\n';
   const at = text.indexOf(`\n${heading}`);
   assert.ok(at >= 0, 'pin-transfer.md lost its `## Pin transfer (#1913)` heading');
   const body = text.slice(at + 1 + heading.length);
-  assert.equal(Buffer.byteLength(body, 'utf8'), 1619, 'the moved block is 1,619 B (the eviction body with the #2485 duty paragraph)');
-  assert.equal(sha256(body), '86e15be8c019dd49c1ae1b4573fafd64e2a69723125e92956c494bc4758c0bb5',
+  assert.equal(Buffer.byteLength(body, 'utf8'), 1754, 'the moved block is 1,754 B (the eviction body with the #2485 duty paragraph and the ace base gate exception)');
+  assert.equal(sha256(body), 'da9bf6c9211f3f8655528ca05992d5f6c05b6a441b66ee4de2abef6b9878a08b',
     'the moved block must be byte-identical to its pre-eviction card text (ADR 0042) — a sanctioned edit re-pins the digest here with its rationale');
   const auditorCard = readFileSync(join(REPO_ROOT, 'agents/war-auditor.md'), 'utf8');
   assert.ok(auditorCard.includes(', read [pin-transfer.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/pin-transfer.md)'),
     'war-auditor.md carries the `when <trigger>, read [pin-transfer.md](${CLAUDE_PLUGIN_ROOT}/…)` pointer');
   for (const literal of ['**Seat-approval transfer.**', '**Rebase pin transfer.**', 'Two duties follow when you are a re-running seat']) {
     assert.ok(!auditorCard.includes(literal), `war-auditor.md still carries the evicted body literal "${literal}" — the block lives in references/ only (a duplicated body drifts)`);
+  }
+});
+
+// --- Arm 7: the auditor-card calibration eviction (2026-11-04-late-defects-fixed-in-run Task 2.1) ----
+// The `### Stale-looking-but-correct calibration` block (heading through its trailing blank line,
+// 2,516 B, card @ cb7ce6c9) moved byte-identical from agents/war-auditor.md into finding-class.md to
+// fund the card's findingClass and slice-pin sentences (ADR 0042). The moved block ends the file, so
+// the digest pins the text from its heading to end-of-file; a sanctioned edit re-pins it here.
+test('late-defect: class eviction — the calibration block landed byte-identical in finding-class.md and the card keeps its heading over a trigger pointer, not the body', () => {
+  const text = readFileSync(join(REPO_ROOT, REFERENCES_DIR, 'finding-class.md'), 'utf8');
+  const heading = '### Stale-looking-but-correct calibration\n';
+  const at = text.indexOf(`\n${heading}`);
+  assert.ok(at >= 0, 'finding-class.md lost its `### Stale-looking-but-correct calibration` heading');
+  const block = text.slice(at + 1);
+  assert.equal(Buffer.byteLength(block, 'utf8'), 2516, 'the moved block is 2,516 B (heading through the trailing blank line)');
+  assert.equal(sha256(block), 'cbe737edc440924322b1653adb1489088cbdc29375f4808fbc7291b76cb13418',
+    'the moved block must be byte-identical to its pre-eviction card text (ADR 0042) — a sanctioned edit re-pins the digest here with its rationale');
+  const auditorCard = readFileSync(join(REPO_ROOT, 'agents/war-auditor.md'), 'utf8');
+  assert.ok(auditorCard.includes(heading), 'the card keeps the `### Stale-looking-but-correct calibration` heading');
+  assert.match(auditorCard, /When you set `findingClass` on a Minor or Nit, or a candidate finding reads as drifted[^\n]*, read \[finding-class\.md\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/finding-class\.md\)/,
+    'war-auditor.md carries the `when <trigger>, read [finding-class.md](${CLAUDE_PLUGIN_ROOT}/…)` pointer');
+  for (const literal of ['Five authoring patterns read as drifted', '**Literal-vs-candidate drift.**', '**Deliberately-unwired marker.**']) {
+    assert.ok(!auditorCard.includes(literal), `war-auditor.md still carries the evicted body literal "${literal}" — the block lives in references/ only (a duplicated body drifts)`);
+  }
+});
+
+// --- Arm 8: the late-fix pass doctrine home (2026-11-04-late-defects-fixed-in-run Task 3.1) ----
+// late-fix-pass.md is born cold (no eviction, so no QUALIFIED_HEADERS row): the refiner card's
+// late-fix worktree flavor points at it in the `when <trigger>, read <file>` shape, the dispatched
+// provision carries the same dispatchKind, and the file names the hold's canonical export.
+test('late-defect: hold — the refiner card points at late-fix-pass.md in the when <trigger>, read shape, and the file resolves and names its canonical homes', () => {
+  const card = readFileSync(join(REPO_ROOT, 'agents/war-refiner.md'), 'utf8');
+  assert.match(card, /\*\*Late-fix worktree — `dispatchKind: late-fix-worktree`\*\*[^\n]*When dispatched for the late-fix pass, read \[late-fix-pass\.md\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/late-fix-pass\.md\)/,
+    'the card flavor carries the plugin-root-anchored trigger pointer');
+  const doc = join(REPO_ROOT, REFERENCES_DIR, 'late-fix-pass.md');
+  assert.ok(existsSync(doc), 'late-fix-pass.md exists');
+  const text = readFileSync(doc, 'utf8');
+  for (const literal of ['Late-Fix: <task id>:<n>', 'late-fix-worktree', 'carriedTasks[]', "reason: 'late-defect'", '../assets/land-decision.mjs']) {
+    assert.ok(text.includes(literal), `late-fix-pass.md names ${literal}`);
+  }
+});
+
+// --- Arm 9: the Lead's late-defect doctrine home (2026-11-04-late-defects-fixed-in-run Task 6.2) ----
+// late-defects.md is born cold for its Lead doctrine and an eviction destination for two CONTEXT.md
+// passages (the Exclusion set and Terminal pass behavior-row sentences, CONTEXT.md @ 5d15665d, now GLOSSARY.md), moved to
+// fund the late-defect glossary entry (ADR 0042). Each passage sits under its own `###` heading and one
+// provenance line; the digest pins the passage bytes, so a sanctioned edit re-pins it here.
+test('late-defect: doctrine eviction — SKILL.md points at late-defects.md in the when <trigger>, read shape, and the two CONTEXT.md (now GLOSSARY.md) passages landed byte-identical with a pointer left behind', () => {
+  const skill = readFileSync(join(REPO_ROOT, 'skills/war/SKILL.md'), 'utf8');
+  for (const trigger of ['When a late defect is carried, held or filed', 'when threading one', 'When ruling one'])
+    assert.ok(skill.includes(`${trigger}, read [references/late-defects.md](references/late-defects.md)`),
+      `SKILL.md carries the "${trigger}, read [references/late-defects.md](…)" pointer`);
+  const doc = join(REPO_ROOT, REFERENCES_DIR, 'late-defects.md');
+  assert.ok(existsSync(doc), 'late-defects.md exists');
+  const text = readFileSync(doc, 'utf8');
+  for (const literal of ['carriedTasks', 'args.seededTasks', "reason: 'late-defect'", '../assets/land-decision.mjs', 'FINDING_CLASSES'])
+    assert.ok(text.includes(literal), `late-defects.md names ${literal}`);
+  const context = readFileSync(join(REPO_ROOT, 'GLOSSARY.md'), 'utf8');
+  for (const [heading, bytes, digest, pointer] of [
+    ['### Exclusion set — the behavior-row sort', 381, '9e8839092a447c4f40105329845ba3436932a478b19242c09f3d71949a4c6243',
+      '`behavior` row never reaches this set: when sorting one, read skills/war/references/late-defects.md.'],
+    ['### Terminal pass — a seat-raised behavior row', 223, '97c36e9615d7e31041e10d2aa810cc720fa75f9536df59af0a03b47586e0f147',
+      'When a seat raises a `behavior` row,\nread skills/war/references/late-defects.md.'],
+  ]) {
+    const at = text.indexOf(`\n${heading}\n\n`);
+    assert.ok(at >= 0, `late-defects.md lost its \`${heading}\` heading`);
+    const after = text.slice(at + heading.length + 3);
+    const body = after.slice(after.indexOf('\n\n') + 2);
+    const passage = body.slice(0, bytes);
+    assert.equal(sha256(passage), digest, `${heading}: the moved passage must be byte-identical to its pre-eviction CONTEXT.md text (ADR 0042)`);
+    assert.ok(!context.includes(passage), `GLOSSARY.md still carries the passage moved under ${heading} (a duplicated body drifts)`);
+    assert.ok(context.includes(pointer), `GLOSSARY.md keeps the trigger pointer in place of the passage moved under ${heading}`);
   }
 });

@@ -189,10 +189,10 @@ it down (or preserving it on escalation).
 _Avoid_: setup, bootstrapping, worktree management.
 
 **provision mode**:
-The refiner's third dispatch mode, alongside `merge-task` and `land-phase`: the three provisioning
+The refiner's third dispatch mode, alongside `merge-task` and `land-phase`: the four provisioning
 dispatches it performs — the phase git-topology barrier (`provision:phase-<id>`), the per-task
-provision-run (`provision-run:<taskId>`), and the phase-close polish worktree
-(`polish-worktree:phase-<id>`). All three return the **env-outcome** shape
+provision-run (`provision-run:<taskId>`), the phase-close polish worktree
+(`polish-worktree:phase-<id>`), and the late-fix worktree (`late-fix-worktree:p<phase>-latefix-<k>`). All four return the **env-outcome** shape
 (`{ ok, taskId?, failedCommand?, exitCode?, stderrTail?, provisionSource? }`), never a MergeResult, and
 a provision dispatch is never out-of-mode — the refiner does not decline it ([ADR 0001](docs/adr/0001-explicitly-managed-worktrees.md)).
 _Avoid_: rerouting provisioning to another agent; treating a provision dispatch as a MergeResult mode.
@@ -474,10 +474,12 @@ land path); treating an absent class as anything but `introduced`.
 **baseline gate debt**:
 A gate failure the refiner proves **pre-existing** at the classification base (the phase integration
 base at merge-task; the detached `origin/<working>` tip at land) by re-running the failing gate there and
-matching the failing identifiers. It **never blocks** the diff that did not cause it — the merge/land
-proceeds — and is always recorded as a deduped `source: 'auto'` **Backstop** entry, surfaced at every
-land and in the final PR (ADR 0017: the un-run validation becomes a ratified-backstop record, never
-prose).
+matching the failing identifiers. It never blocks the merge of the diff that did not cause it — the
+merge proceeds — and is always recorded as a deduped `source: 'auto'` **Backstop** entry, surfaced at
+every land and in the final PR (ADR 0017: the un-run validation becomes a ratified-backstop record, never
+prose). It also becomes one behavior late defect per run (PIN-12): the late-fix pass fixes it before
+land, and a spent one carries (non-final phase) or holds the final phase as `late-defect`. A land-gate
+baseline red carries or files ([ADR 0019](docs/adr/0019-target-derived-execution-values.md) amendment).
 _Avoid_: treating it as a passing gate (the gate is red — the debt just predates the diff); a silent
 proceed (the backstop entry is mandatory).
 
@@ -557,17 +559,17 @@ a merge-task reports `gate_segment` the same way — in-band fields riding the e
 a new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper each —
 `segmentedLand` on all three land sites (initial, environment-proceed, baseline-proceed) and
 `segmentedMerge` on all six merge-task sites (initial, floor-retry, environment-proceed,
-baseline-proceed, and the two sweep-family merges, #2189); the ace gate check loops on
-`gate_green: false` + `gate_segment` in `aceGateGreen` (#2326). A spent budget at a sweep-family
-merge takes that site's fail-open arm (ADR 0051 §3 and its 2026-11-03 amendment; the `segmented-land: re-land sites`,
+baseline-proceed, and the two sweep-family merges, #2189); the ace gate check and the pre-ace base
+check (`ace-base-gate`) loop on `gate_green: false` + `gate_segment` through `aceSegments` (#2326).
+A spent budget at a sweep-family merge takes that site's fail-open arm (ADR 0051 §3 and its 2026-11-03 amendment; the `segmented-land: re-land sites`,
 `segmented-gate: re-merge sites` and two sweep-family `segmented-gate` fixtures in
 `workflow-template.engine-1.test.mjs` are the arbiters of those site lists) — each helper appends
 the clause, dispatches, and re-dispatches while the marker rides its contracted status pair, bounded
 by `run.roundLimit`; exhaustion routes by the ridden status, except the ace gate check, whose spent
-bound takes the dispatch-death route. The pair is the read (PIN-9): a landed
-or merged result carrying a stray marker stands, and a marker-absent error is one dispatch that
-routes by its status (`held:land-failed` for a land). The ace gate's background rule rides its
-dispatched prompt alone. For merge and land, both prompt layers instruct backgrounding the
+bound takes the dispatch-death route, and the base check, whose spent segment names no base ids,
+so the ace gate keeps its red arm. The pair is the read (PIN-9): a landed or merged result carrying a stray marker stands, and a marker-absent error is one dispatch that
+routes by its status (`held:land-failed` for a land). The background rule of the ace gate and its
+base check rides their dispatched prompts alone. For merge and land, both prompt layers instruct backgrounding the
 gate (`run_in_background`) and applying the **Gate-log stamp** read on re-dispatch. A continuation
 never counts as the one re-run an environment-proceed or baseline-proceed prompt allows (#2155).
 _Avoid_: classifying an interrupted gate `gate_failed` (interrupted is incomplete); a marker read
@@ -928,7 +930,7 @@ _Avoid_: plan literalism as a virtue; latitude as unbounded scope.
 The auditor-owned routing of a Minor/Nit finding, orthogonal to severity: fix it this phase (`absorb` —
 the per-task ace, or the phase-close sweep when `phaseClose:true`/release-slot-adjacent), file it as an
 affirmative issue (`follow-up` — must state why it is not absorbable), record it without filing
-(`note` — phase report + servitor feed), or park it as a question (`ask` — see **Ask disposition**).
+(`note` — phase report + servitor feed; a `behavior` note never stays a note, see **Finding class**), or park it as a question (`ask` — see **Ask disposition**).
 A fully specified Minor/Nit defaults to `absorb` (in the task diff) or `absorb` + `phaseClose:true`
 (outside it); `follow-up` needs a tag from the **Barrier list**. Omitted → Minor becomes follow-up,
 Nit becomes note; `ask` is never a default. A failed route **steps toward durability** — the
@@ -937,6 +939,11 @@ route (release-slot, exclusion-set, fileless) demotes straight to its default ru
 logged — per subset under the ace bisection ladder — never dropped silently, while
 `demote()` refuses an ask (log + re-route onto `asks[]`); zero unrouted findings on every exit path.
 _Avoid_: autoFixable (deprecated legacy alias for absorb); severity as the routing signal.
+
+**Late defect**, **Late-fix pass**, **Finding class** (`findingClass`), **Pre-ace probe**, **Seeded task** / **Carried task**:
+When one is in play, read skills/war/references/late-defects.md. `FINDING_CLASSES` and
+`HARD_ESCALATION_REASONS` are canonical in `skills/war/assets/land-decision.mjs`.
+_Avoid_: restating their values here.
 
 **Ask disposition** (`ask`):
 The fourth, Minor/Nit-only disposition member (#1550; ADR 0013 amendment 2026-08-25): a decision-shaped
@@ -1025,8 +1032,8 @@ WAVE-SIDE re-audit (plain, bisection-subset, or a re-entry batch's own), dispatc
 ace-style batch on the same machinery (canonical: `aceReentry` in
 `skills/war/assets/workflow-template.js`), **never a new round type or status member**. The
 **Absorb budget** (`absorbRounds < run.absorbRounds`, the per-task ace meter separate from `fixRounds`)
-is their SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters:
-its absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), never
+is their SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters, and
+neither do the merge-slot floor-fix re-audit and the late-fix pass re-audit: their absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), except a late-fix re-audit `behavior` absorb (**Late defect**, PIN-21), never
 budget-gated. Budget spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
 sweep-discard ⇒ carried on `carriedPhaseClose` (non-final phase) or `follow-up` (final); a
 forward-reverted finding never re-enters (the oscillation bound); every demotion is logged.
@@ -1056,8 +1063,9 @@ _Avoid_: an ace-side commit that charges `fixRounds`; reading a revert as a char
 The phase-close sweep's union of foreign-owned files and release-slot files: the files of every
 `args.sweepExclude` entry (the Lead's slug-attributed campaign contention list) ∪ the `Files:` of every
 task whose status is not `merged` ∪ `RELEASE_SLOT_FILES`, both sides `aceRelPath`-normalized. A queued
-absorb whose file is in the set demotes to `follow-up` with a reason naming the owner — the entry's plan
-slug, the task id, or "the release slot" — and every demotion is logged. The seat never decides
+cosmetic or classless absorb whose file is in the set demotes to `follow-up` with a reason naming the
+owner — the entry's plan slug, the task id, or "the release slot" — and every demotion is logged. A
+`behavior` row never reaches this set: when sorting one, read skills/war/references/late-defects.md. The seat never decides
 exclusion; the engine applies the set at sweep time. The sweep and terminal prompts name these
 files as the fix-round fence. ADVISORY POLISH builds its own fence from the same three sources at
 dispatch, less its task's own files, and sends a listed row in a fenced file to the sweep.
@@ -1142,7 +1150,8 @@ through `aceEligible`, land as ONE `Ace-Charge` commit at the post-polish tip, w
 of their defect class; a regression is
 forward-reverted, then the rows carry (non-final) or demote `demote:absorb-regressed` (final); an
 unlanded or seat-raised absorb demotes `demote:terminal-pass` (final); it
-convenes with `run.ace` off and never budget-blocks. Its second filter is the phase-scoped sweep
+convenes with `run.ace` off and never budget-blocks. When a seat raises a `behavior` row,
+read skills/war/references/late-defects.md. Its second filter is the phase-scoped sweep
 exclusion map: a row whose file the map owns demotes `demote:exclusion-set` and is never committed.
 _Avoid_: a second pass; reading its charge as a gate; a release-slot or exclusion-owned file in its commit.
 
@@ -1505,7 +1514,7 @@ lets an assembled payload too large to ride the Workflow tool call travel with t
 (dispatched args, when passed, still win). It fails loud on a missing or duplicated anchor rather
 than forking silently onto the wrong text.
 **Comment strip + size floor (#2099)**: before the substitutions the stager blanks every full-line `//`
-comment in code state (line count preserved — an `--args` stage then adds two prelude lines after
+comment in code state and drops the leading indent of every top-level code line (#2613) (line count preserved — an `--args` stage then adds two prelude lines after
 `meta`; strings, template literals, regexes and trailing comments pass through verbatim, one scanner
 residual recorded in the reference below), because the
 Workflow tool refuses a script over its 524,288-byte `scriptPath` cap and the shipped template alone
@@ -1514,7 +1523,7 @@ sizes and writes nothing, and a pre-existing staged file over the cap is refused
 `--force` rather than reused. Full doctrine: `skills/war/references/staged-script.md`.
 **Write-if-absent**: an existing staged file *is* the run's script and is reused byte-untouched
 (approved stage injections and journal-replay identity survive the same-journal resume) — unless the existing file is over the `scriptPath` cap, which the stager refuses (the
-#2099 entry above); a deliberate `--force` overwrites it with a fresh, comment-stripped substitution
+#2099 entry above); a deliberate `--force` overwrites it with a fresh, comment- and indent-stripped substitution
 from the shipped template. A fresh run or Recovery relaunch mints a new `runId` and stages
 into its own directory per `skills/war/references/launch-identity.md`, including same-day retries.
 Retention is **manifest-equivalent** — kept, never reaped, doubling as dispatch provenance for
@@ -1771,14 +1780,7 @@ commits on a retried branch; hand-filtering the DAG to the unmerged tasks (pass 
 barrier is the filter).
 
 **Relaunch attempt**:
-One Workflow run of a phase that a prior run of the same phase did not finish — a `resumeFromRunId`
-retry or a recovery relaunch. Each attempt has its own `workflowRunId` + `transcriptDir` when the
-launch envelope surfaces a fresh run id (a relaunch that repeats the prior id archives nothing; the
-transcript dir's basename is the run id); the run manifest overwrites the pair **together**, archives
-the died attempt under `attempts[]`, and sums dispatch counts across attempts (the shape lives in
-`skills/war/references/run-manifest.md` § Relaunch).
-_Avoid_: overwriting one field of the pair; dropping a died attempt's counts; reading the manifest
-on resume (it is telemetry, never resume input).
+when recording a relaunch attempt in the run manifest, read skills/war/references/glossary-cold.md
 
 ### GitHub side-effects
 
@@ -1809,15 +1811,7 @@ license.
 when an `/aftermath` candidate fails the tip-reachability gate, read skills/war/references/glossary-cold.md
 
 **stranded upstream**:
-A local WAR branch's tracking ref pinned at the worker's pre-rebase remote SHA — the refiner
-rebases task branches locally in the serial merge queue and **never force-pushes**, so the tracked
-remote ref never advances to the rebased tip that lands. Makes `git branch -d` check
-merged-into-upstream and refuse a branch whose content is already in master. Recovery, only after
-the gate passes on the **local SHA**: `git branch --unset-upstream <branch>` then `git branch -d <branch>` (restoring
-git's own merged-into-HEAD check), never `-D`; a needs-human outcome after the unset restores
-tracking (`git branch -u`).
-_Avoid_: reading the `-d` refusal as an unmerged-work signal; escalating to `-D` in a default-mode
-sweep.
+when `git branch -d` refuses a landed WAR branch, read skills/war/references/glossary-cold.md
 
 **residual-set verification**:
 when verifying an `/aftermath` Class-1 delete batch, read skills/war/references/glossary-cold.md
