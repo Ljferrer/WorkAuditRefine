@@ -228,7 +228,9 @@ commit_refs_rules)` while origin did not move. That line does not carry the `[re
 
 **Decision, extended.** After a non-zero push whose output carries `[remote rejected]`,
 `cmd_land_advance` reads origin with a fresh `ls-remote`. If origin still reads the pre-push tip, it
-runs the same push again, at most 3 times, after 10, 20 and 40 s. A retry that lands ends through
+runs the same push again, at most 3 times, after 10, 20 and 40 s. The read runs before each wait. If
+origin moves during the wait, the non-force retry gets a plain `[rejected]` and exits 2, so a retry
+never overwrites another writer. A retry that lands ends through
 the existing post-push readback and follower CAS. A moved origin, a failed read or spent retries die
 with exit 3 and leave the follower unmoved. `[rejected]` still exits 2 with no retry, and no push uses
 `--force`. The 0/1/2/3/6 exit codes do not change. A permanent decline (a pre-receive hook) also

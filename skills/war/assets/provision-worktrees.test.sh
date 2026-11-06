@@ -4122,6 +4122,8 @@ expect "LA.7: a short already-landed call runs no push" no "$(la_has "$(ls "$LA_
 #   rejected    each push is a plain [rejected]
 #   rr-moved    each push is a [remote rejected], and origin then reads a new tip
 #   rr-readfail each push is a [remote rejected], and the origin read then fails
+#   rr-landed   each push is a [remote rejected], and origin then reads new_sha
+#   rr-then-rejected the first push is a [remote rejected], later pushes are [rejected]
 # ---------------------------------------------------------------------------
 RR_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t warrrshim)"
 REPOS="$REPOS $RR_DIR"
@@ -4133,11 +4135,11 @@ case "${1:-}" in
     pushes="$(wc -c < "$RR_DIR/pushes" | tr -d ' ')"
     : > "$RR_DIR/pushed"
     case "${RR_SHIM:-}:$pushes" in
-      rr-once:1 | rr-always:* | rr-moved:* | rr-readfail:*)
+      rr-once:1 | rr-always:* | rr-moved:* | rr-readfail:* | rr-landed:* | rr-then-rejected:1)
         printf 'remote: fatal error in commit_refs_rules\nTo origin\n ! [remote rejected]   %s (fatal error in commit_refs_rules)\nerror: failed to push some refs to origin\n' "$3" >&2
         exit 1
         ;;
-      rejected:*)
+      rejected:* | rr-then-rejected:*)
         printf 'To origin\n ! [rejected]        %s (fetch first)\nerror: failed to push some refs to origin\n' "$3" >&2
         exit 1
         ;;
@@ -4148,6 +4150,10 @@ case "${1:-}" in
       case "${RR_SHIM:-}" in
         rr-moved)
           printf '%s\t%s\n' "$RR_OTHER" "$3"
+          exit 0
+          ;;
+        rr-landed)
+          printf '%s\t%s\n' "$RR_LANDED" "$3"
           exit 0
           ;;
         rr-readfail)
@@ -4167,7 +4173,7 @@ chmod +x "$RR_DIR/git" "$RR_DIR/sleep"
 rr_run() {
   rm -f "$RR_DIR/pushed" "$RR_DIR/pushes" "$RR_DIR/sleeps"
   RR_RC=0
-  RR_ERR="$( ( cd "$LA_C1" && RR_SHIM="$1" RR_OTHER=1111111111111111111111111111111111111111 RR_REAL_GIT="$LA_REAL_GIT" RR_DIR="$RR_DIR" \
+  RR_ERR="$( ( cd "$LA_C1" && RR_SHIM="$1" RR_OTHER=1111111111111111111111111111111111111111 RR_LANDED="$LA_NEW" RR_REAL_GIT="$LA_REAL_GIT" RR_DIR="$RR_DIR" \
     PATH="$RR_DIR:$PATH" bash "$SCRIPT" land-advance "$2" "$3" ) 2>&1 >/dev/null )" || RR_RC=$?
   RR_PUSHES=0
   [ -e "$RR_DIR/pushes" ] && RR_PUSHES="$(wc -c < "$RR_DIR/pushes" | tr -d ' ')"
@@ -4211,6 +4217,7 @@ expect "RR.4 remote-rejected: a moved origin exits 3" 3 "$RR_RC"
 expect "RR.4 remote-rejected: one push" 1 "$RR_PUSHES"
 expect "RR.4 remote-rejected: no wait" "" "$RR_SLEEPS"
 expect "RR.4 remote-rejected: the follower stays" "$LA_SEED" "$(la_follower working/rr4)"
+expect "RR.4 remote-rejected: the die names no retry" yes "$(la_has "$RR_ERR" "after 0 retries")"
 
 # RR.5: if the origin read fails after the rejection, no retry runs.
 la_fixture working/rr5
@@ -4219,6 +4226,7 @@ expect "RR.5 remote-rejected: a failed origin read exits 3, not Git's code" 3 "$
 expect "RR.5 remote-rejected: one push" 1 "$RR_PUSHES"
 expect "RR.5 remote-rejected: no wait" "" "$RR_SLEEPS"
 expect "RR.5 remote-rejected: the follower stays" "$LA_SEED" "$(la_follower working/rr5)"
+expect "RR.5 remote-rejected: the die names no retry" yes "$(la_has "$RR_ERR" "after 0 retries")"
 
 # RR.6: a first land (no branch on origin yet) retries too. The empty origin
 # read equals the empty pre-push read, so nothing moved.
@@ -4255,6 +4263,31 @@ expect "RR.7 remote-rejected first land: no wait" "" "$RR_SLEEPS"
 expect "RR.7 remote-rejected first land: no follower ref is created" no \
   "$(git -C "$LA_C1" show-ref --verify --quiet refs/heads/working/rr7 && echo yes || echo no)"
 expect "RR.7 remote-rejected first land: origin still has no branch" "" "$(la_origin working/rr7)"
+
+# RR.8: origin moves between the fresh read and the retry push. The retry gets a
+# plain [rejected], which is a lost CAS: exit 2, never a further retry.
+la_fixture working/rr8
+rr_run rr-then-rejected working/rr8 "$LA_NEW"
+expect "RR.8 remote-rejected then rejected: a lost CAS on the retry exits 2" 2 "$RR_RC"
+expect "RR.8 remote-rejected then rejected: two pushes" 2 "$RR_PUSHES"
+expect "RR.8 remote-rejected then rejected: one 10 second wait" "10 " "$RR_SLEEPS"
+expect "RR.8 remote-rejected then rejected: the follower stays" "$LA_SEED" "$(la_follower working/rr8)"
+
+# RR.9: the server applied the push but still printed [remote rejected], so origin
+# reads new_sha. That is a moved origin: exit 3 with no retry and the follower
+# unmoved. The Lead's Land-advance die probe then records the land (ADR 0023).
+la_fixture working/rr9
+rr_run rr-landed working/rr9 "$LA_NEW"
+expect "RR.9 remote-rejected but applied: exits 3" 3 "$RR_RC"
+expect "RR.9 remote-rejected but applied: one push" 1 "$RR_PUSHES"
+expect "RR.9 remote-rejected but applied: no wait" "" "$RR_SLEEPS"
+expect "RR.9 remote-rejected but applied: the follower stays" "$LA_SEED" "$(la_follower working/rr9)"
+
+# The Lead's recovery step quotes this die, so it must match the script's text.
+RR_DOC="$HERE/../references/resume-and-recovery.md"
+expect "RR doc: the recovery step quotes the spent-retry die" yes "$(la_has "$(cat "$RR_DOC")" "git push failed (rc=N) after 3 retries:")"
+expect "RR doc: the recovery step names the [remote rejected] line" yes "$(la_has "$(cat "$RR_DOC")" "\`[remote rejected]\` line")"
+expect "RR doc: the script still prints the quoted die" yes "$(la_has "$(cat "$SCRIPT")" 'git push failed (rc=$push_rc) after $retries retries:')"
 
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
