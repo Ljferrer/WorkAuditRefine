@@ -4627,7 +4627,7 @@ test('#2534 item 23b: /zero-in steps a quiet lens down one rung per round before
 
 // (learnings-publication-evict, #2635) THE GATE 2 PROMOTION EVICTION. skills/war/SKILL.md's Gate 2
 // step 2 sub-steps (provision, copy, lint, commit, pre-push staged-file check, push, cleanup, marker
-// stamp) and its step 3 CLAUDE.md pointer duty run only when `memory.commitLearnings` is on (default
+// stamp) and its CLAUDE.md pointer duty (then a step 3 bullet, now pointed at from step 2) run only when `memory.commitLearnings` is on (default
 // off), so they moved byte for byte (ADR 0042 D3) into skills/war/references/learnings-publication.md.
 // Each row's digest is the sha256 of the block's bytes in SKILL.md at base 6944d93, measured before
 // the move, so it is an oracle independent of the destination file. A reword, a dropped bullet or a
@@ -4640,7 +4640,7 @@ const PUBLICATION_EVICTIONS = [
     gone: ['Provision a transient publication worktree', 'Pre-push staged-file check', 'Neutralized-pair exemption', 'stamp each promoted local original'],
   },
   {
-    section: '## CLAUDE.md pointer duty (Gate 2 step 3)',
+    section: '## CLAUDE.md pointer duty (Gate 2 step 2)',
     bytes: 885,
     sha256: '47f203b96fc48eb69eb3f8c23943810307ea473e81328af774afe96326879772',
     gone: ['**CLAUDE.md pointer duty (append-if-absent, same commit).**', 'The ratified pointer line, byte-identical', 'Durable engineering lessons live'],
