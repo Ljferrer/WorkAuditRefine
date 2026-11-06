@@ -199,6 +199,28 @@ test('late-defect: carry cap — a seeded task out of fix rounds carries again o
   const plain = await runPhase(NEXT(undefined, { tasks: [{ ...T9(), id: 'seed-1', roster: [{ lens: 'correctness' }] }], run: { roundLimit: 2 }, finalPhase: false }), capImpl())
   assert.equal(holdsOf(plain.out, 'audit-blocked').length, 1, 'a plan task still holds audit-blocked')
   assert.deepEqual(plain.out.carriedTasks, [])
+  // The floor arm: the seed merge trips no-test at every attempt while its add-test worker keeps
+  // returning implemented, so the floor sub-loop reaches roundLimit and the cap rule takes the seed.
+  const floorImpl = (p, o) => seatOf(o) === 'war-refiner' && o.phase === 'Refine' && /^merge:seed-1(:|$)/.test(labelOf({ opts: o }))
+    ? { mode: 'merge-task', status: 'no-test' } : defaultImpl(p, o)
+  const floorArms = source => Promise.all([
+    runPhase(NEXT([ROW()], { run: { roundLimit: 2 }, finalPhase: false }), floorImpl, {}, source),
+    runPhase(NEXT([ROW()], { run: { roundLimit: 2 } }), floorImpl, {}, source),
+  ])
+  const [fNon, fFinal] = await floorArms()
+  assert.deepEqual(fNon.calls.filter(c => /^add-test:seed-1:/.test(labelOf(c))).map(labelOf), ['add-test:seed-1:r1', 'add-test:seed-1:r2'], 'presence guard: the floor sub-loop spends the seed rounds')
+  assert.equal(fNon.out.carriedTasks.length, 1, 'the floor-capped seed carries again (PIN-1)')
+  assert.match(fNon.out.carriedTasks[0].carriedFrom.reason, /the no-test floor still trips/)
+  assert.deepEqual(holdsOf(fNon.out, 'no-test'), [], 'no no-test hold for a seeded task')
+  assert.deepEqual(holdsOf(fFinal.out, 'late-defect').map(e => e.task), ['seed-1'], 'the final phase holds the floor-capped seed for a Lead ruling')
+  assert.deepEqual(holdsOf(fFinal.out, 'no-test'), [])
+  // Red proof by mutation: without the seed branch the floor arm escalates with its floor status.
+  const floorArm = 'if (r.task.seed) seedCapped.push({ task: r.task, why: \'the \' + floorMr.status + \' floor still trips\' })\n          else '
+  assert.ok(src.includes(floorArm), 'the mutation target is the live floor-arm seed branch')
+  const [mNon, mFinal] = await floorArms(src.replace(floorArm, ''))
+  assert.deepEqual(mNon.out.carriedTasks, [], 'the mutant carries nothing')
+  assert.equal(holdsOf(mNon.out, 'no-test').length, 1, 'the mutant escalates the seed as no-test')
+  assert.deepEqual(holdsOf(mFinal.out, 'late-defect'), [], 'the mutant final phase holds no late-defect')
 })
 
 test('late-defect: carry docs — schemas.md documents args.seededTasks, its row shape and the provenance floor', () => {
@@ -207,6 +229,10 @@ test('late-defect: carry docs — schemas.md documents args.seededTasks, its row
   assert.ok(row, 'schemas.md carries an Optional `seededTasks` row')
   for (const key of ['title', 'severity', 'suggested_fix', 'file', 'task', 'findingClass', 'roster', 'planSlug', 'carriedTasks', 'requiresTest: true', 'PIN-9', 'late-defect'])
     assert.ok(row.includes(key), 'the seededTasks row names ' + key)
+  // The id rule the row restates is bound to the engine's mint and suffix loop.
+  assert.ok(src.includes("let id = 'seed-' + (i + 1)") && src.includes("while (tasks.some(t => t.id === id)) id += '-1'"), 'the engine mints a 1-based seed id with a -1 collision suffix')
+  assert.ok(row.includes('id `seed-<1-based row index>` (a `-1` suffix is appended while the id collides with another task id)'), 'the row states the 1-based id and the -1 suffix')
+  assert.ok(!row.includes('`seed-<row index>`'), 'the row never names a bare row-index id')
   assert.match(schemasMd, /`ruledAsks`, `seededPhaseClose`, or `seededTasks` arg/, 'the provenance floor row lists seededTasks')
   assert.ok(src.includes("if (A.seededTasks != null) {"), 'the engine validates args.seededTasks at entry')
   assert.match(src, /^\/\/ {5}seededTasks\?,/m, 'the args header names seededTasks')
