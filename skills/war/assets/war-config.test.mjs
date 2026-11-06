@@ -1557,7 +1557,7 @@ test('roundLimit default is 6; old default literal absent across enumerated doc 
     ['agents/war-refiner.md',
       /`roundLimit` \(default 6\)/,
       /\broundLimit`?\s*\(default 3\)/],
-    ['CONTEXT.md',
+    ['GLOSSARY.md',
       /share `run\.roundLimit` \(default 6\)/,
       /\broundLimit`?\s*\(default 3\)/],
     ['skills/war/references/gastown-design-params.md',
@@ -1820,9 +1820,9 @@ const DEMIRRORED = [
   ['skills/war/references/design.md', /^- \*\*Workers\*\* = worktree-isolated[^\n]*$/m],
   ['skills/war/references/design.md', /^Per-role models are the `war-config\.mjs` DEFAULTS[^\n]*$/m],
   ['skills/war/references/design.md', /^- \*\*New role — `war-servitor`\*\*[^\n]*$/m],
-  ['CONTEXT.md', /tier ladder `agents\.snipe`[^\n]*$/m],
-  ['CONTEXT.md', /\*\*Docs tier\*\*:\n[\s\S]*?\n_Avoid_/],
-  ['CONTEXT.md', /\*\*Fix bump\*\*:\n[\s\S]*?\n_Avoid_/],
+  ['GLOSSARY.md', /tier ladder `agents\.snipe`[^\n]*$/m],
+  ['GLOSSARY.md', /\*\*Docs tier\*\*:\n[\s\S]*?\n_Avoid_/],
+  ['GLOSSARY.md', /\*\*Fix bump\*\*:\n[\s\S]*?\n_Avoid_/],
   ['skills/war/SKILL.md', /^- Models\/effort come from the resolved run config[^\n]*$/m],
   ['skills/war/SKILL.md', /runs its worker on the \*\*docs\*\* tier \([^\n]*$/m],
   ['skills/snipe/SKILL.md', /resolved from the WAR config ladder \([^\n]*$/m],
@@ -2500,14 +2500,15 @@ test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename t
   const sweptSurfaces = [
     'skills/war/SKILL.md',
     'skills/war/references/design.md',
-    'CONTEXT.md',
+    'GLOSSARY.md',
+    'CONTEXT.md', // the Layer 1 router (#2636), still a live prompt-bearing surface
     // UNION extension (prompt-surface simplification, adjudication I): the SKILL.md eviction
     // destinations join the enumerated OLD-absent list — still an anchored file list, never a scan.
     'skills/war/references/setup.md',
     'skills/war/references/docker-gate.md',
     'skills/war/references/submodule-flows.md',
     'skills/war/references/resume-and-recovery.md',
-    // UNION extension (verdict-adjudication-integrity D14 eviction, #1265/#1357): the CONTEXT.md
+    // UNION extension (verdict-adjudication-integrity D14 eviction, #1265/#1357): the glossary (then CONTEXT.md, now GLOSSARY.md)
     // glossary-eviction destination joins the same anchored list, so a future retirement sweep
     // cannot silently skip the cold home.
     'skills/war/references/glossary-cold.md',

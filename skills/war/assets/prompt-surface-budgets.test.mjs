@@ -15,7 +15,7 @@
 // `archive/`), and README.md is deliberately unbudgeted (a human release surface).
 //
 // Phase-7 note (Task 7.1): every constant below is derived from the POST-shrink size
-// measured at this task's rebased base (c6a05fb, 2026-07-29) — except CONTEXT.md,
+// measured at this task's rebased base (c6a05fb, 2026-07-29) — except CONTEXT.md (now the GLOSSARY.md row, #2636),
 // whose computed hard would EXCEED its Phase-1 placeholder (the surface grew): ratchet-
 // down only, so its placeholder is retained pending Lead adjudication (see its row).
 
@@ -65,7 +65,13 @@ const FILE_BUDGETS = {
   'agents/war-worker.md': { hard: 13312, advisory: 10240 },
   // post-shrink 32,923 B @ c6a05fb → hard ×1.25 ceil-KB = 41,984; advisory ×1.10 ceil-KB = 36,864
   'skills/lessons-learned/SKILL.md': { hard: 41984, advisory: 36864 },
-  // Budgeted per adjudication F: CONTEXT.md is the shared glossary, prompt-bearing.
+  // Budgeted per adjudication F: CONTEXT.md is the Layer 1 router, prompt-bearing (#2636).
+  // post-shrink 1,429 B (the router written on base 31c216b, measured in #2636) @ 31c216b →
+  // hard ×1.25 ceil-KB = 2,048; advisory pinned below at 1,536 (the tiny-file rule: advisory < hard).
+  'CONTEXT.md': { hard: 2048, advisory: 1536 },
+  // Budgeted per adjudication F: GLOSSARY.md is the shared glossary, prompt-bearing.
+  // MOVED unchanged from the CONTEXT.md row (#2636): the glossary left CONTEXT.md as a
+  // byte-identical move, and its budget row moved with it. Its history, as recorded on CONTEXT.md:
   // GREW (Task 7.1): post-shrink 101,769 B @ c6a05fb → computed hard ×1.25 ceil-KB =
   // 128,000 B would EXCEED the Phase-1 placeholder hard of 126,976 B (pre-shrink
   // 100,984 B @ 762a7e4 → 126,976/111,616). Ratchet-down only: placeholder retained,
@@ -73,7 +79,7 @@ const FILE_BUDGETS = {
   // justification note, or a re-shrink follow-up).
   // RAISED +3,072 B (128,000 → 131,072) at the operator's direction, 2026-10-31: the file exceeded
   // the ceiling by 36 B in 0.21.23. ADR 0042 reason and trailer: `Budget-Raise: ADR-0042 CONTEXT.md +3072`.
-  'CONTEXT.md': { hard: 131072, advisory: 111616 },
+  'GLOSSARY.md': { hard: 131072, advisory: 111616 },
   // Budgeted per adjudication F: CLAUDE.md loads every session, prompt-bearing.
   // post-shrink 12,987 B @ c6a05fb → hard ×1.25 ceil-KB = 16,384; advisory ×1.10 ceil-KB
   // = 14,336 (grew 12,400 B @ 762a7e4 → 12,987 B, but ceil-KB rounding lands both on the
@@ -157,6 +163,7 @@ const EXPECTED_NON_AGENT_SURFACES = [
   'skills/war/SKILL.md',
   'skills/lessons-learned/SKILL.md',
   'CONTEXT.md',
+  'GLOSSARY.md',
   'CLAUDE.md',
 ];
 
@@ -293,10 +300,11 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
 // unauditable — no way to tell a measured ratchet from a typed-in guess. This guard binds the
 // shape of the comment block directly above each budgeted subject.
 //
-// CONTAINS, never starts-with. Survey of the live subjects at this task's base: FOUR blocks open
+// CONTAINS, never starts-with. Survey of the live subjects at this task's base: these blocks open
 // with something other than their derivation line — war-setup-scout's adjudication-M note,
 // CONTEXT.md's and CLAUDE.md's adjudication-F preambles, and the prompt-literal sentinel's
-// adjudication-C paragraph. A starts-with shape would RED all four unmodified.
+// adjudication-C paragraph. #2636 split the CONTEXT.md block into the router and GLOSSARY.md
+// rows, and both keep an adjudication-F preamble. A starts-with shape would RED each of them unmodified.
 //
 // The derivation predicate is FUSED and newline-anchored, deliberately:
 //   * Fused (byte count and SHA bound in ONE match) because two independent contains-predicates
@@ -305,20 +313,21 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
 //     exactly the sort of hole a mechanical guard exists to foreclose before it opens.
 //   * Parenthetical-tolerant because the sentinel's derivation interposes a block/file-size
 //     aside between the byte count and the SHA. The plain fused shape REDs that one live
-//     subject; this shape passes all ten with zero comment rewrites.
+//     subject; this shape passed every subject at that base with zero comment rewrites.
 //   * The `\n` in the negated class is PROPHYLACTIC and no current subject demonstrates it:
 //     JavaScript negated classes match U+000A, so a bare `[^)]*` would let the aside span
 //     comment lines and re-admit the cross-line pairing the fusion just closed. Measured at this
-//     base the two variants agree on all ten subjects (nine of the ten blocks put ` @ <sha>`
+//     base the two variants agree on every subject (every block but the sentinel puts ` @ <sha>`
 //     directly after the byte count, so the optional group is skipped; the sentinel's aside opens
 //     right after the byte count AND closes on the same comment line, with the SHA after the
-//     close, so both variants match it identically — and under `@ <sha>`-stripping rot all ten
-//     RED under either variant). It guards a future shape — an aside opening right after the
+//     close, so both variants match it identically — and under `@ <sha>`-stripping rot every
+//     subject REDs under either variant). It guards a future shape — an aside opening right after the
 //     byte count and closing on a later line with the SHA after it — not a present one.
 //
-// Multiplier disjunction, not conjunction: CONTEXT.md's row is the known one-arm outlier, showing
-// only the ×1.25 side (its placeholder is retained under ratchet-down, so the advisory arm's
-// computed value is not what the row carries).
+// Multiplier disjunction, not conjunction: a row whose advisory is not the ×1.10 value shows only
+// the ×1.25 side. GLOSSARY.md's placeholder is retained under ratchet-down. The tiny-file rows
+// (CONTEXT.md, agents/war-helper.md and the hooks/reply-standard subagent cards) pin their advisory
+// below the hard line by hand.
 //
 // DISCOVERY FLOOR (default-deny, the sibling census's posture): the row-shape scan does not get to
 // define its own subject set. Reflow one row to a multi-line object literal and it drops silently

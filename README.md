@@ -166,7 +166,7 @@ The three presets move the whole profile at once: **`balanced`** *is* the defaul
 
 ### Author a plan (`/war-strategy`)
 
-**One interview, one merged artifact.** The pipeline's execution artifact is a single **merged plan** (`docs/plans/`): Part 1 is the ratified decision record — problem, pivotal constraints, resolved design tree, assumptions ledger, every claim of fact evidence-tagged — and Part 2 is the dispatch structure `/war` consumes — phases and tasks with exact file sets, `requiresTest`, `deps`, and target repo. The plan carries its own *what* and its own *how*. A **design spec** (`docs/specs/`) is an *input shape* only — how `/survey-corps` synthesis and externally-brought drafts arrive; it carries no dispatch structure, so `/war` cannot execute one, and `/war-strategy` converts it into the merged plan. Every plan opens with a **Commander's Intent** — **Purpose** (why), **Method** (how you envision winning), **End state** (numbered, individually *checkable* conditions) — drafted from your answers, confirmed by you explicitly, and threaded into every worker and auditor prompt: the plan slice is the floor, your intent is the ceiling. Full glossary: [`CONTEXT.md`](CONTEXT.md).
+**One interview, one merged artifact.** The pipeline's execution artifact is a single **merged plan** (`docs/plans/`): Part 1 is the ratified decision record — problem, pivotal constraints, resolved design tree, assumptions ledger, every claim of fact evidence-tagged — and Part 2 is the dispatch structure `/war` consumes — phases and tasks with exact file sets, `requiresTest`, `deps`, and target repo. The plan carries its own *what* and its own *how*. A **design spec** (`docs/specs/`) is an *input shape* only — how `/survey-corps` synthesis and externally-brought drafts arrive; it carries no dispatch structure, so `/war` cannot execute one, and `/war-strategy` converts it into the merged plan. Every plan opens with a **Commander's Intent** — **Purpose** (why), **Method** (how you envision winning), **End state** (numbered, individually *checkable* conditions) — drafted from your answers, confirmed by you explicitly, and threaded into every worker and auditor prompt: the plan slice is the floor, your intent is the ceiling. Full glossary: [`GLOSSARY.md`](GLOSSARY.md).
 
 **Author a plan by interview.** Bare invoke runs the plan-authoring interview itself, per the in-repo doctrine [`skills/war-strategy/references/plan-interview.md`](skills/war-strategy/references/plan-interview.md) — recon, a walk down the design tree with an evidence tag on every resolved decision, a pre-mortem, and two echo-back gates — terminating only on one merged plan in `docs/plans/`. When the Grill Me family is installed (see [Recommended Auxiliary Plugin](#recommended-auxiliary-plugin)) it offers that front door and binds it to the same merged deliverable; when it isn't, the interview runs all the same:
 
@@ -181,14 +181,14 @@ The three presets move the whole profile at once: **`balanced`** *is* the defaul
 ```
 
 **Pipeline doctrine:** war-strategy **authors and converts**; `/red-team` **validates** plans and never converts (see
-[`CONTEXT.md`](CONTEXT.md)). Doctrine: [`skills/war-strategy/SKILL.md`](skills/war-strategy/SKILL.md) and the
+[`GLOSSARY.md`](GLOSSARY.md)). Doctrine: [`skills/war-strategy/SKILL.md`](skills/war-strategy/SKILL.md) and the
 interview doctrine at [`skills/war-strategy/references/plan-interview.md`](skills/war-strategy/references/plan-interview.md).
 
 ### Harden a plan (`/red-team`)
 
 Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the plan, runs a universal spine of adversarial checks plus probes tailored to the plan, and **proves** the plan's claims by running its tests/edits/commands in throwaway sandboxes — never touching your repo. It then grills you on every blocker and patches the plan in place until it reaches a proceed verdict — **CLEARED**, or **ADJUDICATED** when a patched blocker was not re-verified by a probe re-run ([ADR 0043](docs/adr/0043-adjudicated-clear-distinct-terminal-verdict.md)) — leaving a report under `docs/red-team/`.
 
-`/red-team` **validates plans; it never converts a spec into one** (war-strategy **converts**, red-team **ratifies** — see [`CONTEXT.md`](CONTEXT.md)). Have a design spec instead of a plan? Bring it to [`/war-strategy`](#author-a-plan-war-strategy) first, then red team the resulting plan.
+`/red-team` **validates plans; it never converts a spec into one** (war-strategy **converts**, red-team **ratifies** — see [`GLOSSARY.md`](GLOSSARY.md)). Have a design spec instead of a plan? Bring it to [`/war-strategy`](#author-a-plan-war-strategy) first, then red team the resulting plan.
 
 Or invoke it in natural language — e.g. *"Red team my plan at docs/..."*. Doctrine: [`skills/red-team/SKILL.md`](skills/red-team/SKILL.md).
 

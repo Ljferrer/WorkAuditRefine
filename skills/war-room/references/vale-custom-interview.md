@@ -11,7 +11,7 @@ file exists, so a half-finished interview breaks nothing.
 Before asking the operator anything, spawn ONE read-only subagent in the background
 (never wait on it before starting the interview):
 
-> Examine this repository's Markdown prose (README, CLAUDE.md, CONTEXT.md, skills/, agents/,
+> Examine this repository's Markdown prose (README, CLAUDE.md, CONTEXT.md, GLOSSARY.md, skills/, agents/,
 > docs/ — skim widely, read representatively). Report, compactly: (1) typical and p90 sentence
 > length; (2) entrenched punctuation voice (em dashes, semicolons, parens) with rough frequency;
 > (3) spelling region actually in use; (4) recurring house vocabulary and proper terms a

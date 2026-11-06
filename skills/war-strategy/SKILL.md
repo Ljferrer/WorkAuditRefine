@@ -358,7 +358,7 @@ AFK-authored specs arrive tagged:
 ## 3. Resolved design tree        (table: decision → resolution)
 ## 4. Mechanics                   (per component/role)
 ## 5. Surface changes             (files touched)
-## 6. New domain terms (CONTEXT.md)
+## 6. New domain terms (GLOSSARY.md)
 ## 7. Recommended ADRs
 ## 8. Open risks / implementation notes
 ## 9. Non-goals / deferred

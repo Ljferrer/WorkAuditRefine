@@ -105,3 +105,9 @@ unchanged. The cap stays dual-axis and eviction stays operator-gated.
   for both per-repo roots.
 - [ADR 0025](0025-drift-guard-discipline.md) — the mirror-registry doctrine (a canonical source and a
   mirror site, each guarded) that the manifest↔tarball equality check follows.
+
+## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+
+#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
+(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
+next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.

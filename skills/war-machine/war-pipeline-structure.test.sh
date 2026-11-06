@@ -40,7 +40,8 @@ DESIGN="$ROOT/skills/war/references/design.md"
 TEMPLATE="$ROOT/skills/war/assets/workflow-template.js"
 README="$ROOT/README.md"
 PLUGIN="$ROOT/.claude-plugin/plugin.json"
-CONTEXT="$ROOT/CONTEXT.md"
+GLOSSARY="$ROOT/GLOSSARY.md"
+CONTEXT="$ROOT/CONTEXT.md"   # the Layer 1 router (#2636): absence sweeps only
 CLAUDE_MD="$ROOT/CLAUDE.md"
 WAR_HELP="$ROOT/skills/war-help/SKILL.md"
 WAR_STRATEGY="$ROOT/skills/war-strategy/SKILL.md"
@@ -299,7 +300,7 @@ has "$WAR_HELP" 'clean-up-aftermath'
 # file is intentionally excluded: its own assertion args above legitimately carry the old names.
 # lacks() scans each file with strip_prose applied, so a README `## Status`/`## Changelog` blurb
 # that *describes* the rename can't re-trip the guard (see prose-exclusion self-check below).
-for f in "$README" "$CONTEXT" "$PLUGIN" "$SURVEY" "$AFTERMATH" "$WAR_HELP" "$MACHINE" "$WAR_STRATEGY"; do
+for f in "$README" "$GLOSSARY" "$CONTEXT" "$PLUGIN" "$SURVEY" "$AFTERMATH" "$WAR_HELP" "$MACHINE" "$WAR_STRATEGY"; do
   lacks "$f" 'war-survey-corps'
   lacks "$f" 'war-aftermath'
 done
@@ -590,7 +591,8 @@ printf '\n# Gospel pins (docs/plans/2026-08-04-interview-and-authoring-contract.
 # surfaces — README, CLAUDE.md, war-help, CONTEXT.md, war-strategy — and each surface THIS
 # suite owns carries a NEW-present twin (war-strategy's both-ways enforcement — its own
 # retired-wording set and the merged-template heading — lives in
-# war-strategy-structure.test.sh, Task 1). Case-insensitive in BOTH directions: a benign
+# war-strategy-structure.test.sh, Task 1). #2636 moved the glossary to GLOSSARY.md, so the
+# OLD-absent loop sweeps GLOSSARY.md and the CONTEXT.md router in that surface's place. Case-insensitive in BOTH directions: a benign
 # re-casing must neither resurrect retired prose unseen
 # ([[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]]) nor false-negate a presence pin
 # (the sentence-case class). lacks_i() inherits strip_prose, so Task 10's README `## Status`
@@ -623,7 +625,7 @@ gospel13='author the';          gospel13="$gospel13 input plan"
 gospel14='without a';           gospel14="$gospel14 ratified spec"
 gospel15='routes you to your';  gospel15="$gospel15 installed grilling skill"
 gospel16='nothing else is';     gospel16="$gospel16 required"
-for f in "$README" "$CLAUDE_MD" "$WAR_HELP" "$CONTEXT" "$WAR_STRATEGY"; do
+for f in "$README" "$CLAUDE_MD" "$WAR_HELP" "$GLOSSARY" "$CONTEXT" "$WAR_STRATEGY"; do
   lacks_i "$f" "$gospel01"
   lacks_i "$f" "$gospel02"
   lacks_i "$f" "$gospel03"
@@ -649,7 +651,7 @@ done
 has_i_stripped "$README"    'recommended auxiliary plugin'
 has_i_stripped "$CLAUDE_MD" 'one interview, one merged artifact'
 has_i_stripped "$WAR_HELP"  'one merged plan, decision record + phases in a single artifact'
-has_i_stripped "$CONTEXT"   'input shape'
+has_i_stripped "$GLOSSARY"   'input shape'
 
 printf '\n# Authoring-side verification (docs/plans/2026-08-24-authoring-side-verification.md, Task 2.4) — cross-surface consumer pins\n'
 # Named, not numbered (the original pipeline spec owns the numbered criteria). Each pin below

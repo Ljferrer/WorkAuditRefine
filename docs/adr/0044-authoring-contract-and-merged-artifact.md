@@ -419,3 +419,9 @@ recorded on the pair row with the grafts each contributed.
 - [ADR 0052](0052-backward-chain-doctrine-and-corrective-round-disclosure.md): reachability step
   3 is untouched, and the sweep row is its record. The trial bounds are a safety precaution in
   the §4 sense, not a cost budget.
+
+## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+
+#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
+(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
+next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.

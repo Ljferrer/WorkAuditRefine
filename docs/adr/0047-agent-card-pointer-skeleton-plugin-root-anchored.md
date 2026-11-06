@@ -100,3 +100,9 @@ record.
 | A2 | Item 2, the auditor row's "**fallback-first**" framing | The D3 resolution line is a **plugin-repo-only** path, not a foreign-repo one. It fires only when the repo under review is the plugin itself, as the line's own text says. On a foreign target repo the auditor seat has no D3 resolution at all: resolution rests on harness substitution (recorded unverified-by-construction), and O(1)'s inline decisive rules are the operative carrier. The row's closing sentence — an auditor that resolves nothing on a foreign repo is never worse off than under the prior owner-relative form — is unaffected. |
 | A3 | Item 2, the no-shell seats row ("share the auditor's fallback path: the D3 resolution line, then O(1)'s inline decisive rules") | Same scope correction as A2. The servitor and setup-scout seats reach the D3 line only on the plugin repo; on a foreign target repo they fall straight through to O(1)'s inline decisive rules. |
 | A4 | Consequences, the `worker-servitor-edges.md` bullet | That header was requalified in this pass. It no longer presents the D3 line as a foreign-repo resolution path. Its Bash-capable-seats clause ("expand the placeholder in their own shell … even on a foreign target repo") is true and stays. |
+
+## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+
+#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
+(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
+next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
