@@ -167,3 +167,28 @@ war/2026-10-27-memory-query-mcp-tool/p1-1.4	#2508	0-'+' via git cherry vs origin
 war/2026-10-28-blocked-ace-and-merge-provenance/p2-2.2	#2529	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-')
 war/2026-10-28-blocked-ace-and-merge-provenance/p5-5.2	#2529	0-'+' via git cherry vs origin/master, 2026-11-06 (1 '-')
 war/2026-10-28-blocked-ace-and-merge-provenance/p5-5.3	#2529	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-')
+
+# --- 2026-11-06 sweep, step 5: short-slug task refs ---
+# These refs use a short plan slug (war/<slug>/...) while the working branch carried a date prefix
+# (dev/<date>-<slug>), so the dev/<slug> PR lookup found no merged PR. Each landed_pr below is the PR
+# that executed the plan. Same structural cause and cherry proof as the step-4 header above.
+war/2026-08-04-interview-and-authoring-contract/p1-2	#1318	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-'); executing PR found by its date-prefixed head
+war/2026-08-04-interview-and-authoring-contract/p1-4	#1318	0-'+' via git cherry vs origin/master, 2026-11-06 (1 '-'); executing PR found by its date-prefixed head
+war/2026-08-04-interview-and-authoring-contract/p1-5	#1318	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-'); executing PR found by its date-prefixed head
+war/2026-08-04-interview-and-authoring-contract/p2-7	#1318	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-'); executing PR found by its date-prefixed head
+war/2026-08-04-interview-and-authoring-contract/p2-9	#1318	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-'); executing PR found by its date-prefixed head
+war/adr-doc-truth-sweep/p1-1.2	#1627	0-'+' via git cherry vs origin/master, 2026-11-06 (1 '-'); executing PR found by its date-prefixed head
+war/adr-doc-truth-sweep/p1-1.3	#1627	0-'+' via git cherry vs origin/master, 2026-11-06 (1 '-'); executing PR found by its date-prefixed head
+war/adr-doc-truth-sweep/p1-1.4	#1627	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-'); executing PR found by its date-prefixed head
+war/adr-doc-truth-sweep/p1-1.5	#1627	0-'+' via git cherry vs origin/master, 2026-11-06 (1 '-'); executing PR found by its date-prefixed head
+war/adr-doc-truth-sweep/p1-1.6	#1627	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-'); executing PR found by its date-prefixed head
+war/ask-disposition/p2-2.2	#1711	0-'+' via git cherry vs origin/master, 2026-11-06 (1 '-'); executing PR found by its date-prefixed head
+war/ask-disposition/p2-2.4	#1711	0-'+' via git cherry vs origin/master, 2026-11-06 (1 '-'); executing PR found by its date-prefixed head
+war/ask-disposition/p2-2.5	#1711	0-'+' via git cherry vs origin/master, 2026-11-06 (4 '-'); executing PR found by its date-prefixed head
+war/ask-disposition/p2-2.6	#1711	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-'); executing PR found by its date-prefixed head
+war/authoring-side-verification/p1-1.3	#1663	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-'); executing PR found by its date-prefixed head
+war/authoring-side-verification/p2-2.2	#1663	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-'); executing PR found by its date-prefixed head
+war/authoring-side-verification/p2-2.3	#1663	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-'); executing PR found by its date-prefixed head
+war/authoring-side-verification/p2-2.5	#1663	0-'+' via git cherry vs origin/master, 2026-11-06 (1 '-'); executing PR found by its date-prefixed head
+war/authoring-side-verification/p3-3.2	#1663	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-'); executing PR found by its date-prefixed head
+war/realized-absorb-rate/p3-3.3	#1607	0-'+' via git cherry vs origin/master, 2026-11-06 (1 '-'); executing PR found by its date-prefixed head
