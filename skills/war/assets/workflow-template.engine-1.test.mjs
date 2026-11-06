@@ -7946,19 +7946,20 @@ test('Task 1.2 — docs tier: an all-*.md task dispatches its first-pass worker 
   assert.equal(empty.model, 'opus', 'EMPTY files list ⇒ base worker tier (fail-safe)')
 })
 
-test('Task 1.2 — fix tier set: the fix-round AND the --ace worker both dispatch on agents.worker.fix (and the base first-pass differs)', async () => {
-  const { work, fix, ace } = await runFixAndAce({ worker: { model: 'sonnet', fix: { model: 'opus', effort: 'high' } } })
+test('Task 1.2 — fix tier set: the fix-round worker dispatches on agents.worker.fix, and an unset ace takes the ace default, not the fix model (#2619)', async () => {
+  const { work, fix, ace } = await runFixAndAce({ worker: { model: 'sonnet', fix: { model: 'fable', effort: 'high' } } })
   assert.equal(work.model, 'sonnet', 'the base first-pass worker uses agents.worker (sonnet) — NOT the fix tier')
-  assert.deepEqual({ model: fix.model, effort: fix.effort }, { model: 'opus', effort: 'high' }, 'the fix-round worker carries agents.worker.fix')
-  assert.deepEqual({ model: ace.model, effort: ace.effort }, { model: 'opus', effort: 'high' }, 'the --ace worker carries agents.worker.fix')
+  assert.deepEqual({ model: fix.model, effort: fix.effort }, { model: 'fable', effort: 'high' }, 'the fix-round worker carries agents.worker.fix')
+  assert.deepEqual({ model: ace.model, effort: ace.effort }, { model: 'opus', effort: undefined },
+    'ace unset ⇒ the --ace worker carries the ace default (opus), never the fix model (fable)')
 })
 
-test('Task 1.2 — fix tier absent: the fix-round AND the --ace worker both inherit the base worker (no fix block)', async () => {
+test('Task 1.2 — fix tier absent: the fix-round worker inherits the base worker; the --ace worker takes the ace default (no fix or ace block)', async () => {
   const { fix, ace } = await runFixAndAce({ worker: { model: 'sonnet' } })
   assert.equal(fix.model, 'sonnet', 'fix absent ⇒ the fix-round worker inherits the base worker model')
   assert.equal(fix.effort, undefined, 'base worker has no configured effort ⇒ omitted (inherit session)')
-  assert.equal(ace.model, 'sonnet', 'fix absent ⇒ the --ace worker inherits the base worker model')
-  assert.equal(ace.effort, undefined, 'base worker has no configured effort ⇒ omitted (inherit session)')
+  assert.equal(ace.model, 'opus', 'ace absent ⇒ the --ace worker carries the ace default model (#2619)')
+  assert.equal(ace.effort, undefined, "the ace default effort is 'default' ⇒ omitted (inherit session)")
 })
 
 test('#817 — floor-retry fix tier set: the add-test dispatch carries agents.worker.fix { model, effort } (spawnWorker(\'fix\'), not the base worker)', async () => {
@@ -7974,7 +7975,7 @@ test('#817 — floor-retry fix tier absent: the add-test dispatch inherits the b
 })
 
 // #2519 — the ace tier splits --ace and the terminal pass off agents.worker.fix. Fix rounds and floor retries stay
-// on the fix tier. (Ace absent ⇒ the fix tier: the 'Task 1.2 — fix tier set' test above proves that fallback.)
+// on the fix tier. (Ace absent ⇒ the ace default, #2619: the 'Task 1.2 — fix tier set' test above proves it.)
 const ACE_SPLIT = { worker: { model: 'fable', fix: { model: 'opus', effort: 'high' }, ace: { model: 'sonnet', effort: 'medium' } } }
 test('#2519 — ace tier set: the --ace worker dispatches on agents.worker.ace; the fix-round and add-test workers stay on agents.worker.fix', async () => {
   const { work, fix, ace } = await runFixAndAce(ACE_SPLIT)
@@ -7986,7 +7987,7 @@ test('#2519 — ace tier set: the --ace worker dispatches on agents.worker.ace; 
   assert.deepEqual({ model: retry.model, effort: retry.effort }, { model: 'opus', effort: 'high' }, 'the add-test floor retry stays on agents.worker.fix')
 })
 
-test('#2519 — ace tier: the terminal pass dispatches on agents.worker.ace when set, else on agents.worker.fix', async () => {
+test('#2519 — ace tier: the terminal pass dispatches on agents.worker.ace when set, else on the ace default (#2619)', async () => {
   const terminalOpts = async (agents) => {
     const { calls } = await runPhase(SWEEP_ARGS({ agents }), terminalImpl())
     const tw = calls.find(c => (c.opts.label || '') === 'terminal:phase-3')
@@ -7994,8 +7995,8 @@ test('#2519 — ace tier: the terminal pass dispatches on agents.worker.ace when
     return { model: tw.opts.model, effort: tw.opts.effort }
   }
   assert.deepEqual(await terminalOpts(ACE_SPLIT), { model: 'sonnet', effort: 'medium' }, 'ace set ⇒ the terminal worker carries agents.worker.ace')
-  assert.deepEqual(await terminalOpts({ worker: { model: 'fable', fix: { model: 'opus', effort: 'high' } } }), { model: 'opus', effort: 'high' },
-    'ace absent ⇒ the terminal worker carries agents.worker.fix (unchanged from before the split)')
+  assert.deepEqual(await terminalOpts({ worker: { model: 'sonnet', fix: { model: 'fable', effort: 'high' } } }), { model: 'opus', effort: undefined },
+    'ace absent ⇒ the terminal worker carries the ace default (opus), never agents.worker.fix (fable)')
 })
 
 // Operator ruling 2026-11-05: ace charges 5 and 6 run on agents.worker.fix, the stronger tier; charges 1-4 stay on agents.worker.ace.
@@ -8219,10 +8220,10 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       canonical: [MANIFEST_PATH_TEMPLATE],
       extractInline: () => [(src.match(/const\s+MANIFEST_PATH_TEMPLATE\s*=\s*'([^'\n]+)'/) || [])[1]] },
     // Worker sub-tier defaults (Task 1.2): the inline WORKER_TIER_DEFAULTS mirror bound to the canonical
-    // DEFAULTS.agents.worker sub-tiers — value equality, never a restated literal. docs is the only
-    // defaulted tier (fix has no default block: absent ⇒ inherit the base worker, nothing to mirror).
+    // DEFAULTS.agents.worker sub-tiers — value equality, never a restated literal. docs and ace (#2619) are
+    // mirrored (fix has no sandbox default: absent ⇒ inherit the base worker, nothing to mirror).
     { name: 'WORKER_TIER_DEFAULTS (inline ↔ DEFAULTS.agents.worker sub-tiers)', mode: 'behavioral',
-      cases: [['docs']],
+      cases: [['docs'], ['ace']],
       inline: ([tier]) => inlineHelpers().WORKER_TIER_DEFAULTS[tier],
       canonical: ([tier]) => DEFAULTS.agents.worker[tier] },
     // AUDITOR_TIER_DEFAULTS (#2534): the sandbox fallback for an absent agents.auditor.high, bound to DEFAULTS by value.

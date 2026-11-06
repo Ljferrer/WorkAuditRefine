@@ -303,7 +303,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
 ```jsonc
 { version: 1, profile: "balanced" | "thorough" | "economy" | "<custom>",
   agents: {                                  // model ∈ opus|sonnet|haiku|fable; effort ∈ default|low|medium|high|xhigh|max ("default" = inherit session)
-    worker:   { model, effort },             // worker config also drives fix-workers (unless agents.worker.fix / .ace is set, below)
+    worker:   { model, effort },             // worker config also drives fix-workers when agents.worker.fix is absent; ace work runs on agents.worker.ace (below)
     auditor:  { model, effort },             // optional auditor.rebuttal { model, effort }: the rebuttal-round seat tier, above a seat's own model/effort too; defaulted one model above the auditor; an omitted block ⇒ each seat keeps its usual tier. Optional auditor.high / auditor.low { model, effort } (#2534): the tier a seat's tier 'high' / 'low' resolves; high is defaulted, low is not, and a high model below the auditor model resolves to the auditor tier (an absent low ⇒ the auditor model and effort; a seat with no tier runs low)
     refiner:  { model, effort },
     servitor: { model, effort },
@@ -315,8 +315,8 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     lessons?: { investigate, edit, retype, keywords },         // skill seats for /lessons-learned, read fail-open: a missing config uses the balanced defaults, an invalid one the session model
     snipe?: { model, effort } },             // not a phase role — /snipe's one-shot seat tier (#1920), defaulted in `war-config.mjs` DEFAULTS, presets may re-pin it; explicit null = unset (falls back to the auditor tier); validated like redteam; optional low { model, effort } (#2534 item 23b): the defaulted step-down rung, validated like auditor.low, clamped to the snipe tier
   //   agents.worker.docs { model, effort }  — the all-*.md dispatch tier (defaulted in DEFAULTS; presets may re-pin it)
-  //   agents.worker.fix  { model, effort }  — the fix-round and floor-retry tier (and --ace when .ace is absent); defaulted in DEFAULTS and inherited unless a preset re-pins it; an omitted block inherits the base worker config
-  //   agents.worker.ace  { model, effort }  — the --ace and terminal-pass tier (#2519); no default and no preset sets it; an omitted block inherits agents.worker.fix; ace charges 5 and 6 run on agents.worker.fix, so validate refuses a fix model ranked below the ace model
+  //   agents.worker.fix  { model, effort }  — the fix-round and floor-retry tier (and ace charges 5 and 6); defaulted in DEFAULTS and inherited unless a preset re-pins it; an omitted block inherits the base worker config
+  //   agents.worker.ace  { model, effort }  — the --ace and terminal-pass tier (#2519); defaulted in DEFAULTS (#2619) and inherited by every preset, never the fix tier; ace charges 5 and 6 run on agents.worker.fix, so validate refuses a fix model ranked below the ace model
   audit: {
     roster: [ { lens: "correctness", depth: "deep" },        // seat shape { lens, depth?, agentType?, model?, effort?, tier? } (tier picks the seat tier; model/effort override it for that seat); lenses distinct; the seat bound, the depth enum and the depth default per `validateRoster` in `war-config.mjs` — never restated here; agentType ∈ SEAT_AGENT_TYPES (the `war-config.mjs` export; the evidence member needs run.evidence on)
               { lens: "cascading-impact", depth: "deep" },   // this default roster is also the union-widening FALLBACK for autoEscalate (used when a lone seat's widen nomination is absent/invalid)

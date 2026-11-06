@@ -780,11 +780,11 @@ plan's file list, not the diff).
 
 **Fix bump**:
 The optional distinct model/effort (`agents.worker.fix`) applied to fix-round and floor-retry
-worker spawns, and to `--ace` and the terminal pass unless `agents.worker.ace` is set (#2519) —
+worker spawns, and to ace charges 5 and 6 —
 either direction, a stronger fixer than the first pass or a cheaper one (per-preset values: the
-`/war-room` preset bullets). Absent = fix work inherits the base worker config; an absent ace tier
-inherits the fix tier. Ace charges 5 and 6 always run on the fix tier, so its model must rank at
-least the ace model (2026-11-05).
+`/war-room` preset bullets). Absent = fix work inherits the base worker config. The ace tier
+(`agents.worker.ace`, #2519) runs `--ace` and the terminal pass and has its own default (#2619). The fix
+model must rank at least the ace model (2026-11-05).
 _Avoid_: fix model (it's an optional override, not a standing role).
 
 **Helper**:
