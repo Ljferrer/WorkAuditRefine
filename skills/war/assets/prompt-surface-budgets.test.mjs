@@ -324,10 +324,10 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
 //     subject REDs under either variant). It guards a future shape — an aside opening right after the
 //     byte count and closing on a later line with the SHA after it — not a present one.
 //
-// Multiplier disjunction, not conjunction: the GLOSSARY.md and CONTEXT.md rows show only the
-// ×1.25 side. GLOSSARY.md's placeholder is retained under ratchet-down, and CONTEXT.md's advisory
-// is pinned below its hard line by the tiny-file rule, so neither row carries the advisory arm's
-// computed value.
+// Multiplier disjunction, not conjunction: a row whose advisory is not the ×1.10 value shows only
+// the ×1.25 side. GLOSSARY.md's placeholder is retained under ratchet-down. The tiny-file rows
+// (CONTEXT.md, agents/war-helper.md and the hooks/reply-standard subagent cards) pin their advisory
+// below the hard line by hand.
 //
 // DISCOVERY FLOOR (default-deny, the sibling census's posture): the row-shape scan does not get to
 // define its own subject set. Reflow one row to a multi-line object literal and it drops silently
