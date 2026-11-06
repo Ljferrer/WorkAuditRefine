@@ -1,7 +1,7 @@
 # WAR — Context
 
 The router for WAR (Work · Audit · Refine). Read the one entry that fits your task, then
-stop. The ubiquitous language lives in GLOSSARY.md: its contents list links each section.
+stop. The ubiquitous language lives in GLOSSARY.md: its contents list names each section.
 
 ## Roles
 
@@ -20,6 +20,10 @@ stop. The ubiquitous language lives in GLOSSARY.md: its contents list links each
 - when you turn issues into specs, read skills/survey-corps/SKILL.md
 - when you turn specs into plans, read skills/war-machine/SKILL.md
 - when you run stacked plans, read skills/war-campaign/SKILL.md
+- when you clean up after landed plans, read skills/aftermath/SKILL.md
 - when you tidy memory, read skills/lessons-learned/SKILL.md
 - when you fix one issue end to end, read skills/zero-in/SKILL.md
+- when you audit a diff once, read skills/snipe/SKILL.md
+- when you review a finished run, read skills/war-review/SKILL.md
+- when you are new to WAR, read skills/war-help/SKILL.md
 - when you develop this plugin, read CLAUDE.md

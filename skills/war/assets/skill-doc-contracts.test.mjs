@@ -41,6 +41,9 @@ const specProseDrift = readFileSync(
 // sheet (skills/war/references/), so the two roots differ — each resolved from HERE, never cwd;
 // run-manifest.md is the war skill's cold per-stamp reference, same root as schemas.md.
 const glossaryMd = readFileSync(join(HERE, '..', '..', '..', 'GLOSSARY.md'), 'utf8')
+// The Layer 1 router (#2636). OLD-absent sweeps scan it beside the glossary: it is a live,
+// prompt-bearing surface, so a retired shape written there must still red.
+const routerMd = readFileSync(join(HERE, '..', '..', '..', 'CONTEXT.md'), 'utf8')
 const schemasMd = readFileSync(join(HERE, '..', 'references', 'schemas.md'), 'utf8')
 const runManifestMd = readFileSync(join(HERE, '..', 'references', 'run-manifest.md'), 'utf8')
 // (D23) This file's FIRST `docs/adr/` read — same construct-anchored style, third root.
@@ -533,7 +536,7 @@ test('D19 — GLOSSARY.md **Adjudication** term keeps its provenance-discipline 
 // sites: the definition-body producer enumeration (which now names the Checkpoint's ask rulings as
 // the third producer, minted at the strike-list gate) and the `_Avoid_` count line D19 guards
 // (now "the three named producers"). OLD-absent per PIN-8's law: the retired literal "two named
-// producers" was verified present at this task's base — its base carrier is GLOSSARY.md's own
+// producers" was verified present at this task's base — its base carrier is CONTEXT.md's own (now GLOSSARY.md)
 // `_Avoid_` count line ("rows come only from the two named producers"), the byte-run this widening
 // rewrote in place. It is NOT quoted by D19's block comment above: that comment was rewritten in
 // the companion commit that completed the same task (the widening landed in fbadb88, the D19
@@ -1574,7 +1577,7 @@ test('D27 — SKILL.md Lead evidence bindings paragraph carries the §4.4 skelet
   }
 })
 
-// (D28) GLOSSARY → CANONICAL-HOME POINTER PAIRS — Task 6.2's two GLOSSARY.md compressions (#1228)
+// (D28) GLOSSARY → CANONICAL-HOME POINTER PAIRS — Task 6.2's two CONTEXT.md compressions (#1228)
 // replaced operative procedure with a trigger pointer at each doctrine's single surviving operative
 // home. The residual this guard closes: war-config.test.mjs pins the '### Recovery relaunch'
 // heading + entry-point tokens at the destination, and a destination-file rename already reds
@@ -1839,7 +1842,7 @@ test('D29 — ADR 0042 doctrine mirrors (GLOSSARY.md glossary terms, CLAUDE.md h
 // (D32) EVICTED-GLOSSARY POINTER PAIRS — the verdict-adjudication-integrity plan's D14 eviction
 // (#1265, #1357; its decision tree labels this guard "D30", a label this file had already spent on
 // the dispatch-args census below, so the row lands as D32) moved five cold recovery-entry bodies
-// out of GLOSSARY.md into the unbudgeted cold home references/glossary-cold.md, leaving per-term
+// out of CONTEXT.md (now GLOSSARY.md) into the unbudgeted cold home references/glossary-cold.md, leaving per-term
 // `when <trigger>, read …` pointers; a second wave (2026-08-27, marked inline below) moved three
 // more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned) and, since wave 5, the born-cold terms too, not one plan's five (wave 6's four born-cold merge-provenance bodies are pinned by skills/red-team/assets/workflow-scaffold.test.mjs, not by this row). Modelled on D28: each residue is a hand-copied cross-file
 // fact (the destination path plus the per-term heading it must resolve to) with no other guard —
@@ -1861,7 +1864,7 @@ test('D32 — evicted GLOSSARY.md glossary entries keep trigger pointers, and gl
     ['Stale prior attempt', '## Stale prior attempt'],
     ['Dead-agent land failure', '## Dead-agent land failure'],
     ['Near-miss diagnostic', '## Near-miss diagnostic'],
-    // Wave 2 — the 2026-08-27 in-run-finding-resolution plan's Task 3 funded GLOSSARY.md's two new
+    // Wave 2 — the 2026-08-27 in-run-finding-resolution plan's Task 3 funded CONTEXT.md's two new
     // re-entry/citation glossary terms by a byte-identical eviction of three more cold entries
     // (coldness criterion, stated in glossary-cold.md's header: incident-only / one-command terms
     // fully narrated in their own operative home — ADR 0023 + resume-and-recovery.md, ADR 0045 +
@@ -1870,11 +1873,11 @@ test('D32 — evicted GLOSSARY.md glossary entries keep trigger pointers, and gl
     ['Land-truth guard', '## Land-truth guard'],
     ['Route-upstream', '## Route-upstream'],
     // in-run-finding-resolution Phase 3 Task 2 completion (#1902): two more cold bodies evicted
-    // to fund the pinned ~1 KB of GLOSSARY.md slack.
+    // to fund the pinned ~1 KB of CONTEXT.md slack.
     ['residual-set verification', '## residual-set verification'],
     ['churny shared docs', '## churny shared docs'],
     ['patch-equivalence probe', '## patch-equivalence probe'],
-    // Wave 3 — the #1953 eviction pass (2026-08-31) restored GLOSSARY.md headroom from 1 B to
+    // Wave 3 — the #1953 eviction pass (2026-08-31) restored CONTEXT.md headroom from 1 B to
     // 2,064 B under the unchanged ceiling. Coldness per the header criterion: each body is fully
     // narrated in its own operative home — the retired-token sweep in
     // skills/war/references/retired-token-sweep.md, the done-unmet route on agents/war-refiner.md's floor section plus
@@ -1887,7 +1890,7 @@ test('D32 — evicted GLOSSARY.md glossary entries keep trigger pointers, and gl
     // born-cold glossary terms by a byte-identical eviction of two authoring-side entries, each
     // fully narrated in its own operative home (plan-interview.md's Stage 5 gates and its
     // decisive-slots table). The three born-cold bodies were authored in glossary-cold.md first:
-    // GLOSSARY.md never held them, so it carries only their pointer residues, in the same shape.
+    // The glossary never held them, so it carries only their pointer residues, in the same shape.
     // Never a ceiling raise; these rows are the lock-step re-anchor the funding owes.
     ['Executor gate', '## Executor gate'],
     ['Decisive slot', '## Decisive slot'],
@@ -1955,8 +1958,8 @@ test('D32 — evicted GLOSSARY.md glossary entries keep trigger pointers, and gl
 })
 
 // (D32 companion) BORN-COLD HEADER TRUTH — glossary-cold.md's header claims every evicted body
-// was byte-identical to its GLOSSARY.md text "at eviction time" (reference-link-integrity Arm 3
-// pins that qualifier). Wave 5 added three bodies GLOSSARY.md never held, so the header gained a
+// was byte-identical to its CONTEXT.md text "at eviction time" (reference-link-integrity Arm 3
+// pins that qualifier). Wave 5 added three bodies the glossary never held, so the header gained a
 // born-cold clause admitting them; without that clause the header's byte-identity claim is
 // false for three of its own sections (the fork-trials plan's ledger row A5). A FIXED-STRING
 // pin, read from the header region (the text before the first `## ` heading, never a
@@ -2397,7 +2400,7 @@ test('disposition-eligibility.md absorb block carries the source-derivable eligi
   )
 })
 
-// (D34) RETIRED D4/D5 CONNECTIVES (#1498) — GLOSSARY.md was the third live surface of the two
+// (D34) RETIRED D4/D5 CONNECTIVES (#1498) — the glossary (then CONTEXT.md, now GLOSSARY.md) was the third live surface of the two
 // authoring laws the war-strategy convergence retired the old wording of: the D4 issue-derived
 // source-form clause (the retired claims/source-form phrasing → "issue-derived facts use …") and
 // the D5 done-when connective (the retired elsewhere-connective → "permitted (not required) on
@@ -2432,9 +2435,10 @@ test('D34 — GLOSSARY.md carries the converged D4/D5 connectives; the retired f
     'the GLOSSARY.md **Done-when** entry must carry the converged D5 connective ' +
       '("permitted (not required) on any other task; otherwise `None — <basis>`")',
   )
-  // OLD-absent, all three converged surfaces — the committed half of the both-directions gate.
+  // OLD-absent, all three converged surfaces and the router — the committed half of the both-directions gate.
   for (const [name, text] of [
     ['GLOSSARY.md', glossaryMd],
+    ['CONTEXT.md', routerMd],
     ['skills/war-strategy/SKILL.md', warStrategySkillMd],
     ['skills/war-strategy/references/plan-interview.md', planInterviewMd],
   ]) {
@@ -2796,7 +2800,7 @@ test('D36 — the eight authoring-side-verification GLOSSARY.md glossary terms m
 // **Clean handoff** + the new glossary region; the CLAUDE.md Known-traps disposition bullet).
 // Found (four-sentence floor): (1) D19 in this suite anchors the **Adjudication** `_Avoid_`
 // provenance clause — extended in place by D19a above, same commit as the widening. (2)
-// prompt-surface-budgets.test.mjs carries the GLOSSARY.md (126,976 B) and CLAUDE.md (16,384 B)
+// prompt-surface-budgets.test.mjs carries the CONTEXT.md (126,976 B) and CLAUDE.md (16,384 B)
 // hard ceilings — D12's budget arbiter, exercised by this task's Done-when. (3) Tour step 2
 // anchors GLOSSARY.md at the Container/Contents heading — outside the edited region, retyped
 // pattern-only by Task 2.5 and pinned in D39 below. (4) No `.test.sh` surface anchors any touched
@@ -3477,7 +3481,7 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
     )
   }
   // OLD-absent, whole-surface (End state 9's own form). The exhaustion literals were verified
-  // present at the 2026-08-27 task's cut base — SKILL.md and GLOSSARY.md each carried `exhaustion
+  // present at the 2026-08-27 task's cut base — SKILL.md and CONTEXT.md each carried `exhaustion
   // demotes the remainder` once, design.md `budget-exhausted remainder` once — so these guard a
   // revert of that flip, never a never-present value (PIN-8). Deliberately NOT applied to
   // docs/adr/0013 — see the append-only-law exemption in the header comment and its two-sided
@@ -3552,10 +3556,11 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
 // folded — the End-state check's own regex) and the retired token `floor-retry reserve` (the
 // merge-floor retry LOOP keeps its `floor-retry` label — only the reserve compound is retired).
 // ADR 0013 is exempt (append-only law — D43 proves both sides of that exemption).
-test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-retry-reserve token are absent from the six living surfaces (End state 5, PIN-7)', () => {
+test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-retry-reserve token are absent from the six living surfaces and the router (End state 5, PIN-7)', () => {
   for (const [name, text] of [
     ['skills/war/SKILL.md', skillMd],
     ['GLOSSARY.md', glossaryMd],
+    ['CONTEXT.md', routerMd],
     ['skills/war/references/design.md', designRefMd],
     ['skills/war/references/disposition-eligibility.md', eligibilityRef],
     ['skills/war/references/schemas.md', schemasMd],
@@ -3688,7 +3693,7 @@ test('refiner-evict (c) — no `#gate-failure-classification` anchor token survi
 // **Disposition** entry shares this vocabulary. Each extraction must span its own tail marker (the
 // `_Avoid_` line; the amendment's never-waives bullet) so a truncated read reds instead of passing
 // vacuously. Anchor literals are copied from the post-plan-A, post-Phase-1-eviction tree — Phase 1
-// Task 5 kept the latitude clause HOT in GLOSSARY.md, so these are live bytes, not evicted ones.
+// Task 5 kept the latitude clause HOT in CONTEXT.md (now GLOSSARY.md), so these are live bytes, not evicted ones.
 // Keys are token-anchored `\s+`-wrapped forms asserted on BOTH surfaces: a one-sided edit reds,
 // and sanctioned rewording latitude on either surface must not false-red.
 test("D44 — GLOSSARY.md **Intent ceiling / plan floor** mirrors ADR 0013's 2026-08-17 latitude-clause amendment (#1513)", () => {
@@ -3939,8 +3944,8 @@ test('barrier-list — the GLOSSARY.md **Barrier list** entry names every canoni
   )
 })
 
-test('old-default-absent (a) — the three retired conjunction shapes are absent from the eight living surfaces after normalization (End state 8)', () => {
-  for (const [name, text] of OLD_DEFAULT_SURFACES) {
+test('old-default-absent (a) — the three retired conjunction shapes are absent from the eight living surfaces and the router after normalization (End state 8)', () => {
+  for (const [name, text] of [...OLD_DEFAULT_SURFACES, ['CONTEXT.md', routerMd]]) {
     const hits = oldDefaultHits(text)
     assert.deepEqual(
       hits,

@@ -2491,6 +2491,7 @@ test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename t
     'skills/war/SKILL.md',
     'skills/war/references/design.md',
     'GLOSSARY.md',
+    'CONTEXT.md', // the Layer 1 router (#2636), still a live prompt-bearing surface
     // UNION extension (prompt-surface simplification, adjudication I): the SKILL.md eviction
     // destinations join the enumerated OLD-absent list — still an anchored file list, never a scan.
     'skills/war/references/setup.md',

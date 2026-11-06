@@ -234,7 +234,7 @@ test('doc-contract: Phase 6 It-checks names the repo-completeness hard fail', ()
 // tighten trigger became false. ADR 0025 default-flip discipline: OLD-absent per enumerated
 // surface, not just NEW-present — a worker could otherwise APPEND a target-aware sentence and
 // leave the false clause standing, and a presence-only lock would pass. Eight enumerated
-// surfaces: (1)–(6) in SKILL.md, (7)–(8) in GLOSSARY.md's glossary. Each needle was verified to sit
+// surfaces: (1)–(6) in SKILL.md, (7)–(8) in GLOSSARY.md. Each needle was verified to sit
 // on a single physical line (the stop rule and GLOSSARY's "no third threshold" sentence both WRAP,
 // hence the whitespace-tolerant / truncated needles below).
 // Task 6.1 re-anchor: the tighten procedure (which carried surfaces 1, 2, 5, 6) moved verbatim to
@@ -261,7 +261,7 @@ test('doc-contract: no fixed-advisory tighten-preflight reading survives in SKIL
         `${name} ${surface}: the retired fixed-advisory reading must be gone — the preflight verdict is the stricter of the advisory line and the effective --target (#992)`)
 })
 
-// (18) OLD-absent ×2 on GLOSSARY.md's glossary (surfaces 7-8). The definitional entries asserted the
+// (18) OLD-absent ×2 on GLOSSARY.md (surfaces 7-8). The definitional entries asserted the
 //      advisory line was the ONLY trigger threshold; a sub-advisory --target is exactly a second,
 //      stricter one. `there is no third` stops before `threshold` on purpose: that sentence wraps.
 test('doc-contract: GLOSSARY.md glossary no longer calls the advisory line the sole tighten trigger (surfaces 7-8)', () => {

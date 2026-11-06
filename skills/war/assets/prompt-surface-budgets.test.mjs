@@ -66,7 +66,7 @@ const FILE_BUDGETS = {
   // post-shrink 32,923 B @ c6a05fb → hard ×1.25 ceil-KB = 41,984; advisory ×1.10 ceil-KB = 36,864
   'skills/lessons-learned/SKILL.md': { hard: 41984, advisory: 36864 },
   // Budgeted per adjudication F: CONTEXT.md is the Layer 1 router, prompt-bearing (#2636).
-  // post-shrink 1,178 B (the router rewrite, measured on this change's base) @ 31c216b →
+  // post-shrink 1,429 B (the router written on base 31c216b, measured in #2636) @ 31c216b →
   // hard ×1.25 ceil-KB = 2,048; advisory pinned below at 1,536 (the tiny-file rule: advisory < hard).
   'CONTEXT.md': { hard: 2048, advisory: 1536 },
   // Budgeted per adjudication F: GLOSSARY.md is the shared glossary, prompt-bearing.
@@ -300,10 +300,10 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
 // unauditable — no way to tell a measured ratchet from a typed-in guess. This guard binds the
 // shape of the comment block directly above each budgeted subject.
 //
-// CONTAINS, never starts-with. Survey of the live subjects at this task's base: FOUR blocks open
+// CONTAINS, never starts-with. Survey of the live subjects at this task's base: these blocks open
 // with something other than their derivation line — war-setup-scout's adjudication-M note,
 // CONTEXT.md's, GLOSSARY.md's and CLAUDE.md's adjudication-F preambles, and the prompt-literal sentinel's
-// adjudication-C paragraph. A starts-with shape would RED all five unmodified.
+// adjudication-C paragraph. A starts-with shape would RED each of them unmodified.
 //
 // The derivation predicate is FUSED and newline-anchored, deliberately:
 //   * Fused (byte count and SHA bound in ONE match) because two independent contains-predicates

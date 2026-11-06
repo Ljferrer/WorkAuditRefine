@@ -66,10 +66,14 @@ export function routerFaults(router, glossary, files) {
     if (!m) { faults.push(`not a when/read entry: ${line}`); continue }
     entries.push({ role: m[1], target: m[3] })
     if (!resolves(m[3], files)) faults.push(`broken link: ${m[3]}`)
-    const [path, frag] = m[3].split('#')
-    if (path === 'GLOSSARY.md' && frag && sectionSlugs.has(frag)) {
-      faults.push(`router links a glossary section directly (2-hop rule): ${m[3]}`)
-    }
+  }
+  // Prose lines count too: a Markdown link anywhere must resolve, and no GLOSSARY.md#<section>
+  // reference anywhere in the router may skip the contents list.
+  for (const m of router.matchAll(/\]\(([^)\s]+)\)/g)) {
+    if (!resolves(m[1], files)) faults.push(`broken link: ${m[1]}`)
+  }
+  for (const m of router.matchAll(/GLOSSARY\.md#([a-z0-9_-]+)/g)) {
+    if (sectionSlugs.has(m[1])) faults.push(`router links a glossary section directly (2-hop rule): ${m[0]}`)
   }
   for (const role of ROLES) {
     if (!entries.some((e) => e.role === role)) faults.push(`no entry for role ${role}`)
@@ -95,7 +99,11 @@ export function contentsFaults(glossary) {
     listed.push(m[1])
   }
   const all = anchors(glossary)
-  for (const s of listed) if (!all.has(s)) faults.push(`broken contents link: #${s}`)
+  const sections = new Set([...glossary.matchAll(/^### (.+)$/gm)].map((m) => slug(m[1])))
+  for (const s of listed) {
+    if (!all.has(s)) faults.push(`broken contents link: #${s}`)
+    else if (!sections.has(s)) faults.push(`contents link is not a ### section: #${s}`)
+  }
   for (const m of glossary.matchAll(/^### (.+)$/gm)) {
     const n = listed.filter((s) => s === slug(m[1])).length
     if (n !== 1) faults.push(`contents list names #${slug(m[1])} ${n} times, want 1`)
@@ -112,21 +120,37 @@ export function languageSpan(md) {
 
 const sameBytes = (a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0
 
+// Contract 3. `before` is CONTEXT.md before the move, `moved` is GLOSSARY.md as the move wrote
+// it, and `router` is the live CONTEXT.md. Returns a list of faults; empty means the move holds.
+export function identityFaults(before, moved, router) {
+  const faults = []
+  const want = languageSpan(before)
+  const got = languageSpan(moved)
+  if (want === null) faults.push('the pre-move CONTEXT.md has no ## Language line')
+  else if (got === null) faults.push('the moved GLOSSARY.md has no ## Language line')
+  else if (!sameBytes(got, want)) faults.push('the moved ## Language span differs from the pre-move CONTEXT.md')
+  if (languageSpan(router) !== null) faults.push('CONTEXT.md still holds a ## Language section')
+  return faults
+}
+
 function git(args) {
   return execFileSync('git', ['-C', repoRoot, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 })
 }
 
-// The CONTEXT.md text the move started from: the parent of the commit that added
-// GLOSSARY.md, or HEAD while that commit does not exist yet. null outside git.
-function preMoveContext() {
+// Both sides of the move, read at the move itself: `before` is CONTEXT.md in the parent of the
+// commit that added GLOSSARY.md, and `moved` is GLOSSARY.md in that commit. Later glossary edits
+// change neither side. Before that commit exists, the sides are HEAD's CONTEXT.md and the
+// working-tree GLOSSARY.md. null outside git.
+function moveSides() {
   try {
     git(['rev-parse', '--git-dir'])
   } catch {
     return null
   }
   const added = git(['log', '--diff-filter=A', '--format=%H', '--', 'GLOSSARY.md']).trim().split('\n').filter(Boolean)
-  const base = added.length ? `${added[added.length - 1]}^` : 'HEAD'
-  return git(['show', `${base}:CONTEXT.md`])
+  if (added.length === 0) return { before: git(['show', 'HEAD:CONTEXT.md']), moved: read('GLOSSARY.md') }
+  const at = added[added.length - 1]
+  return { before: git(['show', `${at}^:CONTEXT.md`]), moved: git(['show', `${at}:GLOSSARY.md`]) }
 }
 
 const router = read('CONTEXT.md')
@@ -147,6 +171,8 @@ test('router — planted faults go red (#2636)', () => {
     'no entry for role servitor': good.replace(/^- servitor:.*$/m, ''),
     'exactly one entry must read GLOSSARY.md#contents': good.replace('#contents', ''),
     'router links a glossary section directly': `${good}\n- when you land, read GLOSSARY.md#landing`,
+    'router links a glossary section directly (2-hop rule): GLOSSARY.md#audit': `Prose: see GLOSSARY.md#audit.\n${good}`,
+    'broken link: c.md': `See [c](c.md).\n${good}`,
   }
   for (const [want, text] of Object.entries(cases)) {
     const got = routerFaults(text, glossary, files)
@@ -156,7 +182,7 @@ test('router — planted faults go red (#2636)', () => {
 
 test('contents — GLOSSARY.md holds a title and one bare #slug line per ### heading above ## Language (#2636)', () => {
   assert.deepEqual(contentsFaults(glossary), [])
-  assert.equal([...glossary.matchAll(/^### /gm)].length, 27)
+  assert.ok(/^### /m.test(glossary), 'non-vacuity: GLOSSARY.md has no ### section')
 })
 
 test('contents — planted faults go red (#2636)', () => {
@@ -167,6 +193,8 @@ test('contents — planted faults go red (#2636)', () => {
     'broken contents link': glossary.replace(first[0], `${first[0]}\n- #no-such-heading`),
     'not a bare #slug list line': glossary.replace(first[0], `- [x](#${first[1]})`),
     'the second block must be ## Contents': glossary.replace('## Contents', '## Index'),
+    'contents link is not a ### section: #language': glossary.replace(first[0], `${first[0]}\n- #language`),
+    'the first line must be the # title': glossary.replace(/^# .*\n/, ''),
   }
   for (const [want, text] of Object.entries(cases)) {
     const got = contentsFaults(text)
@@ -174,21 +202,25 @@ test('contents — planted faults go red (#2636)', () => {
   }
 })
 
-test('identity — the GLOSSARY.md ## Language span equals the pre-move CONTEXT.md span byte for byte (ADR 0042 D3, #2636)', (t) => {
-  const before = preMoveContext()
-  if (before === null) return t.skip('no usable git context')
-  const want = languageSpan(before)
-  assert.ok(want, 'the pre-move CONTEXT.md has no ## Language line')
-  assert.ok(sameBytes(languageSpan(glossary), want),
-    'GLOSSARY.md ## Language span differs from the pre-move CONTEXT.md: the move must be byte-identical')
-  assert.equal(languageSpan(router), null, 'CONTEXT.md still holds a ## Language section')
+test('identity — the moved ## Language span equals the pre-move CONTEXT.md span byte for byte (ADR 0042 D3, #2636)', (t) => {
+  const sides = moveSides()
+  if (sides === null) return t.skip('no usable git context')
+  assert.deepEqual(identityFaults(sides.before, sides.moved, router), [])
 })
 
-test('identity — a one-byte change in the moved span goes red (#2636)', () => {
-  const span = languageSpan(glossary)
-  const mid = Math.floor(span.length / 2)
-  const flipped = span.slice(0, mid) + (span[mid] === 'x' ? 'y' : 'x') + span.slice(mid + 1)
-  const planted = glossary.slice(0, glossary.length - span.length) + flipped
-  assert.equal(sameBytes(languageSpan(planted), span), false)
-  assert.equal(languageSpan('# T\n\nno section\n'), null)
+test('identity — planted faults go red (#2636)', () => {
+  const before = `# WAR — Context\n\nintro\n\n## Language\n\n### A\n\nterm body\n`
+  const moved = `# WAR — Glossary\n\n## Contents\n\n- #a\n\n## Language\n\n### A\n\nterm body\n`
+  const routerText = '# WAR — Context\n\n- when x, read a.md\n'
+  assert.deepEqual(identityFaults(before, moved, routerText), [])
+  const cases = {
+    'the moved ## Language span differs': [before, moved.replace('term body', 'term bodx'), routerText],
+    'the moved GLOSSARY.md has no ## Language line': [before, moved.replace('## Language', '## Lang'), routerText],
+    'the pre-move CONTEXT.md has no ## Language line': [before.replace('## Language', '## Lang'), moved, routerText],
+    'CONTEXT.md still holds a ## Language section': [before, moved, `${routerText}\n## Language\n`],
+  }
+  for (const [want, args] of Object.entries(cases)) {
+    const got = identityFaults(...args)
+    assert.ok(got.some((f) => f.startsWith(want)), `${want}: got ${JSON.stringify(got)}`)
+  }
 })

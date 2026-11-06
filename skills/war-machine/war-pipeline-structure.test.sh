@@ -41,6 +41,7 @@ TEMPLATE="$ROOT/skills/war/assets/workflow-template.js"
 README="$ROOT/README.md"
 PLUGIN="$ROOT/.claude-plugin/plugin.json"
 GLOSSARY="$ROOT/GLOSSARY.md"
+CONTEXT="$ROOT/CONTEXT.md"   # the Layer 1 router (#2636): absence sweeps only
 CLAUDE_MD="$ROOT/CLAUDE.md"
 WAR_HELP="$ROOT/skills/war-help/SKILL.md"
 WAR_STRATEGY="$ROOT/skills/war-strategy/SKILL.md"
@@ -299,7 +300,7 @@ has "$WAR_HELP" 'clean-up-aftermath'
 # file is intentionally excluded: its own assertion args above legitimately carry the old names.
 # lacks() scans each file with strip_prose applied, so a README `## Status`/`## Changelog` blurb
 # that *describes* the rename can't re-trip the guard (see prose-exclusion self-check below).
-for f in "$README" "$GLOSSARY" "$PLUGIN" "$SURVEY" "$AFTERMATH" "$WAR_HELP" "$MACHINE" "$WAR_STRATEGY"; do
+for f in "$README" "$GLOSSARY" "$CONTEXT" "$PLUGIN" "$SURVEY" "$AFTERMATH" "$WAR_HELP" "$MACHINE" "$WAR_STRATEGY"; do
   lacks "$f" 'war-survey-corps'
   lacks "$f" 'war-aftermath'
 done
@@ -623,7 +624,7 @@ gospel13='author the';          gospel13="$gospel13 input plan"
 gospel14='without a';           gospel14="$gospel14 ratified spec"
 gospel15='routes you to your';  gospel15="$gospel15 installed grilling skill"
 gospel16='nothing else is';     gospel16="$gospel16 required"
-for f in "$README" "$CLAUDE_MD" "$WAR_HELP" "$GLOSSARY" "$WAR_STRATEGY"; do
+for f in "$README" "$CLAUDE_MD" "$WAR_HELP" "$GLOSSARY" "$CONTEXT" "$WAR_STRATEGY"; do
   lacks_i "$f" "$gospel01"
   lacks_i "$f" "$gospel02"
   lacks_i "$f" "$gospel03"
