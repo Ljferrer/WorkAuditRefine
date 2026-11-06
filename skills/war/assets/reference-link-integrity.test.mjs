@@ -689,8 +689,8 @@ test('reference link integrity — the refiner card keeps a trigger pointer per 
 // 1,594 B at eviction, card lines 138-145 @ 68160232); a sanctioned edit re-pins it here with its rationale.
 // Re-pinned (#2485 merge of master into PR #2529): the re-running-seat duty paragraph names the tip probe
 // as the claimant and the `git diff --no-renames --name-only` read, the text #2485 Phase 1 wrote on the card.
-// Re-pinned (late-defects phase 6 polish): the opening rule names its one exception, the ace base gate
-// (aceBaseIds, PIN-10), because Phase 5 made an ace tip red only on pre-ace reds proceed.
+// Re-pinned (late-defects phase 6 polish): the closing no-approval rule names its one exception, the ace base gate
+// (aceBaseIds, PIN-10), because Phase 5 lets an ace tip proceed when its only reds were red at the pre-ace tip.
 test('reference link integrity — the auditor-card pin-transfer block landed byte-identical in pin-transfer.md and the card keeps a trigger pointer, not the body', () => {
   const text = readFileSync(join(REPO_ROOT, REFERENCES_DIR, 'pin-transfer.md'), 'utf8');
   const heading = '## Pin transfer (#1913)\n';
