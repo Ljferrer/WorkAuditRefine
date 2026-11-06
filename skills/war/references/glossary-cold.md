@@ -192,7 +192,7 @@ _Avoid_: gate-failed (the suite is green; the task's own `Done when:` command is
 decision (the route reuses the existing floor-family slots, like `no-test`/`unpackaged`).
 
 <!-- Wave 4 (#1651, 2026-09-03): seven cold clusters, 18,562 B moved byte-identical out of
-     CONTEXT.md to bring it back under the ADR 0042 advisory line. Each cluster leaves one
+     CONTEXT.md (now GLOSSARY.md) to bring it back under the ADR 0042 advisory line. Each cluster leaves one
      grouped trigger pointer behind. Every body below was selected for carrying NO live
      drift-guard key, so none is D32-pinned; **Campaign ledger**, **Plan-index table** and
      **Staged phase script** were considered and kept hot (the first two phrase a campaign-ledger

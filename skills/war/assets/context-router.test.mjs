@@ -140,8 +140,9 @@ function git(args) {
 // Both sides of the move, read at the move itself: `before` is CONTEXT.md in the parent of the
 // commit that added GLOSSARY.md, and `moved` is GLOSSARY.md in that commit. Later glossary edits
 // change neither side. Before that commit exists, the sides are HEAD's CONTEXT.md and the
-// working-tree GLOSSARY.md. null outside git, or when git cannot read a side (for example a
-// shallow clone cut at the adding commit, so its parent is missing).
+// working-tree GLOSSARY.md. null outside git, or in a shallow clone where git cannot read a
+// side (the clone can cut at the adding commit, so its parent is missing). In a full clone an
+// unreadable side throws, so a broken read fails the test instead of skipping it.
 // `-c log.follow=false`: a user-level log.follow=true turns a one-path log into --follow, which
 // reads the move as a copy of CONTEXT.md and names CONTEXT.md's own first commit as the add.
 function moveSides() {
@@ -157,8 +158,9 @@ function moveSides() {
   try {
     if (!at) return { before: git(['show', 'HEAD:./CONTEXT.md']), moved: read('GLOSSARY.md') }
     return { before: git(['show', `${at}^:./CONTEXT.md`]), moved: git(['show', `${at}:./GLOSSARY.md`]) }
-  } catch {
-    return null
+  } catch (err) {
+    if (git(['rev-parse', '--is-shallow-repository']).trim() === 'true') return null
+    throw err
   }
 }
 
@@ -215,7 +217,7 @@ test('contents — planted faults go red (#2636)', () => {
 
 test('identity — the moved ## Language span equals the pre-move CONTEXT.md span byte for byte (ADR 0042 D3, #2636)', (t) => {
   const sides = moveSides()
-  if (sides === null) return t.skip('no usable git context, or the move commit has no readable parent')
+  if (sides === null) return t.skip('no usable git context, or a shallow clone without the move commit parent')
   assert.deepEqual(identityFaults(sides.before, sides.moved, router), [])
 })
 
