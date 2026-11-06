@@ -67,6 +67,8 @@ export const meta = {
 //                                     // (no recovery gate); wins over the barrier map, logged; a non-object map is logged and ignored.
 //     seededPhaseClose?,              // optional [finding rows] — a prior phase return's carriedPhaseClose, threaded by the Lead at a
 //                                     // relaunch (D3b, PIN-5); entry-validated + #1413 provenance-floored; drains into this phase's sweep queue.
+//     seededTasks?,                   // optional [carried rows] — the prior phase return's carriedTasks (late-defects D9, PIN-9);
+//                                     // entry-validated + #1413 provenance-floored; each row becomes a task or joins its file owner's slice.
 //     finalPhase?,                    // optional boolean — the terminal pass's finality signal (D3a): false ⇒ a terminal-born absorb
 //                                     // rides carriedPhaseClose; true/absent ⇒ it demotes (absent reads as FINAL); non-boolean refused at entry.
 //     evidence?,                      // optional boolean (REA artifact evidence D8/D10) — the Lead-resolved presence half of the evidence
@@ -520,8 +522,9 @@ const asks = []
 // args.seededPhaseClose at the relaunch.
 const carriedPhaseClose = []
 // carriedTasks (late-defects D9/D20/D21, PIN-9/PIN-20/PIN-21): the late defects whose late-fix rounds ran
-// out on a non-final phase, and the behavior rows raised after the late-fix pass (carryLate), one row each — the defect, its file and fix, its origin `task`, its findingClass,
-// the origin's spent fixRounds, planSlug and carriedFrom { phase, reason }. TOP-LEVEL at both return
+// out on a non-final phase, the behavior rows raised after the late-fix pass (carryLate), and the seeded tasks
+// that ran out of fix rounds (seedCapped), one row each — the defect, its file and fix, its origin `task` (a seeded origin's
+// first origin task, carryTaskOf), raisedTask on a late-fix or carryLate row, its findingClass, the origin's spent fixRounds and roster, planSlug and carriedFrom { phase, reason }. TOP-LEVEL at both return
 // sites, [] when nothing carried. The Lead threads it as the next launch's args.seededTasks.
 const carriedTasks = []
 // --ace provenance (D3): aced findings recorded as { task, finding, sha } — a return ATTRIBUTE, not a
@@ -759,6 +762,17 @@ const adjudicationClause = adjudications.length
   ? pt`\nVERSION-PRECEDENCE RULE: the authoritative version is task instruction > red-team adjudication > plan body literal. Before scoring a version/release-slot mismatch as a defect, consult the adjudicated rows below; a value matching the adjudication is correct even when it differs from the plan body literal.\nADJUDICATION-MATCH RULE: a finding whose substance matches an adjudicated row below is a confirmation note, never an escalation — cite the matching row; the delta is pre-adjudicated and not re-litigable this run. A candidate that deviates from BOTH the plan and the adjudicated row is not a match — judge it normally.\n`
     + adjudications.map(r => pt`- ${adjRow(r)}`).join('\n') + '\n'
   : ''
+// The ALREADY-PROVISIONED worktree line of the polish, fix and floor-fix prompts — one builder, so every
+// dispatched copy is byte-identical.
+const provisionedLine = task => pt`Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+// EVIDENCE PRECEDENCE SKELETON (ADR 0041) — the full four claim-shape ladders live in the
+// "## Evidence precedence" section of agents/war-auditor.md (standing/dispatched split, progressive
+// disclosure: skeleton only in the hot path). ONE const, concatenated at auditPrompt AND each of the
+// three gate-audit-family seats (they sit OUTSIDE auditPrompt and inherit nothing from it), so every
+// dispatched copy is byte-identical; the five-surface evidence-precedence registry row in
+// workflow-template.engine-1.test.mjs anchors the shared tokens on the card + all four dispatched
+// surfaces, so a one-sided edit REDs.
+const EVIDENCE_PRECEDENCE_CLAUSE = pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
 // Prior-lessons memory (spec §4.5): the Lead prefetches per-seat lesson blocks (one batched
 // `war-memory query --queries` invocation at phase launch) and threads a map here as args.memory —
 // `{ byTask: {<id>: {worker, seats: {<lens>: block}}}, servitor }`. The template FOLLOWS the
@@ -1023,7 +1037,9 @@ const hasPhaseIdentity = (Number.isSafeInteger(ph?.id) || typeof ph?.id === 'str
 if (!hasRunIdentity) problems.push('runId is missing or invalid: every launch requires a nonempty string; mint a new ID for each fresh launch, reuse it only for journal replay')
 if (!hasPhaseIdentity) problems.push('phase.id is missing or invalid: every launch requires a nonnegative safe integer or digit-only string')
 let derivationProblem = false
-if ((tasks || []).some(t => !t.branch || !t.worktree)) {
+// Seeded tasks (class 11) derive their branch and worktree, and their prompts read plan.file.
+const seedCount = Array.isArray(A.seededTasks) ? A.seededTasks.length : 0
+if ((tasks || []).some(t => !t.branch || !t.worktree) || seedCount) {
   const missingTrio = [['planSlug', planSlug], ['runId', runId], ['worktreeRoot', worktreeRoot]]
     .filter(([, v]) => !v).map(([k]) => k)
   const phaseIdMissing = ph == null || ph.id === undefined || ph.id === null || ph.id === ''
@@ -1035,15 +1051,15 @@ const missingPhaseFields = [['title', ph == null ? undefined : ph.title], ['work
 if (missingPhaseFields.length) problems.push(`workflow-template: requires phase { title, workingBranch, integrationBranch } — missing: [${missingPhaseFields.join(', ')}]`)
 //   (3) PLAN-FILE class (#1430) — plan.file, its OWN problem class (never inside missingTrio: that
 //       class is gated behind a derivation-needing task, while every dispatched worker/fix prompt
-//       interpolates plan.file regardless of explicit paths). Gated behind a NON-EMPTY task list
-//       (/red-team 2026-08-16): the two ratified plan-less zero-task launch shapes (the
+//       interpolates plan.file regardless of explicit paths). Gated behind a NON-EMPTY task list,
+//       args.seededTasks rows counted (/red-team 2026-08-16): the two ratified plan-less zero-task launch shapes (the
 //       gate-composition no-op and the claims-bearing endStateBlock) stay legal — a phase that
 //       dispatches no worker needs no plan file. The trio and phase-field messages above stay
 //       byte-unchanged (the exact-equality aggregate fixture + the LITERAL_REGISTRY census row pin
 //       them); this push is a plain string, so the census is untouched. The observed incident (plan 5
 //       phase 1) spawned Provision first and drained every task to escalate — this refusal is
 //       at-entry, zero agent spawns.
-if ((tasks || []).length > 0 && !(plan && typeof plan.file === 'string' && plan.file)) {
+if ((tasks || []).length + seedCount > 0 && !(plan && typeof plan.file === 'string' && plan.file)) {
   problems.push('workflow-template: requires plan.file — the launch carries tasks but no plan.file (every worker/fix prompt interpolates it); thread plan: { file: "docs/plans/<slug>.md" } (#1430)')
 }
 //   (4) TASK-FIELD class (D5, engine-reliability) — per-task shape validation at args intake.
@@ -1106,7 +1122,7 @@ if (A.sweepExclude !== undefined && A.sweepExclude !== null) {
 //       Lead's relaunch carry of a prior phase return's carriedPhaseClose: absent/null, or an array of
 //       finding rows ({ severity, title, file?, … }). Any other shape is a malformed launch, refused at
 //       entry naming the entry index and field — never coerced, never a guessed queue.
-// Shared finding-row validator for the two seeded-row classes (6 and 8): each row is an object with a
+// Shared finding-row validator for the seeded-row classes (6, 8 and 11): each row is an object with a
 // non-empty title and severity and a string-or-null file; every refusal names the row path and field.
 const pushFindingRowProblems = (at, rows, tag, severities = null) => rows.forEach((e, i) => {
   if (!e || typeof e !== 'object' || Array.isArray(e)) { problems.push('workflow-template: ' + at + '[' + i + '] must be a finding row object { severity, title, file? } (' + tag + ')'); return }
@@ -1158,6 +1174,18 @@ if (A.targetArtifacts !== undefined) {
     }
   })
 }
+//   (11) SEEDED-TASKS class (late-defects D9, PIN-9) — args.seededTasks is the Lead's thread of the prior
+//        phase return's carriedTasks: absent/null, or an array of carried rows — the class-6 finding row
+//        plus the origin `task`, a FINDING_CLASSES `findingClass`, a string `suggested_fix` when present and
+//        an array `roster` when present. Any other shape refuses at entry naming the row index and field.
+if (A.seededTasks != null) {
+  if (!Array.isArray(A.seededTasks) || seedCount && !Array.isArray(tasks)) problems.push('workflow-template: args.seededTasks must be an array of carried rows, beside an args.tasks array (D9)')
+  else pushFindingRowProblems('args.seededTasks', A.seededTasks, 'D9'), A.seededTasks.forEach((e, i) => {
+    const ok = e && typeof e === 'object' ? { task: typeof e.task === 'number' || typeof e.task === 'string' && e.task, findingClass: FINDING_CLASSES.includes(e.findingClass),
+      suggested_fix: e.suggested_fix == null || typeof e.suggested_fix === 'string', roster: e.roster == null || Array.isArray(e.roster) } : {}
+    for (const k in ok) if (!ok[k]) problems.push('workflow-template: args.seededTasks[' + i + '].' + k + ' is malformed (D9, schemas.md)')
+  })
+}
 if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem && hasRunIdentity && hasPhaseIdentity ? ' (or supply explicit branch/worktree per task)' : ''}`)
 // REA artifact evidence: reaOn and targetArtifacts are defined beside defaultRoster above (the
 // evidence-row drop reads them there); the one loud OFF line is logged after the phase-start roster
@@ -1192,7 +1220,7 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
 //     adjudications row's text, exempt rows included — a source:'auto' row is set by the same
 //     Lead-assembled channel a foreign args blob rides, so a flag that channel sets cannot buy a
 //     bypass of the foreign-id refusal. The scan's refusal and warning cover only intent, backstops
-//     and adjudications (#2208, #2197): a ruledAsks or seededPhaseClose row describes finding work
+//     and adjudications (#2208, #2197): a ruledAsks, seededPhaseClose or seededTasks row describes finding work
 //     that may name any plan path, and its planSlug field is the provenance coordinate, so a foreign
 //     path in one never halts a launch.
 //   - VALUE rows (D10, #1480): an adjudications row in the canonical version-adjudication shape —
@@ -1339,6 +1367,8 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     ['adjudications', adjudications.map(rowText)],
     ['ruledAsks', Array.isArray(A.ruledAsks) ? A.ruledAsks.map(ruledAskRowText) : []],
     ['seededPhaseClose', Array.isArray(A.seededPhaseClose) ? A.seededPhaseClose.map(seededPhaseCloseRowText) : []],
+    // seededTasks rows (D9) are carried finding rows with the same planSlug stamp: the same discipline.
+    ['seededTasks', Array.isArray(A.seededTasks) ? A.seededTasks.map(seededPhaseCloseRowText) : []],
   ]
   for (const [argName, rows] of provenanceSurfaces) {
     const stamped = rows.find(r => r.foreignStamp)
@@ -1351,7 +1381,7 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     // own-token satisfaction may come from an exempt row (#1666 stands, never narrowed). The
     // foreign-plan-id scan reads every row's text, exempt rows included (#1749), with citations
     // stripped only where a row sets idText. Intent warns and launches (#2375), backstops and
-    // adjudications refuse, and ruledAsks and seededPhaseClose rows neither refuse nor warn (#2208,
+    // adjudications refuse, and ruledAsks, seededPhaseClose and seededTasks rows neither refuse nor warn (#2208,
     // #2197). A foreign path outside a stripped citation never vouches for the plan, so the own-token
     // search reads past each one: else a path like docs/plans/<own-word>-sibling.md would pass an
     // intent the foreign arm no longer refuses. A stripped citation stays evidence, because stacked
@@ -1441,6 +1471,26 @@ for (const s of (Array.isArray(A.seededPhaseClose) ? A.seededPhaseClose : [])) {
   log('held-carry (D3b): seeded phase-close row "' + f.title + '" (task ' + f.task + ', ' + (s.carriedFrom && s.carriedFrom.phase != null ? 'carried from phase ' + s.carriedFrom.phase : 'carried from a prior launch') + ') drains into this phase\'s sweep queue.')
   phaseCloseQueue.push(f)
 }
+// Seeded tasks (late-defects D9, PIN-9): each args.seededTasks row (entry-validated and provenance-floored
+// above) becomes one task: Files: the defect's file, the slice the defect and its fix, requiresTest true,
+// the origin task's roster (the row's stamped roster, else the origin task's when it is in this phase,
+// else audit.roster, logged; none refuses the launch). A task already in the phase that owns the file —
+// a plan task or an earlier seed — takes the defect into its slice instead, so the phase stays
+// file-disjoint. A fileless row (the baseline row) never collides. The id is the row's 1-based index, so
+// a relaunch with the same rows derives the same branches. t.seed keeps the row for the cap rule below.
+const seedRel = p => typeof p === 'string' && p ? p.replace(/^(?:\.\/)+/, '') : null
+for (const [i, s] of (A.seededTasks || []).entries()) {
+  const file = seedRel(s.file), owner = file && tasks.find(t => (Array.isArray(t.files) ? t.files : []).some(p => seedRel(p) === file))
+  const text = 'the carried late defect [' + s.severity + '] "' + s.title + '" of task ' + s.task + ' (' + (file || 'no file') + '): ' + (s.rationale || '') + ' Fix: ' + (s.suggested_fix || 'none carried, derive it from the defect')
+  if (owner) { owner.planSlice += '\nCARRIED DEFECT (PIN-9): fix ' + text; log('seeded task: ' + text + ' joins task ' + owner.id + ', which owns the file (PIN-9).'); continue }
+  let id = 'seed-' + (i + 1), host = tasks.find(t => t.id === s.task), roster = s.roster || host && host.roster || defaultRoster.length && defaultRoster
+  while (tasks.some(t => t.id === id)) id += '-1'
+  if (!roster) throw new Error('workflow-template: args.seededTasks[' + i + '] has no roster, and no audit.roster to fall back to (D9)')
+  tasks.push({ id, title: 'carried defect: ' + s.title, roster: [...roster], files: file ? [file] : [], requiresTest: true, seed: s, planSlice: 'Fix ' + text })
+  log('seeded task ' + id + ': ' + text + (s.roster || host ? '' : ' (roster: audit.roster)') + ' (PIN-9).')
+}
+// seedCapped: the seeded tasks that ran out of fix rounds; resolved by the late-fix cap rule before the land decision.
+const seedCapped = []
 
 // GATE COMPOSITION POINT (engine-owned, ADR 0036): normalize plan.gate ONCE here, immediately after entry
 // validation and before ANY gate-bearing dispatch site interpolates ${plan.gate}. resolveGate is
@@ -2289,7 +2339,7 @@ const corroborateSurvivor = f => {
     || (aced.find(a => a && a.finding && remintKey(a.finding) === k) || {}).finding
     || phaseCloseQueue.find(q => remintKey(q) === k)
     || carriedPhaseClose.find(q => remintKey(q) === k)
-    // a behavior row carryLate carried (PIN-21): its key is the raiser's, kept on raisedTask
+    // a row carryLate or the late-fix pass carried (PIN-21): its key is the raiser's, kept on raisedTask
     || carriedTasks.find(q => remintKey({ ...q, task: q.raisedTask ?? q.task }) === k)
     // a row the behavior-row sort or the gate-audit family sent to the late-fix pass (its raiser key)
     || lateSrcRows.find(q => remintKey(q) === k)
@@ -3558,14 +3608,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // grounding / verify-and-close / git show <audit_sha>:<path> / advisory only / git grep). git show and
     // git log are read-only allowlisted; since D21 git grep -F -e <token> is the one admitted search form.
     + pt`\nCOMMITTED-TREE GROUNDING (verify-and-close / already-done no-op claims): ground the claim against the pinned audit_sha, NOT the mutable working tree — read the blob with \`git show <audit_sha>:<path>\`, and pick the history verb per claim shape (\`git log -S<token>\` for "when did the occurrence count change", \`git log -G<regex>\` for content-pattern change; presence at the tip is git show, never -S). A working-tree grep is ADVISORY ONLY, never the sole basis for approving a no-op claim; git show/log are read-only allowlisted, and git grep -F -e <token> is the one admitted search form (D21). Full paragraph: the Committed-tree grounding section of agents/war-auditor.md.`
-    // EVIDENCE PRECEDENCE SKELETON (ADR 0041) — the full four claim-shape ladders live in the
-    // "## Evidence precedence" section of agents/war-auditor.md (same commit; standing/dispatched
-    // split, progressive disclosure: skeleton only in the hot path). The identical skeleton line is
-    // ALSO inlined at each of the three gate-audit-family seats below (they sit OUTSIDE auditPrompt
-    // and inherit nothing from it); the five-surface evidence-precedence registry row in
-    // workflow-template.engine-1.test.mjs anchors the shared tokens on the card + all four dispatched
-    // surfaces, so a one-sided edit of any single copy REDs.
-    + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
+    // EVIDENCE PRECEDENCE SKELETON (ADR 0041) — the shared const, also concatenated at each of the
+    // three gate-audit-family seats below.
+    + EVIDENCE_PRECEDENCE_CLAUSE
     // VERSION-PRECEDENCE + ADJUDICATION-MATCH RULES (Task 1.5, ADR 0032) — appended alongside intentClause;
     // both sentence bodies are mirrored VERBATIM in agents/war-auditor.md (standing surface, same commit);
     // the both-surfaces test anchors a mid-sentence phrase from each on both. This clause ALSO rides the
@@ -4844,7 +4889,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
         const chainRound = correctiveRoundOf('ace', r.task)
         const ace = await dispatchSite(
-          pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+          pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. ` + provisionedLine(r.task)
           // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
           // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
           + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
@@ -5094,7 +5139,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
       }
 
-      let round = 0, verdict = null, seats = [], expected = 0, blocked = null, escalateReason = null, died = null
+      let round = 0, verdict = null, seats = [], expected = 0, blocked = null, escalateReason = null, died = null, spent = false
       const workerTests = impl && impl.tests ? impl.tests : null
       // D2: the worker's committed tip — the pin each audit seat's audit_sha must match
       let pin = impl && impl.head_sha
@@ -5167,7 +5212,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             }
           }
           log('Task ' + task.id + ': ' + blocked + ' — escalating.')
-          verdict = capSpent ? 'audit-blocked' : 'escalate'; break
+          spent = capSpent; verdict = capSpent ? 'audit-blocked' : 'escalate'; break
         }
         log('Task ' + task.id + ': all surviving blockers have a suggested_fix — dispatching a fix round and a full-roster re-audit.')
 
@@ -5189,7 +5234,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         const chainRound = correctiveRoundOf('fix', task, round)
         chainRecordAudit(task, chainRound, seats)
         const fix = await dispatchAgent(
-          pt`FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+          pt`FIX_NEEDED for WAR task ${task.id}. ` + provisionedLine(task)
           // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
           // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
           + pt`Gate: ${plan.gate}${doneWhenClause(task)}\n`
@@ -5216,7 +5261,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         round++
       }
       if (verdict === null) verdict = 'audit-blocked'
-      const r = { task, verdict, seats, expected, round, blocked, escalateReason }
+      // spent: the cap ended the loop, read by the seeded-task cap rule (PIN-9)
+      const r = { task, verdict, seats, expected, round, blocked, escalateReason, spent }
       // Budget seed at the audit-loop exit (PIN-5/PIN-13): fixRounds records the blocking fix rounds
       // the merge-floor retry loop later continues from; the hoisted ace stage below never charges it
       // (D5 — ace commits charge absorbRounds), and the merge slot only never-lowers this seed.
@@ -5643,11 +5689,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         log('pin-transfer ' + r.task.id + ': probe returned no usable status — the ordinary merge dispatch runs unchanged (fail-open).')
       }
       pinProofBase = pinProof.local_sha
-      const mr = routedMr(await segmentedMerge(
-        pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
-        + aceRevertClause
-        + reattachClause(refineryPath)
-        + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
+      // The two-worktree split steps (a) + (b) + the gate line: ONE string shared by this primary merge
+      // and the floor-retry re-merge below, so both dispatched copies stay byte-identical.
+      const mergeSplitClause = pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
         + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test, no other signal (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
         + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch)
         + pt`CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
@@ -5655,6 +5699,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + PROVISION_RERUN_CLAUSE
         + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` — one --no-ff merge commit of the now-rebased task branch, carrying the exact WAR-Task trailer; never a fast-forward, and no hook runs on it. Push.\n`
         + pt`Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
+      const mr = routedMr(await segmentedMerge(
+        pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
+        + aceRevertClause
+        + reattachClause(refineryPath)
+        + mergeSplitClause
         + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
         + baselineDebtClause()
         + pt`Populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at (the merge commit's second parent), so the gate-audit pass can confirm the gate ran at the merged content.`
@@ -5726,26 +5775,25 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             : ''
           // Prompt truth (D6): all floor-fix prompts carry the gate command + the task's Done when:
           // clause (absent ⇒ '' — legacy byte-identity, End state 9).
+          // The worktree + gate lines every floor-fix prompt carries — one string, byte-identical at all four.
+          const floorFixHead = provisionedLine(r.task)
+            + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
           const fixPrompt = isNoTest
             ? pt`ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
-              + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
-              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+              + floorFixHead
               + pt`Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice ?? '<unset>'}), keep the gate green, commit and push.`
               + nearMissClause
             : isDoneUnmet
             ? pt`MAKE_DONE_PASS for WAR task ${r.task.id}. The refiner's merge-task check (assert-done-when.sh) ran the task's own Done when: acceptance command and it exited red (or timed out). `
-              + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
-              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+              + floorFixHead
               + pt`Make this command pass: fix the implementation for the slice described in: ${r.task.planSlice ?? '<unset>'} until the Done when: command above exits 0 — never weaken, skip, or delete a test to force it green. Keep the gate green, commit and push.`
               + doneWhenLogClause
             : isBudgetUncited
             ? pt`CITE_BUDGET for WAR task ${r.task.id}. The refiner's merge-task check (assert-budget-raise-cited.sh) found a hard:/advisory: ceiling RAISE in skills/war/assets/prompt-surface-budgets.test.mjs with no Budget-Raise trailer in the range (the budget-uncited route). `
-              + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
-              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+              + floorFixHead
               + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. PREFER un-raising the ceiling and funding the growth under it (ADR 0042 — evict cold prose to references/ behind a trigger pointer); a ceiling change is an operator act via the re-baseline pass (skills/war/references/budget-rebaseline.md), and a sanctioned raise must carry a commit trailer of the exact form \`Budget-Raise: ADR-0042 <surface> +<bytes>\` — never raise a ceiling silently. Commit and push, keeping the gate green.`
             : pt`PACKAGE_IT for WAR task ${r.task.id}. The refiner's merge-task check (assert-packaging-in-diff.sh) flagged an added/renamed file a Dockerfile's enumerated COPYs miss. `
-              + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
-              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+              + floorFixHead
               + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
           const floorFix = await dispatchSite(
             fixPrompt
@@ -5807,14 +5855,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           floorMr = routedMr(await segmentedMerge(
             pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
-            + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
-            + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test, no other signal (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
-            + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch)
-            + pt`CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
-            + pt`rebase --onto does NOT dodge this constraint — it is equally refused.\n`
-            + PROVISION_RERUN_CLAUSE
-            + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` — one --no-ff merge commit of the now-rebased task branch, carrying the exact WAR-Task trailer; never a fast-forward, and no hook runs on it. Push.\n`
-            + pt`Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
+            + mergeSplitClause
                 + pt`Populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at (the merge commit's second parent), so the gate-audit pass can confirm the gate ran at the merged content. `
             + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
             + baselineDebtClause()
@@ -5853,7 +5894,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           const isBudgetExhaustion = floorMr.status === 'budget-uncited'
           const exhaustedBudgetDetail = !exhaustedDiag && isBudgetExhaustion
             ? { detail: 'budget-uncited: a prompt-surface budget ceiling raise still lacks its Budget-Raise trailer after ' + r.task.fixRounds + ' fix round(s)' } : {}
-          escalated.push({ task: r.task.id, reason: floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
+          // a seeded task out of rounds follows the late-fix cap rule (seedCapped, PIN-9/PIN-20)
+          if (r.task.seed) seedCapped.push({ task: r.task, why: 'the ' + floorMr.status + ' floor still trips' })
+          else escalated.push({ task: r.task.id, reason: floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
           auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:exhausted`, fixRounds: r.task.fixRounds, findings: [], ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
           continue
         }
@@ -6023,7 +6066,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // blocked text is sentinel-prefixed; absent otherwise (§4.3, orthogonal to reason).
         // escalate_reason (D18, PIN-22, #1664): the seat-supplied decision-forked reason, when an
         // explicit `escalate` verdict ended the audit loop; absent on every other route.
-        escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked, ...(typeof r.escalateReason === 'string' && r.escalateReason ? { escalate_reason: r.escalateReason } : {}), ...defectClassOf(r.blocked) })
+        // A seeded task at the cap follows the late-fix cap rule (seedCapped, PIN-9/PIN-20), never audit-blocked.
+        if (r.spent && r.task.seed) seedCapped.push({ task: r.task, why: r.blocked })
+        else escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked, ...(typeof r.escalateReason === 'string' && r.escalateReason ? { escalate_reason: r.escalateReason } : {}), ...defectClassOf(r.blocked) })
       }
     }
   }
@@ -6310,7 +6355,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + endStateBlock + intentClause + adjudicationClause + MEMORY_QUERY_TOOL_LINE
       // Evidence-precedence skeleton (ADR 0041) rides this seat directly, same as adjudicationClause
       // — this seat sits outside auditPrompt(); the five-surface registry row anchors it here.
-      + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
+      + EVIDENCE_PRECEDENCE_CLAUSE
       // DISPOSITION RULE (D15, PIN-17) rides this seat directly — its Minor/Nit rows route through
       // routeGateAuditRows, so the seat is told the rule the floor enforces (shared const, same commit).
       + DISPOSITION_RULE_CLAUSE
@@ -6436,7 +6481,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + endStateBlock + intentClause + adjudicationClause + MEMORY_QUERY_TOOL_LINE
       // Evidence-precedence skeleton (ADR 0041) rides this AUTHORITATIVE seat directly, same as
       // adjudicationClause — outside auditPrompt(); the five-surface registry row anchors it here.
-      + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
+      + EVIDENCE_PRECEDENCE_CLAUSE
       // DISPOSITION RULE (D15, PIN-17) rides this seat directly — its Minor/Nit rows route through
       // routeGateAuditRows, so the seat is told the rule the floor enforces (shared const, same commit).
       + DISPOSITION_RULE_CLAUSE
@@ -6489,7 +6534,7 @@ if (mergedTasksForGateAudit.length > 0) {
     + endStateBlock + intentClause + adjudicationClause + MEMORY_QUERY_TOOL_LINE
     // Evidence-precedence skeleton (ADR 0041) rides this seat directly, same as adjudicationClause
     // — outside auditPrompt(); the five-surface registry row anchors it here.
-    + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
+    + EVIDENCE_PRECEDENCE_CLAUSE
     // DISPOSITION RULE (D15, PIN-17) rides this seat directly — same reason as the two seats above.
     + DISPOSITION_RULE_CLAUSE
     + FINDING_PATH_FORM_CLAUSE,
@@ -6685,6 +6730,9 @@ const lateOriginOf = f => {
     || (file && merged.find(t => (Array.isArray(t.files) ? t.files : []).some(p => aceRelPath(p) === file)))
     || merged.sort((a, b) => idOrder(a.id, b.id))[0] || null
 }
+// A carried row names a seeded origin's first origin task (t.seed.task), never its seed id: the next
+// phase can mint a fresh seed under the same id.
+const carryTaskOf = t => t.seed ? t.seed.task : t.id
 let lateFixSeq = 0
 const lateFixPass = async () => {
   if (!lateFixQueue.length) return
@@ -6800,7 +6848,7 @@ const lateFixPass = async () => {
       escalated.push({ task: origin.id, reason: 'late-defect', fixRounds: origin.fixRounds, detail })
     } else {
       log('late-fix pass: ' + detail + ' — carried to the next phase on carriedTasks.')
-      carriedTasks.push({ ...f, task: origin.id, findingClass: f.findingClass || 'behavior', fixRounds: origin.fixRounds, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: detail } })
+      carriedTasks.push({ ...f, task: carryTaskOf(origin), raisedTask: f.task, findingClass: f.findingClass || 'behavior', fixRounds: origin.fixRounds, roster: origin.roster, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: detail } })
     }
   }
 }
@@ -6849,7 +6897,7 @@ if (baselineTask) queueLateRow(baselineRow([...new Set(baselineDebt.flatMap(d =>
 await lateFixPass()
 // carryLate (late-defects D21, PIN-21): a behavior row first raised after the late-fix pass (the sweep
 // panel, the terminal seat, or a late-fix re-audit row the sort never saw) has no late-fix pass left
-// this phase. On a non-final phase it carries as a carriedTasks row under its origin task (lateOriginOf),
+// this phase. On a non-final phase it carries as a carriedTasks row under its origin task (carryTaskOf),
 // and the Lead threads it as the next launch's args.seededTasks. On the final phase each caller files it
 // "raised after the late-fix pass" instead (ADR 0012: the sweep never holds). Stamps queuedKeys, so a
 // later seat re-mint corroborates (corroborateSurvivor searches carriedTasks).
@@ -6857,7 +6905,18 @@ const carryLate = (f, why) => {
   const origin = lateOriginOf(f)
   queuedKeys.add(remintKey(f))
   log('carriedTasks: "' + f.title + '" — ' + why + ' (PIN-21).')
-  carriedTasks.push({ ...f, task: origin ? origin.id : f.task, raisedTask: f.task, findingClass: 'behavior', fixRounds: origin ? spentOf(origin.fixRounds) : 0, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
+  carriedTasks.push({ ...f, task: origin ? carryTaskOf(origin) : f.task, raisedTask: f.task, findingClass: 'behavior', fixRounds: origin ? spentOf(origin.fixRounds) : 0, ...(origin ? { roster: origin.roster } : {}), planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
+}
+// Seeded-task cap rule (late-defects D9/D20, PIN-9/PIN-20): a seeded task out of fix rounds follows the
+// late-fix pass's cap rule. On the final phase, or a phase another hard escalation holds, it holds
+// 'late-defect' for a Lead ruling; else its row carries again on carriedTasks with the spent fixRounds.
+// The origin `task` stays the row's own, so the next round trip seeds it the same way. Never dropped (PIN-1).
+for (const { task: t, why } of seedCapped) {
+  const n = spentOf(t.fixRounds), detail = 'seeded task ' + t.id + ' ran out of fix rounds (fixRounds ' + n + ') on "' + t.seed.title + '" of task ' + t.seed.task + ': ' + why
+  const hold = finalPhase || escalated.some(e => e && HARD_ESCALATION_REASONS.includes(e.reason))
+  log('seeded task: ' + detail + (hold ? ', held (late-defect).' : ', carried on carriedTasks.'))
+  if (hold) escalated.push({ task: t.id, reason: 'late-defect', fixRounds: n, detail })
+  else carriedTasks.push({ ...t.seed, fixRounds: n, roster: t.roster, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: detail } })
 }
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
@@ -7403,6 +7462,10 @@ if (polishStatus !== 'merged') log('terminal pass: phase ' + ph.id + ' — no me
 // (in-flow, baseline-proceed re-land, environment-proceed re-land) cannot drift from each other. A resolved
 // transient returns 'landed' — NO new status/enum member — so the existing servitorResult gate fires.
 const landErrorArm = pt`return { mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' }`
+// The detach (1) and push-first CAS (3) steps both bounded re-land prompts share — one string each,
+// byte-identical at the environment-proceed and baseline-proceed re-lands.
+const RELAND_DETACH = pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
+const RELAND_CAS = pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); on any exit but 0 or 2, ` + landErrorArm + pt`. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
 const relandDiscrimination = (working) =>
   pt`     - On the FINAL failed CAS attempt (after roundLimit rejected pushes), before returning land_stale, discriminate a contender-less transient from a real divergence: run \`git fetch origin ${working} && git rev-list --left-right --count <merge-sha>...origin/${working}\` — the merge sha the loop just tried to push vs. the freshly-fetched origin tip, NEVER the local follower refs/heads/${working} (it lags). Right count 0 (contender-less transient: every commit on the fetched origin tip is already contained in the merge sha, so no competing commit exists and the rejection cannot be a lost CAS) buys exactly one extra push-first attempt beyond roundLimit exhaustion (an explicit +1, once — not a slot inside roundLimit): re-fetch, re-detach at origin/${working}, re-merge --no-ff, re-gate, land-advance; if that extra attempt also fails, return { mode: 'land-phase', status: 'land_stale' } (topology exhaustion / CAS failure, NOT a content conflict). If that attempt exits anything but 0 or 2, ` + landErrorArm + pt`, never land_stale. Otherwise a nonzero right count (real contender commits on origin) is a real divergence: return { mode: 'land-phase', status: 'land_stale' } immediately, with no extra attempt. A transient that resolves returns status: 'landed' — no new status, so the servitor wrap-up fires automatically.\n`
 
@@ -7532,9 +7595,9 @@ if (landDecision === 'landed') {
       pt`ENVIRONMENT-PROCEED re-land for WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff. mode=land-phase.\n`
       + reattachClause(refineryLandPath)
       + pt`The prior land gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce in a fresh environment, NOT a defect introduced by this phase. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
-      + pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
+      + RELAND_DETACH
       + pt`  2. Merge --no-ff ${ph.integrationBranch}.\n` + PROVISION_RERUN_CLAUSE + pt`     Then run the gate (${plan.gate}) in a FRESH shell with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'land-phase', status: 'gate_failed' } classifying it afresh in gate_failure_class.\n`
-      + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); on any exit but 0 or 2, ` + landErrorArm + pt`. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
+      + RELAND_CAS
       + relandDiscrimination(ph.workingBranch)
       + submodLandNote,
       { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
@@ -7593,9 +7656,9 @@ if (landDecision === 'landed') {
       pt`BASELINE-PROCEED re-land for WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff. mode=land-phase.\n`
       + reattachClause(refineryLandPath)
       + pt`The prior land gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the detached origin/${ph.workingBranch} tip, NOT introduced by this phase: ${(landResult.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
-      + pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
+      + RELAND_DETACH
       + pt`  2. Merge --no-ff ${ph.integrationBranch}.\n` + PROVISION_RERUN_CLAUSE + pt`     Then run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that set is a real regression → return { mode: 'land-phase', status: 'gate_failed' } classifying the NEW failure.\n`
-      + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); on any exit but 0 or 2, ` + landErrorArm + pt`. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
+      + RELAND_CAS
       + relandDiscrimination(ph.workingBranch)
       + submodLandNote,
       { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })

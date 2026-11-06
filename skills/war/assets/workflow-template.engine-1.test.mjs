@@ -7803,10 +7803,13 @@ test('#818 both-surfaces — war-refiner.md intra-phase-dep paragraph names gate
     'the Return shape line keeps the bare integratedTipGate? (does not enumerate the object fields — verified byte-unchanged)')
 })
 
-test('#815 — durable source-count: workflow-template.js has EXACTLY 2 "cwd stays the task worktree" (merge-task sites) and EXACTLY 1 "cwd stays the _refinery land worktree" (land site) — the three near-identical clauses can never silently re-converge', () => {
+test('#815 — durable source-count: workflow-template.js has EXACTLY 1 "cwd stays the task worktree" (the mergeSplitClause both merge-task sites share) and EXACTLY 1 "cwd stays the _refinery land worktree" (land site) — the three near-identical clauses can never silently re-converge', () => {
   const taskWt = (src.match(/cwd stays the task worktree/g) || []).length
   const landWt = (src.match(/cwd stays the _refinery land worktree/g) || []).length
-  assert.equal(taskWt, 2, 'exactly two merge-task gate clauses keep "cwd stays the task worktree" (initial merge + floor-retry re-merge)')
+  // late-defects T6.1: the initial merge and the floor-retry re-merge share ONE mergeSplitClause, so the
+  // source holds one clause and the shared const rides both dispatches.
+  assert.equal(taskWt, 1, 'exactly one merge-task gate clause keeps "cwd stays the task worktree" (the shared mergeSplitClause)')
+  assert.equal((src.match(/^ *\+ mergeSplitClause$/gm) || []).length, 2, 'mergeSplitClause rides both merge-task dispatches (initial merge + floor-retry re-merge)')
   assert.equal(landWt, 1, 'exactly one land gate clause reads "cwd stays the _refinery land worktree" (the land step-2 site names its TRUE cwd) — a one-time grep cannot guard the three clauses staying distinct')
 })
 
@@ -8804,6 +8807,11 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const gateAuditExecSrc = sliceSrc('POST-MERGE GATE-AUDIT', 'gate-audit:${taskId}:execution-evidence')
   const gateAuditIntegratedTipSrc = sliceSrc('INTEGRATED-TIP GATE-AUDIT', 'gate-audit:phase-${ph.id}:integrated-tip')
   const gateAuditEndStateSrc = sliceSrc('END-STATE-ONLY GATE-AUDIT', 'gate-audit:phase-${ph.id}:end-state')
+  // The evidence-precedence skeleton is ONE module const (EVIDENCE_PRECEDENCE_CLAUSE, late-defects
+  // T6.1) concatenated at each seat: a seat surface is its src slice, which must concatenate the const,
+  // plus the const's own definition line — drop the concatenation from any one seat and its row reds.
+  const evidenceConstSrc = sliceSrc('const EVIDENCE_PRECEDENCE_CLAUSE = ', '\n')
+  const withEvidenceConst = slice => slice.includes('+ EVIDENCE_PRECEDENCE_CLAUSE') ? slice + evidenceConstSrc : slice
 
   // engine-reliability Phase 2 Task 4 (End state 18; red-team round 1 — the standing card half was
   // unguarded): the budget-raise row's trailer-form anchor is EXTRACTED from the floor script's
@@ -8917,9 +8925,9 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // are covered by the card-only assert below the registry loop.)
     { name: 'evidence precedence (ADR 0041): four claim-shape ladders on the card, token skeleton on auditPrompt + all three gate-audit-family seats',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP],
-                 ['inline gate-audit execution-evidence seat (src)', gateAuditExecSrc],
-                 ['inline gate-audit integrated-tip seat (src)', gateAuditIntegratedTipSrc],
-                 ['inline gate-audit end-state seat (src)', gateAuditEndStateSrc]],
+                 ['inline gate-audit execution-evidence seat (src)', withEvidenceConst(gateAuditExecSrc)],
+                 ['inline gate-audit integrated-tip seat (src)', withEvidenceConst(gateAuditIntegratedTipSrc)],
+                 ['inline gate-audit end-state seat (src)', withEvidenceConst(gateAuditEndStateSrc)]],
       anchors: [/content-at-pin/i, /never the top rung/i, /never evidence/i, /## Evidence precedence/i,
                 /content-at-pin[\s\S]{0,200}\bexecution\b[\s\S]{0,200}\bhistory\b[\s\S]{0,200}\bauthority\b/i] },
     // precision-chain Task 1.3 (A1/D9): acceptance_criteria_covered redefined as the task's CLAIMED
@@ -12917,10 +12925,13 @@ test('#1941 — the rebase-skip predicate: authoritative on the refiner card, po
     'the card carries the full mechanical predicate (#1941)')
   assert.match(card, /Skip on NO other signal/,
     'and the card forbids skipping on any other signal — "the probe ran" is not the test')
+  // late-defects T6.1: the primary and floor-retry prompts share ONE mergeSplitClause, so the four
+  // prompts carry three source pointers and the shared const rides both of its dispatches.
   const pointers = (src.match(/skip ONLY per your card step 1 merge-base test/g) || []).length
-  assert.equal(pointers, 4,
-    'all four merge prompts (primary, floor-retry, environment-proceed, baseline-proceed) point at the card test — found ' + pointers)
-  assert.equal((src.match(/\(#1941\): git -C \$\{r\.task\.worktree\} rebase \$\{ph\.integrationBranch\}/g) || []).length, 4,
+  assert.equal(pointers, 3,
+    'all four merge prompts (primary + floor-retry via mergeSplitClause, environment-proceed, baseline-proceed) point at the card test — found ' + pointers)
+  assert.equal((src.match(/^ *\+ mergeSplitClause$/gm) || []).length, 2, 'mergeSplitClause rides the primary and floor-retry merge prompts')
+  assert.equal((src.match(/\(#1941\): git -C \$\{r\.task\.worktree\} rebase \$\{ph\.integrationBranch\}/g) || []).length, 3,
     'each pointer sits on a rebase line that still spells the rebase command itself')
   // Default-deny population census (snipe: the pointer count alone was a denylist — a fifth
   // mode=merge-task rebase prompt could arrive pointer-free and stay green). Count every REBASE
@@ -12933,9 +12944,10 @@ test('#1941 — the rebase-skip predicate: authoritative on the refiner card, po
   // census; keep the `(a)` form when adding one.
   // 5 → 6 (in-band-absorb-default D3a): the terminal-pass merge rebases the POLISH worktree too —
   // the second pointer-free site, for the same reason (no pin-transfer probe ever rebases it).
+  // 6 → 5 (late-defects T6.1): the primary and floor-retry rebase lines are one shared mergeSplitClause line.
   const rebasePrompts = (src.replace(/^\s*\/\/.*$/gm, '').match(/\(a\) REBASE in the (?:TASK|POLISH) worktree/g) || [])
-  assert.equal(rebasePrompts.length, 6,
-    'exactly 6 merge-task REBASE prompt lines: 4 pointered task-branch sites + the polish merge + the terminal-pass merge — a new one must be ruled here')
+  assert.equal(rebasePrompts.length, 5,
+    'exactly 5 merge-task REBASE prompt lines: 3 pointered task-branch lines (one shared by the primary and floor-retry merges) + the polish merge + the terminal-pass merge — a new one must be ruled here')
   assert.equal((src.match(/\(a\) REBASE in the POLISH worktree/g) || []).length, 2,
     'the two pointer-free sites are the polish merge and the terminal-pass merge, by name')
 })
