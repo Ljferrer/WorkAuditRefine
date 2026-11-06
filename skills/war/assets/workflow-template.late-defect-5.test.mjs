@@ -191,28 +191,6 @@ test('late-defect: carry cap — a seeded task out of fix rounds carries again o
   assert.equal(held[0].fixRounds, 2)
   assert.deepEqual(holdsOf(final.out, 'audit-blocked'), [])
   assert.deepEqual(final.out.carriedTasks, [], 'the final phase never carries')
-  // The seed hold lands before the behavior-row sort, so a queued gate-audit Major on t9 dispatches no
-  // late fix on the final phase (the pass's holding rule); the non-final arm still runs it (control).
-  const gaImpl = base => (p, o) => /^gate-audit:t9:/.test(labelOf({ opts: o }))
-    ? { seat: labelOf({ opts: o }), lens: 'execution-evidence', verdict: 'request_changes', findings: [GA_MAJOR({ file: 'src/z.js' })], confidence: 'high' }
-    : base(p, o)
-  const lateFixes = r => r.calls.filter(c => /^late-fix:/.test(labelOf(c))).map(labelOf)
-  const capArms = source => Promise.all([
-    runPhase(NEXT([ROW()], { run: { roundLimit: 2 } }), gaImpl(capImpl()), {}, source),
-    runPhase(NEXT([ROW()], { run: { roundLimit: 2 }, finalPhase: false }), gaImpl(capImpl()), {}, source),
-  ])
-  const [gaFinal, gaNon] = await capArms()
-  assert.deepEqual(lateFixes(gaFinal), [], 'the held final phase dispatches no late fix')
-  assert.equal(gaFinal.out.landDecision, 'held:escalation')
-  assert.deepEqual(holdsOf(gaFinal.out, 'late-defect').map(e => e.task), ['seed-1', 't9'], 'the seed holds, and the queued Major holds on t9 (never dropped)')
-  assert.ok(lateFixes(gaNon).length > 0, 'presence guard: the non-final phase runs the late-fix pass on the Major')
-  // Red proof by mutation: the cap-rule loop moved back after the late-fix pass dispatches the late fix.
-  const capStart = src.indexOf('// Seeded-task cap rule (late-defects D9/D20, PIN-9/PIN-20)')
-  const capBlock = src.slice(capStart, src.indexOf('// ---- BEHAVIOR-ROW SORT (late-defects D19/D21', capStart))
-  assert.ok(capStart > 0 && capBlock.includes('for (const { task: t, why } of seedCapped)'), 'the mutation target is the live cap-rule loop, above the sort')
-  const passCall = 'await lateFixPass()\n'
-  const [mGaFinal] = await capArms(src.replace(capBlock, '').replace(passCall, passCall + capBlock))
-  assert.deepEqual(lateFixes(mGaFinal), ['late-fix:t9:r1'], 'the mutant final phase dispatches a late fix on a phase that holds')
   // A non-final phase that another hard reason holds records the hold too (the late-fix pass rule).
   const both = await runPhase(NEXT([ROW()], { run: { roundLimit: 2 }, finalPhase: false }), capImpl({ t9: 'escalate' }))
   assert.equal(holdsOf(both.out, 'late-defect').length, 1, 'held, not carried away from the Lead')

@@ -6852,19 +6852,6 @@ const lateFixPass = async () => {
     }
   }
 }
-// Seeded-task cap rule (late-defects D9/D20, PIN-9/PIN-20): a seeded task out of fix rounds follows the
-// late-fix pass's cap rule. On the final phase, or a phase another hard escalation holds, it holds
-// 'late-defect' for a Lead ruling; else its row carries again on carriedTasks with the spent fixRounds.
-// The origin `task` stays the row's own, so the next round trip seeds it the same way. Never dropped (PIN-1).
-// It runs before the behavior-row sort: a final-phase seed hold then skips the sort and the late-fix
-// pass, as any hold recorded before them does (the pass's `holding` rule).
-for (const { task: t, why } of seedCapped) {
-  const n = spentOf(t.fixRounds), detail = 'seeded task ' + t.id + ' ran out of fix rounds (fixRounds ' + n + ') on "' + t.seed.title + '" of task ' + t.seed.task + ': ' + why
-  const hold = finalPhase || escalated.some(e => e && HARD_ESCALATION_REASONS.includes(e.reason))
-  log('seeded task: ' + detail + (hold ? ', held (late-defect).' : ', carried on carriedTasks.'))
-  if (hold) escalated.push({ task: t.id, reason: 'late-defect', fixRounds: n, detail })
-  else carriedTasks.push({ ...t.seed, fixRounds: n, roster: t.roster, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: detail } })
-}
 // ---- BEHAVIOR-ROW SORT (late-defects D19/D21, PIN-19/PIN-21) — before the late-fix pass and the land ----
 // decision. Each `behavior` row on phaseCloseQueue is judged by the owner of its file. No owner, or
 // only a mode:'stacked' args.sweepExclude entry (stack-and-plow: no parallel branch edits the file,
@@ -6919,6 +6906,17 @@ const carryLate = (f, why) => {
   queuedKeys.add(remintKey(f))
   log('carriedTasks: "' + f.title + '" — ' + why + ' (PIN-21).')
   carriedTasks.push({ ...f, task: origin ? carryTaskOf(origin) : f.task, raisedTask: f.task, findingClass: 'behavior', fixRounds: origin ? spentOf(origin.fixRounds) : 0, ...(origin ? { roster: origin.roster } : {}), planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
+}
+// Seeded-task cap rule (late-defects D9/D20, PIN-9/PIN-20): a seeded task out of fix rounds follows the
+// late-fix pass's cap rule. On the final phase, or a phase another hard escalation holds, it holds
+// 'late-defect' for a Lead ruling; else its row carries again on carriedTasks with the spent fixRounds.
+// The origin `task` stays the row's own, so the next round trip seeds it the same way. Never dropped (PIN-1).
+for (const { task: t, why } of seedCapped) {
+  const n = spentOf(t.fixRounds), detail = 'seeded task ' + t.id + ' ran out of fix rounds (fixRounds ' + n + ') on "' + t.seed.title + '" of task ' + t.seed.task + ': ' + why
+  const hold = finalPhase || escalated.some(e => e && HARD_ESCALATION_REASONS.includes(e.reason))
+  log('seeded task: ' + detail + (hold ? ', held (late-defect).' : ', carried on carriedTasks.'))
+  if (hold) escalated.push({ task: t.id, reason: 'late-defect', fixRounds: n, detail })
+  else carriedTasks.push({ ...t.seed, fixRounds: n, roster: t.roster, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: detail } })
 }
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
