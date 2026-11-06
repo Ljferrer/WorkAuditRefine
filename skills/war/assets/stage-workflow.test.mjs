@@ -781,7 +781,7 @@ test('(q) write-if-absent refuses a pre-existing staged file over the cap, namin
 // permitted rendering is the stager's quoted stderr message (`<n>-byte scriptPath cap`, no backticks,
 // no thousands separator), which the ban's arithmetic counts separately. README.md, CHANGELOG.md and
 // docs/learnings/ are release-slot or narrative prose and stay out.
-const DOC_CAP_PINS = ['CONTEXT.md', 'skills/war/references/staged-script.md', 'docs/adr/0037-run-scoped-staged-phase-scripts.md']
+const DOC_CAP_PINS = ['GLOSSARY.md', 'skills/war/references/staged-script.md', 'docs/adr/0037-run-scoped-staged-phase-scripts.md']
 test('(r) DOC_CAP_PINS: every prose restatement of the scriptPath cap equals SCRIPT_BYTE_CAP, and no bare rendering escapes the grammar', () => {
   const rendered = SCRIPT_BYTE_CAP.toLocaleString('en-US')
   for (const rel of DOC_CAP_PINS) {

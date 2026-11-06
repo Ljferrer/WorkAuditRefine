@@ -167,3 +167,9 @@ plan than this record.
   gains `<sha12>`, the first 12 hex of the declared sha256; `MANIFEST_KEYS` unchanged) and D24
   (recon lane runs digest first; `<plan-slug>` is the plan basename without `.md`, defined in
   `artifact-evidence.md`) · plan 2026-10-20-rea-artifact-evidence task 5.1
+
+## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+
+#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
+(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
+next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.

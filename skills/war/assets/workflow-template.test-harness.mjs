@@ -1366,8 +1366,8 @@ const THREE = (noTest = new Set()) => PROVISION_ARGS({ tasks: [
 // Task 1.2 (war-room-config-expansion) — tier-aware worker dispatch + task.files plumbing
 // ---------------------------------------------------------------------------
 // First-pass workers dispatch on the docs tier for an all-*.md task (task.files = the plan Files:
-// list, NOT the worker's diff); fix-round and --ace (absent agents.worker.ace) dispatch on the fix tier when configured, else
-// the base worker. End-to-end (captures the real spawn opts at each dispatch label) so the predicate
+// list, NOT the worker's diff); fix-round dispatches on the fix tier when configured, else
+// the base worker; --ace dispatches on the ace tier or its default (#2619). End-to-end (captures the real spawn opts at each dispatch label) so the predicate
 // AND the wiring are exercised together — a reverted tier arg fails these.
 // ---------------------------------------------------------------------------
 

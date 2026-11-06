@@ -53,7 +53,7 @@ function normalize(src) {
 // must be present on it. Tokens are matched case-insensitively against the normalized text.
 
 const SWEEP_SURFACES = {
-  'CONTEXT.md': {
+  'GLOSSARY.md': {
     old: ['slices each fan-out', 'batched()'],
     new: [
       '**Dispatch semaphore**',
@@ -480,7 +480,7 @@ const ES18_SURFACES = [
     extract: whole,
     old: ['(a synthetic fast-forward repo)'],
     new: ['a synthetic repo whose task merges are `--no-ff` merge commits carrying `WAR-Task`', 'a fast-forward-only anchor'] },
-  { name: '2485/ES18 CONTEXT.md', file: 'CONTEXT.md',
+  { name: '2485/ES18 GLOSSARY.md', file: 'GLOSSARY.md',
     extract: whole,
     old: ["does not exist under WAR's fast-forward per-task merges"],
     new: ['Each task lands as a `--no-ff` merge commit carrying `WAR-Task`', '**Merge-commit provenance**:'] },

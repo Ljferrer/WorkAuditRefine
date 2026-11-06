@@ -190,7 +190,7 @@ fi
 # (ABSENCE CHECK 2) and `switch` (ABSENCE CHECK 3), each requiring `--detach`.
 # MAINTENANCE: if git grows another verb that re-attaches a named branch, add
 # it to BOTH this comment AND a mirroring ABSENCE CHECK below — the class, not
-# any single instance, is what's guarded (CONTEXT.md "Verb equivalence class
+# any single instance, is what's guarded (GLOSSARY.md "Verb equivalence class
 # (absence guard)").
 # ---------------------------------------------------------------------------
 # ABSENCE CHECK 2: the live surface must NOT instruct the Refinery to

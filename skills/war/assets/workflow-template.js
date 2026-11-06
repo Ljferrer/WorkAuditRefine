@@ -61,7 +61,7 @@ export const meta = {
 //                                     // overrides.ghUser; string, default '' — gh-preflight.sh's documented no-op)
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
 //                                     // auditor may also carry { rebuttal?, high?, low? } { model, effort } sub-tiers (#2534: high defaulted, low not).
-//                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (defaulted in war-config DEFAULTS), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
+//                                     // worker may also carry { docs?, fix?, ace? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (defaulted in war-config DEFAULTS), fix = the fix-round tier (absent ⇒ inherit worker), ace = the --ace + terminal-pass tier (absent ⇒ its default).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
 //     absorbCharges?,                 // optional { <task>: n } Lead override of the barrier's Ace-Charge read at a relaunch — read unconditionally
 //                                     // (no recovery gate); wins over the barrier map, logged; a non-object map is logged and ignored.
@@ -833,23 +833,22 @@ const bareWord = w => /^[\w./=:,@^~%+-]+$/.test(w)
 const shq = w => bareWord(w) ? w : "'" + w.split("'").join("'\\''") + "'"
 const helperOpts = (...words) => words.every(bareWord)
   ? { agentType: NS + 'war-helper', ...spawn('helper') } : { agentType: NS + 'war-refiner', ...spawn('refiner') }
-// Worker sub-tier SANDBOX fallbacks. docs is bound to DEFAULTS.agents.worker.docs by the D2 registry
-// row in workflow-template.engine-1.test.mjs. fix (the fix-round + floor-retry tier) is NOT listed
+// Worker sub-tier SANDBOX fallbacks. docs and ace (#2619) are bound to DEFAULTS.agents.worker by the D2
+// registry row in workflow-template.engine-1.test.mjs. fix (the fix-round + floor-retry tier) is NOT listed
 // here even though DEFAULTS/presets now default it: its authoring default is applied by fillDefaults
 // BEFORE the resolved config reaches this sandbox, so at this layer an absent fix ⇒ inherit the base
 // worker (the correct fallback for a partial/hand-passed config — nothing to bind).
-const WORKER_TIER_DEFAULTS = { docs: { model: 'sonnet', effort: 'high' } }
+const WORKER_TIER_DEFAULTS = { docs: { model: 'sonnet', effort: 'high' }, ace: { model: 'opus', effort: 'default' } }
 // spawnWorker(tier): worker spawn opts for a sub-tier ('docs'|'fix'|'ace') — the configured agents.worker[tier]
-// block when present, else WORKER_TIER_DEFAULTS[tier] (docs), else the base worker (fix absent ⇒ inherit;
-// a null/absent tier ⇒ base). ace (the --ace + terminal-pass tier, #2519; charges 5 and 6 take fix, see aceSpawn) has no default: absent ⇒ the fix
-// tier's opts, so a config without agents.worker.ace dispatches exactly as before the split. A partial tier block falls back to ITS tier's default model (docs ⇒ WORKER_TIER_DEFAULTS.docs),
+// block when present, else WORKER_TIER_DEFAULTS[tier] (docs, ace), else the base worker (fix absent ⇒ inherit;
+// a null/absent tier ⇒ base). ace (the --ace + terminal-pass tier, #2519; charges 5 and 6 take fix, see aceSpawn) has its
+// own default (#2619): absent ⇒ WORKER_TIER_DEFAULTS.ace, never the fix tier. A partial tier block falls back to ITS tier's default model,
 // matching war-config's fillDefaults deep-merge. Effort only when non-default (omit = inherit session).
 const spawnWorker = tier => {
   if (!tier) return spawn('worker')
   const w = agents.worker || {}
   const dflt = WORKER_TIER_DEFAULTS[tier]
   const cfg = w[tier], isBlock = cfg && typeof cfg === 'object' && !Array.isArray(cfg)
-  if (tier === 'ace' && !isBlock) return spawnWorker('fix')
   const a = isBlock ? cfg : (dflt || w)
   const model = a.model || (dflt && dflt.model) || ROLE_MODEL.worker
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
@@ -5552,7 +5551,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + chainFixClause(r.task, correctiveRoundOf('floor', r.task), 'floor family (add-test, make-pass, cite-budget, package-it)', [])
             + workerMemClause(r.task.id) + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
             // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
-            // the fix:/ace: fix-follow-up classes (absent agents.worker.fix ⇒ inherit-base — byte-identical).
+            // the fix: class (absent agents.worker.fix ⇒ inherit-base — byte-identical); ace: runs via aceSpawn.
             { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
           // Dead floor-fix worker (D21, PIN-25): env-died SOFT naming the site — never the floor's own
           // blocked verdict, never a done-unmet/no-test/unpackaged/budget-uncited exhaustion.
