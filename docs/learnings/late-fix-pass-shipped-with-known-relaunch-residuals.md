@@ -15,9 +15,11 @@ metadata:
     - empty late-fix branch
     - carryLate fix-less row
     - lateOriginOf unmerged raiser
+    - seededTasks env-died
+    - seed fixRounds reset
   provenance: code-verified
   slug: late-fix-pass-shipped-with-known-relaunch-residuals
-  phase: 2026-11-04-late-defects-fixed-in-run/phase-3 (task 3.1) + phase-4 (task 4.1)
+  phase: 2026-11-04-late-defects-fixed-in-run/phase-3 (task 3.1) + phase-4 (task 4.1) + phase-6 (task 6.1)
   tags:
     - late-fix
     - recovery
@@ -25,7 +27,7 @@ metadata:
     - task-integrated
   created: 2026-11-05
   originSessionId: f18978de-02f5-4ccd-9681-eb7dbaa3087b
-  modified: 2026-11-05T16:19:42.918Z
+  modified: 2026-11-06T04:26:42.451Z
 ---
 
 # The late-fix pass shipped with known relaunch residuals
@@ -58,6 +60,23 @@ Phase 4 (task 4.1, the behavior-row sort, PIN-21) added two residuals. Both went
    The other fork: route such a row on `carriedPhaseClose` with its raiser's relaunch.
 
 Locate-cue (phase 4): verify still present before acting — the `sweepMinors = sweepMinors.filter(` block that calls `carryLate(f, 'raised after the late-fix pass by the polish panel')` with no fix or file check, and the owner-only `queueLateRow` call in the BEHAVIOR-ROW SORT block, found @ phase 4 landed tip 28e74359.
+
+Phase 6 (task 6.1, `args.seededTasks`, PIN-9) added the carry intake and two more residuals.
+Check the Checkpoint ruling before you change either route.
+
+7. **A seeded task that ends `env-died` or `env-blocked` drops off the carry channel.** Only the cap routes (`r.spent` at the audit loop, floor exhaustion) push to `seedCapped`.
+   The soft escalation records are `{ task, reason, ... }` with no `seed` row.
+   On a non-final phase the phase still lands, and `carriedTasks` holds nothing for that defect.
+   The defect then lives only in the Lead's own launch args. A recovery relaunch must re-thread it by hand.
+   An auditor raised this as an unruled `ask`: re-carry on `carriedTasks` (double-run risk) versus stamp the seed row on the escalation record.
+8. **A seeded task's fix budget restarts each phase.** The seeded task gets no `fixRounds` from the carried row, so it starts at 0.
+   The carried `fixRounds` is only stamped back onto the next carry. So a defect can spend a fresh `run.roundLimit` on every non-final phase.
+   The final phase still holds it as `late-defect`, so it stays bounded by the phase count. An auditor flagged this as a possible Lead ruling.
+
+By design: a final-phase seed hold names the seed id (`seed-1`), because the Lead rules on the task in this phase.
+A carried row keeps the first origin task through `carryTaskOf`, so a seed of a seed never re-keys onto an unrelated `seed-1`.
+
+Locate-cue (phase 6): verify still present before acting — the four `escalated.push({ task: r.task.id, reason: 'env-…'` sites with no seed field, the seeded `tasks.push({ id, title: 'carried defect: '` line with no `fixRounds`, and `const carryTaskOf` in `skills/war/assets/workflow-template.js`, found @ phase 6 integration tip c43cebee, the second parent of landed tip 66c0f263 (the run's `_refinery` worktree).
 
 Also see [[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]] and [[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]].
 

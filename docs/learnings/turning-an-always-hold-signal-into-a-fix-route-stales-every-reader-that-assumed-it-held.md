@@ -19,9 +19,10 @@ metadata:
     - absolute rule exception
     - ADR dated amendment
     - pin-transfer.md stale
+    - paraphrase grep miss
   provenance: code-verified
   slug: turning-an-always-hold-signal-into-a-fix-route-stales-every-reader-that-assumed-it-held
-  phase: 2026-11-04-late-defects-fixed-in-run/phase-3 (task 3.1) + phase-4 (task 4.1, recurrence) + phase-5 (task 5.1, recurrence)
+  phase: 2026-11-04-late-defects-fixed-in-run/phase-3 (task 3.1) + phase-4 (task 4.1, recurrence) + phase-5 (task 5.1, recurrence) + phase-6 (task 6.2 and polish, status)
   tags:
     - gate-audit
     - handoff
@@ -29,7 +30,7 @@ metadata:
     - adr
   created: 2026-11-05
   originSessionId: f18978de-02f5-4ccd-9681-eb7dbaa3087b
-  modified: 2026-11-05T23:47:58.187Z
+  modified: 2026-11-06T04:26:29.065Z
 ---
 
 # Turning an always-hold signal into a fix route stales every reader that assumed it held
@@ -105,3 +106,17 @@ Rule for an exception to an absolute rule: grep the absolute phrase ("never", "e
 Amend an ADR with a dated bullet. Never defer it as "a dated record".
 
 Locate-cue (phase 5): verify still present before acting — the unqualified sentence in `pin-transfer.md`, the `Never merge a task with an open` line in `SKILL.md`, the dated amendment in ADR 0049, and `aceBaseIds` in `skills/war/assets/workflow-template.js`, found @ phase 5 landed tip 86335b32 (the run's `_refinery` worktree at that HEAD).
+
+## Status at phase 6 (task 6.2 and the phase-close polish)
+
+The phase 5 STILL STALE list above is history at tip 86335b32. At phase 6:
+
+- Fixed: `skills/war/references/pin-transfer.md` now names its one exception, the ace base gate (`aceBaseIds`, PIN-10).
+- Fixed: the `skills/war/SKILL.md` "Never merge a task with an open" line now carries a probe carve-out (PIN-3).
+- Missed by the sweep: `skills/war/references/design.md` Validation criteria still says "A task can't merge with an open Critical/Major". The sibling sweep grepped the exact phrase "Never merge a task with an open", so a paraphrase escaped. A seat judged it a summary convention and recorded it as a note.
+- STILL STALE: ADR 0024 §(C) still says `isHardGateEvidence` fires on escalate "**or** a Critical/Major finding". ADR 0058 amends ADR 0054 but not ADR 0024.
+- STILL STALE: the `gate-evidence` header comment in `skills/war/assets/land-decision.mjs` still names only "provably unrun" and a finding-less escalate.
+
+Rule for a sibling sweep: grep the rule's meaning, not one spelling of it. Try the short forms too ("can't merge", "never merge", "no approval").
+
+Locate-cue (phase 6): verify still present before acting — the "One exception: the ace base gate" sentence in `pin-transfer.md`, the "probe carve-out (PIN-3)" text in `SKILL.md`, the "can't merge with an open" line in `design.md`, ADR 0024 §(C), and the `land-decision.mjs` header, found @ phase 6 integration tip c43cebee, the second parent of landed tip 66c0f263 (the run's `_refinery` worktree, HEAD on that integration branch).
