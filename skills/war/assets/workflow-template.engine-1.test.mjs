@@ -8452,6 +8452,8 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
     'agents/war-worker.md carries FIX_GATE_RULE verbatim (standing card and dispatched prompt agree)')
   assert.ok(workerCard.includes('On a fix-applying dispatch (a `BACKWARD-CHAIN FIX` block), skip the full gate.'),
     'the card scopes the rule to the BACKWARD-CHAIN FIX trigger, so step 4 "Run the gate command until green" never contradicts a fix prompt')
+  assert.ok(!workerCard.includes('alongside the gate'),
+    'the card Done when: input no longer pairs Done when with the full gate (round 6, #2617)')
   const runs = [
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), fixNeededImpl()),
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), floorRetryImpl()),
@@ -8498,6 +8500,9 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
   for (const c of fixPrompts) {
     assert.ok(c.prompt.includes('make gate'),
       `fix prompt "${c.opts.label}" still names the gate command the engine runs at its new tip`)
+    // The card's skip-the-gate rule fires only on a BACKWARD-CHAIN FIX block (round 6, #2617).
+    assert.ok(c.prompt.includes('BACKWARD-CHAIN FIX'),
+      `fix prompt "${c.opts.label}" carries the BACKWARD-CHAIN FIX block that triggers the card rule`)
   }
   // Default-deny census: the sweep above only reaches prompts its fixtures drive, so a fix prompt at a
   // site no fixture reaches would evade it. Line comments are blanked to SPACES (index-preserving).
