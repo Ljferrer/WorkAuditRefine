@@ -4237,6 +4237,25 @@ expect "RR.6 remote-rejected first land: the follower is created at new_sha" "$L
 expect "RR.6 remote-rejected first land: two pushes" 2 "$RR_PUSHES"
 expect "RR.6 remote-rejected first land: one 10 second wait" "10 " "$RR_SLEEPS"
 
+# RR.7: a first land whose origin read fails after the rejection runs no retry.
+# A failed read prints nothing, which equals the empty pre-push read, so only the
+# read's own exit code can stop the retry here. RR.5 cannot see that, because its
+# pre-push read is not empty.
+LA_PAIR="$(setup_origin_pair)"
+LA_C1="$(printf '%s' "$LA_PAIR" | cut -d' ' -f1)"
+printf 'rr7\n' > "$LA_C1/la.txt"
+git -C "$LA_C1" add -A
+git -C "$LA_C1" commit -qm "new sha for working/rr7"
+LA_NEW="$(git -C "$LA_C1" rev-parse HEAD)"
+git -C "$LA_C1" checkout -q --detach "$LA_NEW"
+rr_run rr-readfail working/rr7 "$LA_NEW"
+expect "RR.7 remote-rejected first land: a failed origin read exits 3" 3 "$RR_RC"
+expect "RR.7 remote-rejected first land: one push" 1 "$RR_PUSHES"
+expect "RR.7 remote-rejected first land: no wait" "" "$RR_SLEEPS"
+expect "RR.7 remote-rejected first land: no follower ref is created" no \
+  "$(git -C "$LA_C1" show-ref --verify --quiet refs/heads/working/rr7 && echo yes || echo no)"
+expect "RR.7 remote-rejected first land: origin still has no branch" "" "$(la_origin working/rr7)"
+
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
