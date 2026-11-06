@@ -192,3 +192,20 @@ war/authoring-side-verification/p2-2.3	#1663	0-'+' via git cherry vs origin/mast
 war/authoring-side-verification/p2-2.5	#1663	0-'+' via git cherry vs origin/master, 2026-11-06 (1 '-'); executing PR found by its date-prefixed head
 war/authoring-side-verification/p3-3.2	#1663	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-'); executing PR found by its date-prefixed head
 war/realized-absorb-rate/p3-3.3	#1607	0-'+' via git cherry vs origin/master, 2026-11-06 (1 '-'); executing PR found by its date-prefixed head
+
+# --- 2026-11-06 sweep, remainders: plan 1 of the ended 2026-09-06-survey-debt campaign ---
+# Same structural cause and cherry proof as the step-4 header above. The plan landed in PR #2297.
+# Its p2-polish ref printed one + line, was archived in DocTrail (reports/2026-11-06-aftermath-remainders) and deleted.
+war/2026-09-06-engine-and-audit-verdict-integrity/p1-1.2	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (7 '-')
+war/2026-09-06-engine-and-audit-verdict-integrity/p1-1.3	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-')
+war/2026-09-06-engine-and-audit-verdict-integrity/p1-1.4	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (7 '-')
+war/2026-09-06-engine-and-audit-verdict-integrity/p11-11.2	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (9 '-')
+war/2026-09-06-engine-and-audit-verdict-integrity/p12-12.2	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (7 '-')
+war/2026-09-06-engine-and-audit-verdict-integrity/p13-13.2	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-')
+war/2026-09-06-engine-and-audit-verdict-integrity/p2-2.1	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (8 '-')
+war/2026-09-06-engine-and-audit-verdict-integrity/p3-3.2	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-')
+war/2026-09-06-engine-and-audit-verdict-integrity/p4-4.3	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (5 '-')
+war/2026-09-06-engine-and-audit-verdict-integrity/p5-5.2	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (3 '-')
+war/2026-09-06-engine-and-audit-verdict-integrity/p6-6.2	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (2 '-')
+war/2026-09-06-engine-and-audit-verdict-integrity/p6-6.3	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (7 '-')
+war/2026-09-06-engine-and-audit-verdict-integrity/p9-9.2	#2297	0-'+' via git cherry vs origin/master, 2026-11-06 (1 '-')
