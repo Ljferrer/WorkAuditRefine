@@ -517,6 +517,7 @@ test('Task 1.2 — BOTH recovery re-land prompts carry the identical discriminat
     assert.ok(p.includes(RELAND_DISC_DIVERGE), `${name} re-land prompt names the nonzero-right-count divergence branch`)
     assert.ok(p.includes(RELAND_REMOTE_REJECTED), `${name} re-land prompt names the server-side remote rejection as a retry (#2626)`)
     assert.ok(p.includes(RELAND_ADVANCE_TIMEOUT), `${name} re-land prompt raises the land-advance tool timeout (#2626)`)
+    assert.ok(p.split('\n').some(l => l.startsWith('     - Every attempt') && l.includes(RELAND_ADVANCE_TIMEOUT)), `${name}: the timeout rides its own every-attempt bullet (#2626)`)
     assert.match(p, /return \{ mode: 'land-phase', status: 'land_stale' \} immediately/, `${name} re-land: nonzero right count → land_stale immediately`)
   }
 })

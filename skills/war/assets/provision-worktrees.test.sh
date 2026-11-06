@@ -4118,6 +4118,7 @@ expect "LA.7: a short already-landed call runs no push" no "$(la_has "$(ls "$LA_
 # ls-remote passes through, because a push marker gates the ls-remote arms. The
 # LA sleep stub records each wait, so no row really sleeps.
 #   rr-once     the first push is a [remote rejected], later pushes are real
+#   rr-thrice   the first three pushes are a [remote rejected], the fourth is real
 #   rr-always   each push is a [remote rejected]
 #   rejected    each push is a plain [rejected]
 #   rr-moved    each push is a [remote rejected], and origin then reads a new tip
@@ -4139,7 +4140,7 @@ case "${1:-}" in
     pushes="$(wc -c < "$RR_DIR/pushes" | tr -d ' ')"
     : > "$RR_DIR/pushed"
     case "${RR_SHIM:-}:$pushes" in
-      rr-once:1 | rr-always:* | rr-moved:* | rr-readfail:* | rr-landed:* | rr-then-rejected:1 | rr-then-other:1 | rr-moved-later:* | rr-readfail-later:*)
+      rr-once:1 | rr-thrice:1 | rr-thrice:2 | rr-thrice:3 | rr-always:* | rr-moved:* | rr-readfail:* | rr-landed:* | rr-then-rejected:1 | rr-then-other:1 | rr-moved-later:* | rr-readfail-later:*)
         printf 'remote: fatal error in commit_refs_rules\nTo origin\n ! [remote rejected]   %s (fatal error in commit_refs_rules)\nerror: failed to push some refs to origin\n' "$3" >&2
         exit 1
         ;;
@@ -4302,6 +4303,7 @@ rr_run rr-landed working/rr9 "$LA_NEW"
 expect "RR.9 remote-rejected but applied: exits 3" 3 "$RR_RC"
 expect "RR.9 remote-rejected but applied: one push" 1 "$RR_PUSHES"
 expect "RR.9 remote-rejected but applied: no wait" "" "$RR_SLEEPS"
+expect "RR.9 remote-rejected but applied: the die names no retry" yes "$(la_has "$RR_ERR" "after 0 retries")"
 expect "RR.9 remote-rejected but applied: the follower stays" "$LA_SEED" "$(la_follower working/rr9)"
 
 # RR.10: an unrelated push error (network, permission) is never retried.
@@ -4340,6 +4342,15 @@ expect "RR.13 read fails after one retry: two pushes" 2 "$RR_PUSHES"
 expect "RR.13 read fails after one retry: one 10 second wait" "10 " "$RR_SLEEPS"
 expect "RR.13 read fails after one retry: the die names one retry" yes "$(la_has "$RR_ERR" "after 1 retries")"
 expect "RR.13 read fails after one retry: the follower stays" "$LA_SEED" "$(la_follower working/rr13)"
+
+# RR.14: the first three pushes are rejected, and the last allowed retry lands.
+la_fixture working/rr14
+rr_run rr-thrice working/rr14 "$LA_NEW"
+expect "RR.14 the third retry lands: exits 0" 0 "$RR_RC"
+expect "RR.14 the third retry lands: four pushes" 4 "$RR_PUSHES"
+expect "RR.14 the third retry lands: the waits are 10, 20 and 40 seconds" "10 20 40 " "$RR_SLEEPS"
+expect "RR.14 the third retry lands: origin holds new_sha" "$LA_NEW" "$(la_origin working/rr14)"
+expect "RR.14 the third retry lands: the follower advances" "$LA_NEW" "$(la_follower working/rr14)"
 
 # The Lead's recovery step quotes this die, so it must match the script's text.
 RR_DOC="$HERE/../references/resume-and-recovery.md"
