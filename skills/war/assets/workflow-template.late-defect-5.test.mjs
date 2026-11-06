@@ -58,6 +58,43 @@ test('late-defect: carry round trip — a carriedTasks row from a spent non-fina
   // Absent seeds: byte-identical task list (control).
   const none = await runPhase(NEXT(undefined), defaultImpl)
   assert.ok(!none.calls.some(c => /seed-/.test(labelOf(c))), 'no seed, no seeded task')
+  // A plan task already named seed-1: the seed id takes the -1 suffix, so no two tasks share an id.
+  const clash = await runPhase(NEXT([ROW()], { tasks: [{ ...T9(), id: 'seed-1' }] }), defaultImpl)
+  const sw = workerOf(clash.calls, 'seed-1-1')
+  assert.ok(sw && sw.prompt.includes(GA_MAJOR().suggested_fix), 'the seed runs as seed-1-1 with the defect slice')
+  assert.ok(!workerOf(clash.calls, 'seed-1').prompt.includes(GA_MAJOR().suggested_fix), 'the plan task seed-1 keeps its own slice')
+  // Red proof by mutation: without the suffix loop the seed reuses the plan task id.
+  const loop = "while (tasks.some(t => t.id === id)) id += '-1'"
+  assert.ok(src.includes(loop), 'the mutation target is the live suffix loop')
+  const noLoop = await runPhase(NEXT([ROW()], { tasks: [{ ...T9(), id: 'seed-1' }] }), defaultImpl, {}, src.replace(loop, ''))
+  assert.ok(!workerOf(noLoop.calls, 'seed-1-1'), 'the mutant mints no seed-1-1')
+})
+
+// A seeded task that merges and then draws a late defect carries that defect under the seed's first
+// origin task (t.seed.task), never its seed id, on both carry arms: the late-fix pass (a gate-audit
+// Major whose fix budget runs out) and carryLate (a baseline red first found at the land gate).
+test('late-defect: carry seed origin — a late defect on a merged seeded task carries under the first origin task', async () => {
+  const lf = lateFixImpl({ rejects: 99 })
+  const gaSeedOnly = (p, o) => /^gate-audit:t9:/.test(o.label || '') ? defaultImpl(p, o) : lf(p, o)
+  const landRed = { mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['test_land_only'], gate_base_sha: 'landbase1', gate_output: 'red at origin too' }
+  const landRedImpl = (p, o) => (o.label || '') === 'land:phase-4' ? landRed : defaultImpl(p, o)
+  const arms = source => Promise.all([
+    runPhase(NEXT([ROW({ fixRounds: 0 })], { run: { roundLimit: 2 }, finalPhase: false }), gaSeedOnly, {}, source),
+    runPhase(NEXT([ROW()], { tasks: [], finalPhase: false }), landRedImpl, {}, source),
+  ])
+  const [pass, late] = await arms()
+  assert.ok(pass.calls.some(c => /^late-fix:seed-1:r2$/.test(labelOf(c))), 'presence guard: the late-fix pass spent the seed budget')
+  assert.deepEqual(pass.out.carriedTasks.map(t => [t.title, t.task, t.raisedTask]), [[GA_MAJOR().title, 't1', 'seed-1']], 'the late-fix pass carries under t1 and keeps the raiser')
+  assert.deepEqual(late.out.carriedTasks.map(t => [t.title, t.task]), [['baseline gate red: test_land_only', 't1']], 'carryLate carries under t1')
+  // Control: a plan task origin keeps its own id.
+  const plan = await runPhase(NEXT(undefined, { finalPhase: false }), landRedImpl)
+  assert.deepEqual(plan.out.carriedTasks.map(t => t.task), ['t9'], 'a plan task origin carries under its own id')
+  // Red proof by mutation: a carryTaskOf that returns the seed id drops t1 on both arms.
+  const helper = 'const carryTaskOf = t => t.seed ? t.seed.task : t.id'
+  assert.ok(src.includes(helper), 'the mutation target is the live helper')
+  const [mPass, mLate] = await arms(src.replace(helper, 'const carryTaskOf = t => t.id'))
+  assert.equal(mPass.out.carriedTasks[0].task, 'seed-1', 'the mutant late-fix pass carries the seed id')
+  assert.equal(mLate.out.carriedTasks[0].task, 'seed-1', 'the mutant carryLate carries the seed id')
 })
 
 test('late-defect: carry fold — a seeded row whose file another task owns joins that task slice, so the phase stays file-disjoint', async () => {

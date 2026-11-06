@@ -523,8 +523,8 @@ const asks = []
 const carriedPhaseClose = []
 // carriedTasks (late-defects D9/D20/D21, PIN-9/PIN-20/PIN-21): the late defects whose late-fix rounds ran
 // out on a non-final phase, the behavior rows raised after the late-fix pass (carryLate), and the seeded tasks
-// that ran out of fix rounds (seedCapped), one row each — the defect, its file and fix, its origin `task`, its findingClass,
-// the origin's spent fixRounds and roster, planSlug and carriedFrom { phase, reason }. TOP-LEVEL at both return
+// that ran out of fix rounds (seedCapped), one row each — the defect, its file and fix, its origin `task` (a seeded origin's
+// first origin task, carryTaskOf), raisedTask on a late-fix or carryLate row, its findingClass, the origin's spent fixRounds and roster, planSlug and carriedFrom { phase, reason }. TOP-LEVEL at both return
 // sites, [] when nothing carried. The Lead threads it as the next launch's args.seededTasks.
 const carriedTasks = []
 // --ace provenance (D3): aced findings recorded as { task, finding, sha } — a return ATTRIBUTE, not a
@@ -2339,7 +2339,7 @@ const corroborateSurvivor = f => {
     || (aced.find(a => a && a.finding && remintKey(a.finding) === k) || {}).finding
     || phaseCloseQueue.find(q => remintKey(q) === k)
     || carriedPhaseClose.find(q => remintKey(q) === k)
-    // a behavior row carryLate carried (PIN-21): its key is the raiser's, kept on raisedTask
+    // a row carryLate or the late-fix pass carried (PIN-21): its key is the raiser's, kept on raisedTask
     || carriedTasks.find(q => remintKey({ ...q, task: q.raisedTask ?? q.task }) === k)
     // a row the behavior-row sort or the gate-audit family sent to the late-fix pass (its raiser key)
     || lateSrcRows.find(q => remintKey(q) === k)
@@ -6730,6 +6730,9 @@ const lateOriginOf = f => {
     || (file && merged.find(t => (Array.isArray(t.files) ? t.files : []).some(p => aceRelPath(p) === file)))
     || merged.sort((a, b) => idOrder(a.id, b.id))[0] || null
 }
+// A carried row names a seeded origin's first origin task (t.seed.task), never its seed id: the next
+// phase can mint a fresh seed under the same id.
+const carryTaskOf = t => t.seed ? t.seed.task : t.id
 let lateFixSeq = 0
 const lateFixPass = async () => {
   if (!lateFixQueue.length) return
@@ -6845,7 +6848,7 @@ const lateFixPass = async () => {
       escalated.push({ task: origin.id, reason: 'late-defect', fixRounds: origin.fixRounds, detail })
     } else {
       log('late-fix pass: ' + detail + ' — carried to the next phase on carriedTasks.')
-      carriedTasks.push({ ...f, task: origin.id, findingClass: f.findingClass || 'behavior', fixRounds: origin.fixRounds, roster: origin.roster, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: detail } })
+      carriedTasks.push({ ...f, task: carryTaskOf(origin), raisedTask: f.task, findingClass: f.findingClass || 'behavior', fixRounds: origin.fixRounds, roster: origin.roster, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: detail } })
     }
   }
 }
@@ -6894,7 +6897,7 @@ if (baselineTask) queueLateRow(baselineRow([...new Set(baselineDebt.flatMap(d =>
 await lateFixPass()
 // carryLate (late-defects D21, PIN-21): a behavior row first raised after the late-fix pass (the sweep
 // panel, the terminal seat, or a late-fix re-audit row the sort never saw) has no late-fix pass left
-// this phase. On a non-final phase it carries as a carriedTasks row under its origin task (lateOriginOf),
+// this phase. On a non-final phase it carries as a carriedTasks row under its origin task (carryTaskOf),
 // and the Lead threads it as the next launch's args.seededTasks. On the final phase each caller files it
 // "raised after the late-fix pass" instead (ADR 0012: the sweep never holds). Stamps queuedKeys, so a
 // later seat re-mint corroborates (corroborateSurvivor searches carriedTasks).
@@ -6902,7 +6905,7 @@ const carryLate = (f, why) => {
   const origin = lateOriginOf(f)
   queuedKeys.add(remintKey(f))
   log('carriedTasks: "' + f.title + '" — ' + why + ' (PIN-21).')
-  carriedTasks.push({ ...f, task: origin ? origin.id : f.task, raisedTask: f.task, findingClass: 'behavior', fixRounds: origin ? spentOf(origin.fixRounds) : 0, ...(origin ? { roster: origin.roster } : {}), planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
+  carriedTasks.push({ ...f, task: origin ? carryTaskOf(origin) : f.task, raisedTask: f.task, findingClass: 'behavior', fixRounds: origin ? spentOf(origin.fixRounds) : 0, ...(origin ? { roster: origin.roster } : {}), planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
 }
 // Seeded-task cap rule (late-defects D9/D20, PIN-9/PIN-20): a seeded task out of fix rounds follows the
 // late-fix pass's cap rule. On the final phase, or a phase another hard escalation holds, it holds
