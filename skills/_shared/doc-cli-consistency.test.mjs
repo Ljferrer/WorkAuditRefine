@@ -228,6 +228,11 @@ const VERB_SCAN_EXCLUSIONS = [
   // prompts. Its only command prose is a `grep` sibling sweep — no scanned-module verb, and the file
   // makes no byte-identity claim over an evicted card block, so no QUALIFIED_HEADERS row is owed.
   'skills/war/references/fix-round-doctrine.md',
+  // late-defects.md (2026-11-04-late-defects-fixed-in-run Task 6.2) holds the born-cold Lead doctrine
+  // for late defects behind the skills/war/SKILL.md objective, carry-thread and follow-up-floor pointers,
+  // plus two passages evicted byte-identical from CONTEXT.md (ADR 0042). It names land-decision.mjs only
+  // beside its EXPORTS and phrases only gh-preflight.sh — no scanned-module verb.
+  'skills/war/references/late-defects.md',
   // gate-audit-checklist.md holds the `execution-evidence` gate-audit checklist section evicted
   // byte-identical from agents/war-auditor.md (in-band-absorb-default D16, ADR 0042); its only
   // command prose is read-only git (`cat-file -t` / `rev-parse`) — no scanned-module verb.

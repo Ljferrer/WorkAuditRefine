@@ -902,7 +902,7 @@ _Avoid_: plan literalism as a virtue; latitude as unbounded scope.
 The auditor-owned routing of a Minor/Nit finding, orthogonal to severity: fix it this phase (`absorb` —
 the per-task ace, or the phase-close sweep when `phaseClose:true`/release-slot-adjacent), file it as an
 affirmative issue (`follow-up` — must state why it is not absorbable), record it without filing
-(`note` — phase report + servitor feed), or park it as a question (`ask` — see **Ask disposition**).
+(`note` — phase report + servitor feed; a `behavior` note never stays a note, see **Finding class**), or park it as a question (`ask` — see **Ask disposition**).
 A fully specified Minor/Nit defaults to `absorb` (in the task diff) or `absorb` + `phaseClose:true`
 (outside it); `follow-up` needs a tag from the **Barrier list**. Omitted → Minor becomes follow-up,
 Nit becomes note; `ask` is never a default. A failed route **steps toward durability** — the
@@ -911,6 +911,11 @@ route (release-slot, exclusion-set, fileless) demotes straight to its default ru
 logged — per subset under the ace bisection ladder — never dropped silently, while
 `demote()` refuses an ask (log + re-route onto `asks[]`); zero unrouted findings on every exit path.
 _Avoid_: autoFixable (deprecated legacy alias for absorb); severity as the routing signal.
+
+**Late defect**, **Late-fix pass**, **Finding class** (`findingClass`), **Pre-ace probe**, **Seeded task** / **Carried task**:
+When one is in play, read skills/war/references/late-defects.md. `FINDING_CLASSES` and
+`HARD_ESCALATION_REASONS` are canonical in `skills/war/assets/land-decision.mjs`.
+_Avoid_: restating their values here.
 
 **Ask disposition** (`ask`):
 The fourth, Minor/Nit-only disposition member (#1550; ADR 0013 amendment 2026-08-25): a decision-shaped
@@ -1032,10 +1037,7 @@ The phase-close sweep's union of foreign-owned files and release-slot files: the
 task whose status is not `merged` ∪ `RELEASE_SLOT_FILES`, both sides `aceRelPath`-normalized. A queued
 cosmetic or classless absorb whose file is in the set demotes to `follow-up` with a reason naming the
 owner — the entry's plan slug, the task id, or "the release slot" — and every demotion is logged. A
-`behavior` row never reaches this set: before the late-fix pass it is sorted (PIN-21). A file that only a
-`mode: 'stacked'` entry owns, or that nobody owns, sends it to the late-fix pass, and it is never filed or
-taught as a note. A `parallel` entry's file (an absent `mode` reads `parallel`), a not-`merged` task's file
-or a release-slot file demotes it `demote:exclusion-set` naming the owner and why no late fix runs. The seat never decides
+`behavior` row never reaches this set: when sorting one, read skills/war/references/late-defects.md. The seat never decides
 exclusion; the engine applies the set at sweep time. The sweep and terminal prompts name these
 files as the fix-round fence. ADVISORY POLISH builds its own fence from the same three sources at
 dispatch, less its task's own files, and sends a listed row in a fenced file to the sweep.
@@ -1120,9 +1122,8 @@ through `aceEligible`, land as ONE `Ace-Charge` commit at the post-polish tip, w
 of their defect class; a regression is
 forward-reverted, then the rows carry (non-final) or demote `demote:absorb-regressed` (final); an
 unlanded or seat-raised absorb demotes `demote:terminal-pass` (final); it
-convenes with `run.ace` off and never budget-blocks. A seat-raised `behavior` absorb or note was raised
-after the late-fix pass: it carries as a `carriedTasks[]` row (non-final) or files `demote:terminal-pass`
-"raised after the late-fix pass" (final), never a hold (ADR 0012). Its second filter is the phase-scoped sweep
+convenes with `run.ace` off and never budget-blocks. When a seat raises a `behavior` row,
+read skills/war/references/late-defects.md. Its second filter is the phase-scoped sweep
 exclusion map: a row whose file the map owns demotes `demote:exclusion-set` and is never committed.
 _Avoid_: a second pass; reading its charge as a gate; a release-slot or exclusion-owned file in its commit.
 
