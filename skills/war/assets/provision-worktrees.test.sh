@@ -4124,6 +4124,8 @@ expect "LA.7: a short already-landed call runs no push" no "$(la_has "$(ls "$LA_
 #   rr-readfail each push is a [remote rejected], and the origin read then fails
 #   rr-landed   each push is a [remote rejected], and origin then reads new_sha
 #   rr-then-rejected the first push is a [remote rejected], later pushes are [rejected]
+#   rr-moved-later   each push is a [remote rejected], and origin reads a new tip from the second read
+#   rr-readfail-later each push is a [remote rejected], and the origin read fails from the second read
 #   other       each push fails with an unrelated error (no rejection token)
 #   rr-then-other the first push is a [remote rejected], later pushes fail unrelated
 # ---------------------------------------------------------------------------
@@ -4137,7 +4139,7 @@ case "${1:-}" in
     pushes="$(wc -c < "$RR_DIR/pushes" | tr -d ' ')"
     : > "$RR_DIR/pushed"
     case "${RR_SHIM:-}:$pushes" in
-      rr-once:1 | rr-always:* | rr-moved:* | rr-readfail:* | rr-landed:* | rr-then-rejected:1 | rr-then-other:1)
+      rr-once:1 | rr-always:* | rr-moved:* | rr-readfail:* | rr-landed:* | rr-then-rejected:1 | rr-then-other:1 | rr-moved-later:* | rr-readfail-later:*)
         printf 'remote: fatal error in commit_refs_rules\nTo origin\n ! [remote rejected]   %s (fatal error in commit_refs_rules)\nerror: failed to push some refs to origin\n' "$3" >&2
         exit 1
         ;;
@@ -4153,6 +4155,19 @@ case "${1:-}" in
     ;;
   ls-remote)
     if [ -e "$RR_DIR/pushed" ]; then
+      printf 'x' >> "$RR_DIR/reads"
+      reads="$(wc -c < "$RR_DIR/reads" | tr -d ' ')"
+      case "${RR_SHIM:-}:$reads" in
+        rr-moved-later:1 | rr-readfail-later:1) ;;
+        rr-moved-later:*)
+          printf '%s\t%s\n' "$RR_OTHER" "$3"
+          exit 0
+          ;;
+        rr-readfail-later:*)
+          printf 'fatal: the remote end hung up\n' >&2
+          exit 128
+          ;;
+      esac
       case "${RR_SHIM:-}" in
         rr-moved)
           printf '%s\t%s\n' "$RR_OTHER" "$3"
@@ -4177,7 +4192,7 @@ chmod +x "$RR_DIR/git" "$RR_DIR/sleep"
 
 # rr_run <mode> <branch> <new-sha>: sets RR_RC, RR_ERR, RR_PUSHES and RR_SLEEPS.
 rr_run() {
-  rm -f "$RR_DIR/pushed" "$RR_DIR/pushes" "$RR_DIR/sleeps"
+  rm -f "$RR_DIR/pushed" "$RR_DIR/pushes" "$RR_DIR/sleeps" "$RR_DIR/reads"
   RR_RC=0
   RR_ERR="$( ( cd "$LA_C1" && RR_SHIM="$1" RR_OTHER=1111111111111111111111111111111111111111 RR_LANDED="$LA_NEW" RR_REAL_GIT="$LA_REAL_GIT" RR_DIR="$RR_DIR" \
     PATH="$RR_DIR:$PATH" bash "$SCRIPT" land-advance "$2" "$3" ) 2>&1 >/dev/null )" || RR_RC=$?
@@ -4307,11 +4322,31 @@ expect "RR.11 remote-rejected then unrelated: one 10 second wait" "10 " "$RR_SLE
 expect "RR.11 remote-rejected then unrelated: the die names one retry" yes "$(la_has "$RR_ERR" "after 1 retries")"
 expect "RR.11 remote-rejected then unrelated: the follower stays" "$LA_SEED" "$(la_follower working/rr11)"
 
+# RR.12: origin moves after the first retry. The read runs again before the
+# second wait, so the loop stops there.
+la_fixture working/rr12
+rr_run rr-moved-later working/rr12 "$LA_NEW"
+expect "RR.12 origin moves after one retry: exits 3" 3 "$RR_RC"
+expect "RR.12 origin moves after one retry: two pushes" 2 "$RR_PUSHES"
+expect "RR.12 origin moves after one retry: one 10 second wait" "10 " "$RR_SLEEPS"
+expect "RR.12 origin moves after one retry: the die names one retry" yes "$(la_has "$RR_ERR" "after 1 retries")"
+expect "RR.12 origin moves after one retry: the follower stays" "$LA_SEED" "$(la_follower working/rr12)"
+
+# RR.13: the origin read fails after the first retry, so the loop stops there.
+la_fixture working/rr13
+rr_run rr-readfail-later working/rr13 "$LA_NEW"
+expect "RR.13 read fails after one retry: exits 3, not Git's code" 3 "$RR_RC"
+expect "RR.13 read fails after one retry: two pushes" 2 "$RR_PUSHES"
+expect "RR.13 read fails after one retry: one 10 second wait" "10 " "$RR_SLEEPS"
+expect "RR.13 read fails after one retry: the die names one retry" yes "$(la_has "$RR_ERR" "after 1 retries")"
+expect "RR.13 read fails after one retry: the follower stays" "$LA_SEED" "$(la_follower working/rr13)"
+
 # The Lead's recovery step quotes this die, so it must match the script's text.
 RR_DOC="$HERE/../references/resume-and-recovery.md"
 expect "RR doc: the recovery step quotes the spent-retry die" yes "$(la_has "$(cat "$RR_DOC")" "git push failed (rc=N) after 3 retries:")"
 expect "RR doc: the recovery step names the [remote rejected] line" yes "$(la_has "$(cat "$RR_DOC")" "\`[remote rejected]\` line")"
-expect "RR doc: the Lead's land-advance runs with the raised tool timeout" yes "$(la_has "$(cat "$RR_DOC")" "as a foreground call with timeout 300000")"
+# The Precheck, the #2626 step and the Escalation-completion land each carry it.
+expect "RR doc: each Lead land-advance recipe runs with the raised tool timeout" 3 "$(grep -c 'as a foreground call with timeout 300000' "$RR_DOC")"
 expect "RR doc: the script still prints the quoted die" yes "$(la_has "$(cat "$SCRIPT")" 'git push failed (rc=$push_rc) after $retries retries:')"
 
 # ---------------------------------------------------------------------------

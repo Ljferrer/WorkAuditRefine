@@ -1468,8 +1468,9 @@ cmd_land_advance() {
   # only while a fresh ls-remote still reads pre_push_origin: nothing moved, so
   # the same push is safe. It never contains the [rejected] token. A moved origin,
   # a failed read, or spent retries fall to the EX_FOREIGN die below. The read runs
-  # before each wait. If origin moves during the wait, the non-force retry gets a
-  # plain [rejected] and exits 2 (RR.8), so a retry never overwrites another writer.
+  # before each wait. If origin moves during the wait, the non-force retry cannot
+  # overwrite it: git refuses a non-fast-forward ([rejected], exit 2, RR.8), and
+  # any other outcome ends through the readback or the EX_FOREIGN die.
   retries=0
   while :; do
     push_out="$(mktemp 2>/dev/null || mktemp -t warpush)"
