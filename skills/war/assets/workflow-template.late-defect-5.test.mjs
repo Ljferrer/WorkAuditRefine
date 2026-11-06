@@ -191,6 +191,24 @@ test('late-defect: carry cap — a seeded task out of fix rounds carries again o
   assert.equal(held[0].fixRounds, 2)
   assert.deepEqual(holdsOf(final.out, 'audit-blocked'), [])
   assert.deepEqual(final.out.carriedTasks, [], 'the final phase never carries')
+  // The seed hold is recorded before the late-fix pass: with a gate-audit Major queued on t9, the
+  // final phase dispatches no late fix, and the Major still holds late-defect (never dropped, PIN-1).
+  const capRule = src.slice(src.indexOf('// Seeded-task cap rule'), src.indexOf('// ---- BEHAVIOR-ROW SORT'))
+  assert.ok(capRule.includes('for (const { task: t, why } of seedCapped) {'), 'the cap-rule loop sits directly above the sort')
+  const gaArm = source => {
+    const cap = capImpl(), ga = lateFixImpl()
+    return runPhase(NEXT([ROW()], { run: { roundLimit: 2 } }), (p, o) => /^(gate-audit|late-fix):/.test(labelOf({ opts: o })) ? ga(p, o) : cap(p, o), {}, source)
+  }
+  const ga = await gaArm()
+  assert.ok(ga.calls.some(c => labelOf(c) === 'gate-audit:t9:execution-evidence'), 'presence guard: the gate-audit seat ran on t9')
+  assert.deepEqual(ga.calls.filter(c => /^late-fix:/.test(labelOf(c))).map(labelOf), [], 'no late-fix worker is dispatched on a phase that holds')
+  assert.deepEqual(holdsOf(ga.out, 'late-defect').map(e => e.task).sort(), ['seed-1', 't9'], 'the seed and the queued Major both hold')
+  assert.equal(ga.out.landDecision, 'held:escalation')
+  // Red proof by mutation: the loop moved back below the late-fix pass dispatches late fixes again.
+  const mutant = src.replace(capRule, '').replace('await lateFixPass()\n', 'await lateFixPass()\n' + capRule)
+  assert.notEqual(mutant, src, 'the mutation applies')
+  const gaMut = await gaArm(mutant)
+  assert.ok(gaMut.calls.some(c => /^late-fix:t9:/.test(labelOf(c))), 'the mutant dispatches a late fix on the held final phase')
   // A non-final phase that another hard reason holds records the hold too (the late-fix pass rule).
   const both = await runPhase(NEXT([ROW()], { run: { roundLimit: 2 }, finalPhase: false }), capImpl({ t9: 'escalate' }))
   assert.equal(holdsOf(both.out, 'late-defect').length, 1, 'held, not carried away from the Lead')

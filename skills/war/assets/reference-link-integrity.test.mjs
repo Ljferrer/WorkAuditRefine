@@ -689,14 +689,16 @@ test('reference link integrity — the refiner card keeps a trigger pointer per 
 // 1,594 B at eviction, card lines 138-145 @ 68160232); a sanctioned edit re-pins it here with its rationale.
 // Re-pinned (#2485 merge of master into PR #2529): the re-running-seat duty paragraph names the tip probe
 // as the claimant and the `git diff --no-renames --name-only` read, the text #2485 Phase 1 wrote on the card.
+// Re-pinned (late-defects phase 6 polish): the opening rule names its one exception, the ace base gate
+// (aceBaseIds, PIN-10), because Phase 5 made an ace tip red only on pre-ace reds proceed.
 test('reference link integrity — the auditor-card pin-transfer block landed byte-identical in pin-transfer.md and the card keeps a trigger pointer, not the body', () => {
   const text = readFileSync(join(REPO_ROOT, REFERENCES_DIR, 'pin-transfer.md'), 'utf8');
   const heading = '## Pin transfer (#1913)\n';
   const at = text.indexOf(`\n${heading}`);
   assert.ok(at >= 0, 'pin-transfer.md lost its `## Pin transfer (#1913)` heading');
   const body = text.slice(at + 1 + heading.length);
-  assert.equal(Buffer.byteLength(body, 'utf8'), 1619, 'the moved block is 1,619 B (the eviction body with the #2485 duty paragraph)');
-  assert.equal(sha256(body), '86e15be8c019dd49c1ae1b4573fafd64e2a69723125e92956c494bc4758c0bb5',
+  assert.equal(Buffer.byteLength(body, 'utf8'), 1754, 'the moved block is 1,754 B (the eviction body with the #2485 duty paragraph and the ace base gate exception)');
+  assert.equal(sha256(body), 'da9bf6c9211f3f8655528ca05992d5f6c05b6a441b66ee4de2abef6b9878a08b',
     'the moved block must be byte-identical to its pre-eviction card text (ADR 0042) — a sanctioned edit re-pins the digest here with its rationale');
   const auditorCard = readFileSync(join(REPO_ROOT, 'agents/war-auditor.md'), 'utf8');
   assert.ok(auditorCard.includes(', read [pin-transfer.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/pin-transfer.md)'),
