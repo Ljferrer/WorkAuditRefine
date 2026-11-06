@@ -535,6 +535,9 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   assert.ok(refinerMd.includes(RELAND_REMOTE_REJECTED), 'agents/war-refiner.md names the server-side remote rejection as a retry (#2626)')
   assert.ok(refinerRecoveryMd.split(RELAND_ADVANCE_TIMEOUT).length - 1 >= 2,
     'refiner-recovery.md raises the land-advance tool timeout in BOTH the superproject and submodule-2A land variants (#2626)')
+  const timeoutLines = refinerRecoveryMd.split('\n').filter(l => l.includes(RELAND_ADVANCE_TIMEOUT))
+  assert.ok(timeoutLines.length >= 2 && timeoutLines.every(l => /^(   - )?Every attempt, not only the final one: /.test(l)),
+    'each refiner-recovery.md timeout copy is its own every-attempt line, never inside a final-attempt paragraph (#2626)')
   assert.ok(refinerMd.includes(RELAND_ADVANCE_TIMEOUT), 'agents/war-refiner.md raises the land-advance tool timeout (#2626)')
   // the discrimination must appear for BOTH the superproject land and the submodule-2A land variant.
   assert.ok((refinerRecoveryMd.match(/git rev-list --left-right --count <merge-sha>\.\.\.origin\//g) || []).length >= 2,
