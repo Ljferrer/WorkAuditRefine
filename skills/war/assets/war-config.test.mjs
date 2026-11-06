@@ -401,8 +401,9 @@ test('audit.roster seat model/effort (#2519): accepted when valid, refused when 
 })
 
 // --- workerTierMatrix (T1.1): sibling canonical export the doc-honesty lens consults -------------
-// Mirrors the agentMatrix pattern: base + docs + fix rows per preset — docs and fix are both defaulted
-// in DEFAULTS (fix flipped from absent-by-default once /war-room began asking for the fix-worker tier).
+// Mirrors the agentMatrix pattern: base + docs + fix + ace rows per preset — docs, fix and ace are all
+// defaulted in DEFAULTS (fix flipped from absent-by-default once /war-room began asking for the fix-worker
+// tier, and ace since #2619).
 
 test('workerTierMatrix: base + docs + fix + ace row per preset; fix and ace defaulted; exact tier values pinned elsewhere (fix + red-team asks)', () => {
   const matrix = workerTierMatrix()

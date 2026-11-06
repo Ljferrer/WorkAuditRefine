@@ -20,8 +20,8 @@ values live in `war-config.mjs` and the `/war-room` preset bullets, never restat
 model-rank test in `war-config.test.mjs` checks both.
 
 **Ace work gets its own tier.** `agents.worker.ace` drives the `--ace` dispatches and the terminal
-pass. It has no default: an absent ace tier uses the fix tier, so ace runs opus by default.
-(Superseded by the 2026-11-05 #2619 amendment below: ace now has its own default.)
+pass. At first it had no default, so an absent ace tier used the fix tier. The 2026-11-05
+#2619 amendment below gives ace its own default.
 (2026-11-05 amendment, operator ruling: ace charges 5 and 6 run on `agents.worker.fix`, and
 validation refuses a fix model ranked below the ace model. One rank up is the recommended split.)
 
