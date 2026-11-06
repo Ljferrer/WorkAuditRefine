@@ -109,7 +109,7 @@ const refinerRecoveryMd = readFileSync(
   'utf8',
 )
 // (D34–D36) The authoring-side-verification glossary mirrors (plan 2026-08-24, Task 2.3): the
-// war-strategy authoring surfaces are the canonical homes the new/converged GLOSSARY.md glossary
+// war-strategy authoring surfaces are the canonical homes the new/converged glossary
 // entries restate — SKILL.md §3's rule 8 + §2's oracle-duality bullet, the interview doctrine's
 // pin-ledger/recon-lane/probe law, and the strategy-verifier charter. Read here so each mirror
 // row can assert BOTH surfaces (ADR 0025: a one-sided edit reds).
@@ -142,7 +142,7 @@ const surveyCorpsSkillMd = readFileSync(
 )
 const workflowTemplateSrc = readFileSync(join(HERE, 'workflow-template.js'), 'utf8')
 // (D37–D42) The ask-disposition surfaces (#1550; plan 2026-08-25-ask-disposition, Task 2.3):
-// ADR 0013's dated amendment is the canonical decision record the new GLOSSARY.md glossary terms
+// ADR 0013's dated amendment is the canonical decision record the new glossary terms
 // restate; ADR 0012 carries the one-line cross-ref; design.md + file-followups.md carry the
 // Task 2.2 reference mirrors; war-review's SKILL.md is the canonical home of the grind-measurement
 // doctrine. Read here so every mirror row asserts BOTH surfaces (ADR 0025: a one-sided edit reds).
@@ -2409,7 +2409,7 @@ test('disposition-eligibility.md absorb block carries the source-derivable eligi
 // sweep.) Both directions are committed assertions, per the
 // recorded [[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]] lesson: the
 // NEW-present half is extracted BY CONSTRUCT from the owning glossary entry (D19/D26's idiom), and
-// the OLD-absent half sweeps all THREE converged surfaces (GLOSSARY.md + the two canonical
+// the OLD-absent half sweeps the CONTEXT.md router (#2636) and all THREE converged surfaces (GLOSSARY.md + the two canonical
 // war-strategy homes) so a revert on any one reds. Keys are `\s+`-wrapped so the retired literal
 // never appears contiguously in this file and a wrapped line still matches (D18's idiom).
 // Deliberately OUT of the OLD-absent sweep: ADR 0044 §Decision item 4 (a historical decision
@@ -2520,7 +2520,7 @@ test('D35 — GLOSSARY.md **Touched-doc accuracy duty** entry mirrors war-strate
 })
 
 // (D36) THE EIGHT AUTHORING-SIDE-VERIFICATION GLOSSARY TERMS (plan 2026-08-24, Task 2.3) — each
-// new GLOSSARY.md entry restates doctrine whose canonical home is a war-strategy authoring
+// new glossary entry (now in GLOSSARY.md) restates doctrine whose canonical home is a war-strategy authoring
 // surface (the interview doctrine, the strategy-verifier charter, or SKILL.md §2) — except the
 // Evidence-artifacts-duty row, whose normative homes are the FILING surfaces and are bound here
 // for the first time (#1652/#1676): ADR 0044's `### Evidence-duty home` section (the decision
@@ -2796,13 +2796,13 @@ test('D36 — the eight authoring-side-verification GLOSSARY.md glossary terms m
 //
 // DISCOVERED-GUARD CENSUS (D6 · PIN-6 · PIN-8), run at this task's base (the phase-2 integration
 // tip) over the grep surface `**/*.test.mjs` + `**/*.test.sh` + `.tours/`, domain = guards
-// anchored on the passages this task edits (GLOSSARY.md **Disposition** / **Adjudication** /
+// anchored on the passages this task edits (CONTEXT.md (now GLOSSARY.md) **Disposition** / **Adjudication** /
 // **Clean handoff** + the new glossary region; the CLAUDE.md Known-traps disposition bullet).
 // Found (four-sentence floor): (1) D19 in this suite anchors the **Adjudication** `_Avoid_`
 // provenance clause — extended in place by D19a above, same commit as the widening. (2)
 // prompt-surface-budgets.test.mjs carried the CONTEXT.md (126,976 B at that base, now the GLOSSARY.md row) and CLAUDE.md (16,384 B)
 // hard ceilings — D12's budget arbiter, exercised by this task's Done-when. (3) Tour step 2
-// anchors GLOSSARY.md at the Container/Contents heading — outside the edited region, retyped
+// anchored CONTEXT.md (now GLOSSARY.md) at the Container/Contents heading — outside the edited region, retyped
 // pattern-only by Task 2.5 and pinned in D39 below. (4) No `.test.sh` surface anchors any touched
 // passage (refinery-surface, war-pipeline-structure, and lessons-learned-doc-contract read other
 // regions — verified by token grep at base); the doc-cli-consistency and war-config `.test.mjs`
@@ -2813,7 +2813,7 @@ test('D36 — the eight authoring-side-verification GLOSSARY.md glossary terms m
 // per-key and the ninth key is additive by guardrail: no exact-key validator exists), and its
 // home is the engine suite outside this task's Files list.
 
-// (D37) THE SEVEN ASK-DISPOSITION GLOSSARY TERMS — each new GLOSSARY.md entry restates doctrine
+// (D37) THE SEVEN ASK-DISPOSITION GLOSSARY TERMS — each new glossary entry (now in GLOSSARY.md) restates doctrine
 // whose canonical home is the ADR 0013 dated amendment (the decision record), the SKILL.md
 // Checkpoint (the ruling-gate duties), or war-review's SKILL.md (the grind-measurement rows).
 // Per the recorded [[context-md-doctrine-mirror-can-land-without-a-skill-doc-contracts-drift-guard-row]]

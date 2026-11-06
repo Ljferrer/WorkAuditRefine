@@ -140,8 +140,8 @@ function git(args) {
 // Both sides of the move, read at the move itself: `before` is CONTEXT.md in the parent of the
 // commit that added GLOSSARY.md, and `moved` is GLOSSARY.md in that commit. Later glossary edits
 // change neither side. Before that commit exists, the sides are HEAD's CONTEXT.md and the
-// working-tree GLOSSARY.md. null outside git, or when the adding commit has no readable parent
-// (a shallow clone cut at that commit).
+// working-tree GLOSSARY.md. null outside git, or when git cannot read a side (for example a
+// shallow clone cut at the adding commit, so its parent is missing).
 // `-c log.follow=false`: a user-level log.follow=true turns a one-path log into --follow, which
 // reads the move as a copy of CONTEXT.md and names CONTEXT.md's own first commit as the add.
 function moveSides() {
@@ -152,15 +152,14 @@ function moveSides() {
   }
   const added = git(['-c', 'log.follow=false', 'log', '--diff-filter=A', '--format=%H', '--', 'GLOSSARY.md'])
     .trim().split('\n').filter(Boolean)
-  if (added.length === 0) return { before: git(['show', 'HEAD:CONTEXT.md']), moved: read('GLOSSARY.md') }
+  // `./` makes each blob path resolve from repoRoot, as the log pathspec above does.
   const at = added[added.length - 1]
-  let before
   try {
-    before = git(['show', `${at}^:CONTEXT.md`])
+    if (!at) return { before: git(['show', 'HEAD:./CONTEXT.md']), moved: read('GLOSSARY.md') }
+    return { before: git(['show', `${at}^:./CONTEXT.md`]), moved: git(['show', `${at}:./GLOSSARY.md`]) }
   } catch {
     return null
   }
-  return { before, moved: git(['show', `${at}:GLOSSARY.md`]) }
 }
 
 const router = read('CONTEXT.md')

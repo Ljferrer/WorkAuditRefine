@@ -302,8 +302,9 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
 //
 // CONTAINS, never starts-with. Survey of the live subjects at this task's base: these blocks open
 // with something other than their derivation line — war-setup-scout's adjudication-M note,
-// CONTEXT.md's, GLOSSARY.md's and CLAUDE.md's adjudication-F preambles, and the prompt-literal sentinel's
-// adjudication-C paragraph. A starts-with shape would RED each of them unmodified.
+// CONTEXT.md's and CLAUDE.md's adjudication-F preambles, and the prompt-literal sentinel's
+// adjudication-C paragraph. #2636 split the CONTEXT.md block into the router and GLOSSARY.md
+// rows, and both keep an adjudication-F preamble. A starts-with shape would RED each of them unmodified.
 //
 // The derivation predicate is FUSED and newline-anchored, deliberately:
 //   * Fused (byte count and SHA bound in ONE match) because two independent contains-predicates

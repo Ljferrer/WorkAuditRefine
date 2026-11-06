@@ -234,8 +234,8 @@ test('doc-contract: Phase 6 It-checks names the repo-completeness hard fail', ()
 // tighten trigger became false. ADR 0025 default-flip discipline: OLD-absent per enumerated
 // surface, not just NEW-present — a worker could otherwise APPEND a target-aware sentence and
 // leave the false clause standing, and a presence-only lock would pass. Eight enumerated
-// surfaces: (1)–(6) in SKILL.md, (7)–(8) in GLOSSARY.md. Each needle was verified to sit
-// on a single physical line (the stop rule and GLOSSARY's "no third threshold" sentence both WRAP,
+// surfaces: (1)–(6) in SKILL.md, (7)–(8) in CONTEXT.md (now GLOSSARY.md). Each needle was verified to sit
+// on a single physical line (the stop rule and CONTEXT.md's (now GLOSSARY.md's) "no third threshold" sentence both WRAP,
 // hence the whitespace-tolerant / truncated needles below).
 // Task 6.1 re-anchor: the tighten procedure (which carried surfaces 1, 2, 5, 6) moved verbatim to
 // references/tighten.md, so the six-needle OLD-absent key (17) below scans the UNION of SKILL.md +
