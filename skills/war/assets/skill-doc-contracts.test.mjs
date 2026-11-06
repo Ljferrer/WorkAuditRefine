@@ -271,6 +271,7 @@ test('D13 — SKILL.md and its eviction destinations invoke every .sh asset with
     ['references/docker-gate.md', dockerMd],
     ['references/submodule-flows.md', submoduleMd],
     ['references/resume-and-recovery.md', resumeMd],
+    ['references/learnings-publication.md', publicationMd],
   ]) {
     const nodeSh = text.match(/node\s+\S*\.sh\b/)
     assert.ok(
@@ -305,7 +306,7 @@ test('D13 — SKILL.md and its eviction destinations invoke every .sh asset with
 test('D14 — docker bullet does not misattribute the signature list to the gate-time classifier (#799)', () => {
   // UNION on the OLD-absent misattribution clause (adjudication I); the bullet itself moved
   // verbatim into references/docker-gate.md, so the extraction read relocates there.
-  for (const text of [skillMd, setupRefMd, dockerMd, submoduleMd, resumeMd]) {
+  for (const text of [skillMd, setupRefMd, dockerMd, submoduleMd, resumeMd, publicationMd]) {
     assert.doesNotMatch(
       text,
       /signature list is what the gate-time classifier keys on/i,
@@ -4641,7 +4642,7 @@ const PUBLICATION_EVICTIONS = [
     section: '## CLAUDE.md pointer duty (Gate 2 step 3)',
     bytes: 885,
     sha256: '47f203b96fc48eb69eb3f8c23943810307ea473e81328af774afe96326879772',
-    gone: ['**CLAUDE.md pointer duty (append-if-absent, same commit).**', 'The ratified pointer line, byte-identical'],
+    gone: ['**CLAUDE.md pointer duty (append-if-absent, same commit).**', 'The ratified pointer line, byte-identical', 'Durable engineering lessons live'],
   },
 ]
 // The section body: the text after its heading's blank line, up to the next `## ` heading or EOF.

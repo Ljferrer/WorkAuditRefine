@@ -1,6 +1,6 @@
 # Learnings publication — the Gate 2 promotion steps (evicted from `skills/war/SKILL.md`)
 
-The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) for the Gate 2 steps that run only when `memory.commitLearnings` is on (default off). `skills/war/SKILL.md`'s `**Post-servitor publication (Gate 2**` step points here twice: from step 2 (`when memory.commitLearnings is on and the selection is non-empty, read references/learnings-publication.md`) and from step 3. Each section below was byte-identical to its pre-eviction `skills/war/SKILL.md` text **at eviction time** (#2635, 2026-11-06). The sections keep the SKILL order, so "below, same commit" in the promotion steps still names the pointer duty. Step numbers and the Setup heal scan refer to `skills/war/SKILL.md`.
+The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) for the Gate 2 steps that run only when `memory.commitLearnings` is on (default off). `skills/war/SKILL.md`'s `**Post-servitor publication (Gate 2**` step points here twice: step 2's trigger pointer names § Promotion steps, and step 3's names § CLAUDE.md pointer duty. Each section below was byte-identical to its pre-eviction `skills/war/SKILL.md` text **at eviction time** (#2635, 2026-11-06). The sections keep the SKILL order, so "below, same commit" in the promotion steps still names the pointer duty. Step numbers and the Setup heal scan refer to `skills/war/SKILL.md`.
 
 ## Promotion steps (Gate 2 step 2)
 
