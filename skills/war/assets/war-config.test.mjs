@@ -2201,7 +2201,7 @@ test('doc-contract: SKILL.md Gate 2 render-index passes --local AND --repo (read
   )
 })
 
-test('doc-contract: SKILL.md Gate 2 has the append-if-absent CLAUDE.md pointer duty (#534)', () => {
+test('doc-contract: the Gate 2 learnings-publication.md step has the append-if-absent CLAUDE.md pointer duty (#534)', () => {
   // #2635 moved the duty, with the ratified line, from SKILL.md into its Gate 2 eviction file.
   const text = readDoc('skills/war/references/learnings-publication.md')
   // The pointer duty: append (if absent) the ratified pointer line to the target repo's CLAUDE.md,

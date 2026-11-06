@@ -798,7 +798,8 @@ test('doc-truth (T1.2) — relaunch arm, followUps literal, overrule clause, rel
   assert.match(w, /basename is the harness run id, so it must equal the phase's `workflowRunId`/, '/war-review must warn that the transcript dir basename must equal the phase `workflowRunId` (D22)')
 })
 
-// (D22) SKILL.md's Gate-2 post-servitor publication flow must carry the PRE-PUSH STAGED-FILE
+// (D22) The Gate-2 promotion flow (moved from SKILL.md into references/learnings-publication.md,
+// #2635) must carry the PRE-PUSH STAGED-FILE
 // CHECK — the fail-closed `git fetch origin` boundary refresh, the unpushed-RANGE probe, the
 // refusal, the neutralized-pair exemption, the undo that removes a condemned tip commit from
 // the working branch, AND the revert routing for a condemned commit that is not the tip — between
@@ -1216,7 +1217,7 @@ test('D22 — the Gate-2 promotion flow orders the fail-closed fetch refresh, th
 // assertion rather than by recursion: the walk also asserts the directory holds NO subdirectory
 // (true at this row's base — the directory is flat), so a new nested carrier surface cannot appear
 // silently either. Add a recursive walk, and rewrite this sentence with it, if a subdirectory is
-// ever wanted. Counts are occurrence counts (a dated snapshot, measured 2026-08-18), never line
+// ever wanted. Counts are occurrence counts (a dated snapshot, measured 2026-08-18 and re-measured at #2635), never line
 // counts.
 test('D33 — `ensure-origin` token census: SKILL.md and every references/ file carry exactly the recorded occurrence counts (#1287, #1288)', () => {
   const count = (src) => src.split('ensure-origin').length - 1
@@ -4668,6 +4669,12 @@ test('learnings-publication-evict (a) — each evicted Gate 2 block is in learni
 })
 test('learnings-publication-evict (b) — SKILL.md no longer carries the moved blocks and points at them with a trigger (#2635)', () => {
   for (const row of PUBLICATION_EVICTIONS) {
+    // Every non-empty moved line, trimmed of its indent, is absent, so no re-inlined bullet hides.
+    const lines = publicationSection(publicationMd, row.section).split('\n').map((l) => l.trim()).filter(Boolean)
+    assert.ok(lines.length > 0, `${row.section}: non-vacuity, the moved section has no lines`)
+    for (const line of lines) {
+      assert.ok(!skillMd.includes(line), `SKILL.md still carries a moved ${row.section} line: "${line.slice(0, 80)}"`)
+    }
     for (const literal of row.gone) {
       assert.ok(!skillMd.includes(literal), `SKILL.md still carries the evicted literal "${literal}" — it lives in learnings-publication.md only`)
     }
