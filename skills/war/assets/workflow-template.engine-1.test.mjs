@@ -13919,7 +13919,9 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   // (a terminal-seat behavior row, final phase only) — each "raised after the late-fix pass" or owned.
   // 29 → 30 (late-defects Task 5.1 ace): exclusion-set ×1 more (the late-fix pass demotes a queued row
   // whose own task did not merge, e.g. a wave-side pre-ace probe row).
-  assert.equal(sites.length, 30, `the census domain is exactly THIRTY follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
+  // 30 → 31 (#2630): land-gate ×1 (a baseline red first found at the final phase's land gate, after
+  // the late-fix pass; it filed through fileFollowUp as seat-filed before).
+  assert.equal(sites.length, 31, `the census domain is exactly THIRTY-ONE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
   for (const s of sites) {
     const p = reasonPrefixOf(s.reason)
     assert.ok(p, `demote site @${s.index}: the reason leads with a literal prefix (got: ${s.reason.slice(0, 60)})`)
@@ -13982,6 +13984,23 @@ test('demote-census — a regressed ace row files with demote:absorb-regressed (
   const { out } = await runPhase(SWEEP_ARGS(), impl)
   const d = demotionOf(out, 'regressed row')
   assert.ok(d && d.engineFiled === true && /^demote:absorb-regressed — /.test(d.demoteReason), 'the regressed row files with the demote:absorb-regressed prefix')
+})
+
+// #2630: the final-phase land-gate baseline arm files through demote(), so the filed issue's first
+// line reads `Demote-Reason: demote:land-gate`, never `seat-filed (barrier: none)`.
+test('demote-census — a final-phase land-gate baseline row files with demote:land-gate, keeps its task and rationale, and its filing row carries filed-by: demote:land-gate (#2630)', async () => {
+  const why = 'found at the land gate after the late-fix pass'
+  const landRed = () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['test_land_only'], gate_base_sha: 'landbase1', gate_output: 'red at origin too' })
+  const { out, calls } = await runPhase(CLS_ARGS(), clsImpl({ landResult: landRed }))
+  const d = demotionOf(out, 'baseline gate red: test_land_only')
+  assert.ok(d, 'presence: the final phase files the land-gate row')
+  assert.equal(d.engineFiled, true, 'the row is engine-filed')
+  assert.equal(d.demoteReason, 'demote:land-gate — ' + why, 'the reason leads with demote:land-gate')
+  assert.equal(d.task, 't1', 'the row keeps its lateOriginOf task')
+  assert.ok(d.rationale.endsWith(' — ' + why), 'the rationale keeps the reason')
+  const fp = filingPromptOf(calls)
+  assert.match(fp, /title: "baseline gate red: test_land_only"[^\n]*filed-by: demote:land-gate/, 'the filing row renders demote:land-gate, the value the issue copies onto its first Demote-Reason: line')
+  assert.doesNotMatch(fp, /title: "baseline gate red: test_land_only"[^\n]*filed-by: seat-filed/, 'never seat-filed (barrier: none)')
 })
 
 test('demote-census — the mirror-registry row and the F07 registration bind the inline DEMOTE_REASONS to land-decision.mjs; the file-followups prompt and file-followups.md carry the fixed Demote-Reason line', () => {

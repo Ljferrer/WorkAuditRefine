@@ -135,7 +135,7 @@ const RELEASE_SLOT_FILES = ['.claude-plugin/plugin.json', '.claude-plugin/market
 // The closed prefix enum every engine follow-up demotion cites (in-band-absorb-default D13, PIN-15):
 // demote() validates each follow-up reason against it and on a miss prepends 'demote:unclassified'
 // (a member) with a loud log, never a throw. The `demote-census` mirror-registry row binds this copy.
-const DEMOTE_REASONS = ['demote:absorb-regressed', 'demote:absorb-blocked', 'demote:fileless', 'demote:task-unapproved', 'demote:sweep-skipped', 'demote:sweep-discarded', 'demote:terminal-pass', 'demote:exclusion-set', 'demote:release-slot', 'demote:floor-skipped', 'demote:ask-unruled-afk', 'demote:unclassified']
+const DEMOTE_REASONS = ['demote:absorb-regressed', 'demote:absorb-blocked', 'demote:fileless', 'demote:task-unapproved', 'demote:sweep-skipped', 'demote:sweep-discarded', 'demote:terminal-pass', 'demote:exclusion-set', 'demote:release-slot', 'demote:floor-skipped', 'demote:ask-unruled-afk', 'demote:unclassified', 'demote:land-gate']
 // FINDING_CLASSES mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 // The seat's `findingClass` enum (late-defects D7/D24, PIN-7/PIN-24): the AUDIT_VERDICT finding
 // schema, normalizeFinding and the dispatched DISPOSITION RULE read this ONE array; the
@@ -1879,7 +1879,8 @@ const parkAsk = f => {
 // (demote:absorb-regressed); on a NON-final phase those same rows never demote — they ride
 // carriedPhaseClose (D3a/D3b), as does a held phase's whole queue; a fileless absorb
 // (demote:fileless, severity default); a release-slot absorb at birth (demote:release-slot); an
-// exclusion-set hit at sweep time or at the terminal-pass filter (demote:exclusion-set). A
+// exclusion-set hit at sweep time or at the terminal-pass filter (demote:exclusion-set); a baseline
+// red first found at the final phase's land gate, after the late-fix pass (demote:land-gate, #2630). A
 // FAILED ATTEMPT never demotes: an untouched-file ace row, a non-moved tip (tipClass unusable,
 // non-descendant or unchanged) after a polish, subset or re-entry ace dispatch, dead or not, blocked
 // or not (#2485 D2), a red gate at an ace-family tip, and a regressed
@@ -7679,13 +7680,14 @@ if (landDecision === 'landed') {
     const debtBefore = baselineDebt.length
     recordBaselineDebt(landResult.gate_failing_ids, landResult.gate_base_sha)
     // A land baseline red runs after the late-fix pass (PIN-12): it carries on a non-final phase, and on
-    // the final phase it files with the reason. Only ids the per-task baseline row already took (at any
-    // base sha) are no new defect. The dedup above is no test: a died baseline-proceed records the same
-    // ids at the same base and queues no row. An empty id-set is never covered.
+    // the final phase it demotes as demote:land-gate with the reason (#2630). Only ids the per-task
+    // baseline row already took (at any base sha) are no new defect. The dedup above is no test: a died
+    // baseline-proceed records the same ids at the same base and queues no row. An empty id-set is
+    // never covered.
     const landIds = debtIds(landResult.gate_failing_ids), took = baselineTask ? baselineDebt.slice(0, debtBefore) : []
     if (!(landIds.length && landIds.every(id => took.some(d => d.ids.includes(id))))) {
       const row = baselineRow(landIds), why = 'found at the land gate after the late-fix pass'
-      if (finalPhase) fileFollowUp({ ...row, task: (lateOriginOf(row) || {}).id, rationale: row.rationale + ' — ' + why })
+      if (finalPhase) { row.task = (lateOriginOf(row) || {}).id; row.rationale += ' — ' + why; demote(row, 'follow-up', 'demote:land-gate — ' + why) }
       else carryLate(row, why)
     }
     const reLand = await segmentedLand(

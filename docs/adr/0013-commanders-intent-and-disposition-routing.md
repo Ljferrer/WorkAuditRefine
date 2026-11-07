@@ -562,10 +562,11 @@ points:
   `run.ace === true`; a user config may still set it false.
 - **Every engine `follow-up` demotion carries a `DEMOTE_REASONS` prefix.** The closed prefix enum
   is canonical in `skills/war/assets/land-decision.mjs` and hand-mirrored in
-  `workflow-template.js` with a mirror-registry row and an `F07` registration. Twelve members:
+  `workflow-template.js` with a mirror-registry row and an `F07` registration. Thirteen members:
   `demote:absorb-regressed`, `demote:absorb-blocked`, `demote:fileless`, `demote:task-unapproved`,
   `demote:sweep-skipped`, `demote:sweep-discarded`, `demote:terminal-pass`, `demote:exclusion-set`,
-  `demote:release-slot`, `demote:floor-skipped`, `demote:ask-unruled-afk`, `demote:unclassified`.
+  `demote:release-slot`, `demote:floor-skipped`, `demote:ask-unruled-afk`, `demote:unclassified`,
+  `demote:land-gate` (added 2026-11-06, see the decision log).
   `demote()` validates every `follow-up` reason against the enum at runtime; on a miss it prepends
   `demote:unclassified` (itself a member) and logs the site loudly, never a throw. Three
   failed-attempt sites (an untouched file, a dead ace worker, a red gate at the ace tip) stop
@@ -618,6 +619,7 @@ body text above — beyond the Status currency line — byte-unchanged.
 - 2026-10-30 · Amendment: the ace path never holds an approved task because an ace worker committed after approval, and a blocked ace result is read from git, not taken as "no commit". Two residuals are the only exceptions to never-hold: a tip that does not descend from the pre-dispatch tip holds at the merge slot with the note "branch tip carries content committed after approval", and a revert-bearing pin-transfer probe that itself dies reads `env-died`. No `HARD_ESCALATION_REASONS` or `KNOWN_LAND_DECISIONS` member changes · plan `docs/plans/2026-10-28-blocked-ace-and-merge-provenance.md` D2 to D5, Task 5.2 · [ADR 0054](0054-merge-commit-provenance-and-the-blocked-ace-tip-probe.md).
 - 2026-11-05 · Amendment: a third merge-slot exception to never-hold. A pin-transfer probe that finds uncommitted tracked edits in the task worktree returns `error` with `detail: "dirty task worktree: <paths>"` before any forward-revert or rebase, and the engine holds the task with reason `escalate` and the note `task worktree dirty at pin-transfer: <detail>` (auditLog `pin-transfer:dirty-worktree`), because a merge-task there would refuse its rebase or gate content that never merges, and the shared stash is never a workaround. A per-task merge-task that meets the same dirt holds the same way, with no Git reconciliation, and a polish or terminal sweep merge takes its fail-open discard (operator ruling 2026-11-05) · issue #2617.
 - 2026-11-05 · Amendment: a fix-applying dispatch (fix round, floor retry, ace subset, ace re-entry, ace polish, phase-close sweep, terminal pass) runs only the tests it touched and any `Done when:` command, then commits. The engine's own gate at the new tip is the only full gate, and a red there fails the attempt. `FIX_GATE_RULE` in `workflow-template.js` carries the rule, and `agents/war-worker.md` carries it verbatim (operator ruling 2026-11-05) · issue #2617.
+- 2026-11-06 · Amendment: `demote:land-gate` joins `DEMOTE_REASONS` as its thirteenth member, edited in place into the 2026-09-04 Phase 4 amendment's member list. A `baseline` red first found at the final phase's land gate, after the late-fix pass, now files through `demote()` with the reason `demote:land-gate — found at the land gate after the late-fix pass`. The row is `engineFiled`, so the filed issue's first line reads `Demote-Reason: demote:land-gate`, not `seat-filed (barrier: none)`. A non-final phase still carries the row. No `HARD_ESCALATION_REASONS` or `KNOWN_LAND_DECISIONS` member changes (operator ruling 2026-11-06) · issue #2630.
 
 ## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
 
