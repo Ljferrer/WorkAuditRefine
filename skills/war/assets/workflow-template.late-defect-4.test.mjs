@@ -6,6 +6,8 @@
 // ids that were red there too; a regressed ace re-audit asks a pre-ace probe per blocker before any
 // revert; a merged baseline red becomes one behavior late defect per run; the sweep and terminal workers
 // read the debt list; and a resolved null at the aceBisect subset and re-entry sites reads env-died.
+// Section (e), #2629: the aceBisect subset and aceReentry re-audits probe too, each against its own
+// pre-dispatch tip.
 import { test } from 'node:test'
 import {
   assert,

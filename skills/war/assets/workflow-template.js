@@ -4430,10 +4430,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     return { red: false, died: null, seats: [...seats, ...carried], expected: (r.task.roster || []).length }
   }
   // ---- PRE-ACE PROBE (late-defects D3/D11, PIN-3/PIN-11) ----
-  // On a regressed batch re-audit, before aceBisect names culprits and before the multi-commit range
+  // On a regressed ace re-audit, before aceBisect names culprits and before the multi-commit range
   // revert, one read-only auditor seat per blocker reads the pre-ace tip. 'yes' (there before the ace)
-  // clears the blocker: it leaves its seat's findings, a seat it leaves blocker-free approves for the
-  // batch, and it queues as a behavior late defect. 'no' keeps it as today's regression signal.
+  // clears the blocker: it leaves its seat's findings, a seat it leaves blocker-free approves for that
+  // re-audit (the batch, the subset or the re-entry batch), and it queues as a behavior late defect. 'no' keeps it as today's regression signal.
   // 'unknown', or a dead or malformed answer, keeps it too and still queues it as a late defect. So
   // ADR 0054's whole-range revert sees only blockers the probe did not clear. The batch, the aceBisect
   // subset and the aceReentry re-audits all call it (#2629), each with its own pre-dispatch tip, and

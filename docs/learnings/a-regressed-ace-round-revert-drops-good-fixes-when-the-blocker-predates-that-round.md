@@ -82,6 +82,6 @@ A test-fidelity seat found the gap by diffing the test file against the reverted
 Both rows are back at the landed tip. Audit finding resolved in a fix round before land, recorded as pattern, not live instance.
 Rule: after a forward-revert, diff the reverted commit's test files against the re-ace and re-add each row by name.
 
-Locate-cue (phase 5, widened by #2629): verify still present before acting. `preAceProbe` and its calls on the `reSeats`, `subSeats` and `reS` lines in `workflow-template.js`, and the `late-defect: probe` rows in `skills/war/assets/workflow-template.late-defect-4.test.mjs`, found @ landed tip 86335b32.
+Locate-cue (phase 5, widened by #2629): verify still present before acting. #2629 (commit 7b362c8d) added the `subSeats` and `reS` calls of `preAceProbe` and their two `late-defect: probe` rows. `preAceProbe` and its call on the `reSeats` line in `workflow-template.js`, and the `late-defect: probe` rows in `skills/war/assets/workflow-template.late-defect-4.test.mjs`, found @ landed tip 86335b32.
 
 Related: [[an-ask-finding-re-raised-as-major-absorb-keeps-the-ace-ladder-from-converging]], [[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]], [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]], [[a-dispatch-context-key-that-names-an-action-must-ride-only-the-dispatches-that-run-it]], [[turning-an-always-hold-signal-into-a-fix-route-stales-every-reader-that-assumed-it-held]].
