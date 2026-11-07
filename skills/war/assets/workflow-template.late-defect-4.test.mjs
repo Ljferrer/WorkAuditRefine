@@ -6,6 +6,8 @@
 // ids that were red there too; a regressed ace re-audit asks a pre-ace probe per blocker before any
 // revert; a merged baseline red becomes one behavior late defect per run; the sweep and terminal workers
 // read the debt list; and a resolved null at the aceBisect subset and re-entry sites reads env-died.
+// Section (e), #2629: the aceBisect subset and aceReentry re-audits probe too, each against its own
+// pre-dispatch tip.
 import { test } from 'node:test'
 import {
   assert,
@@ -232,13 +234,13 @@ test('late-defect: probe — Obelisks t1 replay, yes: the blocker existed at the
   assert.deepEqual({ task: pin[0].task, kind: pin[0].kind, sha: pin[0].sha, seats: pin[0].seats.map(x => x.lens + '=' + x.outcome + '@' + x.sha) },
     { task: 't1', kind: 'ace', sha: 'ace00001', seats: ['correctness=re-ran@ace00001'] }, 'naming the ace sha and every seat')
   // Red at base: without the ledger call the approval is accounted with no row.
-  const rec = "recordAceTransfer(r, aceSha, 'probe-cleared',"
+  const rec = "recordAceTransfer(r, tip, 'probe-cleared',"
   assert.ok(src.includes(rec), 'the mutation target is the live ledger call')
-  assert.equal(pinOf((await probeRun({ exists: 'yes', evidence: 'x' }, src.replace(rec, "(() => {})(r, aceSha, 'probe-cleared',"))).out).length, 0, 'the mutant writes no row')
+  assert.equal(pinOf((await probeRun({ exists: 'yes', evidence: 'x' }, src.replace(rec, "(() => {})(r, tip, 'probe-cleared',"))).out).length, 0, 'the mutant writes no row')
   // Red at base: without the probe the Major names the absorb's file as culprit and reverts it (the Obelisks outcome).
-  const site = ': await preAceProbe(r, auditSeats, preAce, aceSha)'
+  const site = 'const reSeats = await preAceProbe(r, ra, preAce, aceSha)'
   assert.ok(src.includes(site), 'the mutation target is the live probe call')
-  const mutant = await probeRun({ exists: 'yes', evidence: 'x' }, src.replace(site, ': auditSeats'))
+  const mutant = await probeRun({ exists: 'yes', evidence: 'x' }, src.replace(site, 'const reSeats = ra.seats'))
   assert.ok(regressed(mutant.out), 'the mutant forward-reverts the absorb')
   assert.equal(lateFixOf(mutant.calls).length, 0, 'and the Major gets no late fix')
 })
@@ -287,7 +289,7 @@ test('late-defect: probe — mixed answers: the yes blocker gets a late fix, the
   // Red at base: a mutant that probes only the first blocker dispatches one probe.
   const gate = "if (b.severity !== 'Critical' && b.severity !== 'Major') { kept.push(b); continue }"
   assert.ok(src.includes(gate), 'the mutation target is the live per-blocker gate')
-  const firstOnly = await mixedRun(2, src.replace(gate, "if (n || (b.severity !== 'Critical' && b.severity !== 'Major')) { kept.push(b); continue }"))
+  const firstOnly = await mixedRun(2, src.replace(gate, "if (r.probeN || (b.severity !== 'Critical' && b.severity !== 'Major')) { kept.push(b); continue }"))
   assert.equal(firstOnly.calls.filter(kindOf('pre-ace-probe')).length, 1, 'the first-only mutant probes one blocker')
   assert.equal(lateFixOf(firstOnly.calls).length, 0, 'and the second blocker\'s yes never reaches the late-fix pass')
 })
@@ -313,9 +315,9 @@ test('late-defect: probe — a regressed two-commit range whose blocker answers 
   assert.ok(rangeReverted(no.logs), 'no: the rows route as a regressed range')
   assert.equal(lateFixOf(no.calls).length, 0, 'no: no late fix')
   // Red at base: a probe skipped on the multi-commit arm reverts the range over a yes blocker.
-  const site = '!isSha(preAce) ? auditSeats : await preAceProbe('
+  const site = 'const reSeats = await preAceProbe('
   assert.ok(src.includes(site), 'the mutation target is the live probe condition')
-  const mutant = await rangeRun(yes, src.replace(site, '!isSha(preAce) || aceProbe.count > 1 ? auditSeats : await preAceProbe('))
+  const mutant = await rangeRun(yes, src.replace(site, 'const reSeats = aceProbe.count > 1 ? ra.seats : await preAceProbe('))
   assert.match(mutant.calls.find(isMergeTask).prompt, mergeRangeRevert(RANGE_TIP), 'the mutant reverts the range')
   assert.equal(lateFixOf(mutant.calls).length, 0, 'and the yes blocker gets no late fix')
 })
@@ -496,4 +498,70 @@ test('late-defect: bisect guard — a non-infra throw at the subset dispatch sti
   assert.ok(logged(logs, 'engine error in the wave-side ace stage — schema mismatch: status is not a string'), 'the throw reached the ace stage catch unclassified')
   assert.ok(!logged(logs, 'env-died'), 'a non-infra throw is never labeled env-died')
   assert.ok(out.landed.includes('t1'), 'the ace stage fails open, so the approved work lands')
+})
+
+// ---- (e) the pre-ace probe at the aceBisect subset and aceReentry re-audits (#2629) ----
+// Each site probes against its own pre-dispatch tip: the subset against the post-revert tip (preSub),
+// the re-entry batch against the last approved tip (preRe). Only the later site's probe answers yes.
+// In the subset row the batch probe answers no and keeps today's culprit arm. In the re-entry row the
+// batch re-audit approves, so no batch probe runs.
+const PRE_MAJOR = { severity: 'Major', title: 'unbounded retry', file: 'skills/b.js', rationale: 'the retry loop has no cap', suggested_fix: 'cap the retry at three tries' }
+const yesAt = tip => p => ({ exists: String(p).includes('before the ace commit ' + tip) ? 'yes' : 'no', evidence: 'read at the pre-ace tip' })
+const preMajorSeat = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [PRE_MAJOR] }
+const REVERT_TIP = 'feed0001'.padEnd(40, '0')
+const probedAt = (calls, tip) => calls.filter(kindOf('pre-ace-probe')).filter(c => c.prompt.includes('before the ace commit ' + tip))
+const subsetProbeRun = source => runPhase(ACE_ARGS(), lateOk(buildSeqImpl({
+  'audit:t1:correctness': [bApprove([FA, FB]), bRegress('skills/a.js'), preMajorSeat],
+  'ace:polish:t1:a1': [bWorker('ace00001')],
+  'ace:subset:t1:a2': [bWorker('5ab00001')],
+}, aceBase([FA, FB]))), { 'pre-ace-probe': yesAt('5ab00001'), 'ace-revert': { ok: true, tip_sha: REVERT_TIP } }, source)
+
+test('late-defect: probe — the aceBisect subset re-audit probes against its own pre-subset tip, so a yes blocker keeps the subset absorb and gets a late fix', async () => {
+  const { out, calls, logs } = await subsetProbeRun()
+  assert.deepEqual(calls.filter(kindOf('pre-ace-probe')).map(labelOf), ['pre-ace-probe:t1:1', 'pre-ace-probe:t1:2'], 'the batch blocker and the subset blocker each get one probe, with distinct labels')
+  const sub = probedAt(calls, '5ab00001')
+  assert.equal(sub.length, 1, 'one probe at the subset tip')
+  assert.equal(shaIn(sub[0].prompt, /at the pre-ace tip ([0-9a-f]{7,40})/), REVERT_TIP, 'it reads the post-revert tip the subset was cut from (preSub)')
+  assert.ok(sub[0].prompt.includes('BLOCKER: 1. [Major] unbounded retry (skills/b.js)'), 'the prompt names the subset blocker')
+  assert.ok((out.aced || []).some(a => a.finding && a.finding.title === FB.title && a.sha === '5ab00001'), 'the subset absorb stays aced at the subset tip')
+  assert.ok(!((demotionOf(out, FB.title) || {}).demoteReason || '').startsWith('demote:absorb-regressed'), 'the subset absorb is not forward-reverted')
+  assert.deepEqual(lateFixOf(calls).map(labelOf), ['late-fix:t1:r1'], 'the blocker joins the late-fix pass')
+  assert.ok(lateFixOf(calls)[0].prompt.includes(PRE_MAJOR.suggested_fix), 'with its fix')
+  assert.ok(logged(logs, 'late-fix pass: queued [Major] "unbounded retry"', 'pre-ace probe: yes'), 'the queue log names the probe answer')
+  assert.ok((out.pinTransfers || []).some(t => t.mode === 'probe-cleared' && t.sha === '5ab00001'), 'the probe-cleared approval writes its pinTransfers row at the subset tip')
+  // Red at base: without the subset call the blocker reverts the subset absorb and gets no late fix.
+  const site = 'const subSeats = await preAceProbe(r, sa, preSub, subSha)'
+  assert.ok(src.includes(site), 'the mutation target is the live subset call')
+  const mutant = await subsetProbeRun(src.replace(site, 'const subSeats = sa.seats'))
+  assert.equal(probedAt(mutant.calls, '5ab00001').length, 0, 'the mutant probes nothing at the subset tip')
+  assert.ok(((demotionOf(mutant.out, FB.title) || {}).demoteReason || '').startsWith('demote:absorb-regressed'), 'the mutant forward-reverts the subset absorb')
+  assert.equal(lateFixOf(mutant.calls).length, 0, 'and the blocker gets no late fix')
+})
+
+const reentryProbeRun = source => runPhase(ACE_ARGS(), lateOk(buildSeqImpl({
+  'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'first', file: 'skills/first.js' })]),
+    approveWith('audit:t1:correctness', [nit({ title: 'second', file: 'skills/second.js' })]),
+    { ...preMajorSeat, findings: [{ ...PRE_MAJOR, file: 'skills/second.js' }] }],
+  'ace:polish:t1:a1': [bWorker('ace00001')],
+  'ace:reentry:t1:a2': [bWorker('ace00002')],
+}, aceBase([nit({ title: 'first', file: 'skills/first.js' })]))), { 'pre-ace-probe': yesAt('ace00002') }, source)
+
+test('late-defect: probe — the aceReentry re-audit probes against its own pre-dispatch tip, so a yes blocker keeps the re-entry absorb and gets a late fix', async () => {
+  const { out, calls, logs } = await reentryProbeRun()
+  const re = probedAt(calls, 'ace00002')
+  assert.deepEqual(re.map(labelOf), ['pre-ace-probe:t1:1'], 'one probe at the re-entry tip, and the approving batch re-audit dispatched none')
+  assert.equal(shaIn(re[0].prompt, /at the pre-ace tip ([0-9a-f]{7,40})/), 'ace00001', 'it reads the last approved tip the re-entry batch was cut from (preRe), not the first pre-ace tip')
+  assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'second' && a.sha === 'ace00002'), 'the re-entry absorb stays aced at the re-entry tip')
+  assert.ok(!((demotionOf(out, 'second') || {}).demoteReason || '').startsWith('demote:absorb-regressed'), 'the re-entry absorb is not forward-reverted')
+  assert.ok(!mergeRangeRevert('ace00002').test(calls.find(isMergeTask).prompt), 'the merge does not revert the re-entry tip')
+  assert.deepEqual(lateFixOf(calls).map(labelOf), ['late-fix:t1:r1'], 'the blocker joins the late-fix pass')
+  assert.ok(logged(logs, 'late-fix pass: queued [Major] "unbounded retry"', 'pre-ace probe: yes'), 'the queue log names the probe answer')
+  assert.ok((out.pinTransfers || []).some(t => t.mode === 'probe-cleared' && t.sha === 'ace00002'), 'the probe-cleared approval writes its pinTransfers row at the re-entry tip')
+  // Red at base: without the re-entry call the blocker reverts the re-entry absorb and gets no late fix.
+  const site = 'const reS = await preAceProbe(r, rr, preRe, reSha)'
+  assert.ok(src.includes(site), 'the mutation target is the live re-entry call')
+  const mutant = await reentryProbeRun(src.replace(site, 'const reS = rr.seats'))
+  assert.equal(probedAt(mutant.calls, 'ace00002').length, 0, 'the mutant probes nothing at the re-entry tip')
+  assert.ok(((demotionOf(mutant.out, 'second') || {}).demoteReason || '').startsWith('demote:absorb-regressed'), 'the mutant forward-reverts the re-entry absorb')
+  assert.equal(lateFixOf(mutant.calls).length, 0, 'and the blocker gets no late fix')
 })

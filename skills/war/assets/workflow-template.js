@@ -4430,14 +4430,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     return { red: false, died: null, seats: [...seats, ...carried], expected: (r.task.roster || []).length }
   }
   // ---- PRE-ACE PROBE (late-defects D3/D11, PIN-3/PIN-11) ----
-  // On a regressed batch re-audit, before aceBisect names culprits and before the multi-commit range
+  // On a regressed ace re-audit, before aceBisect names culprits and before the multi-commit range
   // revert, one read-only auditor seat per blocker reads the pre-ace tip. 'yes' (there before the ace)
-  // clears the blocker: it leaves its seat's findings, a seat it leaves blocker-free approves for the
-  // batch, and it queues as a behavior late defect. 'no' keeps it as today's regression signal.
+  // clears the blocker: it leaves its seat's findings, a seat it leaves blocker-free approves for that
+  // re-audit (the batch, the subset or the re-entry batch), and it queues as a behavior late defect.
+  // 'no' keeps it as today's regression signal.
   // 'unknown', or a dead or malformed answer, keeps it too and still queues it as a late defect. So
-  // ADR 0054's whole-range revert sees only blockers the probe did not clear.
-  const preAceProbe = async (r, seats, preAceSha, tip) => {
-    let n = 0
+  // ADR 0054's whole-range revert sees only blockers the probe did not clear. The batch, the aceBisect
+  // subset and the aceReentry re-audits all call it (#2629), each with its own pre-dispatch tip, and
+  // pass the aceReaudit result whole: a dead or red result, an approving panel, a panel with no
+  // blocker or an unplaced tip skips the probe. A probe-cleared unanimous panel writes its own
+  // pinTransfers row at the tip it judged (aceReaudit wrote none, its panel was not unanimous). The
+  // label counter (r.probeN) runs per task across the three sites, so each probe label is distinct.
+  const preAceProbe = async (r, { died, red, seats, expected }, preAceSha, tip) => {
+    if (died || red || allApprove(seats, expected) || !blockingOf(seats).length || !isSha(preAceSha)) return seats
     const out = []
     for (const s of seats) {
       const kept = []
@@ -4445,7 +4451,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (b.severity !== 'Critical' && b.severity !== 'Major') { kept.push(b); continue }
         const p = await dispatchSite(
           pt`PRE-ACE PROBE for WAR task ${r.task.id} (READ-ONLY): does the blocker below already exist at the pre-ace tip ${preAceSha}, before the ace commit ${tip}? Read it with \`git -C ${r.task.worktree} show ${preAceSha}:<file>\` or \`git -C ${r.task.worktree} diff ${preAceSha} ${tip}\`. Return { exists: 'yes' | 'no' | 'unknown', evidence: '<the lines you read>' }: no means the ace commit added it.\nBLOCKER: ` + aceFindingRow(b, 0),
-          { agentType: NS + 'war-auditor', phase: 'Audit', dispatchKind: 'pre-ace-probe', label: 'pre-ace-probe:' + r.task.id + ':' + (++n), schema: PRE_ACE_PROBE, ...spawn('auditor') })
+          { agentType: NS + 'war-auditor', phase: 'Audit', dispatchKind: 'pre-ace-probe', label: 'pre-ace-probe:' + r.task.id + ':' + (r.probeN = (r.probeN || 0) + 1), schema: PRE_ACE_PROBE, ...spawn('auditor') })
         const ans = !deathOf(p) && p && (p.exists === 'yes' || p.exists === 'no') ? p.exists : 'unknown'
         log('pre-ace probe ' + r.task.id + ': "' + b.title + '" at ' + preAceSha + ' — ' + ans + ' (' + (deathOf(p) || (p && p.evidence)) + ').')
         if (ans !== 'yes') kept.push(b)
@@ -4454,6 +4460,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const cleared = kept.length < (s.findings || []).length && !blockingOf([{ findings: kept }]).length
       out.push({ ...s, findings: kept, ...(cleared && s.verdict === 'request_changes' ? { verdict: 'approve', probeCleared: true } : {}) })
     }
+    recordAceTransfer(r, tip, 'probe-cleared', 'every blocker was there before the ace, so the absorbs stay (PIN-3)', out.filter(s => !s.pinTransferred), out.filter(s => s.pinTransferred))
     return out
   }
   const aceBisect = async (r, aceable, batchSha, regressionSeats) => {
@@ -4568,7 +4575,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // Gate at the subset tip FIRST (PIN-12), then the delta-scaled panel (D3/PIN-10). A red gate is
       // not a regression to bisect further: the subset is forward-reverted and its findings demote.
       // re-pin + re-audit (unmetered)
-      const { red: subRed, died: subDied, seats: subSeats, expected: subExpected } = await aceReaudit(r, subSha, sub.findings, aceEvidence(subProbe, sw))
+      const sa = await aceReaudit(r, subSha, sub.findings, aceEvidence(subProbe, sw))
+      const { red: subRed, died: subDied, expected: subExpected } = sa
+      // the pre-ace probe against this subset's own pre-dispatch tip (#2629)
+      const subSeats = await preAceProbe(r, sa, preSub, subSha)
       if (subDied) {
         // Dead gate check, unfinished gate or re-audit seat (D21, PIN-25, #2326): nothing judged the subset tip, so the ladder
         // abandons here with the existing abandon reason naming the site — this subset and every
@@ -4721,7 +4731,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       chainRecordFix(r.task, chainRound, rw, 'ace')
       // the probed tip, never the worker's head_sha (PIN-2)
       const reSha = reProbe.tip_sha
-      const { red: reRed, died: reDied, seats: reS, expected: reE } = await aceReaudit(r, reSha, batch, aceEvidence(reProbe, rw))
+      const rr = await aceReaudit(r, reSha, batch, aceEvidence(reProbe, rw))
+      const { red: reRed, died: reDied, expected: reE } = rr
+      // the pre-ace probe against this batch's own pre-dispatch tip (#2629)
+      const reS = await preAceProbe(r, rr, preRe, reSha)
       if (reDied) {
         // Dead gate check, unfinished gate or re-audit seat (D21, PIN-25, #2326): nothing judged the re-entry tip — abandon
         // with the existing abandon reason naming the site; the batch and the queue route to the
@@ -4946,8 +4959,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // Gate at the ace tip first (PIN-12), then the delta-scaled panel with per-seat transfer
           // provenance (D3/PIN-10/PIN-18) — the shared ace re-audit seam. More than one commit in the
           // range forces the full panel (aceScope).
-          const { red: batchRed, died: batchDied, seats: auditSeats, expected: reExpected } = await aceReaudit(r, aceSha, aceable, aceEv)
-          const reSeats = batchDied || batchRed || allApprove(auditSeats, reExpected) || !blockingOf(auditSeats).length || !isSha(preAce) ? auditSeats : await preAceProbe(r, auditSeats, preAce, aceSha)
+          const ra = await aceReaudit(r, aceSha, aceable, aceEv)
+          const { red: batchRed, died: batchDied, expected: reExpected } = ra
+          const reSeats = await preAceProbe(r, ra, preAce, aceSha)
           if (batchDied) {
             // Dead gate check, unfinished gate or re-audit seat (D21, PIN-25, #2326): nothing judged the ace tip, so no
             // approval can be accounted there — forward-revert the range and route the rows to the
@@ -4967,9 +4981,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             // merge proceeds on the polished tip
             r.seats = reSeats
             r.aceSha = aceSha
-            // A probe-cleared approval is accounted at aceSha, so it writes its own pinTransfers row
-            // (aceReaudit wrote none: its panel was not unanimous); the helper logs it.
-            if (reSeats !== auditSeats) recordAceTransfer(r, aceSha, 'probe-cleared', 'every blocker was there before the ace, so the absorbs stay (PIN-3)', reSeats.filter(s => !s.pinTransferred), reSeats.filter(s => s.pinTransferred))
             // aced provenance (D3): the findings this ace commit resolved. No splice needed —
             // classify-at-collection never eagerly filed them. A citation-resolved finding's aced
             // record carries the citation (D6).

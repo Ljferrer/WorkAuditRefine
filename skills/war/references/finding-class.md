@@ -18,11 +18,11 @@ How the engine routes the class:
 
 ## Pre-ace probe
 
-A regressed ace re-audit dispatches one PRE-ACE PROBE seat per Critical or Major blocker, before the engine names culprits or reverts a range (plan 2026-11-04-late-defects-fixed-in-run, D3/D11, PIN-3/PIN-11). The seat is read-only and judges one question: does this blocker already exist at the pre-ace tip, the approved tip before the ace commit?
+A regressed ace re-audit dispatches one PRE-ACE PROBE seat per Critical or Major blocker, before the engine names culprits or reverts a range (plan 2026-11-04-late-defects-fixed-in-run, D3/D11, PIN-3/PIN-11). The seat is read-only and judges one question: does this blocker already exist at the pre-ace tip, the tip the ace commit was cut from? That tip is the approved tip, or the post-revert tip at an `aceBisect` subset or an `aceReentry` batch.
 
 - Read the pre-ace tip through git only, with `git show <pre-ace sha>:<file>` and `git diff <pre-ace sha> <ace sha>`. The task worktree sits at the ace tip, so a plain file read shows the wrong commit.
 - Return `{ exists: 'yes' | 'no' | 'unknown', evidence }`. `evidence` names the lines you read.
-- `yes`: the same defect is there at the pre-ace tip. The engine keeps the ace's absorbs, counts your seat as approving that blocker for the batch, and sends the blocker to the late-fix pass.
+- `yes`: the same defect is there at the pre-ace tip. The engine keeps the ace's absorbs, counts your seat as approving that blocker for that re-audit (the batch, the subset or the re-entry batch), and sends the blocker to the late-fix pass.
 - `no`: the ace commit added it. Today's regression arms run: culprit excision, halving, or the whole-range revert.
 - `unknown`: git cannot settle it. The engine reverts as today, and the blocker still joins the late-fix pass as a `behavior` row. A dead seat or a malformed answer reads as `unknown`.
 - Never answer `yes` to save an absorb. A wrong `yes` keeps a regression on the branch until the late-fix pass fixes it.

@@ -2337,9 +2337,10 @@ const BARE_INTERPOLATION_CENSUS = [
   // re-entry tip (the tip probe's tip_sha, isSha-checked by usableTipProbe), construction-guaranteed
   // a string.
   'aceTipSha',
-  // preAceSha (late-defects T5.1): the ace base gate's and the pre-ace probe's pre-ace tip — r.preAceSha,
-  // set from approvedShaOf at the batch dispatch and read only behind an isSha guard (the base gate) or
-  // on the regressed batch arm, whose re-audit pinned it — construction-guaranteed a string.
+  // preAceSha (late-defects T5.1, #2629): the ace base gate reads r.preAceSha, set from approvedShaOf at
+  // the batch dispatch, behind an isSha guard. preAceProbe's preAceSha param is the site's pre-dispatch
+  // tip (preAce at the batch, preSub at an aceBisect subset, preRe at an aceReentry batch), read only
+  // past the probe's own isSha skip guard — construction-guaranteed a string.
   'preAceSha',
   // aceCharge (absorb-budget, D5): the `Ace-Charge: <task>:<n>` trailer value at the three ace-side
   // commit prompts — concatenation-built from r.task.id (entry-validated) and r.task.absorbRounds

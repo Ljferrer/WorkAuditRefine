@@ -71,8 +71,8 @@ The ladder then re-raises both, which costs rounds.
 - The seat rules live in `skills/war/references/finding-class.md`.
 
 **What is still open.**
-- The probe runs only on the batch re-audit. A re-entry or `aceBisect` subset regression still reverts with no probe. The Lead ruled "widen later" and filed #2629.
-- A probe-cleared blocker is not remembered there, so a later seat can re-raise it and revert a later commit.
+- Closed by #2629: the `aceBisect` subset and `aceReentry` re-audits probe too, each against its own pre-dispatch tip (`preSub`, `preRe`).
+- A probe-cleared blocker is not remembered. A later subset or re-entry re-audit that re-raises it probes it again, and `queueLateRow` drops the duplicate row. A re-raise outside the ace ladder still reverts with no probe.
 - A dead or `unknown` probe can spend the origin's whole `fixRounds` on a defect the revert removed. On the final phase that becomes a `late-defect` hold. The plan (PIN-11) chose this cost.
 
 **Second trap in this phase: a forward-revert takes the round's test rows too.**
@@ -82,6 +82,6 @@ A test-fidelity seat found the gap by diffing the test file against the reverted
 Both rows are back at the landed tip. Audit finding resolved in a fix round before land, recorded as pattern, not live instance.
 Rule: after a forward-revert, diff the reverted commit's test files against the re-ace and re-add each row by name.
 
-Locate-cue (phase 5): verify still present before acting. `preAceProbe` and its call on the `reSeats` line in `workflow-template.js`, and the `late-defect: probe` rows in `skills/war/assets/workflow-template.late-defect-4.test.mjs`, found @ landed tip 86335b32.
+Locate-cue (phase 5, widened by #2629): verify still present before acting. #2629 (commit 7b362c8d) added the `subSeats` and `reS` calls of `preAceProbe` and their two `late-defect: probe` rows. `preAceProbe` and its call on the `reSeats` line in `workflow-template.js`, and the `late-defect: probe` rows in `skills/war/assets/workflow-template.late-defect-4.test.mjs`, found @ landed tip 86335b32.
 
 Related: [[an-ask-finding-re-raised-as-major-absorb-keeps-the-ace-ladder-from-converging]], [[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]], [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]], [[a-dispatch-context-key-that-names-an-action-must-ride-only-the-dispatches-that-run-it]], [[turning-an-always-hold-signal-into-a-fix-route-stales-every-reader-that-assumed-it-held]].
