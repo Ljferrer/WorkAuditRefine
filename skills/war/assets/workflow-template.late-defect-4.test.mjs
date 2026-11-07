@@ -502,8 +502,9 @@ test('late-defect: bisect guard — a non-infra throw at the subset dispatch sti
 
 // ---- (e) the pre-ace probe at the aceBisect subset and aceReentry re-audits (#2629) ----
 // Each site probes against its own pre-dispatch tip: the subset against the post-revert tip (preSub),
-// the re-entry batch against the last approved tip (preRe). Only the later site's probe answers yes,
-// so the batch probe keeps today's culprit arm and the yes is the new site's own.
+// the re-entry batch against the last approved tip (preRe). Only the later site's probe answers yes.
+// In the subset row the batch probe answers no and keeps today's culprit arm. In the re-entry row the
+// batch re-audit approves, so no batch probe runs.
 const PRE_MAJOR = { severity: 'Major', title: 'unbounded retry', file: 'skills/b.js', rationale: 'the retry loop has no cap', suggested_fix: 'cap the retry at three tries' }
 const yesAt = tip => p => ({ exists: String(p).includes('before the ace commit ' + tip) ? 'yes' : 'no', evidence: 'read at the pre-ace tip' })
 const preMajorSeat = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [PRE_MAJOR] }
