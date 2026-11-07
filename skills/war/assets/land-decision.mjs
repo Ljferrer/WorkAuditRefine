@@ -90,17 +90,18 @@ export const RELEASE_SLOT_FILES = ['.claude-plugin/plugin.json', '.claude-plugin
 // DEMOTE_REASONS (in-band-absorb-default D13, PIN-15): the closed prefix enum every engine
 // `follow-up` demotion cites — `demote()` validates each follow-up reason against it at runtime and
 // on a miss prepends 'demote:unclassified' (itself a member) with a loud log, never a throw, so an
-// engine-filed issue body's prefix line is never blank. Twelve members: absorb-regressed (the ace
+// engine-filed issue body's prefix line is never blank. Thirteen members: absorb-regressed (the ace
 // fix itself broke a re-audit and was forward-reverted), absorb-blocked (a held absorb on a task
 // that never merged), fileless, task-unapproved, sweep-skipped, sweep-discarded, terminal-pass,
 // exclusion-set, release-slot, floor-skipped (a seat row filed with no intake floor run: a failed
 // probe, or a row raised at the escalation arm, the sweep, or the terminal pass, where no probe applies),
-// ask-unruled-afk (Lead-side, the Checkpoint --afk no-match lane), unclassified. Finding-level
+// ask-unruled-afk (Lead-side, the Checkpoint --afk no-match lane), unclassified, land-gate (a
+// pre-existing red first found at the final phase's land gate, after the late-fix pass). Finding-level
 // prefixes only: NEVER members of HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, KNOWN_LAND_DECISIONS, or
 // BARRIER_TOKENS. MIRRORED inline in ./workflow-template.js (the Workflow sandbox can't import) —
 // keep in sync; the D2 mirror-registry `demote-census` row in workflow-template.engine-1.test.mjs and the F07
 // drift test in war-config.test.mjs bind the inline copy to this export.
-export const DEMOTE_REASONS = ['demote:absorb-regressed', 'demote:absorb-blocked', 'demote:fileless', 'demote:task-unapproved', 'demote:sweep-skipped', 'demote:sweep-discarded', 'demote:terminal-pass', 'demote:exclusion-set', 'demote:release-slot', 'demote:floor-skipped', 'demote:ask-unruled-afk', 'demote:unclassified']
+export const DEMOTE_REASONS = ['demote:absorb-regressed', 'demote:absorb-blocked', 'demote:fileless', 'demote:task-unapproved', 'demote:sweep-skipped', 'demote:sweep-discarded', 'demote:terminal-pass', 'demote:exclusion-set', 'demote:release-slot', 'demote:floor-skipped', 'demote:ask-unruled-afk', 'demote:unclassified', 'demote:land-gate']
 
 // FINDING_CLASSES (late-defects-fixed-in-run D7/D24, PIN-7/PIN-24): the auditor-owned `findingClass`
 // a seat sets on each Minor and Nit, orthogonal to severity and disposition. A `behavior` note never

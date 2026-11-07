@@ -4002,7 +4002,7 @@ test('old-default-absent (b) — every living surface carries the in-diff absorb
   )
 })
 
-// (demote-prefix-term) GLOSSARY.md's **Demote reason prefix** glossary entry hand-spells all twelve
+// (demote-prefix-term) GLOSSARY.md's **Demote reason prefix** glossary entry hand-spells all thirteen
 // DEMOTE_REASONS members (plan 2026-09-03-in-band-absorb-default, Task 4.2; D13, PIN-15). The
 // registry rows in workflow-template.engine-1.test.mjs bind the inline mirror; this row binds the glossary
 // copy to the canonical array literal in land-decision.mjs (ADR 0025 same-commit mirror duty),
@@ -4011,7 +4011,7 @@ test('demote-prefix-term — the GLOSSARY.md **Demote reason prefix** entry name
   const lit = landDecisionSrc.match(/export const DEMOTE_REASONS = (\[[^\]]+\])/)
   assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
   const canonical = JSON.parse(lit[1].replace(/'/g, '"'))
-  assert.equal(canonical.length, 12, 'DEMOTE_REASONS must carry its twelve ratified members (D13)')
+  assert.equal(canonical.length, 13, 'DEMOTE_REASONS must carry its thirteen ratified members (D13, #2630)')
   const entry = glossaryMd.match(/^\*\*Demote reason prefix\*\* \(`DEMOTE_REASONS`\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(entry, 'could not locate the `**Demote reason prefix**` glossary entry in GLOSSARY.md — the extraction construct rotted')
   const e = norm(entry[0])

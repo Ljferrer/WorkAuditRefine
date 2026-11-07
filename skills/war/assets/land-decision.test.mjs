@@ -102,12 +102,12 @@ test('sweep-exclude — RELEASE_SLOT_FILES is exactly the two pure version-slot 
 })
 
 // ---- DEMOTE_REASONS (in-band-absorb-default D13, PIN-15) — the closed follow-up demotion prefix enum ----
-// Twelve members, every one `demote:`-prefixed, `demote:unclassified` among them (the runtime miss
+// Thirteen members, every one `demote:`-prefixed, `demote:unclassified` among them (the runtime miss
 // arm's own member); disjoint from every land-path enum and from BARRIER_TOKENS.
-test('demote-census — DEMOTE_REASONS is exactly the twelve canonical prefixes, demote:-prefixed, with demote:unclassified a member, disjoint from every land-path and barrier enum', () => {
-  assert.deepEqual(DEMOTE_REASONS, ['demote:absorb-regressed', 'demote:absorb-blocked', 'demote:fileless', 'demote:task-unapproved', 'demote:sweep-skipped', 'demote:sweep-discarded', 'demote:terminal-pass', 'demote:exclusion-set', 'demote:release-slot', 'demote:floor-skipped', 'demote:ask-unruled-afk', 'demote:unclassified'],
-    'the canonical twelve, in order (D13)')
-  assert.equal(new Set(DEMOTE_REASONS).size, 12, 'no dupes')
+test('demote-census — DEMOTE_REASONS is exactly the thirteen canonical prefixes, demote:-prefixed, with demote:unclassified a member, disjoint from every land-path and barrier enum', () => {
+  assert.deepEqual(DEMOTE_REASONS, ['demote:absorb-regressed', 'demote:absorb-blocked', 'demote:fileless', 'demote:task-unapproved', 'demote:sweep-skipped', 'demote:sweep-discarded', 'demote:terminal-pass', 'demote:exclusion-set', 'demote:release-slot', 'demote:floor-skipped', 'demote:ask-unruled-afk', 'demote:unclassified', 'demote:land-gate'],
+    'the canonical thirteen, in order (D13, #2630)')
+  assert.equal(new Set(DEMOTE_REASONS).size, 13, 'no dupes')
   assert.ok(DEMOTE_REASONS.includes('demote:unclassified'), 'the miss arm prepends a MEMBER, so the prefix line is never blank')
   for (const t of DEMOTE_REASONS) {
     assert.ok(/^demote:[a-z-]+$/.test(t), `${t} carries the demote: prefix and a kebab-case member name`)

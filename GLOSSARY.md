@@ -1096,10 +1096,11 @@ lock-step bump of all four slots as a Minor.
 **Demote reason prefix** (`DEMOTE_REASONS`):
 The closed prefix enum every engine `follow-up` demotion cites, canonical in
 `skills/war/assets/land-decision.mjs`, hand-mirrored in `workflow-template.js` (mirror-registry row and `F07`
-registration). Twelve members: `demote:absorb-regressed`, `demote:absorb-blocked`, `demote:fileless`,
+registration). Thirteen members: `demote:absorb-regressed`, `demote:absorb-blocked`, `demote:fileless`,
 `demote:task-unapproved`, `demote:sweep-skipped`, `demote:sweep-discarded`, `demote:terminal-pass`,
-`demote:exclusion-set`, `demote:release-slot`, `demote:floor-skipped`, `demote:ask-unruled-afk`, and
-`demote:unclassified`. `demote()` validates every `follow-up` reason at runtime; a miss prepends
+`demote:exclusion-set`, `demote:release-slot`, `demote:floor-skipped`, `demote:ask-unruled-afk`,
+`demote:unclassified`, and `demote:land-gate` (a baseline red first found at the final phase's land
+gate, after the late-fix pass, #2630). `demote()` validates every `follow-up` reason at runtime; a miss prepends
 `demote:unclassified` with a loud log, never a throw. Each engine-filed issue body carries the prefix on its
 `Demote-Reason:` line, and `/war-review` tallies `demote:unclassified` as a defect signal. A failed ATTEMPT
 (an untouched file, a non-moved tip after a polish, subset or re-entry dispatch, a red gate at the ace tip,
