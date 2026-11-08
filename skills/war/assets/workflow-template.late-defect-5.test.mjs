@@ -8,6 +8,7 @@
 // task in the phase owns the file: then the defect joins that task's slice, so the phase stays
 // file-disjoint. A seeded task that runs out of fix rounds follows the late-fix cap rule (PIN-20).
 import { test } from 'node:test'
+import { readFileSync } from 'node:fs'
 import {
   assert,
   src,
@@ -250,9 +251,9 @@ const diesOn = id => (p, o) => { if ((o.label || '') === 'work:' + id) throw new
 const provRedOn = id => (p, o) => seatOf(o) === 'war-refiner' && o.dispatchKind === 'provision-run' && (o.label || '') === 'provision-run:' + id
   ? { ok: false, taskId: id, failedCommand: PROVISION_LIST[0], exitCode: 1, stderrTail: 'ERR_LOCKFILE', provisionSource: 'ci' } : defaultImpl(p, o)
 const PROV = { run: { provision: PROVISION_LIST, provisionSource: 'ci' }, finalPhase: false }
-const softArms = source => Promise.all([
-  runPhase(NEXT([ROW()], { finalPhase: false }), diesOn('seed-1'), {}, source),
-  runPhase(NEXT([ROW()], PROV), provRedOn('seed-1'), {}, source),
+const softArms = () => Promise.all([
+  runPhase(NEXT([ROW()], { finalPhase: false }), diesOn('seed-1')),
+  runPhase(NEXT([ROW()], PROV), provRedOn('seed-1')),
 ])
 
 test('late-defect: carry soft env — an env-died seed escalation carries its seed row and the phase still lands', async () => {
@@ -274,6 +275,24 @@ test('late-defect: carry soft env — an env-blocked seed escalation carries its
   assert.deepEqual(blocked.out.carriedTasks, [])
 })
 
+// Operator ruling 2026-11-08: a seed row folded into an owner task's slice rides that owner's soft
+// record too, as foldedSeeds, in fold order. A seed task that holds a folded row carries both fields.
+test('late-defect: carry soft env — a folded seed row rides its owner task soft record as foldedSeeds', async () => {
+  const second = ROW({ title: 'second defect', suggested_fix: 'fix the second' })
+  const [plan, seed] = await Promise.all([
+    runPhase(NEXT([ROW()], { tasks: [T9({ files: ['./src/a.test.js'] })], finalPhase: false }), diesOn('t9')),
+    runPhase(NEXT([ROW(), second], PROV), provRedOn('seed-1')),
+  ])
+  const p = softOf(plan.out, 't9')
+  assert.equal(p && p.reason, 'env-died', 'presence guard: the owner plan task escalates env-died')
+  assert.deepEqual(p.foldedSeeds, [ROW()], 'the plan task record carries the folded row')
+  assert.ok(!('seed' in p), 'a plan task has no seed field of its own')
+  assert.deepEqual(plan.out.carriedTasks, [], 'never re-carried on carriedTasks')
+  const s = softOf(seed.out, 'seed-1')
+  assert.equal(s && s.reason, 'env-blocked', 'presence guard: the seed task escalates env-blocked')
+  assert.deepEqual([s.seed, s.foldedSeeds], [ROW(), [second]], 'the seed task record carries its own row and the folded row')
+})
+
 test('late-defect: carry soft env — a plain task soft escalation has no seed field', async () => {
   const [died, blocked] = await Promise.all([
     runPhase(NEXT(undefined, { finalPhase: false }), diesOn('t9')),
@@ -282,7 +301,7 @@ test('late-defect: carry soft env — a plain task soft escalation has no seed f
   for (const [out, reason] of [[died.out, 'env-died'], [blocked.out, 'env-blocked']]) {
     const e = softOf(out, 't9')
     assert.equal(e && e.reason, reason, 'presence guard: t9 escalates ' + reason)
-    assert.ok(!('seed' in e), 'a plain task record has no seed field')
+    assert.ok(!('seed' in e) && !('foldedSeeds' in e), 'a plain task record has no seed field')
   }
   // A seed's hard record (the final-phase late-defect hold) gets no stamp: only soft reasons do.
   const hard = await runPhase(NEXT([ROW()], { run: { roundLimit: 2 } }), capImpl())
@@ -304,4 +323,15 @@ test('late-defect: carry docs — schemas.md documents args.seededTasks, its row
   assert.match(schemasMd, /`ruledAsks`, `seededPhaseClose`, or `seededTasks` arg/, 'the provenance floor row lists seededTasks')
   assert.ok(src.includes("if (A.seededTasks != null) {"), 'the engine validates args.seededTasks at entry')
   assert.match(src, /^\/\/ {5}seededTasks\?,/m, 'the args header names seededTasks')
+})
+
+test('late-defect: carry docs — schemas.md and the Lead runbook name the soft seed fields and their re-thread', () => {
+  const doc = name => readFileSync(new URL('../references/' + name, import.meta.url), 'utf8')
+  const bullet = (schemasMd.match(/^- \*\*`escalated\[\]\.seed`\*\* and \*\*`escalated\[\]\.foldedSeeds`\*\*[^\n]*/m) || [''])[0]
+  for (const key of ['SOFT_ENV_REASONS', 'CARRIED DEFECT (PIN-9)', 'args.seededTasks', 'carriedTasks[]'])
+    assert.ok(bullet.includes(key), 'the escalated[] seed bullet names ' + key)
+  const carry = (doc('resume-and-recovery.md').match(/^- \*\*Task carry \(late-defects D9\/PIN-9\)\*\*[^\n]*/m) || [''])[0]
+  assert.ok(carry.includes('as `seed` and `foldedSeeds` (#2641): thread each row into the relaunch\'s `args.seededTasks`, never into `carriedTasks`'), 'the Task carry bullet re-threads the soft seed rows')
+  assert.ok(doc('resume-and-recovery.md').includes('If the record carries `seed` or `foldedSeeds`, re-thread those rows per its Task carry bullet.'), 'the env-blocked arm points at the Task carry bullet')
+  assert.ok(doc('late-defects.md').includes('When you relaunch that task, thread each of those rows verbatim into the relaunch\'s `args.seededTasks`'), 'late-defects.md states the re-thread')
 })
