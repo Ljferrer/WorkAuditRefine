@@ -1180,7 +1180,8 @@ if (A.targetArtifacts !== undefined) {
 //   (11) SEEDED-TASKS class (late-defects D9, PIN-9) — args.seededTasks is the Lead's thread of the prior
 //        phase return's carriedTasks: absent/null, or an array of carried rows — the class-6 finding row
 //        plus the origin `task`, a FINDING_CLASSES `findingClass`, a string `suggested_fix` when present and
-//        an array `roster` when present. Any other shape refuses at entry naming the row index and field.
+//        an array `roster` when present, and a string `seedId` of the form seed-<n> with optional -1
+//        suffixes when present (#2641). Any other shape refuses at entry naming the row index and field.
 if (A.seededTasks != null) {
   if (!Array.isArray(A.seededTasks) || seedCount && !Array.isArray(tasks)) problems.push('workflow-template: args.seededTasks must be an array of carried rows, beside an args.tasks array (D9)')
   else pushFindingRowProblems('args.seededTasks', A.seededTasks, 'D9'), A.seededTasks.forEach((e, i) => {
