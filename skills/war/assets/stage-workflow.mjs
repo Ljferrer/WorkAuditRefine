@@ -5,20 +5,25 @@
 // as pure literals (the Workflow sandbox has no shell/fs; runtime values are deferred to agents,
 // never computed by the template body). Node stdlib only (node:fs, node:path, node:url).
 //
-// CLI: node stage-workflow.mjs <templatePath> <stagedDir> <planSlug> <phaseId> [campaignOrdinal] [--force] [--args <file>]
-//   Writes <stagedDir>/war-[c<K>-]<planSlug>-p<N>.js, prints its ABSOLUTE path, exits 0.
-//   --force is a bare boolean flag. --args takes its value as a SEPARATE following token
-//   (--args <file>), never attached (--args=<file>): the file is read, JSON-parsed and required to be
-//   a non-null, non-array object BEFORE any write, then embedded in the staged copy as the
+// CLI: node stage-workflow.mjs <templatePath> <stagedDir> <planSlug> <phaseId> [campaignOrdinal] [--force] [--discard-injections] [--args <file>]
+//   Writes <stagedDir>/war-[c<K>-]<planSlug>-p<N>.js plus its <file>.sha256 digest sidecar, prints the
+//   staged file's ABSOLUTE path, exits 0. --force and --discard-injections are bare boolean flags.
+//   --args takes its value as a SEPARATE following token (--args <file>), never attached
+//   (--args=<file>): the file is read, JSON-parsed and required to be a non-null, non-array object
+//   BEFORE any write, then embedded in the staged copy as the
 //   absent-args fallback, so an assembled phase-args payload too large to ride the Workflow tool
 //   call can travel with the script instead. Dispatched args, when passed, always win.
 //   Write-if-absent: an existing staged file IS the run's script — it may carry approved injected
 //   stages, and a journal replay must see identical bytes even across a mid-run plugin upgrade — so
 //   it is left byte-untouched, its path printed, exit 0 (with --args, one stderr warning that the
-//   flag was ignored). A deliberate restage passes --force (the only path that overwrites an
-//   existing staged file, from a fresh comment- and indent-stripped substitution of the current shipped
-//   template) — that is also how changed args are re-embedded. An existing file over the scriptPath
-//   cap is the one reuse refused: it cannot dispatch, so the stager exits non-zero naming --force.
+//   flag was ignored). A deliberate restage passes --force, which overwrites an existing staged file
+//   (with a fresh comment- and indent-stripped substitution of the current shipped template) ONLY when
+//   its digest sidecar matches its bytes — that is also how changed args are re-embedded. A file whose
+//   bytes differ from its sidecar (a hand-applied stage), or a file with no sidecar, makes --force exit
+//   1 naming --discard-injections and write nothing; --discard-injections implies --force and
+//   overwrites regardless. An existing file over the scriptPath cap is the one reuse refused: it
+//   cannot dispatch, so the stager exits non-zero naming --discard-injections (every such file
+//   predates the sidecar, so --force would refuse it).
 //   Fail-loud: a missing OR duplicated anchor exits NON-ZERO with a named error (never a silent
 //   fork).
 //   Comment strip (#2099): step (0) of every stage blanks the shipped template's full-line code
@@ -29,6 +34,7 @@
 //   exceed the cap after the strip exits NON-ZERO with a named error and writes nothing.
 
 import fs from 'node:fs'
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -57,6 +63,14 @@ export const ARGS_FALLBACK_ANCHOR = ': (args || {})'
 // 2026-09-06 (#2099). A staged copy at or under it dispatches; over it, the tool refuses before entry
 // validation runs.
 export const SCRIPT_BYTE_CAP = 524288
+
+// The --force override flag (--discard-injections) and the digest sidecar suffix (#2345). Every write leaves
+// `<stagedPath>.sha256` holding the sha256 hex digest of the written bytes. --force overwrites an
+// existing staged file only when that sidecar matches the file's current bytes; DISCARD_FLAG skips the
+// check. Exported so stage-workflow.test.mjs binds its fixtures and the doc guard to these values.
+export const DISCARD_FLAG = '--discard-injections'
+export const SIDECAR_SUFFIX = '.sha256'
+const digestOf = (bytes) => createHash('sha256').update(bytes).digest('hex')
 
 // Blank out every full-line `//` comment that sits in CODE state — a line whose first non-blank bytes
 // are `//` and that is not inside a string, a template literal (any `${…}` nesting), a regex literal
@@ -276,12 +290,12 @@ function insertArgsPrelude(text, embedded) {
   return text.slice(0, after) + lead + prelude + text.slice(after)
 }
 
-const USAGE = 'usage: node stage-workflow.mjs <templatePath> <stagedDir> <planSlug> <phaseId> [campaignOrdinal] [--force] [--args <file>]'
+const USAGE = 'usage: node stage-workflow.mjs <templatePath> <stagedDir> <planSlug> <phaseId> [campaignOrdinal] [--force] [--discard-injections] [--args <file>]'
 
 function main(argv) {
   const raw = argv.slice(2)
-  // Peel `--args` AND its value out of the raw list BEFORE the `--force` filter and the positional
-  // split: `--force` is bare (its peel drops one token), this one drops two. The value is the
+  // Peel `--args` AND its value out of the raw list BEFORE the `--force` / `--discard-injections`
+  // filter and the positional split: those two are bare (each peel drops one token), this one drops two. The value is the
   // immediately-following token VERBATIM, never re-interpreted — so `--args --force` takes `--force`
   // as the filename and dies loud at the named read error below rather than quietly staging
   // args-less. A missing value token, a repeated `--args`, or the attached `--args=<file>` form each
@@ -301,8 +315,9 @@ function main(argv) {
     process.stderr.write(`stage-workflow: ${flagError}\n` + USAGE + '\n')
     process.exit(1)
   }
-  const force = rest.includes('--force')
-  const positional = rest.filter((a) => a !== '--force')
+  const discard = rest.includes(DISCARD_FLAG)
+  const force = discard || rest.includes('--force') // --discard-injections implies --force
+  const positional = rest.filter((a) => a !== '--force' && a !== DISCARD_FLAG)
   const [templatePath, stagedDir, planSlug, phaseId, campaignOrdinal] = positional
   if (!templatePath || !stagedDir || !planSlug || phaseId == null || phaseId === '') {
     process.stderr.write('stage-workflow: missing required argument\n' + USAGE + '\n')
@@ -312,7 +327,8 @@ function main(argv) {
   const basename = deriveName(planSlug, phaseId, campaignOrdinal) + '.js'
   const stagedPath = path.resolve(stagedDir, basename)
 
-  // Write-if-absent: an existing staged file is the run's script — never clobber it without --force.
+  // Write-if-absent: an existing staged file is the run's script — never clobber it without --force,
+  // and --force itself refuses a file whose sidecar does not match.
   // It short-circuits BEFORE any --args processing, exactly as before; the only addition is one
   // stderr warning so an operator who believes they just re-embedded is told otherwise. Exit code and
   // stdout stay byte-unchanged — a resume re-running the same stage command sees an accurate,
@@ -331,14 +347,39 @@ function main(argv) {
       process.exit(1)
     }
     if (existingBytes > SCRIPT_BYTE_CAP) {
-      process.stderr.write(`stage-workflow: existing staged file ${stagedPath} is ${existingBytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap — it cannot dispatch; restage it with --force (a fresh, comment- and indent-stripped substitution: any injected stage in the old file is lost and must be re-applied, and a resumeFromRunId journal recorded against the old bytes no longer matches)\n`)
+      process.stderr.write(`stage-workflow: existing staged file ${stagedPath} is ${existingBytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap — it cannot dispatch; restage it with ${DISCARD_FLAG} (a fresh, comment- and indent-stripped substitution: any injected stage in the old file is lost and must be re-applied, and a resumeFromRunId journal recorded against the old bytes no longer matches)\n`)
       process.exit(1)
     }
     if (argsFile !== null) {
-      process.stderr.write('stage-workflow: existing staged file reused — --args ignored (pass --force to re-embed)\n')
+      process.stderr.write('stage-workflow: existing staged file reused — --args ignored (pass --force or --discard-injections to re-embed)\n')
     }
     process.stdout.write(stagedPath + '\n')
     process.exit(0)
+  }
+
+  // --force over an existing file (#2345): overwrite only a file whose digest sidecar matches its
+  // current bytes. A differing digest means a hand-applied stage; a missing sidecar means the file's
+  // origin is unknown (a pre-sidecar stage, or a hand-written copy). Either refuses with a named error
+  // naming DISCARD_FLAG and writes nothing — the staged file stays byte-untouched.
+  if (force && !discard && fs.existsSync(stagedPath)) {
+    let current
+    try {
+      current = fs.readFileSync(stagedPath)
+    } catch (err) {
+      process.stderr.write(`stage-workflow: cannot read existing staged file ${stagedPath}: ${(err && err.message) || err}\n`)
+      process.exit(1)
+    }
+    let recorded = null
+    try {
+      recorded = fs.readFileSync(stagedPath + SIDECAR_SUFFIX, 'utf8').trim()
+    } catch {
+      recorded = null
+    }
+    if (recorded !== digestOf(current)) {
+      const why = recorded === null ? `has no ${SIDECAR_SUFFIX} digest sidecar` : `differs from its ${SIDECAR_SUFFIX} digest sidecar (a hand-applied stage?)`
+      process.stderr.write(`stage-workflow: --force refused: existing staged file ${stagedPath} ${why} — nothing written; re-run with ${DISCARD_FLAG} to overwrite it and lose any injected stage\n`)
+      process.exit(1)
+    }
   }
 
   // Validate BEFORE any write — the ADR 0034 predicate mirrored from the template's own entry guard
@@ -403,6 +444,7 @@ function main(argv) {
 
   fs.mkdirSync(stagedDir, { recursive: true })
   fs.writeFileSync(stagedPath, staged)
+  fs.writeFileSync(stagedPath + SIDECAR_SUFFIX, digestOf(Buffer.from(staged, 'utf8')) + '\n')
   process.stdout.write(stagedPath + '\n')
   process.exit(0)
 }
