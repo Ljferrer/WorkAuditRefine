@@ -7281,7 +7281,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // (final) — never a second pass. A fresh absorb the seat raises rides carriedPhaseClose on a
       // non-final phase and demotes demote:terminal-pass "raised on the terminal pass" on the final.
       // A seat-raised behavior absorb or note instead carries on carriedTasks (non-final) or files
-      // "raised after the late-fix pass" (final), late-defects PIN-21.
+      // "raised after the late-fix pass" (final), late-defects PIN-21. With no fix on a named file it
+      // parks as an ask instead (#2624).
       const terminalRows = []
       for (const f of terminalQueue) {
         if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless terminal-pass absorb takes the severity default (never ace-eligible)')
