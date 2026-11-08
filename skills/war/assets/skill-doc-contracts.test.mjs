@@ -2046,14 +2046,16 @@ test('D30 — the dispatch-args identifier sweep hits exactly its four expected 
 
   const EXPECTED_EMBEDDING_SURFACES = [
     'skills/war/SKILL.md',
+    'skills/war/assets/assert-args-complete.test.mjs',
     'skills/war/assets/stage-workflow.mjs',
     'skills/war/assets/stage-workflow.test.mjs',
     'skills/war/assets/workflow-template.js',
   ]
   // The fallback-anchor identifier is a code-only export: SKILL.md's prose cites the embedding
-  // identifier alone, so this set is the four minus SKILL.md (measured at this task's base).
+  // identifier alone, and the args preflight's test (#1775, the staged-copy prose fixture) names
+  // the embedding identifier alone, so this set is the embedding set minus those two.
   const EXPECTED_FALLBACK_SURFACES = EXPECTED_EMBEDDING_SURFACES.filter(
-    (p) => p !== 'skills/war/SKILL.md',
+    (p) => p !== 'skills/war/SKILL.md' && p !== 'skills/war/assets/assert-args-complete.test.mjs',
   )
 
   const assertCensus = (label, actual, expected) => {
