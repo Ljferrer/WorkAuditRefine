@@ -6984,7 +6984,10 @@ let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : 'held:nothing-merged'
 // Retryable-interruption visibility (#1411): when every escalation is soft-environment, say so —
 // concatenation-built (census-safe), never a routing change (the landDecision above is already computed).
+// Seed stamp (#2641, PIN-1): a seeded task's soft record carries its seed row, so the Lead re-threads
+// it into args.seededTasks at the relaunch. Never a carriedTasks row: the relaunch would run it twice.
 {
+  for (const e of escalated) { const t = e && SOFT_ENV_REASONS.includes(e.reason) && tasks.find(x => x.id === e.task); if (t && t.seed) e.seed = t.seed }
   const softEnvEscalated = escalated.filter(e => e && SOFT_ENV_REASONS.includes(e.reason))
   if (softEnvEscalated.length > 0 && !hardEscalation) {
     log('Phase ' + ph.id + ': ' + softEnvEscalated.length + ' soft environment escalation(s) [' + softEnvEscalated.map(e => e.reason + ':' + e.task).join(', ') + '] — a retryable interruption, never a hard escalation: '

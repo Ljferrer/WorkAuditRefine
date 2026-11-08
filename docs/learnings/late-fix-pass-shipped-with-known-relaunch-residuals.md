@@ -66,7 +66,9 @@ Locate-cue (phase 4): verify still present before acting — `const parkFixless`
 Phase 6 (task 6.1, `args.seededTasks`, PIN-9) added the carry intake and two more residuals.
 Check the Checkpoint ruling before you change either route.
 
-7. **A seeded task that ends `env-died` or `env-blocked` drops off the carry channel.** Only the cap routes (`r.spent` at the audit loop, floor exhaustion) push to `seedCapped`.
+7. **RESOLVED (#2641): a seeded task that ended `env-died` or `env-blocked` dropped off the carry channel.** Now one stamp pass after the land decision sets `e.seed` on each soft record of a seeded task.
+   The Lead re-threads that row into `args.seededTasks` at the recovery relaunch. It never re-carries on `carriedTasks`, so the relaunch cannot run it twice.
+   The original text follows. Only the cap routes (`r.spent` at the audit loop, floor exhaustion) push to `seedCapped`.
    The soft escalation records are `{ task, reason, ... }` with no `seed` row.
    On a non-final phase the phase still lands, and `carriedTasks` holds nothing for that defect.
    The defect then lives only in the Lead's own launch args. A recovery relaunch must re-thread it by hand.
@@ -78,7 +80,7 @@ Check the Checkpoint ruling before you change either route.
 By design: a final-phase seed hold names the seed id (`seed-1`), because the Lead rules on the task in this phase.
 A carried row keeps the first origin task through `carryTaskOf`, so a seed of a seed never re-keys onto an unrelated `seed-1`.
 
-Locate-cue (phase 6): verify still present before acting — the four `escalated.push({ task: r.task.id, reason: 'env-…'` sites with no seed field, the seeded `tasks.push({ id, title: 'carried defect: '` line with no `fixRounds`, and `const carryTaskOf` in `skills/war/assets/workflow-template.js`, found @ phase 6 integration tip c43cebee, the second parent of landed tip 66c0f263 (the run's `_refinery` worktree).
+Locate-cue (phase 6): verify still present before acting — the seed stamp loop `for (const e of escalated)` just above `const softEnvEscalated` (#2641), the seeded `tasks.push({ id, title: 'carried defect: '` line with no `fixRounds`, and `const carryTaskOf` in `skills/war/assets/workflow-template.js`, found @ phase 6 integration tip c43cebee, the second parent of landed tip 66c0f263 (the run's `_refinery` worktree).
 
 Also see [[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]] and [[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]].
 

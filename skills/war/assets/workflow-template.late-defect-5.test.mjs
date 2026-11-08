@@ -17,6 +17,7 @@ import {
   defaultImpl,
   isWorker,
   PROVISION_ARGS,
+  PROVISION_LIST,
   GA_MAJOR,
   LATE_FIX_ARGS,
   lateFixImpl,
@@ -239,6 +240,55 @@ test('late-defect: carry cap — a seeded task out of fix rounds carries again o
   assert.deepEqual(mNon.out.carriedTasks, [], 'the mutant carries nothing')
   assert.equal(holdsOf(mNon.out, 'no-test').length, 1, 'the mutant escalates the seed as no-test')
   assert.deepEqual(holdsOf(mFinal.out, 'late-defect'), [], 'the mutant final phase holds no late-defect')
+})
+
+// A seeded task that ends env-died or env-blocked carries its seed row on its escalation record
+// (#2641, PIN-1), so the Lead can re-thread it at the recovery relaunch. It never re-carries on
+// carriedTasks, because the relaunch would then run the defect twice.
+const softOf = (out, id) => (out.escalated || []).find(e => e && e.task === id)
+const diesOn = id => (p, o) => { if ((o.label || '') === 'work:' + id) throw new Error('API error: session limit reached'); return defaultImpl(p, o) }
+const provRedOn = id => (p, o) => seatOf(o) === 'war-refiner' && o.dispatchKind === 'provision-run' && (o.label || '') === 'provision-run:' + id
+  ? { ok: false, taskId: id, failedCommand: PROVISION_LIST[0], exitCode: 1, stderrTail: 'ERR_LOCKFILE', provisionSource: 'ci' } : defaultImpl(p, o)
+const PROV = { run: { provision: PROVISION_LIST, provisionSource: 'ci' }, finalPhase: false }
+const softArms = source => Promise.all([
+  runPhase(NEXT([ROW()], { finalPhase: false }), diesOn('seed-1'), {}, source),
+  runPhase(NEXT([ROW()], PROV), provRedOn('seed-1'), {}, source),
+])
+
+test('late-defect: carry soft env — an env-died seed escalation carries its seed row and the phase still lands', async () => {
+  const [died] = await softArms()
+  const e = softOf(died.out, 'seed-1')
+  assert.equal(e && e.reason, 'env-died', 'presence guard: the seed escalates env-died')
+  assert.deepEqual(e.seed, ROW(), 'the record carries the threaded seed row')
+  assert.equal(died.out.landDecision, 'landed', 'a soft escalation still lands the phase')
+  assert.ok(died.out.landed.includes('t9'), 't9 merges')
+  assert.deepEqual(died.out.carriedTasks, [], 'never re-carried on carriedTasks')
+})
+
+test('late-defect: carry soft env — an env-blocked seed escalation carries its seed row too', async () => {
+  const [, blocked] = await softArms()
+  const e = softOf(blocked.out, 'seed-1')
+  assert.equal(e && e.reason, 'env-blocked', 'presence guard: the seed escalates env-blocked')
+  assert.deepEqual(e.seed, ROW(), 'the record carries the threaded seed row')
+  assert.equal(blocked.out.landDecision, 'landed')
+  assert.deepEqual(blocked.out.carriedTasks, [])
+})
+
+test('late-defect: carry soft env — a plain task soft escalation has no seed field', async () => {
+  const [died, blocked] = await Promise.all([
+    runPhase(NEXT(undefined, { finalPhase: false }), diesOn('t9')),
+    runPhase(NEXT(undefined, PROV), provRedOn('t9')),
+  ])
+  for (const [out, reason] of [[died.out, 'env-died'], [blocked.out, 'env-blocked']]) {
+    const e = softOf(out, 't9')
+    assert.equal(e && e.reason, reason, 'presence guard: t9 escalates ' + reason)
+    assert.ok(!('seed' in e), 'a plain task record has no seed field')
+  }
+  // A seed's hard record (the final-phase late-defect hold) gets no stamp: only soft reasons do.
+  const hard = await runPhase(NEXT([ROW()], { run: { roundLimit: 2 } }), capImpl())
+  const held = holdsOf(hard.out, 'late-defect')
+  assert.equal(held.length, 1, 'presence guard: the seed holds late-defect')
+  assert.ok(!('seed' in held[0]), 'a hard record has no seed field')
 })
 
 test('late-defect: carry docs — schemas.md documents args.seededTasks, its row shape and the provenance floor', () => {
