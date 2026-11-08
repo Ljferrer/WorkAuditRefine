@@ -545,6 +545,53 @@ test('provenance mirror: the shipped slice is self-contained', () => {
   }
 })
 
+// The two tooling arms of provenanceProblems past the marker check: a missing FLOOR_BINDINGS line
+// and a foreign throw from the slice. Each must exit 2, never collapse into exit 1 or a pass.
+const withTemplate = (name, edit, fn) => {
+  const dir = mkdtempSync(join(tmpdir(), `aac-${name}-`))
+  try {
+    const tpl = join(dir, 'tpl.js')
+    const src = edit(templateSrc)
+    assert.notEqual(src, templateSrc, 'the fixture edit applied')
+    writeFileSync(tpl, src)
+    fn(tpl, src)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+}
+
+test('provenance tooling: a missing FLOOR_BINDINGS line exits 2 naming the drift', () => {
+  withTemplate('nobinding', (src) => src.split('\n').filter((l) => l.trim() !== 'const planSlug = A.planSlug').join('\n'), (tpl, src) => {
+    const r = runCli(['--template', tpl], JSON.stringify(PROV()))
+    assert.equal(r.status, 2, `exit 2 on a missing binding line — stdout: ${r.stdout}; stderr: ${r.stderr}`)
+    assert.match(r.stderr, /FLOOR_BINDINGS drift/, 'stderr names the FLOOR_BINDINGS drift')
+    assert.match(r.stderr, /const planSlug = A\.planSlug/, 'stderr names the missing line')
+    assert.throws(() => aac.provenanceProblems(src, PROV()), aac.PreflightToolingError)
+  })
+})
+
+test('provenance tooling: a foreign throw in the slice exits 2 naming the ReferenceError', () => {
+  withTemplate('foreign', (src) => src.split('\n').flatMap((l) => l.trim() === 'const provenanceProblems = []' ? [l, 'void zzUnbound'] : [l]).join('\n'), (tpl, src) => {
+    const r = runCli(['--template', tpl], JSON.stringify(PROV()))
+    assert.equal(r.status, 2, `exit 2 on a foreign throw — stdout: ${r.stdout}; stderr: ${r.stderr}`)
+    assert.match(r.stderr, /provenance floor slice threw ReferenceError/, 'stderr says the slice threw and names the ReferenceError')
+    assert.match(r.stderr, /zzUnbound/, 'stderr names the unbound name')
+    assert.throws(() => aac.provenanceProblems(src, PROV()), aac.PreflightToolingError)
+  })
+})
+
+test('planDoneWhenBullets: a command on the line after an empty key keeps no leading space', () => {
+  const plan = [
+    '- Done when:',
+    '  `node --test x.test.mjs`',
+    '- Done when:',
+    '  `` a `b` c ``',
+    '- Done when:',
+    '  echo plain',
+    '- Done when: `on the key line`',
+    '',
+  ].join('\n')
+  assert.deepEqual(aac.planDoneWhenBullets(plan), ['node --test x.test.mjs', 'a `b` c', 'echo plain', 'on the key line'])
+})
+
 // ---------------------------------------------------------------------------
 // Command shapes (#2674, #2675), the dispatch-shape line (#2677), the Done-when compare (#2717)
 // ---------------------------------------------------------------------------

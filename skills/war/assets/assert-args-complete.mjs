@@ -472,6 +472,8 @@ export function planDoneWhenBullets (planText) {
     if (!m) continue
     let text = m[1].trim()
     for (let j = i + 1; j < lines.length && lines[j].trim() !== '' && !/^\s*- /.test(lines[j]); j++) text += ' ' + lines[j].trim()
+    // A key line with nothing after the key leaves a leading join space, so trim before the span test.
+    text = text.trim()
     const open = text.match(/^`+/)
     if (open) {
       const n = open[0].length
