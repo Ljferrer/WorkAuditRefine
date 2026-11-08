@@ -1185,7 +1185,7 @@ if (A.seededTasks != null) {
   if (!Array.isArray(A.seededTasks) || seedCount && !Array.isArray(tasks)) problems.push('workflow-template: args.seededTasks must be an array of carried rows, beside an args.tasks array (D9)')
   else pushFindingRowProblems('args.seededTasks', A.seededTasks, 'D9'), A.seededTasks.forEach((e, i) => {
     const ok = e && typeof e === 'object' ? { task: typeof e.task === 'number' || typeof e.task === 'string' && e.task, findingClass: FINDING_CLASSES.includes(e.findingClass),
-      suggested_fix: e.suggested_fix == null || typeof e.suggested_fix === 'string', roster: e.roster == null || Array.isArray(e.roster), seedId: e.seedId == null || /^seed-\d+(-1)*$/.test(e.seedId) } : {}
+      suggested_fix: e.suggested_fix == null || typeof e.suggested_fix === 'string', roster: e.roster == null || Array.isArray(e.roster), seedId: e.seedId == null || typeof e.seedId === 'string' && /^seed-\d+(-1)*$/.test(e.seedId) } : {}
     for (const k in ok) if (!ok[k]) problems.push('workflow-template: args.seededTasks[' + i + '].' + k + ' is malformed (D9, schemas.md)')
   })
 }

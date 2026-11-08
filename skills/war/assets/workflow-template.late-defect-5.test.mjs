@@ -136,6 +136,7 @@ test('late-defect: carry entry — a malformed seededTasks row holds at entry wi
     [[{ ...good, roster: 'correctness' }], 'args.seededTasks[0].roster is malformed'],
     [[{ ...good, seedId: '../x' }], 'args.seededTasks[0].seedId is malformed'],
     [[{ ...good, seedId: 7 }], 'args.seededTasks[0].seedId is malformed'],
+    [[{ ...good, seedId: ['seed-1'] }], 'args.seededTasks[0].seedId is malformed'],
     [[good], 'beside an args.tasks array', { tasks: undefined }],
     [[{ ...good, planSlug: 'other-plan' }], 'args.seededTasks carries a planSlug provenance stamp naming a foreign plan (other-plan)'],
     [[{ ...good, planSlug: undefined }], "args.seededTasks contains none of the run's own plan-slug tokens"],
@@ -358,12 +359,13 @@ test('late-defect: carry docs — schemas.md and the Lead runbook name the soft 
   const doc = name => readFileSync(new URL('../references/' + name, import.meta.url), 'utf8')
   const bullet = (schemasMd.match(/^- \*\*`escalated\[\]\.seed`\*\* and \*\*`escalated\[\]\.foldedSeeds`\*\*[^\n]*/m) || [''])[0]
   for (const rule of ['on each `SOFT_ENV_REASONS` record whose `task` names a phase task', 'the rows never re-carry on `carriedTasks[]`',
-    'the Lead threads only these rows as `args.seededTasks`, `seed` first, then `foldedSeeds` in order, and the intake reuses `seedId`, so the seed keeps its `seed-<n>` id and branch'])
+    'the Lead threads only these rows as `args.seededTasks`, `seed` first, then `foldedSeeds` in order, and the intake reuses `seedId`, so the seed keeps its `seed-<n>` id and branch',
+    'On the relaunch of a held phase, the Lead threads the held launch\'s own rows instead and adds no record rows'])
     assert.ok(bullet.includes(rule), 'the escalated[] seed bullet states: ' + rule)
   // The stamp writes seedId, and the intake reuses it, so threading only the record's rows keeps the id.
   assert.ok(src.includes('e.seed = { ...t.seed, seedId: t.id }') && src.includes("let id = s.seedId || 'seed-'"), 'the stamp writes seedId and the intake reuses it')
   const carry = (doc('resume-and-recovery.md').match(/^- \*\*Task carry \(late-defects D9\/PIN-9\)\*\*[^\n]*/m) || [''])[0]
-  assert.ok(carry.includes('thread only those rows as `args.seededTasks`, `seed` first. The `seedId` on `seed` keeps the seed\'s id and branch. Never thread the launch\'s other rows, and never into `carriedTasks`.'), 'the Task carry bullet threads only the record rows')
+  assert.ok(carry.includes('thread only those rows as `args.seededTasks`, `seed` first, then `foldedSeeds` in their order. The `seedId` on `seed` keeps the seed\'s id and branch. Never thread the launch\'s other rows, and never into `carriedTasks`. On the relaunch of a held phase, the held-phase rule above wins: thread the held launch\'s own rows and add no record rows.'), 'the Task carry bullet threads only the record rows')
   assert.ok(doc('resume-and-recovery.md').includes('If the record carries `seed` or `foldedSeeds`, thread only those rows as `args.seededTasks`, per its Task carry bullet.'), 'the env-blocked arm points at the Task carry bullet')
   const ld = doc('late-defects.md')
   for (const rule of ['When you relaunch that task, thread only those rows, verbatim, as the relaunch\'s `args.seededTasks`: `seed` first, then `foldedSeeds` in their order.',
