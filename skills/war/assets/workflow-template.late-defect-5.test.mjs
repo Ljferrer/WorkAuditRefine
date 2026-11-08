@@ -373,5 +373,5 @@ test('late-defect: carry docs — schemas.md and the Lead runbook name the soft 
     'Never thread the launch\'s other rows: a merged seed or a seed the cap rule carried would run again.', 'A seeded task needs no `args.tasks` entry, because its row mints it again.',
     'Never append a record\'s rows to `carriedTasks`, because the relaunch would run them twice.', 'On the relaunch of a held phase, the rule above already threads the held launch\'s own rows, so add no record rows.'])
     assert.ok(ld.includes(rule), 'late-defects.md states: ' + rule)
-  assert.ok(readFileSync(new URL('../SKILL.md', import.meta.url), 'utf8').includes('and at a soft relaunch only the record\'s `seed` and `foldedSeeds` rows'), 'SKILL.md names the soft relaunch source')
+  assert.ok(readFileSync(new URL('../SKILL.md', import.meta.url), 'utf8').includes('and at a landed phase\'s soft relaunch only the record\'s `seed` and `foldedSeeds` rows (a held phase\'s relaunch keeps its own rows)'), 'SKILL.md names the soft relaunch source')
 })

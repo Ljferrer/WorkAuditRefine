@@ -67,7 +67,7 @@ export const meta = {
 //                                     // (no recovery gate); wins over the barrier map, logged; a non-object map is logged and ignored.
 //     seededPhaseClose?,              // optional [finding rows] — a prior phase return's carriedPhaseClose, threaded by the Lead at a
 //                                     // relaunch (D3b, PIN-5); entry-validated + #1413 provenance-floored; drains into this phase's sweep queue.
-//     seededTasks?,                   // optional [carried rows] — the prior phase return's carriedTasks (late-defects D9, PIN-9), or a soft record's seed and foldedSeeds rows at its relaunch (#2641);
+//     seededTasks?,                   // optional [carried rows] — the prior phase return's carriedTasks (late-defects D9, PIN-9), or a soft record's seed and foldedSeeds rows at a landed phase's relaunch (#2641);
 //                                     // entry-validated + #1413 provenance-floored; each row becomes a task or joins its file owner's slice.
 //     finalPhase?,                    // optional boolean — the terminal pass's finality signal (D3a): false ⇒ a terminal-born absorb
 //                                     // rides carriedPhaseClose; true/absent ⇒ it demotes (absent reads as FINAL); non-boolean refused at entry.
@@ -6986,8 +6986,9 @@ let landDecision = (landed.length && !hardEscalation) ? 'landed'
 // Retryable-interruption visibility (#1411): when every escalation is soft-environment, say so —
 // concatenation-built (census-safe), never a routing change (the landDecision above is already computed).
 // Seed stamp (#2641, PIN-1): a seeded task's soft record carries its seed row with its seedId, and any
-// task's soft record carries the seed rows folded into its slice (foldedSeeds). At the relaunch the
-// Lead threads only those rows, and the seedId keeps the seed's id and branch. Never a carriedTasks
+// task's soft record carries the seed rows folded into its slice (foldedSeeds). At a landed phase's
+// relaunch the Lead threads only those rows, and the seedId keeps the seed's id and branch (a held
+// phase's relaunch keeps its own rows). Never a carriedTasks
 // row: the relaunch would run them twice.
 {
   for (const e of escalated) { const t = e && SOFT_ENV_REASONS.includes(e.reason) && tasks.find(x => x.id === e.task); if (t && t.seed) e.seed = { ...t.seed, seedId: t.id }; if (t && t.foldedSeeds) e.foldedSeeds = t.foldedSeeds }
