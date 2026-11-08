@@ -68,7 +68,7 @@ The #2641 ruling resolved residual 7. Check the Checkpoint ruling before you cha
 
 7. **RESOLVED (#2641): a seeded task that ended `env-died` or `env-blocked` dropped off the carry channel.** Now one stamp pass after the land decision sets `e.seed` on each soft record of a seeded task.
    It also sets `e.foldedSeeds` on each soft record of a task that holds folded seed rows (`CARRIED DEFECT (PIN-9)`), per an operator ruling of 2026-11-08.
-   The stamped `seed` row carries `seedId`, and the intake reuses it, per a second operator ruling of 2026-11-08. So at the recovery relaunch the Lead threads only the record's rows, and the seed keeps its `seed-<n>` id and branch. It never re-carries on `carriedTasks`, so the relaunch cannot run it twice.
+   The stamped `seed` row carries `seedId`, and the intake reuses it, per a second operator ruling of 2026-11-08. So at a landed phase's recovery relaunch the Lead threads only the record's rows, and the seed keeps its `seed-<n>` id and branch. A held phase's relaunch threads the held launch's own rows and adds no record rows. It never re-carries on `carriedTasks`, so the relaunch cannot run it twice.
    The original text follows. Only the cap routes (`r.spent` at the audit loop, floor exhaustion) push to `seedCapped`.
    The soft escalation records are `{ task, reason, ... }` with no `seed` row.
    On a non-final phase the phase still lands, and `carriedTasks` holds nothing for that defect.
