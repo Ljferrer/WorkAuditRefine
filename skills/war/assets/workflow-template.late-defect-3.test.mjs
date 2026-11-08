@@ -6,7 +6,7 @@
 // or unowned file sends it to the late-fix pass; a parallel-owned, task-owned or release-slot file demotes
 // it demote:exclusion-set with a stated reason. Cosmetic rows keep today's sweep routes. A behavior row
 // first raised by the sweep panel or the terminal seat carries on carriedTasks (non-final) or files
-// "raised after the late-fix pass" (final).
+// "raised after the late-fix pass" (final). With no fix on a named file it parks as an ask (#2624).
 import { test } from 'node:test'
 import {
   assert,
@@ -237,4 +237,53 @@ test('late-defect: exclusion corroboration — a re-mint of a row carryLate carr
   const hit = h.corroborateSurvivor({ ...row, seat: 'audit:p3-polish:security' })
   assert.ok(hit && hit.task === 't1', 'the carried row is the survivor, though its task is now the origin task')
   assert.deepEqual(hit.seats, ['audit:p3-polish:correctness (task t1)', 'audit:p3-polish:security (task p3-polish)'], 'the second seat joins its seats list')
+})
+
+// #2624 (Lead ruling on PIN-2): the polish and terminal arms skip intakeFloor, so they check the row
+// themselves. A behavior row with no file or a blank suggested_fix parks as an ask, never carriedTasks
+// and never a filed row. A behavior row with a file and a fix still carries (the rows above).
+const askOf = (out, title) => (out.asks || []).filter(a => a && a.finding && a.finding.title === title)
+const parkedNowhereElse = (out, title, why) => {
+  assert.equal(askOf(out, title).length, 1, why + ': one parked ask')
+  assert.ok(!(out.carriedTasks || []).some(r => r.title === title), why + ': never carriedTasks')
+  assert.ok(!demotionOf(out, title) && !carriedOf(out, title), why + ': never filed and never the sweep carry')
+  assert.ok(!(out.notes || []).some(n => n.title === title), why + ': never a note')
+}
+
+test('late-defect: exclusion sweep-raised fixless — a polish-panel behavior row with no file, or a blank suggested_fix, parks as an ask on both phase kinds', async () => {
+  const pb = { severity: 'Minor', title: 'polish-panel fileless behavior', rationale: 'the polish diff inverts a guard', suggested_fix: 'restore the guard', disposition: 'absorb', findingClass: 'behavior' }
+  for (const [row, label] of [[pb, 'fileless'], [{ ...pb, title: 'polish-panel fixless behavior', file: 'docs/y.md', suggested_fix: '  ' }, 'blank fix']]) {
+    for (const finalPhase of [false, true]) {
+      const r = await runPhase(SWEEP_ARGS({ finalPhase }), lateWrap(terminalImpl({ polishFindings: [row] })))
+      parkedNowhereElse(r.out, row.title, label + (finalPhase ? ' (final)' : ' (non-final)'))
+      assert.ok(r.logs.some(l => typeof l === 'string' && l.includes('"' + row.title + '"') && /no fix on a named file → ask/.test(l)), label + ': the reroute is logged')
+      assert.ok(!terminalCalls(r.calls).some(c => c.prompt.includes(row.title)), label + ': never a terminal-pass input')
+      assert.equal(r.out.landDecision, 'landed', label + ': never a hold (ADR 0012)')
+    }
+  }
+})
+
+test('late-defect: exclusion terminal-raised fixless — a terminal-seat behavior row with a blank suggested_fix or no file parks as an ask on a non-final and on the final phase', async () => {
+  const tb = { severity: 'Minor', title: 'terminal-seat fixless behavior', file: 'docs/t.md', rationale: 'the terminal commit drops a branch', suggested_fix: '', disposition: 'absorb', findingClass: 'behavior' }
+  for (const [row, label] of [[tb, 'blank fix'], [{ ...tb, title: 'terminal-seat fileless behavior', file: undefined, suggested_fix: 'restore the branch', disposition: 'note' }, 'fileless note']]) {
+    for (const finalPhase of [false, true]) {
+      const r = await runPhase(SWEEP_ARGS({ finalPhase }), lateWrap(terminalImpl({ terminalFindings: [row] })))
+      assert.ok(terminalCalls(r.calls).length === 1, label + ': presence guard, the terminal pass ran')
+      parkedNowhereElse(r.out, row.title, label + (finalPhase ? ' (final)' : ' (non-final)'))
+      assert.ok(r.logs.some(l => typeof l === 'string' && l.includes('"' + row.title + '"') && /no fix on a named file → ask/.test(l)), label + ': the reroute is logged')
+    }
+  }
+})
+
+test('late-defect: exclusion fixless control — a behavior row with a file and a fix still carries, and a fileless behavior follow-up keeps the follow-up arm', async () => {
+  const full = { severity: 'Minor', title: 'full behavior row', file: 'docs/t.md', rationale: 'the terminal commit drops a branch', suggested_fix: 'restore the branch', disposition: 'absorb', findingClass: 'behavior' }
+  for (const [key, title] of [['polishFindings', full.title], ['terminalFindings', 'full terminal row']]) {
+    const r = await runPhase(SWEEP_ARGS({ finalPhase: false }), lateWrap(terminalImpl({ [key]: [{ ...full, title }] })))
+    assert.ok((r.out.carriedTasks || []).some(x => x.title === title), title + ' carries')
+    assert.equal(askOf(r.out, title).length, 0, title + ' never parks')
+  }
+  const fu = { ...full, title: 'fileless behavior follow-up', file: undefined, disposition: 'follow-up', barrier: 'barrier:underspecified' }
+  const f = await runPhase(SWEEP_ARGS({ finalPhase: false }), lateWrap(terminalImpl({ terminalFindings: [fu] })))
+  assert.equal(askOf(f.out, fu.title).length, 0, 'a behavior follow-up keeps the follow-up arm')
+  assert.ok((f.out.minorsFiled || []).some(x => x.title === fu.title), 'and files')
 })
