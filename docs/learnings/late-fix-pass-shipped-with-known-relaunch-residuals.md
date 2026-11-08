@@ -68,7 +68,7 @@ The #2641 ruling resolved residual 7. Check the Checkpoint ruling before you cha
 
 7. **RESOLVED (#2641): a seeded task that ended `env-died` or `env-blocked` dropped off the carry channel.** Now one stamp pass after the land decision sets `e.seed` on each soft record of a seeded task.
    It also sets `e.foldedSeeds` on each soft record of a task that holds folded seed rows (`CARRIED DEFECT (PIN-9)`), per an operator ruling of 2026-11-08.
-   At the recovery relaunch the Lead threads the launch's full own `args.seededTasks` again, in order, so each seed keeps its `seed-<n>` id and branch. It never re-carries on `carriedTasks`, so the relaunch cannot run it twice.
+   The stamped `seed` row carries `seedId`, and the intake reuses it, per a second operator ruling of 2026-11-08. So at the recovery relaunch the Lead threads only the record's rows, and the seed keeps its `seed-<n>` id and branch. It never re-carries on `carriedTasks`, so the relaunch cannot run it twice.
    The original text follows. Only the cap routes (`r.spent` at the audit loop, floor exhaustion) push to `seedCapped`.
    The soft escalation records are `{ task, reason, ... }` with no `seed` row.
    On a non-final phase the phase still lands, and `carriedTasks` holds nothing for that defect.
@@ -81,7 +81,7 @@ The #2641 ruling resolved residual 7. Check the Checkpoint ruling before you cha
 By design: a final-phase seed hold names the seed id (`seed-1`), because the Lead rules on the task in this phase.
 A carried row keeps the first origin task through `carryTaskOf`, so a seed of a seed never re-keys onto an unrelated `seed-1`.
 
-Locate-cue (phase 6): verify still present before acting — the seed stamp loop `for (const e of escalated)` just above `const softEnvEscalated` and the `owner.foldedSeeds` push in the seededTasks fold arm (both added by #2641, so found after c43cebee), the seeded `tasks.push({ id, title: 'carried defect: '` line with no `fixRounds`, and `const carryTaskOf` in `skills/war/assets/workflow-template.js`, found @ phase 6 integration tip c43cebee, the second parent of landed tip 66c0f263 (the run's `_refinery` worktree).
+Locate-cue (phase 6): verify still present before acting — the seed stamp loop `for (const e of escalated)` just above `const softEnvEscalated` the `owner.foldedSeeds` push in the seededTasks fold arm and the `let id = s.seedId ||` mint (all added by #2641, so found after c43cebee), the seeded `tasks.push({ id, title: 'carried defect: '` line with no `fixRounds`, and `const carryTaskOf` in `skills/war/assets/workflow-template.js`, found @ phase 6 integration tip c43cebee, the second parent of landed tip 66c0f263 (the run's `_refinery` worktree).
 
 Also see [[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]] and [[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]].
 

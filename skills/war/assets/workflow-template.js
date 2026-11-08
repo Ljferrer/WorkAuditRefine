@@ -67,7 +67,7 @@ export const meta = {
 //                                     // (no recovery gate); wins over the barrier map, logged; a non-object map is logged and ignored.
 //     seededPhaseClose?,              // optional [finding rows] — a prior phase return's carriedPhaseClose, threaded by the Lead at a
 //                                     // relaunch (D3b, PIN-5); entry-validated + #1413 provenance-floored; drains into this phase's sweep queue.
-//     seededTasks?,                   // optional [carried rows] — the prior phase return's carriedTasks (late-defects D9, PIN-9), or the launch's own rows again at a soft relaunch (#2641);
+//     seededTasks?,                   // optional [carried rows] — the prior phase return's carriedTasks (late-defects D9, PIN-9), or a soft record's seed and foldedSeeds rows at its relaunch (#2641);
 //                                     // entry-validated + #1413 provenance-floored; each row becomes a task or joins its file owner's slice.
 //     finalPhase?,                    // optional boolean — the terminal pass's finality signal (D3a): false ⇒ a terminal-born absorb
 //                                     // rides carriedPhaseClose; true/absent ⇒ it demotes (absent reads as FINAL); non-boolean refused at entry.
@@ -1185,7 +1185,7 @@ if (A.seededTasks != null) {
   if (!Array.isArray(A.seededTasks) || seedCount && !Array.isArray(tasks)) problems.push('workflow-template: args.seededTasks must be an array of carried rows, beside an args.tasks array (D9)')
   else pushFindingRowProblems('args.seededTasks', A.seededTasks, 'D9'), A.seededTasks.forEach((e, i) => {
     const ok = e && typeof e === 'object' ? { task: typeof e.task === 'number' || typeof e.task === 'string' && e.task, findingClass: FINDING_CLASSES.includes(e.findingClass),
-      suggested_fix: e.suggested_fix == null || typeof e.suggested_fix === 'string', roster: e.roster == null || Array.isArray(e.roster) } : {}
+      suggested_fix: e.suggested_fix == null || typeof e.suggested_fix === 'string', roster: e.roster == null || Array.isArray(e.roster), seedId: e.seedId == null || /^seed-\d+(-1)*$/.test(e.seedId) } : {}
     for (const k in ok) if (!ok[k]) problems.push('workflow-template: args.seededTasks[' + i + '].' + k + ' is malformed (D9, schemas.md)')
   })
 }
@@ -1479,14 +1479,15 @@ for (const s of (Array.isArray(A.seededPhaseClose) ? A.seededPhaseClose : [])) {
 // the origin task's roster (the row's stamped roster, else the origin task's when it is in this phase,
 // else audit.roster, logged; none refuses the launch). A task already in the phase that owns the file —
 // a plan task or an earlier seed — takes the defect into its slice instead, so the phase stays
-// file-disjoint. A fileless row (the baseline row) never collides. The id is the row's 1-based index, so
-// a relaunch with the same rows derives the same branches. t.seed keeps the row for the cap rule below.
+// file-disjoint. A fileless row (the baseline row) never collides. The id is the row's seedId (#2641: the
+// stamp on a soft record), else its 1-based index, so a relaunch derives the same branches. t.seed keeps
+// the row for the cap rule below.
 const seedRel = p => typeof p === 'string' && p ? p.replace(/^(?:\.\/)+/, '') : null
 for (const [i, s] of (A.seededTasks || []).entries()) {
   const file = seedRel(s.file), owner = file && tasks.find(t => (Array.isArray(t.files) ? t.files : []).some(p => seedRel(p) === file))
   const text = 'the carried late defect [' + s.severity + '] "' + s.title + '" of task ' + s.task + ' (' + (file || 'no file') + '): ' + (s.rationale || '') + ' Fix: ' + (s.suggested_fix || 'none carried, derive it from the defect')
   if (owner) { owner.planSlice += '\nCARRIED DEFECT (PIN-9): fix ' + text; (owner.foldedSeeds = owner.foldedSeeds || []).push(s); log('seeded task: ' + text + ' joins task ' + owner.id + ', which owns the file (PIN-9).'); continue }
-  let id = 'seed-' + (i + 1), host = tasks.find(t => t.id === s.task), roster = s.roster || host && host.roster || defaultRoster.length && defaultRoster
+  let id = s.seedId || 'seed-' + (i + 1), host = tasks.find(t => t.id === s.task), roster = s.roster || host && host.roster || defaultRoster.length && defaultRoster
   while (tasks.some(t => t.id === id)) id += '-1'
   if (!roster) throw new Error('workflow-template: args.seededTasks[' + i + '] has no roster, and no audit.roster to fall back to (D9)')
   tasks.push({ id, title: 'carried defect: ' + s.title, roster: [...roster], files: file ? [file] : [], requiresTest: true, seed: s, planSlice: 'Fix ' + text })
@@ -6984,12 +6985,12 @@ let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : 'held:nothing-merged'
 // Retryable-interruption visibility (#1411): when every escalation is soft-environment, say so —
 // concatenation-built (census-safe), never a routing change (the landDecision above is already computed).
-// Seed stamp (#2641, PIN-1): a seeded task's soft record carries its seed row, and any task's soft
-// record carries the seed rows folded into its slice (foldedSeeds). At the relaunch the Lead threads
-// the launch's full args.seededTasks again, in order, so each seed keeps its id. Never a carriedTasks
+// Seed stamp (#2641, PIN-1): a seeded task's soft record carries its seed row with its seedId, and any
+// task's soft record carries the seed rows folded into its slice (foldedSeeds). At the relaunch the
+// Lead threads only those rows, and the seedId keeps the seed's id and branch. Never a carriedTasks
 // row: the relaunch would run them twice.
 {
-  for (const e of escalated) { const t = e && SOFT_ENV_REASONS.includes(e.reason) && tasks.find(x => x.id === e.task); if (t && t.seed) e.seed = t.seed; if (t && t.foldedSeeds) e.foldedSeeds = t.foldedSeeds }
+  for (const e of escalated) { const t = e && SOFT_ENV_REASONS.includes(e.reason) && tasks.find(x => x.id === e.task); if (t && t.seed) e.seed = { ...t.seed, seedId: t.id }; if (t && t.foldedSeeds) e.foldedSeeds = t.foldedSeeds }
   const softEnvEscalated = escalated.filter(e => e && SOFT_ENV_REASONS.includes(e.reason))
   if (softEnvEscalated.length > 0 && !hardEscalation) {
     log('Phase ' + ph.id + ': ' + softEnvEscalated.length + ' soft environment escalation(s) [' + softEnvEscalated.map(e => e.reason + ':' + e.task).join(', ') + '] — a retryable interruption, never a hard escalation: '
