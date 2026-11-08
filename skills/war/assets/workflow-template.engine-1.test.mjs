@@ -282,6 +282,7 @@ import {
   dispatchBlock,
   makeDispatch,
   BARE_INTERPOLATION_CENSUS,
+  ptSpanRanges,
   STOPLIST_ARGS,
   PRE_MERGED_ARGS,
   preMergedImpl,
@@ -10580,6 +10581,34 @@ test('bare-interpolation census: the args-field mapping matches the assert-args-
   }
 })
 
+test('bare-interpolation census: brace-expression bodies holding a nested interpolation are pinned (#1760 class b)', () => {
+  // Class (b): a `${` nested inside a top-level expression body is seen only by the flat re-scan.
+  // A nested pt span inside the body is censused as its own text, so it is cut out first. What
+  // remains is a nested interpolation in a plain template or string, and this pin lists each one.
+  const classB = source => {
+    const bodies = []
+    let nestedPt = 0
+    for (const span of ptSpanRanges(source)) {
+      for (const [a, b] of span.exprs) {
+        const body = source.slice(a + 2, b - 1)
+        let rest = body
+        for (const inner of ptSpanRanges(body).reverse()) rest = rest.slice(0, inner.start) + rest.slice(inner.end)
+        if (rest.includes('${')) bodies.push(body)
+        else if (body.includes('${')) nestedPt++
+      }
+    }
+    return { bodies, nestedPt }
+  }
+  const real = classB(src)
+  assert.deepEqual(real.bodies, [],
+    'a top-level pt-span expression body holds a nested ${ outside a nested pt span: ' + JSON.stringify(real.bodies) +
+    '. Classify it: tag the inner literal pt, or extend assert-args-complete.mjs and this pin together.')
+  assert.ok(real.nestedPt >= 10, 'non-vacuity: bodies whose nested ${ sits inside a nested pt span are seen and excluded (' + real.nestedPt + ')')
+  // Mutation control: a plain backtick literal nested in a pt-span expression body reds the pin.
+  const mutant = classB(src + '\nconst classBProbe = pt`x ${flag ? `y ${plan.zzz}` : \'\'}`\n')
+  assert.deepEqual(mutant.bodies, ['flag ? `y ${plan.zzz}` : \'\''], 'the class (b) census sees a new nested interpolation')
+})
+
 // ---- Entry-validation fixtures (D5 TASK-FIELD class) --------------------------------------
 
 test('entry validation: a task missing planSlice is refused at entry naming the task and field (zero spawns)', async () => {
@@ -10623,7 +10652,7 @@ test('provenance floor: a token-less intent naming a foreign docs/plans identifi
 })
 
 test('provenance floor: own-token matching is word-boundary — a substring hit inside a larger word proves nothing', async () => {
-  // 'wtprovision' CONTAINS 'wtprov' but not at a word boundary — the recalibrated floor refuses.
+  // 'wtprovision' CONTAINS 'wtprov' but a letter follows it, so no boundary — the recalibrated floor refuses.
   const args = PROVISION_ARGS({ intent: 'Improve the wtprovisioning subsystem throughput.' })
   const { out } = await runPhase(args, defaultImpl)
   assert.equal(out.landDecision, 'held:workflow-error', 'substring-only token evidence is refused')
@@ -10645,11 +10674,46 @@ test('provenance floor: stoplist fallback logs and still fires', async () => {
   assert.equal(leak.calls.length, 0, 'zero agents spawned')
   const fallbackLog = leak.logs.find(l => /falling back to the plan basename "test-and-fix" as the single anchor token \(#1767\)/.test(l))
   assert.ok(fallbackLog, `the fallback is logged — logs: ${JSON.stringify(leak.logs.filter(l => /own-token/.test(l)))}`)
-  // The basename anchor is word-bounded and regex-escaped (a slug carries hyphens; a basename may carry dots).
+  // The basename anchor is alphanumeric-bounded and regex-escaped (a slug carries hyphens; a basename may carry dots).
   const own = await runPhase(STOPLIST_ARGS('Deliver the test-and-fix end states without regressions.'), defaultImpl)
   assert.equal(own.out.landDecision, 'landed', `the basename anchor passes the fallback floor — got ${own.out.landDecision}`)
   const sub = await runPhase(STOPLIST_ARGS('Deliver the test-and-fixture end states.'), defaultImpl)
   assert.equal(sub.out.landDecision, 'held:workflow-error', 'a substring hit inside a larger word proves nothing under the fallback anchor either')
+})
+
+test('provenance floor: when is stoplisted and no longer proves provenance (#2551)', async () => {
+  // Slug when-to-fix: 'to' is sub-length and 'fix' is stoplisted, so 'when' was the only own token.
+  // With 'when' stoplisted the slug empties ownTokens, plan.file supplies the basename anchor, and
+  // the floor fires. Without plan.file no anchor is derivable and the floor is skipped.
+  const WHEN_ARGS = (backstops) => PROVISION_ARGS({
+    planSlug: 'when-to-fix',
+    plan: { file: 'docs/plans/when-to-fix.md', gate: 'make gate' },
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/when-to-fix/phase-3', workingBranch: 'dev/when-to-fix' },
+    backstops,
+  })
+  const leak = await runPhase(WHEN_ARGS([{ check: 'grep -q ready out.log', why: 'run it when the gate is green', runner: 'operator', source: 'plan' }]), defaultImpl)
+  assert.equal(leak.out.landDecision, 'held:workflow-error', 'a row whose only slug word is when proves no provenance and refuses')
+  assert.match(leak.out.workflowError.message, /args\.backstops contains none of the run's own plan-slug tokens \[when-to-fix\]/,
+    'the refusal names the plan-basename anchor, because when no longer counts as an own token')
+  assert.equal(leak.calls.length, 0, 'zero agents spawned')
+  const own = await runPhase(WHEN_ARGS([{ check: 'grep -q ready out.log', why: 'the when-to-fix gate is green', runner: 'operator', source: 'plan' }]), defaultImpl)
+  assert.equal(own.out.landDecision, 'landed', `the basename anchor still passes — got ${own.out.landDecision}`)
+})
+
+test('provenance floor: a slug word inside an underscore identifier counts as provenance (#2673)', async () => {
+  // Slug remap-fallback holds no stoplisted word. The row's only slug words sit inside REMAP_FALLBACK:
+  // \b sees no boundary at the underscore, and the alphanumeric lookarounds do.
+  const args = PROVISION_ARGS({
+    planSlug: 'remap-fallback',
+    plan: { file: 'docs/plans/remap-fallback.md', gate: 'make gate' },
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/remap-fallback/phase-3', workingBranch: 'dev/remap-fallback' },
+    backstops: [{ check: 'grep -q REMAP_FALLBACK out.log', why: 'guards the env knob', runner: 'operator', source: 'plan' }],
+  })
+  const { out } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'landed', `an underscore-bounded slug word is own-token evidence — got ${out.landDecision}`)
+  // Control: a letter or digit still blocks the match, so a substring inside a larger word proves nothing.
+  const sub = await runPhase(PROVISION_ARGS({ ...args, backstops: [{ check: 'grep -q REMAPPED_FALLBACKS out.log', why: 'guards the env knob', runner: 'operator', source: 'plan' }] }), defaultImpl)
+  assert.equal(sub.out.landDecision, 'held:workflow-error', 'a slug word inside a larger alphanumeric word still refuses')
 })
 
 // D10 (#1749): exemption is from the OWN-TOKEN floor only. The source:'auto' flag rides the same

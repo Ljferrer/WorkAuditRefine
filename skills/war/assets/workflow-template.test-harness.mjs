@@ -56,7 +56,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS, FINDING_CLASSES } from './land-decision.mjs'
 import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS, SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES, MODELS, MODEL_RANK, EFFORTS, AUDITOR_TIERS } from './war-config.mjs'
-import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS } from './assert-args-complete.mjs'
+import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS, ptSpanRanges } from './assert-args-complete.mjs'
 import { MANIFEST_PATH_TEMPLATE, MANIFEST_KEYS } from './target-artifacts.mjs'
 import { stripFullLineComments } from './stage-workflow.mjs'
 
@@ -2289,9 +2289,12 @@ const makeDispatch = (agent, maxParallel) => new Function('agent', 'maxParallel'
 // every rejected args-touching site carries an explicit ??/||/ternary fallback or rides the
 // ternary-gated doneWhenClause helper — zero missed fallback-free sites, no survey-derived
 // corrections. Known structural false-negative classes of the mechanical pattern (recorded, not
-// silently absorbed): (a) bracket-indexed roots (`${tasks[0].id}`) are not admitted by the dotted
-// chain regex — none exist in the template today; (b) an interpolation nested inside another
-// expression's braces is seen only via the flat re-scan of the outer span text; (c) a task/phase
+// silently absorbed): (a) bracket-indexed roots (`${tasks[0].id}`) — CLOSED 2026-11-08 by Task 1.1
+// of the args-floor-and-launch-preflight plan: the extractor now maps `${tasks[0].id}` to
+// `tasks[].id`; (b) an interpolation nested inside another expression's braces is seen only via the
+// flat re-scan of the outer span text — PINNED 2026-11-08 by the test `bare-interpolation census:
+// brace-expression bodies holding a nested interpolation are pinned`, which lists every top-level
+// expression body holding a `${` outside a nested pt span (none today), so a new one reds; (c) a task/phase
 // object bound to a local outside the root whitelist (ph/plan/task/t/r.task) — e.g.
 // `submodLandTask.targetRepo` — is censused but not mapped to an args field; harmless today
 // (targetRepo is exempt and the site is ternary-gated), red-flagged here so a future non-exempt
@@ -3903,6 +3906,7 @@ export {
   dispatchBlock,
   makeDispatch,
   BARE_INTERPOLATION_CENSUS,
+  ptSpanRanges,
   STOPLIST_ARGS,
   PRE_MERGED_ARGS,
   preMergedImpl,
