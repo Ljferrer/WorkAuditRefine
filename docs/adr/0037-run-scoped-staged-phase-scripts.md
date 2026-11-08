@@ -94,14 +94,23 @@ sanctioned surface for both display identity and approved stage injection.**
    same-day recovery relaunch per [ADR 0021](0021-run-lifecycle-provision-contract.md) decision (G)), a
    same-basename restage is **benign reuse by construction**: same phase ⇒ same basename ⇒ the correct
    script is the one already there. A deliberate propagation of a *shipped-template* edit mid-campaign
-   passes **`--force`**, the only path that overwrites — a fresh substitution from the current shipped
-   template.
+   passes **`--force`**, which overwrites only a file whose digest sidecar matches its bytes (the
+   2026-11-08 amendment below) — a fresh substitution from the current shipped template.
 
    **Amendment (2026-09-06, #2099):** two qualifiers, append-only. Reuse is byte-untouched **unless
    the existing file is over the Workflow tool's 524,288-byte `scriptPath` cap** — such a file cannot
-   dispatch, so the stager refuses with an error naming `--force` and never reuses it; and every
-   `--force` restage is a fresh **comment-stripped** substitution (decision 2's amendment of the same
-   date).
+   dispatch, so the stager refuses with an error naming `--discard-injections` (the 2026-11-08
+   amendment below) and never reuses it; and every `--force` restage is a fresh **comment-stripped**
+   substitution (decision 2's amendment of the same date).
+
+   **Amendment (2026-11-08, #2345, plan `2026-11-08-args-floor-and-launch-preflight` Task 1.3):** every
+   write also leaves a `<staged>.sha256` sidecar holding the sha256 digest of the written bytes.
+   `--force` over an existing file overwrites it only when that sidecar matches its current bytes; a
+   differing digest (a hand-applied stage) or no sidecar exits 1 with a named error and writes
+   nothing, so an injected stage is never lost silently. The override flag `--discard-injections`
+   implies `--force` and overwrites regardless. An over-cap file predates the sidecar, so its reuse
+   refusal names `--discard-injections` too. Arbiter: `stage-workflow.test.mjs` arm (t) and the
+   `staged-script doc:` row.
 
 4. **The staged-copy home is the main-checkout, run-scoped directory, retained like the run
    manifest.** Staged copies live at `$MAIN/.claude/war/runs/<runId>/`, a directory sibling of the run
@@ -123,8 +132,8 @@ sanctioned surface for both display identity and approved stage injection.**
    (decision 3) is what makes this safe — a resume that restages first reuses the existing file rather
    than regenerating it.
 
-   **Amendment (2026-09-06, #2099):** an over-cap staged file cannot dispatch, so the `--force`
-   restage that remedies it forfeits byte identity with any journal recorded against the old file,
+   **Amendment (2026-09-06, #2099):** an over-cap staged file cannot dispatch, so the restage that
+   remedies it (`--discard-injections` since decision 3's 2026-11-08 amendment) forfeits byte identity with any journal recorded against the old file,
    as well as any injected stage; the stager's refusal names both, and a fresh launch, not a
    `resumeFromRunId` resume, follows such a restage.
 
