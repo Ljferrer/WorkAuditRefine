@@ -586,7 +586,6 @@ test('late-defect: route #2622 — a late-fix round probes its own diff, so a no
     assert.equal(noteOf(out, t).length, 0, `"${t}" does not stay a note`)
   }
   assert.ok(logs.some(l => /intake floor REROUTED: \[Nit\] "lf only note" \(task t1\)/.test(l)), 'the intake floor names the reroute')
-  assert.ok(!/diffFilesByTask\.set\((?!task\.id)/.test(src), 'only the wave side registers a probe, so the late-fix id never lands in diffFilesByTask')
 })
 
 test('late-defect: route #2622 — a preMerged origin has no probe, and the late-fix probe still lets a barrier-less follow-up reroute to absorb without floorSkipped', async () => {
@@ -599,8 +598,13 @@ test('late-defect: route #2622 — a preMerged origin has no probe, and the late
   assert.equal(lfProbeCalls(calls).length, 1)
   const filed = (out.minorsFiled || []).filter(m => m && m.title === 'lf bare follow-up')
   assert.equal(filed.length, 0, 'the barrier-less follow-up is not filed')
-  assert.ok(!filed.some(m => m.floorSkipped), 'no floorSkipped stamp')
   assert.ok(polishPromptOf(calls).includes('lf bare follow-up'), 'it reroutes to absorb and rides the sweep')
+})
+
+test('late-defect: route #2622 — schemas.md names the late-fix round probe beside the per-task one', () => {
+  assert.match(schemasMd, /## DiffProbeResult[^\n]*per late-fix round, after its re-audit\)/, 'the heading names both sites')
+  assert.match(schemasMd, /one `diff-probe:<late-fix id>` per round[^\n]*\(#2622\)/, 'the paragraph names the late-fix probe and the ruling')
+  assert.ok(src.includes("await probeDiff(lfTask, ph.integrationBranch, w.head_sha)"), 'the engine dispatches the probe the docs describe')
 })
 
 test('late-defect: route #2622 — a failed late-fix probe falls back to the origin probe, logged, and a mutant without the fallback reroutes wrong', async () => {
