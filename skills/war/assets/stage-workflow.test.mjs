@@ -397,7 +397,7 @@ test('(l) --args on a pre-existing staged file warns on stderr, leaves it byte-u
   assert.equal(readFileSync(stagedPath, 'utf8'), sentinel, 'the staged file is byte-untouched — no re-embed')
   assert.match(
     stderr,
-    /stage-workflow: existing staged file reused — --args ignored \(pass --force to re-embed\)/,
+    /stage-workflow: existing staged file reused — --args ignored \(pass --force or --discard-injections to re-embed\)/,
     'the ignored --args must be reported once on stderr',
   )
 })

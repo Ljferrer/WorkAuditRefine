@@ -64,7 +64,7 @@ export const ARGS_FALLBACK_ANCHOR = ': (args || {})'
 // validation runs.
 export const SCRIPT_BYTE_CAP = 524288
 
-// The --force override flag and the digest sidecar suffix (#2345). Every write leaves
+// The --force override flag (--discard-injections) and the digest sidecar suffix (#2345). Every write leaves
 // `<stagedPath>.sha256` holding the sha256 hex digest of the written bytes. --force overwrites an
 // existing staged file only when that sidecar matches the file's current bytes; DISCARD_FLAG skips the
 // check. Exported so stage-workflow.test.mjs binds its fixtures and the doc guard to these values.
@@ -350,7 +350,7 @@ function main(argv) {
       process.exit(1)
     }
     if (argsFile !== null) {
-      process.stderr.write('stage-workflow: existing staged file reused — --args ignored (pass --force to re-embed)\n')
+      process.stderr.write('stage-workflow: existing staged file reused — --args ignored (pass --force or --discard-injections to re-embed)\n')
     }
     process.stdout.write(stagedPath + '\n')
     process.exit(0)
