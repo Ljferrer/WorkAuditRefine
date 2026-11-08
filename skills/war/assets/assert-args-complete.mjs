@@ -386,8 +386,8 @@ export const FLOOR_BINDINGS = [
 // Returns { problems, logs }: the template's refusal messages (empty on pass) and its logged lines.
 // The slice ends BEFORE the floor's throw line and returns provenanceProblems, so any throw that
 // escapes it (a ReferenceError on an unbound name, a TypeError) is foreign, never the floor's own
-// refusal. Missing markers, a missing binding line, an uncompilable slice and a foreign throw each
-// throw PreflightToolingError naming the cause.
+// refusal. Missing markers, a missing binding line, an uncompilable slice, a foreign throw and a
+// non-array slice result each throw PreflightToolingError naming the cause.
 export function provenanceProblems (source, args) {
   const lines = String(source).split(/\r?\n/)
   const bare = lines.map(l => l.replace(/^[ \t]+/, ''))

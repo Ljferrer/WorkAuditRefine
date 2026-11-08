@@ -545,8 +545,9 @@ test('provenance mirror: the shipped slice is self-contained', () => {
   }
 })
 
-// The two tooling arms of provenanceProblems past the marker check: a missing FLOOR_BINDINGS line
-// and a foreign throw from the slice. Each must exit 2, never collapse into exit 1 or a pass.
+// The tooling arms of provenanceProblems past the marker check: a missing FLOOR_BINDINGS line, a
+// slice that does not compile, a foreign throw from the slice, and a slice that yields no refusal
+// list. Each must exit 2, never collapse into exit 1 or a pass.
 const withTemplate = (name, edit, fn) => {
   const dir = mkdtempSync(join(tmpdir(), `aac-${name}-`))
   try {
@@ -574,6 +575,26 @@ test('provenance tooling: a foreign throw in the slice exits 2 naming the Refere
     assert.equal(r.status, 2, `exit 2 on a foreign throw — stdout: ${r.stdout}; stderr: ${r.stderr}`)
     assert.match(r.stderr, /provenance floor slice threw ReferenceError/, 'stderr says the slice threw and names the ReferenceError')
     assert.match(r.stderr, /zzUnbound/, 'stderr names the unbound name')
+    assert.throws(() => aac.provenanceProblems(src, PROV()), aac.PreflightToolingError)
+  })
+})
+
+const afterFloorStart = (line) => (src) => src.split('\n').flatMap((l) => l.trim() === 'const provenanceProblems = []' ? [l, line] : [l]).join('\n')
+
+test('provenance tooling: an uncompilable slice exits 2 naming the compile failure', () => {
+  withTemplate('nocompile', afterFloorStart('{'), (tpl, src) => {
+    const r = runCli(['--template', tpl], JSON.stringify(PROV()))
+    assert.equal(r.status, 2, `exit 2 on an uncompilable slice — stdout: ${r.stdout}; stderr: ${r.stderr}`)
+    assert.match(r.stderr, /provenance floor slice does not compile: SyntaxError/, 'stderr says the slice does not compile and names the SyntaxError')
+    assert.throws(() => aac.provenanceProblems(src, PROV()), aac.PreflightToolingError)
+  })
+})
+
+test('provenance tooling: a slice that yields no refusal list exits 2', () => {
+  withTemplate('nolist', afterFloorStart('return 0'), (tpl, src) => {
+    const r = runCli(['--template', tpl], JSON.stringify(PROV()))
+    assert.equal(r.status, 2, `exit 2 on a non-array slice result — stdout: ${r.stdout}; stderr: ${r.stderr}`)
+    assert.match(r.stderr, /provenance floor slice did not yield its refusal list/, 'stderr names the missing refusal list')
     assert.throws(() => aac.provenanceProblems(src, PROV()), aac.PreflightToolingError)
   })
 })
