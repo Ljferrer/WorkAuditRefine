@@ -1,0 +1,590 @@
+# Doc truth drift and ADR hygiene — bring schemas.md, GLOSSARY.md, cards, references and ADRs back in line with the engine, and adopt living ADRs
+
+Converted by the `/war-machine` drafter from `docs/specs/2026-11-08-doc-truth-drift-and-adr-hygiene-design.md`
+(Part 1 is its decision digest; every spec ledger row and open-risk note is carried forward or retired with a
+stated reason). Campaign position: seventh of nine. It stacks on
+`docs/plans/2026-11-08-engine-comment-and-duplication-tidy.md` and comes before
+`docs/plans/2026-11-08-pipeline-skills-and-memory-tooling.md`. Its dependsOn also names
+`docs/plans/2026-11-08-model-routing-and-prompt-byte-budgets.md`,
+`docs/plans/2026-11-08-engine-findings-ace-and-late-fix.md` and
+`docs/plans/2026-11-08-engine-recovery-relaunch-and-land.md`; all four land before this plan in chain order.
+Issues claimed (33): #1759, #1850, #1919, #2120, #2136, #2137, #2138, #2139, #2175, #2176, #2178, #2206,
+#2226, #2231, #2242, #2243, #2247, #2248, #2254, #2255, #2269, #2270, #2283, #2284, #2287, #2347, #2557,
+#2660, #2664, #2681, #2682, #2713, #2714. All 33 were open on 2026-11-08.
+
+**Evidence consumed** — one row per linked evidence artifact:
+- `docs/specs/2026-11-08-doc-truth-drift-and-adr-hygiene-design.md` §1–§10 at `365f3da2` · read
+- `docs/plans/2026-09-06-doc-truth-drift-guards-and-authoring-doctrine.md` D1, D2, D3, D22 rows · read (the ruled law, fold grammar and Vale floor this plan carries by reference)
+- issue #1759 artifact: task 3.2 seat row, `skills/war-room/SKILL.md`, pinned sha unrecorded · read via the live file at `35aa4144`
+- issue #1850 artifacts: the R1 grill exchange, #1812, the 0012↔0013 cross-reference amendments, ADR 0044's dated-amendment citation token, `skills/war/assets/prompt-surface-budgets.test.mjs` · read (live files at `35aa4144`; the R1 exchange is summarized in the issue body, read there)
+- issue #2120 artifact: pinned sha `44e01e31`, `CONTEXT.md` · read via the live homes (`GLOSSARY.md` / `glossary-cold.md` § Relaunch attempt, `schemas.md` Relaunch bullet, `run-manifest.md` § Relaunch) at `35aa4144`; the glossary moved out of `CONTEXT.md` in #2636
+- issues #2136, #2137, #2138, #2139 artifacts: pinned sha `abbc7262`, `skills/war/references/schemas.md`, `skills/war/SKILL.md` · read via the live files at `35aa4144` (each named literal still present)
+- issue #2175 artifact: pinned sha `fb8681c2`, `skills/war/references/schemas.md` · read (the `A4 latitude` hedge is live)
+- issues #2176, #2178 artifacts: pinned sha `f78656e7`, `gate-audit-checklist.md`, `refiner-recovery.md` · read (live header and bullet at `35aa4144`)
+- issue #2206 artifact: pinned sha `ba779437`, `agents/war-refiner.md` · read (the `preMerged` gloss is live)
+- issue #2226 artifacts: pinned sha `3d05c6e8`, `skills/war/references/schemas.md` (three rows) · read
+- issue #2231 artifacts: pinned sha `04413534`, `skills/war/references/schemas.md` (three rows) · read
+- issues #2242, #2243, #2247, #2248 artifacts: pinned shas `55afc1c8` and `4389275b`, `schemas.md`, `agents/war-refiner.md`, `CONTEXT.md` · read via the live files (glossary entries now in `GLOSSARY.md`)
+- issues #2254, #2255 artifacts: pinned sha `8028cbd1`, `refiner-recovery.md`, `gate-audit-checklist.md` · read
+- issues #2269, #2270 artifacts: pinned sha `d9a9112f`, ADR 0013, `CONTEXT.md` · read via the live files
+- issues #2283, #2284, #2287 artifacts: pinned shas `b2c92b12` and `41c4206d`, `design.md`, `disposition-eligibility.md`, `CONTEXT.md` · read via the live files
+- issue #2660 artifacts: the ten listed files, the lesson `docs/learnings/in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round.md` · read
+- issue #2664 artifacts: the seven listed files, the lesson `docs/learnings/turning-an-always-hold-signal-into-a-fix-route-stales-every-reader-that-assumed-it-held.md` · read
+- issues #1919, #2347, #2557 · no `## Evidence artifacts` section · vacuously satisfied (bodies and comments read in full)
+- issue #2681 artifacts: the `pin_status` bullet of `skills/war/references/gate-audit-checklist.md`, arm (d) of `skills/war/assets/gate-pin-status.sh` · read at 279a0d4a (the checklist greps 0 for `changed since the gate ran`; the script prints that phrase at arm (d))
+- issue #2682 artifacts: `skills/war/references/schemas.md` § Run manifest (`tasks: { t1: "merged" }` row and the `tasks` vs `land` bullet), `skills/war/references/run-manifest.md` § When (the on-phase-return bullet) · read at 279a0d4a; the run manifests under `.claude/war/runs/` are absent from this checkout, so the `taskStatuses` key is read from the DocTrail row below
+- issue #2713 artifacts: the copy bullet of `skills/war/references/learnings-publication.md` § Promotion steps, `docs/learnings/` · read at 279a0d4a; DocTrail Aligned/reports/2026-10-30-mobile-v1-corrections/phases/journal-p6.jsonl · unread (rows only: the issue quotes the journal line)
+- issue #2714 artifacts: `skills/lessons-learned/references/tighten.md` steps 2, 4 and 5, `tightenPlan` in `skills/_shared/war-memory.mjs` · read at 279a0d4a; DocTrail WorkAuditRefine/reports/2026-11-04-late-defects-fixed-in-run/lead/reports/p4-report.md · unread (rows only: the issue carries the three byte figures)
+- issue #2560 (the tracking issue the spec cites in §1; section F names the old plan as the vehicle) · read (body); not claimed, it tracks the campaign
+- issue #1914 (the closed seat-conflict issue whose operator ruling #2557 carries forward) · read (body and the ruling comment); closed, not claimed; its ruling text is quoted in #2557 and is the PIN-18 source
+- sibling specs `engine-comment-and-duplication-tidy`, `engine-findings-ace-and-late-fix`, `engine-recovery-relaunch-and-land`, `model-routing-and-prompt-byte-budgets`, `pipeline-skills-and-memory-tooling`, `shell-floors-tests-and-lint` §5 contention tables · read (hand-offs and file overlap)
+- DocTrail Aligned/reports/2026-10-30-mobile-v1-corrections · read (`phases/journal-p5.jsonl`)
+- DocTrail Aligned/reports/2026-11-05-backstop-fixes · read (`war/runs/0e32d80f-9cc5-436c-8018-1a15109fe06b.json`)
+- DocTrail WorkAuditRefine/reports/2026-10-27-memory-query-mcp-tool · unread (rows only: the reader rows sufficed)
+- DocTrail WorkAuditRefine/reports/2026-10-27-memory-query-mcp-tool-closeout · read (`timeline.md`)
+- DocTrail WorkAuditRefine/reports/2026-10-28-blocked-ace-and-merge-provenance · read (`lead/reports/p5-report.md`; `lead/reports/p3-report.md` unread, rows only)
+- DocTrail WorkAuditRefine/reports/2026-11-04-late-defects-fixed-in-run · unread (rows only: the reader rows sufficed)
+- DocTrail WorkAuditRefine/reports/2026-11-05-issue-2544-zero-in-seat-data · read (`seat-reports/2619-r2-plan-faithfulness-sonnet.md`; the 2617-r1 and 2619-r1 seat reports unread, rows only)
+- DocTrail WorkAuditRefine/reports/2026-11-06-discarded-polish-refs · unread (rows only: the reader rows sufficed)
+- DocTrail WorkAuditRefine/reports/2026-11-06-session-worktree-leftovers · unread (rows only: the ledger was opened, but the reader quotes are paraphrases and were not re-found verbatim)
+
+**Trials run** — one row per trial:
+- None — no fork qualified
+
+Every candidate fork had one plan on each branch: the open facts (the refiner card's byte delta, the
+GLOSSARY.md headroom the model-routing plan leaves, which #2660 items predecessors already fixed) depend on
+the post-sibling base and are carried as conditional slice steps, not forks. The citation and Decision-log
+grammar is operator-ruled (old plan D1, D3), so it is not a pair beat. Red-at-base for each End state was
+read by grep in the checkout at `365f3da2` (`35aa4144` plus the spec commit); those reads are authoring
+measurements, not trial rows. The sandboxed sweep was not run: sibling drafters keep untracked plans in the
+shared checkout, so the escape guard would refuse a snapshot.
+
+**Critical path** — one line per End state:
+- End states 1, 2 ← T1.1 (bottleneck: T1.1, because the fold in Phase 2 cites the law T1.1 writes).
+- End states 3–7, 36 and 37 ← T2.1 ← (phase edge) T1.1 landed.
+- End states 12, 14–16 and 34 ← T3.2. End states 17–20 ← T3.3. End states 21–23 ← T3.4.
+- End states 8–11, 24–26, 31 and 35 ← T3.5 ← (deps) T3.3, T3.4. End state 27 ← T3.2, T3.3, T3.4, T3.5. (The former
+  Task 3.1, `schemas.md` alone, was folded into T3.5: its rewrites red the D40 `schemas.md` pins in
+  `skill-doc-contracts.test.mjs`, which only T3.5 owns in this phase — rule 1 forbids one file in two tasks of one phase.)
+- End state 38 ← T3.2. End state 39 ← T3.5. End state 40 ← T3.5. End state 41 ← T3.6.
+- End state 30 ← T4.1–T4.6 ← (phase edge) Phase 3 landed. End state 32 ← T5.1.
+- End states 13, 28 and 29 are guardrail End states with no single owning task; every task serves them. End state 33 ← backstop row 1.
+- The ADR chain (T1.1, T2.1), the drift chain (T3.2–T3.5) and the Vale chain (T4.x) share files only at
+  `skills/war/assets/skill-doc-contracts.test.mjs`, ADR 0013 and the glossary, so they run in separate phases.
+
+## Context — the gap / problem
+
+Source spec: `docs/specs/2026-11-08-doc-truth-drift-and-adr-hygiene-design.md`. Twenty-nine open issues say
+one thing: a doc, comment, card or ADR states an older rule than the engine runs. Most are `war-followup` rows
+from 2026-09 audits whose file no later task owned (verified: issues #2136 (2026-09-07), #2226 (2026-09-08),
+#2283 (2026-09-09)). The unrun plan `docs/plans/2026-09-06-doc-truth-drift-guards-and-authoring-doctrine.md`
+holds the ruled living-ADR law but never ran: `docs/adr/` ends at `0058-late-defects-are-fixed-in-the-run.md`
+with no meta-ADR (verified: `ls docs/adr/` at 35aa4144). Run evidence shows the class recurs after every
+engine change: one hook allowlist change left eleven stale restatements across `SKILL.md`, `schemas.md`,
+`design.md` and other files that no task's Files list held, found only by the phase-close polish and the
+terminal pass (verified: DocTrail WorkAuditRefine/reports/2026-10-27-memory-query-mcp-tool/journals/wf_f525c164-502/journal.jsonl,
+WAR 0.21.18); one staged-copy strip change left ADR 0037, `CONTEXT.md` and `SKILL.md` stale at five sites,
+redone under #2614 (verified: DocTrail WorkAuditRefine/reports/2026-11-06-discarded-polish-refs/patches/2026-11-04-late-defects-fixed-in-run__p1-polish.patch).
+
+**A. `skills/war/references/schemas.md` lags the engine.**
+- The `adjudications` paragraph says "**Three producers**" (verified: `schemas.md` adjudications paragraph at 35aa4144); the engine comment beside `citationOf` says "three producers" too (verified: `citationOf` area in `workflow-template.js` at 35aa4144).
+- The handoff `asks` key list reads `asks: [ { task, seat, sha, question, fork } ]`; the projection also emits `corroborators` and `citationPrefill` when present (verified: the handoff `asks` row and its projection at 35aa4144; issue #2137 (2026-09-07)).
+- The return-shape `asks` row says a collision "MERGES onto the surviving record's `corroborators` list"; `parkAsk` merges only a new raiser and logs the rest (verified: `parkAsk` at 35aa4144; issue #2139 (2026-09-07)).
+- The `gate_segment` bullet keeps "the A4 latitude lets the engine read a `mode` on `land_segment` instead" (verified: at 35aa4144; issue #2175 (2026-09-08)).
+- The `citation?` row says the aced record carries `{ row, threadedRow, rationale }`; `citationOf` returns `{ row: threadedRow, threadedRow, cited: row, rationale }` and refuses rows under `CITATION_MIN_LENGTH` (verified: `citationOf` and `const CITATION_MIN_LENGTH` at 35aa4144; issue #2226 (2026-09-08)).
+- The ace label reads `ace:<task>:a<n>`; `aceLabel` mints `ace:<site>:<task>:a<n>` (verified: `const aceLabel` at 35aa4144; issue #2231 (2026-09-08)).
+- The `followUps` and handoff `asks` rows say "defined here, produced once … reads it" for fields that ship (verified: at 35aa4144; issue #2242 (2026-09-08)).
+- The `finalPhase` and `carriedPhaseClose` rows make the discard-sweep carry unconditional on a non-final phase; `sweepApproved` demotes the queue on any phase (verified: `let sweepApproved` at 35aa4144; issue #2248 (2026-09-08)).
+- The provision `preMerged?` line and the Relaunch bullet restate what `task-integrated.sh` and `run-manifest.md` § Relaunch own (verified: at 35aa4144; issues #2206 (2026-09-08), #2120 (2026-09-07)). The same `preMerged` row described the retired owned-commit proof after an engine phase, and that run needed a whole doctrine phase to catch up (verified: DocTrail WorkAuditRefine/reports/2026-10-28-blocked-ace-and-merge-provenance/lead/reports/p3-report.md, WAR 0.21.19).
+- The engine-recovery and engine-findings specs leave new optional fields' `schemas.md` rows to this plan: `git_error`, `integrationTip`, `savedWork`, `refinery`, `dispatchFailures`, `workflowError.stage`, `notes[].rounds`, `reconciled:aced-later` (verified: those specs' §5 contention rows and §8 at 365f3da2).
+
+**B. Cards and evicted references lag their dispatched prompts.**
+- `agents/war-refiner.md` § Post-merge evidence dispatch step 3 ends "(absent ⇒ that arm skips)"; the `PHASE DIFF` prompt comment says the arm "reads an empty Set and matches nothing", and `noteArmSkipped` is gone (verified: card step 3, the comment above the evidence prompt, `grep -c noteArmSkipped` prints 0 at 35aa4144; issue #2243 (2026-09-08)).
+- The card's provision return line glosses `preMerged` as "tasks already-integrated on the adopted branch, skipped"; the proof is `task-integrated.sh`, which `deriveSkipClause` runs (verified: card and `deriveSkipClause` at 35aa4144; issue #2206 (2026-09-08)).
+- `refiner-recovery.md`'s header says every moved block "was byte-identical … at eviction time", but the MergeResult parenthetical gained a `gate_segment` clause later (verified: header at 35aa4144; issue #2178 (2026-09-08)). The 617 B assert message in `workflow-template.recovery.test.mjs` repeats the claim (verified: at 35aa4144). The same header claim went stale once before, at 0.21.12, when a moved block gained a clause (verified: DocTrail WorkAuditRefine/reports/2026-11-06-session-worktree-leftovers/war-fable-opus-audit-loops-0592b7/files/.claude/teams/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/ledger.json, WAR 0.21.12).
+- `refiner-recovery.md` § Land-barrier endstate-check steps step 2 names `tip_sha`, output, `exit_code:` and no `cmd[i] exit: <n>` lines (verified: at 35aa4144; issue #2254 (2026-09-08)).
+- `gate-audit-checklist.md` names only a missing gate log and lacks the `intake_lint:` / `cmd_bytes_mismatch:` triggers (verified: `grep -cE 'tip-mismatched|intake_lint|cmd_bytes_mismatch'` prints 0 at 35aa4144; `GATE_LOG_READ_RULE`, `GATE_LOG_UNTHREADED` at 35aa4144; issues #2176, #2255 (2026-09-08)). Its section is pinned at 4580 B by the `auditor-evict (a)` test in `workflow-template.engine-1.test.mjs` and by `GATE_AUDIT_CHECKLIST_SHA256` in `workflow-template.test-harness.mjs` (verified: at 35aa4144).
+
+**C. Engine comments and test titles (#2660).** The lesson lists about a dozen absorb-routed fixes that never
+shipped (verified: issue #2660 (2026-11-08)). The predecessor plan fixes the `#3f55b04`, `throughRound` and
+`drainCauseOf` comments (verified: `docs/plans/2026-11-08-engine-comment-and-duplication-tidy.md` End state
+checks at 365f3da2). The engine-findings plan adds the STATEMENT BOUNDARIES compound rule and the `mergeSeat`
+`drainCause` copy (verified: that spec's D3 and D9 at 365f3da2). Left here: the `citationOf` comment's count
+word, the intake default-deny census test title, the `CITE_ARGS` wrap and `fork-trials.md`'s "This host has
+none" (verified: at 35aa4144).
+
+**D. GLOSSARY.md entries contradict their neighbors.** **Carried queue**, **Phase-close coherence sweep** and
+**Re-entry** omit the approve trail; `terminal-pass-term` pins three old phrases (verified: entries and test at
+35aa4144; issue #2247 (2026-09-08)). **Ask disposition** and **asks[] channel** omit the engine-made
+seat-conflict ask (verified: issue #2270 (2026-09-08)). **Disposition** still names "release-slot-adjacent"
+(verified: `GLOSSARY.md` at 35aa4144; issue #2287 (2026-09-09)). **Ace-Subset trailer** never says the value
+is the findings' file set (verified: the two `const trailer =` builds at 35aa4144; issue #2347 (2026-09-29),
+comment of 2026-11-05). `glossary-cold.md` § Relaunch attempt restates the relaunch rules (verified: at
+35aa4144).
+
+**E. Other doctrine surfaces.** `skills/war-room/SKILL.md` lacks the leading-star qualifier (verified: at
+35aa4144; issue #1759 (2026-08-26)). `skills/war/SKILL.md` never names `corroborators` (verified: `grep -c`
+prints 0 at 35aa4144; issue #2138 (2026-09-07)). `design.md` §18 ends "README and other shared files route to
+the sweep instead of being refused", and §11 lacks the pre-ace probe carve-out (verified: at 35aa4144; issues
+#2283 (2026-09-09), #2664 (2026-11-08)). `disposition-eligibility.md` opens "Three widenings" against four in
+the `DISPOSITION WIDENINGS` block (verified: at 35aa4144; issue #2284 (2026-09-09)). The `land-decision.mjs`
+header names only "provably unrun" and a finding-less `escalate` against `gateHardOf` (verified: at 35aa4144;
+issue #2664 (2026-11-08)). The no-fix seat-conflict hold is deliberate (verified: issue #2557 (2026-10-31)),
+and no surface says so (verified: `grep -c 'holds the phase on purpose'` prints 0 on all eight homes at
+35aa4144).
+
+**F. ADRs.** Living ADRs were ratified 2026-08-27 and the form ruled 2026-09-06 (verified: issue #1850
+(2026-08-27); old plan D1 at 35aa4144). Still, 32 of 58 ADRs carry a dated amendment heading: 66 H2s
+(`## Amendment|Addendum|Correction (…)`, plus the `## Amendments` bullet containers in ADR 0028 and ADR 0055)
+and one H3 (`### Amendment (2026-08-25)` in ADR 0018); 30 files match the trailing-space H2 form alone, 32 the
+widened `^#{2,} (Amendment|Addendum|Correction)s?\b` form (verified: `grep` census at 35aa4144). 47 lack a
+`## Decision log` (verified: same census). ADR 0025 still says "Append-only" (verified: at 35aa4144).
+`skill-doc-contracts.test.mjs` carries 12 "append-only law" hits, including D43's ADR 0013 exemption
+(verified: `grep -c` at 35aa4144). ADR 0013 still calls Channel 2 "deferred to #1664, not enacted" (verified:
+at 35aa4144; issue #2269 (2026-09-08)). ADR 0024 §(C) says `isHardGateEvidence` fires on `escalate` or any
+Critical/Major, and ADR 0058 never names ADR 0024 (verified: at 35aa4144; issue #2664 (2026-11-08)). Eight
+test files name `docs/adr`: `skill-doc-contracts.test.mjs`, `war-pipeline-structure.test.sh`,
+`doc-semantics.test.mjs`, `war-config.test.mjs`, `stage-workflow.test.mjs`,
+`workflow-template.engine-1.test.mjs`, `plan-literal-lint.test.mjs`,
+`hooks/clean-surface-hook-only-confinement.test.sh`; only the first two pin a folded token (29 and 2 hits of
+`Amendment (|Addendum (|Correction (|append-only|Amendments`; the other six print 0) (verified: `grep -l
+docs/adr` and the per-file `grep -c` at 35aa4144). The old plan's D2 precondition for the fold (the D43
+fourth-home row exists) already holds: the D43 test is live (verified: `test('D43 —` in
+`skill-doc-contracts.test.mjs` at 35aa4144). The heading census misses an inline form: five ADRs (0013, 0019,
+0021, 0023, 0056) open a paragraph with a bold `**Amended YYYY-MM-DD …**` run-in, nine lines in all, and ADR
+0056 adds a dated parenthetical `(2026-11-05 amendment, …)` beside a sentence it supersedes; a
+plan-faithfulness seat ruled that layout faithful as "a deliberate dated-amendment layout" (verified:
+`grep -lE '^\*\*(Amended|Amendment|Addendum|Correction)' docs/adr/0*.md` prints 5 files at 279a0d4a; DocTrail
+WorkAuditRefine/reports/2026-11-05-issue-2544-zero-in-seat-data/seat-reports/2619-r2-plan-faithfulness-sonnet.md).
+ADR 0002's `## Amendment (2026-10-27)` still says the server "cannot log outside a memory root"; the anchor is
+a path-shape match, and the `CHANGELOG.md` 0.21.20 entry says "a path of that shape" (verified: ADR 0002 and
+`CHANGELOG.md` at 279a0d4a; DocTrail WorkAuditRefine/reports/2026-10-27-memory-query-mcp-tool-closeout/timeline.md,
+WAR 0.21.20). ADR 0035 item 6 still says no ADR 0008 amendment is needed, though ADR 0008 has since gained
+three in-place Decision-log lines; a Lead left it as dated narration (verified: ADR 0035 item 6 and ADR 0008
+§ Decision log at 279a0d4a; DocTrail WorkAuditRefine/reports/2026-10-28-blocked-ace-and-merge-provenance/lead/reports/p5-report.md,
+WAR 0.21.19).
+
+**G. Vale (#1919).** Advisory cleanup of living `.md` files with the `hooks/vale-md/.vale.ini` profile; the
+counts drifted since the issue (verified: issue #1919 (2026-08-30); `vale` 3.19.0 on PATH and a census at
+365f3da2).
+
+**H. Two seat-facing surfaces omit a fact the engine already lives by.** The `pin_status` bullet of
+`gate-audit-checklist.md` lists `STALE-MISMATCH` only as a SOFT cannot-confirm. It never says that a
+`STALE-MISMATCH` whose `pin_evidence` reads `mapped file(s) changed since the gate ran` (arm (d) of
+`gate-pin-status.sh`) is the expected state once a later merge in the same phase touched a mapped file: the
+evidence dispatch runs once per phase at the final integration tip, so every earlier task whose files a later
+task also edited reads arm (d). Seats record it as a finding. One run recorded seven such SOFT downgrades
+with a Nit note, five in phase 5 and two in phase 6 (verified: issue #2681 (2026-11-08); the `pin_status`
+bullet and `grep -c 'changed since the gate ran'` printing 0 on the checklist, the `printf 'mapped file(s)
+changed since the gate ran` line at arm (d) of `gate-pin-status.sh`, and the `STALE-MISMATCH / ERROR / an
+absent pin-status token ⇒` clause of the `POST-MERGE GATE-AUDIT` prompt in `workflow-template.js`, all at
+279a0d4a; DocTrail Aligned/reports/2026-10-30-mobile-v1-corrections/phases/journal-p5.jsonl, WAR 0.21.29).
+The run manifest's per-phase task map is documented as `tasks: { t1: "merged" }` in `schemas.md` § Run
+manifest, with the `ledger.json` task-status enum (`merged` terminal, `landed` the `land` value only), and
+`/war-review` reads `phases[].tasks`; but `run-manifest.md` § When, the one home of the Lead's stamp
+procedure, says only "task terminal statuses" and never names the key or the enum, so a Lead wrote a
+`taskStatuses` map whose values read `landed` (verified: issue #2682 (2026-11-08); the `tasks` vs `land`
+bullet in `schemas.md` and `grep -c '\`tasks\`'` printing 0 on `run-manifest.md` at 279a0d4a; DocTrail
+Aligned/reports/2026-11-05-backstop-fixes/war/runs/0e32d80f-9cc5-436c-8018-1a15109fe06b.json, WAR 0.21.35).
+That manifest is a record (PIN-2 boundary) and is left as written.
+
+**I. Two memory-tooling references state a rule that runs have already broken.** The copy bullet of
+`learnings-publication.md` § Promotion steps says a same-slug repo file is **overwritten** and calls that the
+recurrence-update mechanism; nothing compares the local copy to the repo copy first, so a local copy that is
+stale against the repo lesson overwrites it and the newer repo text is lost. One run recorded exactly that
+(verified: issue #2713 (2026-11-08); the copy bullet at 279a0d4a, `grep -c 'stale-local'` printing 0 on
+`learnings-publication.md`, ADR 0022 §(I) and the GLOSSARY **Promotion** entry; DocTrail
+Aligned/reports/2026-10-30-mobile-v1-corrections/phases/journal-p6.jsonl, WAR 0.21.30). ADR 0022 §(I) and
+GLOSSARY **Promotion** restate the unconditional overwrite (verified: at 279a0d4a). `tighten.md` step 2
+defines `projectedBytes`, but step 5 compares the result only to `target`, and nothing between the gate and
+the swap re-reads the corpus, so lessons that land in between leave the result above the projection with no
+explanation: one pass projected 17,611 B and left `MEMORY.md` at 18,322 B after 26 archives, and the index
+reached 18,789 B over the next phases (verified: issue #2714 (2026-11-08); `grep -c projectedBytes` printing
+1 on `tighten.md`, in step 2 alone, and step 4 naming no `tighten-plan` re-run at 279a0d4a; `tightenPlan`'s
+`projectedBytes: currentBytes - struckFreed` in `war-memory.mjs` at 279a0d4a; DocTrail
+WorkAuditRefine/reports/2026-11-04-late-defects-fixed-in-run/lead/reports/p4-report.md, WAR 0.21.35). The
+`war-memory.mjs` half of #2714, if any, stays with the pipeline-skills plan's guardrail on that file.
+
+**Budget headroom** (hard line minus `wc -c`; verified: `FILE_BUDGETS` and `wc -c` at 35aa4144):
+`agents/war-refiner.md` 23 B · `agents/war-worker.md` 97 B · `GLOSSARY.md` 455 B · `CLAUDE.md` 477 B ·
+`agents/war-evidence-auditor.md` 1533 B · `agents/war-auditor.md` 1619 B · `skills/war/SKILL.md` 8817 B
+(advisory crossed by 399 B). These are dated snapshots; each task re-measures at its rebased base.
+
+## Pivotal constraints
+
+1. **Land after the engine plans.** Each fix is written against the post-sibling tip, and each task re-reads its construct first. An item a predecessor already fixed is recorded as already-fixed in the commit body (verified: issue #2660 (2026-11-08)). A default flip in one run left `skills/war/SKILL.md` stale while `CONTEXT.md`, `README.md`, `schemas.md`, the war-room card and ADR 0056 were updated, found only by a concept-level search (verified: DocTrail WorkAuditRefine/reports/2026-11-05-issue-2544-zero-in-seat-data/seat-reports/2619-r1-correctness-opus.md).
+2. **Both-surfaces rule.** A card line with a dispatched twin changes with that twin in the same commit (verified: `CLAUDE.md` § Execution architecture at 35aa4144).
+3. **Byte-identical eviction.** A later sanctioned edit to an evicted block discloses itself and re-pins its digest in the same commit. An eviction header keeps the `at eviction time` qualifier `reference-link-integrity.test.mjs` checks (verified: `EVICTION_TIME_QUALIFIER`, `QUALIFIED_HEADERS` at 35aa4144).
+4. **Budgets bind.** No budget line rises. `agents/war-refiner.md` net growth is zero or less; any card growth is funded by an ADR 0042 byte-identical eviction in the same task (verified: `CLAUDE.md` § Doctrine placement at 35aa4144).
+5. **Hot/cold law.** New doctrine goes to a `references/` file behind a `when <trigger>, read references/<file>` pointer unless it is tier-1 (verified: `CLAUDE.md` § Doctrine placement at 35aa4144).
+6. **Count words are claims.** No count word next to an enumeration that can grow (verified: issues #2136 (2026-09-07), #2284 (2026-09-09)).
+7. **Living-ADR form decides ADR edits.** In-place rewrite plus a Decision-log line replaces the dated-amendment bullets #2269 and #2664 propose (verified: issue #1850 (2026-08-27); old plan D1 at 35aa4144).
+8. **Frozen literals.** No pass rewords a drift-guard-pinned literal, the ratified `docs/learnings/` pointer line in `CLAUDE.md`, an extraction heading, or the `skills/war-strategy/SKILL.md` §2 templates (verified: issue #1919 (2026-08-30) ground rules).
+9. **No new enum members.** `land-decision.mjs` changes are header comment only (verified: spec §2 item 9).
+10. **One engine owner per phase.** `skills/war/assets/workflow-template.js` is edited only by Task 3.2.
+
+## Resolved design tree
+
+| Decision | Resolution | Source | Pins · landing class |
+|---|---|---|---|
+| D1 Vehicle | A fresh plan from the spec, carrying the old plan's ruled D1–D3 (law, fold grammar) and D22 (Vale) by reference; it supersedes the old plan only for #1759, #1850, #1919 | spec D1 · AI-declared [assumed: see A1] | PIN-1 · context |
+| D2 Meta-ADR form | New ADR, slug `living-adrs-git-is-the-archive`, next free number at land time. Its Decision carries the old plan's ruled law by row, not paraphrased: (old D1 / PIN-1) bodies carry current law, rewritten in place; git is the archive; every ADR keeps a `## Decision log` with one line per change in the form `- YYYY-MM-DD · <what flipped> · <driving issue> · retired: docs/adr/<file> @ <sha>` (the `retired:` field only when the line retires text); (old PIN-26, operator ruling 2026-09-06) the `retired:` sha is the commit that INTRODUCED the retired text — the oldest hit of `git log --reverse -S'<retired literal>' --format=%h -- <file> \| head -1`; (old PIN-2) the three citation forms: a bare citation (`ADR 0013`) means current law, a dated citation (`ADR 0013 (2026-08-25)`, `ADR 0013 amendment 2026-08-25`, `amended 2026-08-25`) resolves to that date's Decision-log line, a sha-pinned citation (`docs/adr/<file> @ <sha>`) means the file at that commit; (old PIN-28, OD-1 ruled 2026-09-06) the policy-lifecycle versus record boundary: `docs/adr/`, `docs/plans/`, `docs/roadmaps/`, `skills/*/references/`, `skills/*/SKILL.md`, `agents/*.md`, `CONTEXT.md`, `README.md`, `CLAUDE.md`, `hooks/reply-standard/` cards are rewritten in place; `docs/red-team/` reports, run manifests, `docs/learnings/` frontmatter, consumed `docs/specs/` and released `CHANGELOG.md` entries are records, written once; (old D1) retired literals are asserted absent on every policy home, ADRs included | spec D2; (verified: issue #1850 (2026-08-27); old plan D1, PIN-2, PIN-26, PIN-28 rows at 35aa4144) | PIN-2 ‡ · guardrail, slice (T1.1), end-state |
+| D3 Phases for #1850 | Two. Phase 1 lands the law. Phase 2 folds the corpus in ONE task on ONE branch with every pin re-anchor; the serial merge is the atomic unit; the branch may carry several commits. Old D2's precondition (the D43 fourth-home row has landed) already holds at base | spec D3; (verified: old plan D2 at 35aa4144; `test('D43 —` live in `skill-doc-contracts.test.mjs` at 35aa4144) | PIN-3 ‡ · guardrail, slice (T2.1) |
+| D4 Migration first | Phase 2 folds before Phase 3, so Phase 3's ADR 0013 and ADR 0024 edits are plain in-place edits | spec D4 [assumed: see A3] | PIN-4 · context |
+| D5 Decision log everywhere | All ADRs. Each ADR without one gains `## Decision log` with one dated line "adopted under the living-ADR law" | spec D5; (verified: DocTrail WorkAuditRefine/reports/2026-11-06-session-worktree-leftovers/war-fable-opus-audit-loops-0592b7/files/.claude/teams/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/ledger.json, WAR 0.21.12 — a phase-close polish found ADR 0024 §(C) and ADR 0049 changed in place with no amendment or decision-log record) | PIN-5 · slice (T2.1), end-state |
+| D6 #2269 | No supersession bullet. The fold rewrites ADR 0013's Channel-2 text to current law (enacted in Decision 4) with a `retired:` Decision-log line | spec D6 | PIN-6 · slice (T2.1), end-state |
+| D7 #2664 ADR 0024 | Rewrite §(C) in place to match `gateHardOf` (HARD on `escalate` or a Critical/Major with a blank `suggested_fix`; one with a fix rides the late-fix pass, ADR 0058) and add a Decision-log line naming ADR 0058 | spec D7 | PIN-7 · slice (T3.3), end-state |
+| D8 #2120 relaunch rule | De-mirror. `run-manifest.md` § Relaunch is the one home. The `schemas.md` bullet and `glossary-cold.md` § Relaunch attempt keep a definition plus a pointer; a test asserts the home phrases present in `run-manifest.md` § Relaunch — exactly `Dispatch counts are summed across attempts`, ``overwrite `workflowRunId` + `transcriptDir` together`` and ``Archive the died attempt under `attempts[]` `` (verified: each greps non-empty in `run-manifest.md` at 35aa4144) — and asserts the mirror phrases absent from both mirrors: `sums dispatch counts`, `summed across attempts`, `archives the died attempt` (verified: `sums dispatch counts` greps 1 in each mirror and 0 in the home at 35aa4144) | spec D8 [assumed: see A4] | PIN-8 · slice (T3.5), end-state |
+| D9 #2137 | Key list becomes `asks: [ { task, seat, sha, question, fork, corroborators?, citationPrefill? } ]`; the D40 row that pins the old list is re-pinned in the same task | spec D9 | PIN-9 · slice (T3.5), end-state |
+| D10 #2139 | A new raiser merges onto `corroborators`; a re-raise by the survivor's own raiser, or one equal to an existing entry, is logged only; nothing drops silently | spec D10 | PIN-10 · slice (T3.5) |
+| D11 #2175 | Delete the A4 hedge; cite `agents/war-refiner.md` step 10 (Backgrounded gate) | spec D11 | PIN-11 · slice (T3.5), end-state |
+| D12 #2226 | Keys `{ row, threadedRow, cited, rationale }`, the floor by name (`CITATION_MIN_LENGTH`), the exact-then-unique rule, and `citationStamp` on sweep-polish and terminal commits | spec D12 [assumed: see A5] | PIN-12 · slice (T3.5), end-state |
+| D13 #2206 | The card line and the `schemas.md` provision line gloss `preMerged` as "proved integrated by `task-integrated.sh`, skipped" | spec D13 [assumed: see A6] | PIN-13 · slice (T3.2, T3.5) |
+| D14 #2243 | Card step 3 says the absent arm matches nothing, in the prompt's sense; a paired pin row beside the `file-followups paired pins` tests reads both surfaces | spec D14; budget handling replaced by PIN-28 | PIN-14 · slice (T3.2), end-state |
+| D15 #2178 | The header gains a `Post-eviction edits:` list that names every sanctioned edit to a moved block by block and clause, with no count word, re-read at the T3.2 base: the `gate_segment` clause in the MergeResult parenthetical (#2178); the `cmd[i] exit: <n>` lines and maximum rule in endstate-check step 2 (D16, same task); the § Reland discrimination D4 clause and land-confirm rule the engine-recovery plan writes (its D1, D2); any STATEMENT BOUNDARIES compound-command rule the engine-findings plan adds to the endstate steps (its D9); and any edit a sibling landed without disclosing. The header keeps `at eviction time`. The 617 B assert message in `workflow-template.recovery.test.mjs` names the same list, and a row asserts the header's `Post-eviction edits:` list is non-empty | spec D15, widened at revise: D16 adds a second edit in the same task and two sibling plans edit the file (verified: engine-recovery plan D1, D2 and its T1.1 Files; engine-findings plan D9 at 365f3da2) | PIN-15 · slice (T3.2) |
+| D16 #2254 | Step 2 gains the per-command `cmd[i] exit: <n>` lines and the maximum rule, marked as a post-eviction edit; the `endstate-check dispatch card twin` registry row gains `cmd[i]` and `maximum` anchors | spec D16 | PIN-16 · slice (T3.2), end-state |
+| D17 #2176, #2255 | The gate-log bullet gains the partial, unstamped and tip-mismatched arms and the live `GATE_LOG_UNTHREADED` text; the D8 bullet gains `intake_lint:`, `cmd_bytes_mismatch:` and the per-command rule; re-pin the SHA and the byte count in the same commit with the reason in the body. The checklist's `GATE_LOG_UNTHREADED` copy is guarded by extraction-plus-equality, not by the SHA pin alone: a row in `workflow-template.engine-1.test.mjs` extracts the ``const GATE_LOG_UNTHREADED = pt`…` `` literal from the harness `src` and asserts the checklist contains it verbatim (the `gate-log-stamp-glossary` `ptConst` row in `skill-doc-contracts.test.mjs` is the precedent) | spec D17; equality row added at revise (verified: `ptConst('GATE_LOG_UNTHREADED')` row and harness `const src` at 35aa4144) | PIN-17 · slice (T3.2), end-state |
+| D18 #2557 posture | Text: a seat conflict with no fix parks its ask and still holds the phase on purpose; a fixable blocker takes a fix round first. Homes: ADR 0013 Decision 4, `design.md`, GLOSSARY **Seat-conflict ask**, `skills/war/SKILL.md` Ask ruling gate, `README.md`, `CLAUDE.md` Known traps, both auditor cards plus their dispatched twin. The seat lever the card sentence carries: a Critical/Major with a blank `suggested_fix` is what the engine's `fixless` arm and `seatConflictsOf` turn into a parked ask and a deliberate hold, so a seat gives a `suggested_fix` whenever one exists and leaves it blank only when the blocker truly has none. The dispatched twin is `auditPrompt` alone — the roster builder both cards twin (the evidence seat is dispatched through it with `agentType === 'war-evidence-auditor'`); the post-merge gate-audit-family builders are not touched, because their seats return verdicts, never seat conflicts. Pinned on GLOSSARY and ADR 0013. `auditor-teach.md` is left out | spec D18; (verified: issue #2557 (2026-10-31) names both cards as homes; `fixless`, `seatConflictsOf` and the `auditPrompt` evidence branch at 35aa4144) [assumed: see A8] | PIN-18 ‡ · slice (T3.2, T3.3, T3.4, T3.5), end-state |
+| D19 #2347 | One sentence and one _Avoid_ item on **Ace-Subset trailer**; a structural test that no engine code outside prompt literals parses the trailer into a file set; the trailer-vs-diff lint stays withdrawn | spec D19; (verified: issue #2347 (2026-09-29)) | PIN-19 · slice (T3.2, T3.5), end-state |
+| D20 `mergeSeat` drainCause | Dropped from this plan: the engine-findings plan's D3 (#2244) copies `drainCause` onto the survivor | spec D20 retired; (verified: engine-findings spec D3 and §5 row at 365f3da2) | PIN-20 · non-goal |
+| D21 Paraphrase sweep | Run at conversion. Hits on the always-hold meaning: `design.md` §11 (T3.3) and `skills/war/SKILL.md` Invariants (already carries PIN-3's carve-out, check-only in T3.4); the other hits use "never merge" or "no approval" in unrelated senses | spec D21; (verified: the spec's grep at 365f3da2; DocTrail WorkAuditRefine/reports/2026-11-04-late-defects-fixed-in-run/lead/reports/p5-report.md, WAR 0.21.35 — the `SKILL.md` never-merge sentence had no probe carve-out after the engine change, and a phase-close polish absorbed it) | PIN-21 · slice (T3.3, T3.4) |
+| D22 Vale scope | Last content phase, re-measured at its base; one task per family, at most eight files, file-disjoint; freeze list first; full gate per task; the ruled floor: per file after ≤ before, family total down by at least 30 % unless the freeze list blocks it, with unresolved findings listed by rule and freeze reason | spec D22; (verified: old plan D22, OD-2 ruling at 35aa4144) | PIN-22 · slice (T4.1–T4.6), end-state |
+| D23 New terms and GLOSSARY headroom | New terms go in `glossary-cold.md` behind one pointer row; on a hard-line overrun, evict the coldest whole entry byte-identically to `glossary-cold.md` | spec D23 [assumed: see A11] | PIN-23 · guardrail, slice (T1.1, T3.5) |
+| D24 Release | Own trailing phase; next free patch above the live integration base at land time | spec D24 | PIN-24 · slice (T5.1) |
+| D25 Sibling hand-off rows | `schemas.md` gains rows for each field the engine-recovery and engine-findings plans landed and left to doc-truth; a field absent at the task base is skipped and named in the commit body | (verified: those specs' §5 and §8 at 365f3da2) [assumed: see A14] | PIN-25 · slice (T3.5), end-state |
+| D26 Sibling glossary terms | The engine-findings spec's four terms (**No-fix sentinel**, **Reconciled follow-up**, **Polish claim**, **Net-zero clash range**) go to `glossary-cold.md` behind pointer rows when absent at the T3.5 base | (verified: engine-findings spec §6 at 365f3da2) | PIN-26 · slice (T3.5) |
+| D27 Legacy amendment citations | Prose outside `docs/adr/` that cites "ADR NNNN Amendment (YYYY-MM-DD)" is not swept. Each fold's Decision-log line carries the folded heading's date and title, so a legacy dated citation resolves to that line under the PIN-2 dated form; the meta-ADR says so. Only a citation that names a heading inside `docs/adr/` is rewritten (T2.1) | old plan PIN-2 consequence (verified: old plan "Citation forms (PIN-2)" row at 35aa4144) [assumed: see A15] | PIN-27 · guardrail, slice (T1.1, T2.1) |
+| D30 Engine-fact pins | Four facts the docs restate get an extraction-plus-equality row, not an absent-only grep: (1) the checklist's `GATE_LOG_UNTHREADED` copy (D17, T3.2, `engine-1.test.mjs`); (2) the ace label — a `skill-doc-contracts.test.mjs` row extracts the `const aceLabel = (r, site) => 'ace:' + site + ':' + r.task.id + ':a'` line from `workflowTemplateSrc` and asserts `schemas.md` names `ace:<site>:<task>:a<n>`, so either side rotting reds the pair; (3) the handoff `asks` keys — extract the key names from the `asks: asks.map(a => ({ … }))` projection (`task, seat, sha, question, fork` plus the spread keys `corroborators`, `citationPrefill`) and assert the `schemas.md` key list names each, optional ones with `?`; (4) the citation keys — extract `{ row: threadedRow, threadedRow, cited: row, rationale … }` from `citationOf`'s return and assert the `citation?` row names `row`, `threadedRow`, `cited`, `rationale`. `CITATION_MIN_LENGTH` stays de-mirrored by name. Each row carries a non-vacuity floor (the extraction matched) | revise finding; (verified: `aceLabel` at 4180, the `asks.map` projection at 8101, `citationOf`'s return at 4028, `ptConst` at 4100 in the named files at 35aa4144 — anchors by construct, line numbers are a dated aid; DocTrail WorkAuditRefine/reports/2026-11-05-issue-2544-zero-in-seat-data/seat-reports/2617-r1-cascading-impact-opus.md — a restated 119 KiB figure in `staged-script.md` stayed green at two sites because no test read it) | PIN-30 · slice (T3.2, T3.5), end-state |
+| D28 Refiner card bytes | Net growth of `agents/war-refiner.md` in this plan is zero or less. If the D13 plus D14 wording grows the card at the task base, Task 3.2 evicts one cold card block byte-identically into `refiner-recovery.md` with a trigger pointer | (verified: card headroom 23 B at 35aa4144); task brief | PIN-28 ‡ · guardrail, slice (T3.2) |
+| D29 Vale exclusions | Phase 4 leaves out files that a later chain plan edits (pipeline-skills, shell-floors), files whose blocks are sha-pinned or byte-identity-claimed evictions, vendored Vale style READMEs, `hooks/reply-standard/*`, fixtures and `docs/studies/`. #1919 stays open for the left-out files | (verified: those specs' §5 file lists and the reference headers at 365f3da2); spec D22 assumption contradicted | PIN-29 · slice (T4.1–T4.6) |
+| D31 #2681 arm (d) is expected | The checklist `pin_status` bullet gains one sentence: a `STALE-MISMATCH` whose `pin_evidence` reads `mapped file(s) changed since the gate ran` is the expected state once a later same-phase merge touched a mapped file; the seat records the SOFT note the prompt requires and raises no finding on the stale pin itself. The dispatched twin (the `STALE-MISMATCH / ERROR / an absent pin-status token ⇒` clause of the `POST-MERGE GATE-AUDIT` prompt) gains one clause of the same meaning in the same commit, at most 160 B, noted against the arm (p) staged cap. A `stale-mismatch-arm-d-expected-after-later-merge` row in `workflow-template.engine-1.test.mjs` extracts the arm (d) `printf` phrase from `gate-pin-status.sh` (non-vacuity: the extraction matched), asserts the checklist bullet and the prompt literal in the harness `src` both contain it, and asserts the bullet contains `expected`. The SHA and byte pins re-pin in the same commit (D17 already re-pins them) | issue #2681 (2026-11-08); (verified: the bullet, arm (d) and the prompt clause at 279a0d4a) [assumed: see A20] | PIN-31 · slice (T3.2), end-state |
+| D32 #2682 manifest task map | `run-manifest.md` § When names the per-phase key `tasks` and its value enum in the on-phase-return bullet and the field-names paragraph: the `ledger.json` task-status enum (`merged`, `escalated`, `blocked`, `env-blocked`), never `landed`, which is the `land` value; it points at `schemas.md` § Run manifest for the shape and does not restate the `tasks` vs `land` bullet. `taskStatuses` is named nowhere as a key; the recorded manifest stays as written (PIN-2 record boundary). A `manifest-tasks-key-and-enum` row in `skill-doc-contracts.test.mjs` extracts the on-phase-return bullet from `run-manifest.md` § When by its H2 (non-vacuity: the extraction matched), asserts it names `` `tasks` ``, `merged` and `` never `landed` ``, asserts `taskStatuses` is absent from `run-manifest.md` and `schemas.md`, and asserts the `schemas.md` `tasks` vs `land` bullet still names `merged` | issue #2682 (2026-11-08); (verified: `schemas.md` § Run manifest and `run-manifest.md` § When at 279a0d4a) [assumed: see A21] | PIN-32 · slice (T3.5), end-state |
+| D33 #2713 stale-local hold | The copy bullet of `learnings-publication.md` § Promotion steps gains a compare before the copy: for each same-slug pair, when `diff <repo-file> <local-file>` prints a `<` line (the repo copy carries text the local copy lacks) the local copy is **stale-local** — not promoted, kept in the local root, reported beside the lint-flagged files, never dropped; the Lead folds the repo-only text into the local copy by hand and re-runs. Otherwise the same-slug repo file is overwritten, so `overwrite-on-promote` stays the wording the `#584` row in `war-config.test.mjs` reads. The all-flagged arm reads "flagged or stale-local". ADR 0022 §(I) is rewritten in place with a Decision-log line citing #2713; GLOSSARY **Promotion** gains the same clause. The eviction header discloses the edit under `Post-eviction edits:` and keeps `at eviction time`; `learnings-publication-evict (a)` re-pins the section's bytes and sha256 in the same commit, with the reason in the body. A `gate2-promotion-staleness-compare` row in `skill-doc-contracts.test.mjs` extracts § Promotion steps with `publicationSection` (non-vacuity: the heading matched), asserts it contains `stale-local` and `diff`, and asserts `stale-local` in ADR 0022 §(I) and the GLOSSARY **Promotion** entry. The servitor card and its dispatched twin are not touched (A24) | issue #2713 (2026-11-08); (verified: the copy bullet, `PUBLICATION_EVICTIONS` and the `#584` overwrite-on-promote row at 279a0d4a) [assumed: see A22, A24] | PIN-33 · slice (T3.5), end-state |
+| D34 #2714 projection in the report | `tighten.md` step 4 gains a first bullet, **Re-plan before the swap**: re-run the step-1 `tighten-plan` line read-only; when its `currentBytes` differs from the gated JSON's, lessons landed since the plan — recompute the projection as the new `currentBytes` minus the approved rows' `bytesFreed`, keep both figures for the report, and keep the approved set as it is (no second gate). Step 5 reports the gated `projectedBytes`, or the step-4 figure when the corpus moved, beside the after bytes, and when the after bytes exceed it names the gap and its cause: the step-4 `currentBytes` delta, or a refused archive (the exit-1 arm). The shortfall-vs-target block stays. The file header discloses both edits under `Post-eviction edits:`. A `tighten-report-names-projected-bytes` row in `lessons-learned-doc-contract.test.mjs` extracts step 4 (from `4. **Execute**` to `5. **Report.**`) and step 5 (from `5. **Report.**` to the end), asserts both non-empty (non-vacuity), and asserts step 5 names `projectedBytes` and step 4 names `tighten-plan` and `currentBytes`. The CLI half, if any, stays with the pipeline-skills plan's `war-memory.mjs` guardrail | issue #2714 (2026-11-08); (verified: steps 2, 4 and 5 of `tighten.md`, `projectedBytes` in `tightenPlan` at 279a0d4a) [assumed: see A23] | PIN-34 · slice (T3.6), end-state |
+
+## Assumptions ledger
+
+| assumption | basis | blast radius | check |
+|---|---|---|---|
+| A1 (spec D1) This plan supersedes the old plan only for #1759, #1850, #1919 | old plan's other tasks own #1848, #1880, #2089, #2091 | those issues lose a vehicle, or tasks run twice | `/red-team` reads the old plan's issue list against the campaign's other plans |
+| A2 (spec D2) The meta-ADR number comes from `ls docs/adr/` at land time | engine-findings may land an ADR first | two ADRs share a number | T1.1 Done when globs by slug; the refiner sees a duplicate number as a merge conflict |
+| A3 (spec D4) An early fold is safe because Phase 3 touches only two ADRs | Phase 3 lands after Phase 2 lands | Phase 3 ADR edits conflict with a fold | phase edge; T3.3 rebases onto the folded tip |
+| A4 (spec D8) De-mirror beats a three-way guard | the glossary needs only the term | a glossary reader loses inline rule text | End state 26 |
+| A5 (spec D12) Name `CITATION_MIN_LENGTH`, not `24` | de-mirror over restatement | a reader opens the engine for the number | `/red-team` reads the row |
+| A6 (spec D13) The `preMerged` gloss has no dispatched twin | the phrase hits only an engine comment at 35aa4144 | the prompt twin goes stale | T3.2 greps `already-integrated` in `workflow-template.js` and fixes the comment in the same commit |
+| A7 (spec D14) A byte-neutral trim exists on the refiner card | 23 B headroom | retired: replaced by PIN-28 (eviction in the same task, never a raise) | End state 13 |
+| A8 (spec D18) The `skills/war/SKILL.md` posture clause is tier-1, so inline | the Ask ruling gate is read every Checkpoint | the clause belongs in a reference behind a pointer | the budget suite and the T3.4 audit |
+| A9 (spec D20) The engine-findings spec does not fix `mergeSeat` | none | retired: that spec's D3 (#2244) does fix it, so the row is dropped | `grep -n drainCause` in the `mergeSeat` collapse arm at the T3.2 base |
+| A10 (spec D22) The Vale pass lands after every sibling spec | none | retired: chain order puts pipeline-skills and shell-floors after this plan; PIN-29 leaves their files out | the exclusion list in each T4.x slice |
+| A11 (spec D23) Eviction beats a budget raise on GLOSSARY overrun | ADR 0042; no budget may rise | an ADR 0042 cited raise would be needed | End state 13 |
+| A12 (spec §7) The posture refines ADR 0013 Decision 4; no new ADR | it records a ruling, not a new decision | a small ADR citing #2557 is needed | `/red-team` |
+| A13 (spec §8) A recorded Vale count is enough evidence | spec AI default | retired: the OD-2 ruling in old plan D22 sets a numeric floor (≥ 30 %), adopted in PIN-22 | End state 30 |
+| A14 The sibling hand-off fields exist at the T3.5 base | engine-recovery and engine-findings land first | a row for an absent field, or a missing row | T3.5 greps each field in `workflow-template.js` before writing its row |
+| A15 Legacy "Amendment (date)" citations resolve through the Decision-log line | each fold line carries date and heading title (PIN-2 dated form) | a reader cannot find the folded text | T2.1 Done when greps one `retired: docs/adr/0013` line in ADR 0013 (a presence check, not a count); the T2.1 audit reads the fold lines; backstop row 1 |
+| A16 Later chain plans edit ADRs against pre-fold text | their specs were drafted at 35aa4144 | their checks read retired phrasing | Notes; their workers re-read at base. Split by form: `shell-floors-tests-and-lint` T2.5 writes in-place Decision-log lines on ADRs 0006, 0021, 0044 (verified: its "ADRs:" line at 365f3da2) — compatible; `pipeline-skills-and-memory-tooling` PIN-24/PIN-25 as first drafted appended dated `## Amendment` sections to ADR 0045 and ADR 0044 and its End state 5 grepped `^## Amendment \(2026-` (verified: its rows and End state 5 at 365f3da2), which contradicted this plan's Phase 2 guard row and End state 3 — resolved by the Operator ruling 2026-11-08 (OD-1, option 1): that plan now uses the living-ADR form; see Notes |
+| A19 The seat lever is real: a blank `suggested_fix` on a Critical/Major is what parks a seat-conflict ask | the `fixless` arm reads `blankText(f.suggested_fix)` and feeds the `seatConflictsOf` park (verified: at 35aa4144) | the card sentence tells seats nothing they can act on | T3.2 re-reads the arm at its base; the T3.2 audit |
+| A17 Engine-findings D10 may change the `GATE_LOG_UNTHREADED` rendering | that spec's D10 | the checklist quotes a stale string | T3.2 copies the live constant at its base |
+| A18 Engine-findings D9 adds the boundary rule to `refiner-recovery.md` endstate steps | that spec's D9 | D16's step-2 text collides with it | T3.2 rebases and merges both into step 2 |
+| A20 (D31) The arm (d) clause fits the engine in one short clause [assumed: at most 160 B against the 459 B arm (p) room at 279a0d4a — if wrong: the clause becomes a pointer to the checklist bullet, or T3.2 trims a same-prompt comment line first] | `stripFullLineComments` leaves 404021 B against a 524288 B cap minus 119808 B args headroom (verified: at 279a0d4a); predecessor engine plans also grow the template | arm (p) of `stage-workflow.test.mjs` reds at the T3.2 base | T3.2 re-measures at its base; `node --test skills/war/assets/stage-workflow.test.mjs` in its Done when |
+| A21 (D32) The documented key `tasks` is right and the Lead-written `taskStatuses` is the drift [assumed: `schemas.md` § Run manifest and `/war-review` both read `tasks`, so the schema is the law — if wrong: the row renames the key in `schemas.md` and `/war-review`'s row instead, and `/war-review` belongs to other campaign plans, so the Lead rules at Checkpoint] | `/war-review` reads `phases[].tasks` and its unfinalized-phase class reads `tasks` (verified: `skills/war-review/SKILL.md` at 279a0d4a) | a renamed key leaves `/war-review` blind to task statuses | T3.5 greps `phases\[\]\.tasks` in `skills/war-review/SKILL.md` at its base before writing |
+| A22 (D33) The stale test is content-based: a `<` line in `diff <repo-file> <local-file>` means the local copy would drop repo text [assumed: a legitimate recurrence rewrite that reworded a sentence also trips it and is held for a hand fold — if wrong (too many false holds), narrow to a time compare: the repo file's last commit (`git log -1 --format=%ct -- <file>`) after the local copy's last write] | the recorded incident lost repo text the local copy lacked; a time compare misses a copy the servitor rewrote in the run from a stale base | needless hand folds, or a missed stale copy | T3.5 re-reads the bullet at its base; the T3.5 audit; `/red-team` reads the row |
+| A23 (D34) A read-only `tighten-plan` re-run before the swap explains the gap; the strike set is not re-opened [assumed: the operator ruled one gate — if wrong, the operator re-runs `tighten` by hand, as step 5 already says] | the gated JSON is the corpus authority and the verb is read-only | a pass that still misses its target after new lessons land | the T3.6 audit; `/red-team` |
+| A24 (D33) The servitor card recurrence bullet and its dispatched twin stay as written: they describe the servitor's write, and the hold is a Lead-side Gate-2 step [assumed: the card's "overwrites" sentence reads as the non-stale case — if wrong, the twin edit routes to T3.2 (the engine owner) and the Lead rules at Checkpoint] | `agents/war-servitor.md` recurrence bullet and the `engine-1.test.mjs` `/overwrite/i` prompt pin at 279a0d4a | a servitor keeps editing a stale marked copy as its base | the T3.5 audit |
+| R1 (spec §8) GLOSSARY headroom depends on the model-routing plan | its D5 targets the advisory line | T1.1 or T3.5 overrun the hard line | End state 13; D23 eviction |
+| R2 (spec §8) The Phase 2 fold is large; a fold that changes a decision is a defect | 58 ADRs plus tests | wrong law | T2.1 audit at audit_sha |
+| R3 (spec §8) `skills/war/SKILL.md` advisory line is crossed | 399 B over | none at the hard line | do not raise; Phase 4 does not touch it (PIN-29) |
+| R4 (spec §8) #2137 may close as already done | the WIDENED SHAPE sentence | none | End state 10 |
+| R5 (spec §8) Vale is advisory; no gate counts findings | `vale-md` hook | a pass with no effect | End state 30 |
+
+## Non-goals / deferred
+
+- The old plan's tasks for issues outside this group (#1848, #1880, #2089, #2091) (PIN-1).
+- `auditor-teach.md` does not get the #2557 posture: it holds verbatim evictions only (verified: its header at 35aa4144).
+- #2347's trailer-vs-diff lint stays withdrawn.
+- No behavior change and no enum change. The `mergeSeat` `drainCause` copy belongs to the engine-findings plan (PIN-20).
+- From #2660: the CONTEXT.md Disposition item is already gone (the entry moved to GLOSSARY.md, handled as #2287); the `#3f55b04`, `throughRound` and `drainCauseOf` comments and the STATEMENT BOUNDARIES rule belong to predecessor plans.
+- From #2284, member row 2 is fixed (verified: the `carries widenings (1)-(3)` comment in `workflow-template.js` at 35aa4144). From #2247, the ADR 0012 cross-reference item is fixed (verified: issue #2247 (2026-09-08)).
+- No sweep of non-ADR prose that cites dated amendment headings (PIN-27).
+- Vale cleanup of the PIN-29 left-out files; #1919 stays open for them.
+- The #2509 Lead manifest stamps the engine-recovery spec assigns here under an `[assumed:]` owner: not taken; that issue is not in this plan's claim list.
+- The recorded `taskStatuses` manifest at WAR 0.21.35 is not rewritten: a run manifest is a record (PIN-2 boundary). `/war-review`'s `tasks` rows are not touched here; they belong to other campaign plans (PIN-32).
+- The `war-memory.mjs` half of #2714 (a `tighten-plan` that re-reads the corpus itself, or a render that reports `projectedBytes`) is not taken: no campaign plan owns that file, and the pipeline-skills plan holds its guardrail (PIN-34).
+- The servitor-side base of #2713 (a servitor that edits a `metadata.promoted`-marked local copy as its canonical target may start from a stale base) is not changed: the fix here is the Lead-side hold (PIN-33, A24).
+
+## New domain terms · Recommended ADRs
+
+Terms, all in `skills/war/references/glossary-cold.md` behind one GLOSSARY.md pointer row (PIN-23):
+- **Living ADR** — an ADR whose body states current law and is rewritten in place when the law changes; git holds the history. _Avoid_: dated amendment H2s; "append-only".
+- **Decision log** — the `## Decision log` H2 at the foot of every ADR: one line per change, `- YYYY-MM-DD · <what flipped> · <driving issue>`; a retiring line adds `· retired: docs/adr/<file> @ <sha>`, the sha of the commit that introduced the retired text. _Avoid_: putting rationale only in the log; citing the commit that last held the text.
+- **Sha-pinned citation** — a citation of past ADR text as `docs/adr/<file> @ <sha>`, one of the three citation forms (bare = current law; dated = that date's Decision-log line; sha-pinned = the file at that commit). _Avoid_: citing an amendment heading a fold has removed.
+
+ADRs: **new** `living-adrs-git-is-the-archive` at the next free number (T1.1). **Edited in place** under that
+law: every ADR (T2.1 fold and Decision logs), ADR 0013 (T2.1 fold, T3.3 posture), ADR 0024 (T3.3, PIN-7), ADR
+0025 (T2.1). No other new ADR (A12).
+
+## Commander's Intent
+- Purpose: Make every doc, card, glossary entry and ADR say what the engine does today, and change the ADR law so that fixing an ADR is a plain edit, not a dated amendment.
+- Method: Land the living-ADR law first, then fold the whole ADR corpus to current law in one atomic task, then fix each drift item in the file that owns it, pinning the facts a test can extract, then a bounded Vale prose pass, then release. Each task re-reads its construct at its rebased base and records items a predecessor already fixed. Prefer pointing at a canonical source over restating it.
+- Mechanism latitude: the wording of each corrected sentence; the test names and row shapes of new pins (as long as the End-state tokens below are printed); which cold card block T3.2 evicts if PIN-28 needs one; which cold glossary entry T3.5 evicts if PIN-23 needs one; the internal order of commits on the T2.1 branch; the Vale rewrites inside the freeze list. Substituting any of these mechanisms while the End states and binding guardrails hold is not a plan deviation and warrants no issue.
+- Binding guardrails:
+  - No budget line rises; `agents/war-refiner.md` net growth in this plan is zero or less (PIN-28); `GLOSSARY.md` stays under its hard line (PIN-23).
+  - A card line with a dispatched twin changes with that twin in the same commit.
+  - An evicted block changes only with a disclosed reason and a re-pinned digest in the same commit, and its header keeps `at eviction time`.
+  - No frozen literal is reworded: drift-guard pins, the ratified `docs/learnings/` pointer line, extraction headings, the `/war-strategy` §2 templates.
+  - No behavior change and no enum change; `land-decision.mjs` gets a header comment edit only.
+  - A fold restates current law; it never changes a decision (PIN-2, PIN-3).
+  - `skills/war/assets/workflow-template.js` is edited only by Task 3.2.
+- End state:
+  1. The repo holds exactly one living-ADR meta-ADR · check: `ls docs/adr/*-living-adrs-git-is-the-archive.md | wc -l` prints `1` (red at base: 0)
+  2. The three new terms and the three citation forms are bound to the meta-ADR's `## Decision` by extraction, and the slug glob resolves exactly one file · gate: `node --test skills/war/assets/skill-doc-contracts.test.mjs` prints `ℹ fail 0` and lists a `living-adr-terms` test as ok (red at base: no such test)
+  3. No ADR carries an amendment heading at any level, dated or as an `Amendments` container · check: `grep -lE '^#{2,} (Amendment|Addendum|Correction)s?\b' docs/adr/0*.md | wc -l` prints `0` (red at base: 32)
+  4. Every ADR carries a Decision log · check: `grep -L '^## Decision log' docs/adr/0*.md | wc -l` prints `0` (red at base: 47)
+  5. ADR 0013 no longer calls Channel 2 deferred · check: `grep -c 'deferred to #1664, not enacted' docs/adr/0013-commanders-intent-and-disposition-routing.md` prints `0` (red at base: 1)
+  6. ADR 0025 no longer states the append-only rule · check: `grep -c 'Append-only, per this repo' docs/adr/0025-drift-guard-discipline.md` prints `0` (red at base: 1)
+  7. No test exempts an ADR under append-only law · check: `grep -c 'append-only law' skills/war/assets/skill-doc-contracts.test.mjs` prints `0` (red at base: 12)
+  8. `schemas.md` carries no stale producer count, ace label, tense or hedge · check: `grep -cE 'Three producers|ace:<task>:a<n>|absent until then|A4 latitude|produced once' skills/war/references/schemas.md` prints `0` (red at base: 5 lines)
+  9. The `citation?` row names the `cited` key · check: `grep -c 'threadedRow, cited, rationale' skills/war/references/schemas.md` prints `1` or more (red at base: 0)
+  10. The handoff `asks` key list carries `corroborators?` · check: `grep -c 'question, fork, corroborators?' skills/war/references/schemas.md` prints `1` or more (red at base: 0)
+  11. The `finalPhase` and `carriedPhaseClose` rows name the approve trail · check: `grep -c 'approve trail' skills/war/references/schemas.md` prints `2` or more (red at base: 0)
+  12. The refiner card says the absent note arm matches nothing, not that it skips · check: `grep -c 'that arm skips' agents/war-refiner.md` prints `0` and `grep -c 'matches nothing' agents/war-refiner.md` prints `1` or more (red at base: 1 and 0)
+  13. Every budgeted surface stays under its hard line and no line rose · gate: `node --test skills/war/assets/prompt-surface-budgets.test.mjs` prints `ℹ fail 0` and `✔ surface budget — agents/war-refiner.md` (guardrail; green at base by design)
+  14. The endstate-check step 2 names the per-command lines · check: `grep -c 'cmd\[i\] exit' skills/war/references/refiner-recovery.md` prints `1` or more (red at base: 0)
+  15. The gate-audit checklist names the new downgrade and record-only triggers · check: `grep -oE 'tip-mismatched|intake_lint|cmd_bytes_mismatch' skills/war/references/gate-audit-checklist.md | sort -u | wc -l` prints `3` (distinct tokens, not lines — each checklist bullet is one physical line; red at base: 0)
+  16. No engine code derives a file set from the `Ace-Subset` trailer · gate: `node --test skills/war/assets/workflow-template.engine-1.test.mjs` prints `ℹ fail 0` and lists an `ace-subset-trailer-is-not-a-footprint` test as ok (red at base: no such test)
+  17. `design.md` §18 states the D20 rule by its constant, not the retired sweep route · check: `grep -c 'route to the sweep instead of being refused' skills/war/references/design.md` prints `0` and `grep -c 'RELEASE_SLOT_FILES' skills/war/references/design.md` prints `1` or more (red at base: 1 and 0)
+  18. The eligibility reference opens with no widening count word and points at widening (4) · check: `grep -ciE '\b(two|three|four|five|six)\b widenings' skills/war/references/disposition-eligibility.md` prints `0` and `grep -c 'widening (4)' skills/war/references/disposition-eligibility.md` prints `1` or more (red at base: 1 and 0)
+  19. The `land-decision.mjs` header names the fix-less blocker rule · check: `head -20 skills/war/assets/land-decision.mjs | grep -c 'suggested_fix'` prints `1` or more (red at base: 0)
+  20. ADR 0024 cites ADR 0058 · check: `grep -c '0058' docs/adr/0024-audit-gate-verdicts-integrated-tip-captured-evidence.md` prints `1` or more (red at base: 0)
+  21. The war-room card carries the leading-star qualifier · check: `grep -c 'single-star tokens whose star is leading' skills/war-room/SKILL.md` prints `1` (red at base: 0)
+  22. The `/war` Checkpoint lists `corroborators` · check: `grep -c 'corroborators' skills/war/SKILL.md` prints `2` or more (red at base: 0)
+  23. `fork-trials.md` is host-neutral · check: `grep -c 'This host has none' skills/war-strategy/references/fork-trials.md` prints `0` (red at base: 1)
+  24. The glossary never routes a release-slot-adjacent absorb to the sweep, and the **Disposition** entry states the D20 rule · check: `cat GLOSSARY.md skills/war/references/glossary-cold.md | grep -c 'release-slot-adjacent'` prints `0` and `grep -c 'refuse by filename' GLOSSARY.md` prints `1` or more (red at base: 1 and 0)
+  25. The three sweep entries name the approve trail · check: `grep -c 'approve trail' GLOSSARY.md` prints `3` or more (red at base: 0)
+  26. The relaunch rules live only in `run-manifest.md` · check: `grep -c 'sums dispatch counts' skills/war/references/schemas.md skills/war/references/glossary-cold.md` prints `skills/war/references/schemas.md:0` and `skills/war/references/glossary-cold.md:0`, and `grep -c 'Dispatch counts are summed across attempts' skills/war/references/run-manifest.md` prints `1` or more (red at base: 1 and 1; the home check is green at base by design — it is the present half that keeps the absent half from passing vacuously)
+  27. The seat-conflict posture is stated on every governing surface · check: `grep -li 'holds the phase on purpose' README.md CLAUDE.md GLOSSARY.md skills/war/SKILL.md skills/war/references/design.md agents/war-auditor.md agents/war-evidence-auditor.md docs/adr/0013-commanders-intent-and-disposition-routing.md | wc -l` prints `8` (red at base: 0)
+  28. The repository gate passes at every land · check: `node skills/war/assets/repo-gate.mjs` exits 0 and prints `== gate complete:` with `0 failed` (guardrail)
+  29. The redaction lint passes at every land · check: `node skills/_shared/war-memory.mjs lint docs/learnings/` exits 0 and prints `lint: clean` (guardrail)
+  30. Each Vale task meets the ruled floor: every touched file's count after ≤ before, the family total down by at least 30 % or each unresolved finding listed by rule with its freeze reason, and no frozen literal changed · HARD at audit_sha (observable: the before/after `vale --config hooks/vale-md/.vale.ini --output=line <file> | wc -l` counts in the task's done report, re-run by the seat; judge: the plan-faithfulness seat)
+  31. `schemas.md` describes every sibling hand-off field present at the T3.5 base, and names each absent one in the commit body · HARD at audit_sha (observable: `grep -c` of each field in `workflow-template.js` and `schemas.md`; judge: the correctness seat)
+  32. The four version slots agree at the next free patch · check: `node --test skills/war/assets/version-slots.test.mjs` prints `ℹ fail 0` (the bump itself is read by the T5.1 audit)
+  33. The first ADR edit a later plan lands follows the living-ADR form · backstop: row 1
+  34. The checklist's `GATE_LOG_UNTHREADED` copy equals the engine literal by extraction · gate: `node --test skills/war/assets/workflow-template.engine-1.test.mjs` prints `ℹ fail 0` and lists a `checklist-unthreaded-marker-equals-engine` test as ok (red at base: no such test)
+  35. The ace label, handoff `asks` keys and citation keys in `schemas.md` equal the engine by extraction · gate: `node --test skills/war/assets/skill-doc-contracts.test.mjs` prints `ℹ fail 0` and lists `engine-fact-pin — ace label`, `engine-fact-pin — handoff asks keys` and `engine-fact-pin — citation keys` as ok (red at base: no such tests)
+  36. No ADR opens a paragraph with a bold dated amendment run-in · check: `grep -lE '^\*\*(Amended|Amendment|Addendum|Correction)' docs/adr/0*.md | wc -l` prints `0` (red at base: 5)
+  37. ADR 0002 no longer overclaims the query-log anchor · check: `grep -c 'cannot log outside a memory root' docs/adr/0002-scope-by-agent-type.md` prints `0` (red at base: 1)
+  38. The checklist `pin_status` bullet and the gate-audit prompt both carry the arm (d) phrase and say the state is expected, bound to the script by extraction · gate: `node --test skills/war/assets/workflow-template.engine-1.test.mjs` prints `ℹ fail 0` and lists a `stale-mismatch-arm-d-expected-after-later-merge` test as ok (red at base: no such test; `grep -c 'changed since the gate ran' skills/war/references/gate-audit-checklist.md skills/war/assets/workflow-template.js` prints 0 and 0)
+  39. `run-manifest.md` names the per-phase `tasks` key and its task-status enum and never a `taskStatuses` key · gate: `node --test skills/war/assets/skill-doc-contracts.test.mjs` prints `ℹ fail 0` and lists a `manifest-tasks-key-and-enum` test as ok (red at base: no such test; `` grep -c '`tasks`' skills/war/references/run-manifest.md `` prints 0)
+  40. The Gate-2 copy step holds a stale local copy, and the reference, ADR 0022 and the glossary all say so, bound by extraction · gate: `node --test skills/war/assets/skill-doc-contracts.test.mjs` prints `ℹ fail 0` and lists a `gate2-promotion-staleness-compare` test as ok (red at base: no such test; `grep -c 'stale-local' skills/war/references/learnings-publication.md docs/adr/0022-servitor-local-root-writes-gate-2-promotion.md GLOSSARY.md` prints 0, 0 and 0)
+  41. The tighten report names the projection and step 4 re-plans before the swap · gate: `node --test skills/lessons-learned/lessons-learned-doc-contract.test.mjs` prints `ℹ fail 0` and lists a `tighten-report-names-projected-bytes` test as ok (red at base: no such test; `grep -c projectedBytes skills/lessons-learned/references/tighten.md` prints 1, in step 2 alone, and step 4 names no `tighten-plan`)
+
+## Build order (for /war)
+
+1. Phase 1 — Living-ADR law (T1.1).
+2. Phase 2 — Living-ADR migration (T2.1). Phase edge: the fold cites T1.1's law.
+3. Phase 3 — Doc truth (wave 1: T3.2, T3.3, T3.4, T3.6; wave 2: T3.5 with deps on T3.3, T3.4; the former T3.1 is folded into T3.5). Phase edge: T3.3 edits folded ADRs.
+4. Phase 4 — Vale prose pass (T4.1–T4.6, one wave, file-disjoint). Phase edge: it must see Phase 3's text.
+5. Phase 5 — Release (T5.1).
+
+## Phase 1 — Living-ADR law
+
+### Task 1.1: The meta-ADR, its terms and its binding test
+- Files: `docs/adr/00NN-living-adrs-git-is-the-archive.md`, `skills/war/references/glossary-cold.md`, `GLOSSARY.md`, `skills/war/assets/skill-doc-contracts.test.mjs`
+- Plan slice: (PIN-2, PIN-23, PIN-27; End states 1, 2) Create the meta-ADR at the next free number at land time (`00NN` is a placeholder; read `ls docs/adr/` at the rebased base). Its `## Decision` states the D2 law row by row: an ADR body carries current law and is rewritten in place; git is the archive; every ADR keeps a `## Decision log` whose lines read `- YYYY-MM-DD · <what flipped> · <driving issue>` and, when the line retires text, `· retired: docs/adr/<file> @ <sha>`; the `retired:` sha is the commit that introduced the retired text, found as the oldest hit of `git log --reverse -S'<retired literal>' --format=%h -- <file> | head -1` (old PIN-26); the three citation forms — bare (`ADR 0013`) means current law, dated (`ADR 0013 (2026-08-25)` or `ADR 0013 amendment 2026-08-25`) resolves to that date's Decision-log line, sha-pinned (`docs/adr/<file> @ <sha>`) means the file at that commit (old PIN-2); the policy-lifecycle versus record boundary with the two surface lists in D2 (old PIN-28, OD-1); retired literals are asserted absent on every policy home, ADRs included. It also states that a fold's Decision-log line carries the folded heading's date and title, so an older "ADR NNNN Amendment (YYYY-MM-DD)" citation resolves under the dated form (PIN-27). Its Consequences names the Phase 2 migration. It carries its own `## Decision log`. Add **Living ADR**, **Decision log** and **Sha-pinned citation** to `glossary-cold.md`, and one GLOSSARY.md pointer row in the existing shape: `when you edit or cite an ADR, read skills/war/references/glossary-cold.md`. Add a `living-adr-terms` test that globs `docs/adr/*-living-adrs-git-is-the-archive.md`, asserts the glob matched exactly one file (`assert.equal(matches.length, 1)` — two meta-ADRs after a renumber race must red, not pass), extracts its `## Decision` section, asserts the section is non-empty (non-vacuity floor), and asserts each term name, each of the three citation-form names (bare, dated, sha-pinned), the `retired: docs/adr/<file> @ <sha>` form and the words `introduced` and `record` appear there, and each term name appears in `glossary-cold.md`. Re-measure GLOSSARY.md at the base; if the row would cross the hard line, evict the coldest whole entry byte-identically to `glossary-cold.md` (PIN-23).
+- Done when: `node --test skills/war/assets/skill-doc-contracts.test.mjs 2>&1 | grep -cE '^✔ living-adr-terms|ℹ fail 0'` prints `2`
+- requiresTest: true
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+## Phase 2 — Living-ADR migration
+
+### Task 2.1: Fold every dated section, add every Decision log, re-anchor every pin — one task, one branch
+- Files: `docs/adr/*.md`, `skills/war/assets/skill-doc-contracts.test.mjs`, `skills/war-machine/war-pipeline-structure.test.sh`, `skills/war/assets/doc-semantics.test.mjs`, `skills/war/assets/war-config.test.mjs`, `skills/war/assets/stage-workflow.test.mjs`
+- Plan slice: (PIN-3, PIN-5, PIN-6, PIN-27; End states 3–7) Use the old plan's D3 fold grammar, widened to every heading form the census found (Context F): each `## Amendment (…)`, `## Addendum (…)` and `## Correction (…)` H2 (the `— ` and `:` heading variants too), the `## Amendments` bullet containers (ADR 0028, ADR 0055 — each dated bullet folds as one amendment), the `### Amendment (2026-08-25)` H3 in ADR 0018, each `*Cross-reference (YYYY-MM-DD)*` line, each append-only supersession bullet, ADR 0037's append-only bullets and each `**Status:**` currency clause — folded into the body as current law. Each fold adds one Decision-log line in the D2 form (`- YYYY-MM-DD · <folded heading title> · <driving issue, from the heading or bullet when it names one> · retired: docs/adr/<file> @ <sha>`), where the sha is the commit that INTRODUCED the folded text: the oldest hit of `git log --reverse -S'<a literal from the folded text>' --format=%h -- <file> | head -1` (old PIN-26; never the commit that last held it). ADR 0013: the Channel-2 deferral becomes current law (enacted in Decision 4), which closes #2269; the trailing `## Amendment (2026-11-05)` after its Decision log folds the same way; folded sections get date-free H3 tokens the tests re-anchor to. ADR 0025: replace "Append-only, per this repo's ADR correction-note shape" with the living-ADR rule. ADR-to-ADR citations of a folded heading become sha-pinned citations. Every ADR without a Decision log gains one with the line "adopted under the living-ADR law". A fold restates current law; it never changes a decision. Re-anchor every test that extracts by an amendment token, and remove every ADR exemption that rests on "append-only law" (D43 and its siblings), so the OLD-absent guards cover ADR 0013 too. Floor: `grep -nE 'Amendment \(|Addendum \(|Correction \(|append-only|Amendments' skills/war/assets/*.test.mjs skills/*/*.test.sh skills/*/assets/*.test.sh hooks/*.test.sh`, and handle every match (at conversion: 29 hits in `skill-doc-contracts.test.mjs`, 2 in `war-pipeline-structure.test.sh`, 0 in the other six files that name `docs/adr`). Manual same-scope survey required: after the grep, hand-scan the target file's same-scope tests and comments for same-meaning siblings worded differently, and list each straggler as a survey-derived correction (known at conversion: the `pre-existing body text above` row and the comments beside D43 in `skill-doc-contracts.test.mjs`; the ES18 rows in `doc-semantics.test.mjs`). Add a guard row in `skill-doc-contracts.test.mjs`: no `docs/adr/0*.md` carries a heading matching `^#{2,} (Amendment|Addendum|Correction)s?\b` at any level, and every ADR carries `## Decision log`, with a non-vacuity floor that the glob reads at least one ADR. The guard reads the whole corpus, so an ADR a later plan lands with a dated amendment reds it (A16; OD-1 ruled 2026-11-08: no exemption). The inline form folds too (End state 36): the bold `**Amended YYYY-MM-DD …**` run-in paragraphs in ADRs 0013, 0019, 0021, 0023 and 0056 and ADR 0056's `(2026-11-05 amendment, …)` parenthetical each fold as one amendment with its Decision-log line, and the guard row also asserts that no `docs/adr/0*.md` line matches `^\*\*(Amended|Amendment|Addendum|Correction)` (verified: DocTrail WorkAuditRefine/reports/2026-11-05-issue-2544-zero-in-seat-data/seat-reports/2619-r2-plan-faithfulness-sonnet.md; the grep census at 279a0d4a). When ADR 0002's `## Amendment (2026-10-27)` folds, the folded text says the server cannot log outside a path of the anchor's shape, as the `CHANGELOG.md` 0.21.20 entry says, not "outside a memory root" (End state 37; verified: DocTrail WorkAuditRefine/reports/2026-10-27-memory-query-mcp-tool-closeout/timeline.md, WAR 0.21.20). The branch may carry several commits; its tip must be green.
+- Done when: `node --test skills/war/assets/skill-doc-contracts.test.mjs skills/war/assets/doc-semantics.test.mjs skills/war/assets/war-config.test.mjs skills/war/assets/stage-workflow.test.mjs 2>&1 | grep -q '^ℹ fail 0' && bash skills/war-machine/war-pipeline-structure.test.sh >/dev/null && test "$(grep -lE '^#{2,} (Amendment|Addendum|Correction)s?\b' docs/adr/0*.md | wc -l)" -eq 0 && test -z "$(grep -L '^## Decision log' docs/adr/0*.md)" && grep -q 'retired: docs/adr/0013' docs/adr/0013-commanders-intent-and-disposition-routing.md && echo FOLD-OK` prints `FOLD-OK`
+- requiresTest: true
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+## Phase 3 — Doc truth
+
+(Task 3.1, `schemas.md` alone, was folded into Task 3.5 at revise: its rewrites red the D40 `schemas.md` pins
+— `asks: [ { task, seat, sha, question, fork } ]` and `/Three producers/i` — in `skill-doc-contracts.test.mjs`,
+a file only Task 3.5 may own in this phase (rule 1). Wave 1 is T3.2, T3.3, T3.4 and T3.6.)
+
+### Task 3.2: Engine comments, cards and evicted references (the one engine owner)
+- Files: `skills/war/assets/workflow-template.js`, `agents/war-refiner.md`, `agents/war-auditor.md`, `agents/war-evidence-auditor.md`, `skills/war/references/refiner-recovery.md`, `skills/war/references/gate-audit-checklist.md`, `skills/war/assets/workflow-template.engine-1.test.mjs`, `skills/war/assets/workflow-template.recovery.test.mjs`, `skills/war/assets/workflow-template.test-harness.mjs`
+- Plan slice: (PIN-13 card half, PIN-14, PIN-15, PIN-16, PIN-17, PIN-18 card half, PIN-19 test, PIN-28, PIN-31; End states 12–16, 38) Issues #2176, #2178, #2206 (card), #2243, #2254, #2255, #2347 (test), #2557 (cards and prompt twin), #2660 (engine, test and harness items), #2136 (the `citationOf` comment), #2681 (the `pin_status` bullet and its prompt twin). Read the touched-doc accuracy duty first (`skills/war/references/touched-doc-accuracy.md`). (a) Card: step 3 of § Post-merge evidence dispatch says the absent arm matches nothing, in the `PHASE DIFF` prompt's sense; the provision return line glosses `preMerged` as "proved integrated by `task-integrated.sh`, skipped". Grep `already-integrated` in `workflow-template.js` and fix the comment twin in the same commit (A6). Add a paired pin row beside the `file-followups paired pins` tests that reads the card line and the prompt clause and asserts "arm skips" absent on both. Measure the card at the base: net growth must be zero or less; if not, evict one cold card block byte-identically into `refiner-recovery.md` with a `when <trigger>, read …` pointer and extend the eviction header (PIN-28). (b) `refiner-recovery.md`: re-read the header at the base, then give it a `Post-eviction edits:` list (D15) that names every sanctioned edit to a moved block by block and clause — the `gate_segment` clause in the MergeResult parenthetical (#2178); the `cmd[i] exit: <n>` lines and maximum rule this task adds to endstate-check step 2 (D16); the § Reland discrimination D4 clause and land-confirm rule the engine-recovery plan wrote; any STATEMENT BOUNDARIES compound-command rule the engine-findings plan added to the endstate steps; and any further edit `git log -p` on the file shows since its eviction commits that the header does not yet disclose — with no count word, keeping `at eviction time`. The 617 B assert message in `workflow-template.recovery.test.mjs` names the same list; add a row asserting the header's `Post-eviction edits:` list is non-empty and names `gate_segment` and `cmd[i]`. Step 2 of § Land-barrier endstate-check steps gains the per-command `cmd[i] exit: <n>` lines and the maximum rule, merged with any boundary rule the engine-findings plan added there (A18). The `endstate-check dispatch card twin` registry row gains `cmd[i]` and `maximum` anchors. (c) `gate-audit-checklist.md`: the gate-log bullet gains the partial, unstamped and tip-mismatched arms and the live `GATE_LOG_UNTHREADED` text copied at the base (A17); the D8 bullet gains the `intake_lint:` and `cmd_bytes_mismatch:` record-only triggers and the per-command reading rule `agents/war-auditor.md` carries. Re-pin `GATE_AUDIT_CHECKLIST_SHA256` and the section byte count in the `auditor-evict (a)` test in the same commit; the commit body says why the evicted block changed. Add a `checklist-unthreaded-marker-equals-engine` test in `workflow-template.engine-1.test.mjs` (D30 (1)): extract the ``const GATE_LOG_UNTHREADED = pt`…` `` literal from the harness `src` with the `ptConst` regex shape, assert the match (non-vacuity), and assert `gate-audit-checklist.md` contains the literal verbatim — so a later constant change reds this row, not only the SHA pin. (d) Posture (PIN-18): one sentence in `agents/war-auditor.md`, in `agents/war-evidence-auditor.md` and in `auditPrompt` (the roster builder both cards twin; the evidence seat rides it with `agentType === 'war-evidence-auditor'` — not the gate-audit-family builders), all in one commit, containing "holds the phase on purpose" and the seat lever: a Critical/Major with a blank `suggested_fix` that a peer seat disputes parks a seat-conflict ask and holds the phase on purpose, so give a `suggested_fix` whenever one exists (A19); add a row to the D3 both-surfaces directive registry that reads the card sentence and the `auditPrompt` sentence. (e) PIN-19: add an `ace-subset-trailer-is-not-a-footprint` test in `workflow-template.engine-1.test.mjs` asserting that, outside `pt` prompt literals, no engine code reads an `Ace-Subset` trailer value, and that `aceScope`, `recordAcedTouched` and `aceScopeClause` read `ace_diff_files`; a non-vacuity floor asserts the two `const trailer =` builds are found. (f) #2660 items: the `citationOf` "three producers" comment, the intake default-deny census test title, the `CITE_ARGS` comment wrap, and any of the `#3f55b04`, `throughRound`, `drainCauseOf` and `queuedFindingRow` comments still wrong at the base. Re-read each first; record each already-fixed item in the commit body. Floor: `grep -n 'three producers\|#3f55b04\|chainRecordFix runs before\|both sit outside any local try' skills/war/assets/workflow-template.js`, and handle every match. Manual same-scope survey required: after the grep, hand-scan the target file's same-scope tests and comments for same-meaning siblings worded differently, and list each straggler as a survey-derived correction. (g) PIN-31 (#2681): in the same commit as (c), the checklist `pin_status` bullet gains one sentence: a `STALE-MISMATCH` whose `pin_evidence` reads `mapped file(s) changed since the gate ran` (arm (d) of `gate-pin-status.sh`) is the expected state once a later merge in the same phase touched a mapped file; record the SOFT note and raise no finding on the stale pin itself. Its dispatched twin is the `STALE-MISMATCH / ERROR / an absent pin-status token ⇒` clause of the `POST-MERGE GATE-AUDIT` prompt in `workflow-template.js`; it gains one clause of the same meaning, at most 160 B, in the same commit (both-surfaces rule). Engine growth is noted against the arm (p) staged cap in `stage-workflow.test.mjs` (459 B of room at 279a0d4a; re-measure at the base with `node --test skills/war/assets/stage-workflow.test.mjs`); if the clause does not fit, see A20. Add a `stale-mismatch-arm-d-expected-after-later-merge` test in `workflow-template.engine-1.test.mjs`: extract the `printf 'mapped file(s) changed since the gate ran` phrase from `gate-pin-status.sh` (assert the match — non-vacuity), assert the checklist `pin_status` bullet and the gate-audit prompt literal in the harness `src` both contain the phrase, and assert the bullet contains `expected`. Prove it red before the fix commit: at 279a0d4a the checklist and the engine each grep 0 for the phrase. The SHA and byte re-pin of (c) covers this edit; the commit body names it.
+- Done when: `node --test skills/war/assets/workflow-template.engine-1.test.mjs skills/war/assets/workflow-template.recovery.test.mjs skills/war/assets/prompt-surface-budgets.test.mjs skills/war/assets/stage-workflow.test.mjs 2>&1 | grep -cE '^✔ ace-subset-trailer-is-not-a-footprint|^✔ checklist-unthreaded-marker-equals-engine|^✔ stale-mismatch-arm-d-expected-after-later-merge|ℹ fail 0'` prints `4`, and `grep -c 'that arm skips' agents/war-refiner.md` prints `0`
+- requiresTest: true
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 3.3: `design.md`, ADR 0013, ADR 0024, the land-decision header, disposition eligibility
+- Files: `skills/war/references/design.md`, `docs/adr/0013-commanders-intent-and-disposition-routing.md`, `docs/adr/0024-audit-gate-verdicts-integrated-tip-captured-evidence.md`, `skills/war/assets/land-decision.mjs`, `skills/war/references/disposition-eligibility.md`
+- Plan slice: (PIN-7, PIN-18 ADR and design half, PIN-21; End states 17–20) Issues #2283, #2664, #2284, #2557 (ADR 0013 and `design.md`), #2660 (design §18 and the eligibility items). `design.md` §18: replace the closing sentence with the D20 rule (only the `RELEASE_SLOT_FILES` basenames refuse by filename; README and CHANGELOG absorbs ride the per-task ace). §11: add the pre-ace probe carve-out in `skills/war/SKILL.md`'s PIN-3 wording. Add the posture sentence ("holds the phase on purpose"). ADR 0013 Decision 4: add the posture in place and a Decision-log line citing #2557. ADR 0024 §(C): rewrite in place per PIN-7 and add a Decision-log line naming ADR 0058. `land-decision.mjs` header: state the `gateHardOf` rule (an `escalate` verdict or a Critical/Major with a blank `suggested_fix` holds; a blocker with a fix goes to the late-fix pass) inside its first 20 lines; no code change. `disposition-eligibility.md`: an opener with no count word that points at the auditor card for widening (4); the README `## Status` / CHANGELOG twin-move rule in the release-slot blockquote, which is not an eviction (verified: the file header at 35aa4144). Paraphrase sweep (PIN-21): `grep -rniE "can.t merge|never merge|always hold|no approval" skills agents docs/adr README.md CLAUDE.md GLOSSARY.md --include='*.md'`, and handle every match in this task's files; at conversion the only always-hold hit in them is `design.md` §11. Manual same-scope survey required: after the grep, hand-scan the target file's same-scope tests and comments for same-meaning siblings worded differently, and list each straggler as a survey-derived correction.
+- Done when: None — prose and a header comment; End states 17–20 are grep checks, and Task 3.5 pins the posture and §18
+- requiresTest: false
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 3.4: Lead-facing and root surfaces
+- Files: `skills/war/SKILL.md`, `skills/war-room/SKILL.md`, `skills/war-strategy/references/fork-trials.md`, `README.md`, `CLAUDE.md`
+- Plan slice: (PIN-18 SKILL, README and CLAUDE.md half, PIN-21 check; End states 21–23) Issues #1759, #2138, #2557, #2660 (fork-trials item). `skills/war-room/SKILL.md`: add the leading-star qualifier in plain text, "single-star tokens whose star is leading". `skills/war/SKILL.md`: add "+ `corroborators` (when non-empty)" to the Ask ruling gate row list and to the phase-report `asks parked` list, and add the posture clause ("holds the phase on purpose") to the Ask ruling gate bullet; confirm the Invariants line still carries the PIN-3 carve-out (PIN-21). `fork-trials.md`: make the per-command cap paragraph host-neutral ("on a host without `timeout`, …"). `README.md` and `CLAUDE.md` Known traps: one posture sentence each. `CLAUDE.md` is a risky path: this slice names the edit, it fits the 477 B headroom at 35aa4144, and the ratified pointer line stays byte-identical. Re-measure `skills/war/SKILL.md` and `CLAUDE.md` at the base; neither may cross its hard line.
+- Done when: None — prose only; End states 21–23 and 27 are grep checks, and Task 3.5 pins the Checkpoint lists
+- requiresTest: false
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 3.5: `schemas.md` truth, glossary truth and the doc-truth pins (wave 2)
+- Files: `skills/war/references/schemas.md`, `GLOSSARY.md`, `skills/war/references/glossary-cold.md`, `skills/war/references/run-manifest.md`, `skills/war/references/learnings-publication.md`, `docs/adr/0022-servitor-local-root-writes-gate-2-promotion.md`, `skills/war/assets/skill-doc-contracts.test.mjs`
+- Plan slice: (PIN-8, PIN-9, PIN-10, PIN-11, PIN-12, PIN-13 `schemas.md` half, PIN-18 glossary half and pin, PIN-19 entry, PIN-23, PIN-25, PIN-26, PIN-30 (2)–(4), PIN-32, PIN-33; End states 8–11, 24–26, 31, 35, 39, 40) Issues #2136, #2137, #2139, #2175, #2206 (provision line), #2226, #2231, #2242, #2248, #2120, #2660 (citation item and the D20 release-slot test scope item), #2247, #2270, #2287, #2347 (entry), #2557, #2283 (pin), #2138 (pin), #2682 (the manifest `tasks` key), #2713 (the Gate-2 stale-local hold). **`learnings-publication.md` and ADR 0022 (PIN-33, #2713):** re-read the copy bullet of § Promotion steps at the base. Add the compare before the copy: for each same-slug pair, when `diff <repo-file> <local-file>` prints a `<` line (the repo copy carries text the local copy lacks) the local copy is **stale-local** — not promoted, kept in the local root, reported beside the lint-flagged files, never dropped; the Lead folds the repo-only text into the local copy by hand and re-runs. Otherwise the same-slug repo file is overwritten; keep the words `overwrite-on-promote` (the `#584` row in `war-config.test.mjs` reads them). The lint bullet's all-flagged arm reads "flagged or stale-local". Add a `Post-eviction edits:` sentence to the file header naming the copy bullet and #2713; keep `at eviction time`. Re-pin the § Promotion steps `bytes` and `sha256` in `PUBLICATION_EVICTIONS` in the same commit, with the reason in the commit body. ADR 0022 §(I): rewrite the overwrite-on-promote sentence in place to carry the stale-local hold and add a Decision-log line citing #2713 (living-ADR form; Phase 2 gave the ADR its `## Decision log`). Add a `gate2-promotion-staleness-compare` row in `skill-doc-contracts.test.mjs` beside the `learnings-publication-evict` rows: extract § Promotion steps with `publicationSection` (its heading assert is the non-vacuity floor), assert the section contains `stale-local` and `diff`, and assert `stale-local` appears in ADR 0022 §(I) and in the GLOSSARY **Promotion** entry. Prove it red before the fix commit: at 279a0d4a all three files grep 0 for `stale-local`. The servitor card and its dispatched twin are not touched (A24). **`run-manifest.md` (PIN-32, #2682):** re-read § When at the base. The on-phase-return bullet and the field-names paragraph name the per-phase key `` `tasks` `` and its value enum: the `ledger.json` task-status enum (`merged`, `escalated`, `blocked`, `env-blocked`), with the words `` never `landed` `` (`landed` is the `land` value), pointing at `schemas.md` § Run manifest for the shape; do not restate the `tasks` vs `land` bullet. Name `taskStatuses` nowhere. Before writing, grep `phases\[\]\.tasks` in `skills/war-review/SKILL.md` (A21); if the review reads another key, stop and rule at Checkpoint. Add a `manifest-tasks-key-and-enum` row in `skill-doc-contracts.test.mjs`: extract the on-phase-return bullet from `run-manifest.md` § When by its H2 (assert the match — non-vacuity), assert it contains `` `tasks` ``, `merged` and `` never `landed` ``, assert `taskStatuses` is absent from `run-manifest.md` and `schemas.md`, and assert the `schemas.md` `tasks` vs `land` bullet names `merged`. Prove it red before the fix commit: at 279a0d4a `run-manifest.md` greps 0 for `` `tasks` ``. The Relaunch phrases in § Relaunch are not touched. **`schemas.md` (the former Task 3.1):** re-read each construct at the base first. Apply D9–D13 as the design tree states, and re-pin the D40 rows the edits red (`asks: [ { task, seat, sha, question, fork } ]` → the D9 list; `/Three producers/i` → the member-naming paragraph) in the same commit. The ace label row names `ace:<site>:<task>:a<n>` and leaves `ace-gate:` as is. The Relaunch bullet keeps one definition sentence and the pointer to `run-manifest.md` § Relaunch, and drops the three rules (no "sums dispatch counts"). Drop the count words in the adjudications paragraph and the args contract and name the members. Floor: `grep -niE '\b(two|three|four|five)\b (producers|seats|widenings|homes|sites)' skills/war/references/schemas.md`, and handle every match. Manual same-scope survey required: after the grep, hand-scan the target file's same-scope tests and comments for same-meaning siblings worded differently, and list each straggler as a survey-derived correction. Rewrite both "defined here, produced once … reads it" clauses and the "absent until" clause in the present tense. Floor: `grep -n 'until then\|produced once\|not yet produced\|absent until' skills/war/references/schemas.md`, and handle every match. Manual same-scope survey required: after the grep, hand-scan the target file's same-scope tests and comments for same-meaning siblings worded differently, and list each straggler as a survey-derived correction. Add the approve trail (`sweepApproved`: a panel-approved, unmerged polish queue demotes to follow-up on any phase) to the `finalPhase` and `carriedPhaseClose` rows, using the words "approve trail". Floor: `grep -n 'non-final phase\|carriedPhaseClose' skills/war/references/schemas.md`, and handle every match. Manual same-scope survey required: after the grep, hand-scan the target file's same-scope tests and comments for same-meaning siblings worded differently, and list each straggler as a survey-derived correction. PIN-25: for each of `git_error`, `integrationTip`, `savedWork`, `refinery`, `dispatchFailures`, `workflowError.stage`, `notes[].rounds` and `reconciled:aced-later`, grep `skills/war/assets/workflow-template.js` at the base; write a row (pointing at the engine construct as canonical) for each one present and name each absent one in the commit body. **Glossary:** **Carried queue**, **Phase-close coherence sweep**, **Re-entry**: add the approve trail (`sweepApproved`) using the words "approve trail", and update the `terminal-pass-term` `assert.match` rows in the same commit; **Sweep-raised finding** stays as it is. **Ask disposition** and **asks[] channel**: name the engine-made seat-conflict ask as a second producer whose source findings are blocking. **Disposition**: delete the release-slot-adjacent route and state the D20 rule in its place, using the words "refuse by filename" (only the `RELEASE_SLOT_FILES` basenames refuse by filename; README and CHANGELOG absorbs ride the per-task ace). Floor: `grep -n 'release-slot-adjacent' GLOSSARY.md skills/war/references/glossary-cold.md`, and handle every match. Manual same-scope survey required: after the grep, hand-scan the target file's same-scope tests and comments for same-meaning siblings worded differently, and list each straggler as a survey-derived correction. **Ace-Subset trailer**: one sentence (the value is the subset findings' file set, a resume key, never the commit's footprint; read the footprint from `ace_diff_files` or `git diff --name-only <sha>^ <sha>`) and one _Avoid_ item (deriving scope from it). **Seat-conflict ask**: the posture sentence ("holds the phase on purpose"). **Promotion**: the "overwritten on recurrence" parenthetical gains the hold — unless the repo copy carries text the local copy lacks, in which case the local copy is held as `stale-local`, never dropped (PIN-33). `glossary-cold.md` § Relaunch attempt: keep the definition, drop the three rules, point to `run-manifest.md` § Relaunch. PIN-26: add each engine-findings term absent at the base to `glossary-cold.md` behind a pointer row. New pin rows in `skill-doc-contracts.test.mjs`, each with a non-vacuity floor (its extraction is non-empty): the relaunch de-mirror (D8: the home phrases `Dispatch counts are summed across attempts`, ``overwrite `workflowRunId` + `transcriptDir` together`` and ``Archive the died attempt under `attempts[]` `` each present in `run-manifest.md` § Relaunch, extracted by its H2; `sums dispatch counts`, `summed across attempts` and `archives the died attempt` absent from the `schemas.md` Relaunch bullet and from `glossary-cold.md` § Relaunch attempt); `design.md` §18's OLD sentence absent and `RELEASE_SLOT_FILES` present in §18; `skills/war/SKILL.md` lists `corroborators` in both Checkpoint lists; the posture sentence present in GLOSSARY **Seat-conflict ask** and ADR 0013 Decision 4; the stale `schemas.md` literals (End state 8's five) absent; and the three D30 engine-fact rows, titled `engine-fact-pin — ace label`, `engine-fact-pin — handoff asks keys` and `engine-fact-pin — citation keys`, each extracting its construct from `workflowTemplateSrc` (`const aceLabel = …`, the `asks: asks.map(a => ({ … }))` projection, `citationOf`'s `return { row: threadedRow, … }`) and asserting the `schemas.md` row names the same keys or shape. Re-check the D20 release-slot test's scope per #2660. Fit the GLOSSARY.md hard line at the base; on overrun evict the coldest whole entry byte-identically to `glossary-cold.md` (PIN-23).
+- Done when: `node --test skills/war/assets/skill-doc-contracts.test.mjs skills/war/assets/prompt-surface-budgets.test.mjs 2>&1 | grep -cE '^✔ engine-fact-pin — (ace label|handoff asks keys|citation keys)|^✔ manifest-tasks-key-and-enum|^✔ gate2-promotion-staleness-compare|ℹ fail 0'` prints `6`, `grep -c 'approve trail' GLOSSARY.md` prints `3` or more, and `grep -cE 'Three producers|ace:<task>:a<n>|absent until then|A4 latitude|produced once' skills/war/references/schemas.md` prints `0`
+- requiresTest: true
+- requiresPackaging: false
+- deps: [3.3, 3.4]
+- target repo: superproject
+
+### Task 3.6: `tighten.md` projection truth (wave 1)
+- Files: `skills/lessons-learned/references/tighten.md`, `skills/lessons-learned/lessons-learned-doc-contract.test.mjs`
+- Plan slice: (PIN-34; End state 41) Issue #2714. Re-read steps 2, 4 and 5 at the base. Step 4 gains a first bullet, **Re-plan before the swap**: re-run the step-1 `tighten-plan` line read-only; when its `currentBytes` differs from the gated JSON's, lessons landed since the plan — recompute the projection as the new `currentBytes` minus the approved rows' `bytesFreed`, keep both figures for the report, and keep the approved set as it is (no second gate). Step 5 reports the gated `projectedBytes`, or the step-4 figure when the corpus moved, beside the after bytes; when the after bytes exceed it, name the gap and its cause — the step-4 `currentBytes` delta, or a refused archive (the exit-1 arm). The shortfall-vs-target block stays as written. The file header gains a `Post-eviction edits:` sentence naming steps 4 and 5 and #2714; the five-step order and the step-1 fence are not touched (the `(17)` OLD-absent row and the fence locks in `lessons-learned-doc-contract.test.mjs` read them — reintroduce none of its six retired phrases). Add a `tighten-report-names-projected-bytes` row in `lessons-learned-doc-contract.test.mjs`: extract step 4 (from `4. **Execute**` to `5. **Report.**`) and step 5 (from `5. **Report.**` to the end of the file), assert both are non-empty (non-vacuity), and assert step 5 matches `projectedBytes` and step 4 matches `tighten-plan` and `currentBytes`. Prove it red before the fix commit: at 279a0d4a `projectedBytes` appears once in the file, in step 2, and step 4 names no `tighten-plan`. The `war-memory.mjs` half is out of scope (Non-goals).
+- Done when: `node --test skills/lessons-learned/lessons-learned-doc-contract.test.mjs 2>&1 | grep -cE '^✔ tighten-report-names-projected-bytes|ℹ fail 0'` prints `2`
+- requiresTest: true
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+## Phase 4 — Vale prose pass
+
+Every Phase 4 task follows the same rules (PIN-22, PIN-29). Measure `before` per file at the rebased base with
+`vale --config hooks/vale-md/.vale.ini --output=line <file> | wc -l`; never use a count from this plan. Build the
+freeze list first. Floor: for each file in the task, extract every literal that `skills/**/*.test.mjs` and
+`**/*.test.sh` pin from it, plus every block the file's header declares a verbatim or byte-identical eviction,
+and leave those bytes as they are. Manual same-scope survey required: after the grep, hand-scan the target
+file's same-scope tests and comments for same-meaning siblings worded differently, and list each straggler as a
+survey-derived correction. Treat findings as prompts, not orders: mostly split sentences over 25 words and
+expand Latin abbreviations. Only shrink a budgeted surface; never reword a frozen literal (Pivotal constraint
+8). Run the full gate. The done report lists before and after per file, the family total, and each unresolved
+finding by rule with its freeze reason. Left out (PIN-29): `README.md`, `GLOSSARY.md`, `skills/war/SKILL.md`,
+`skills/war/references/schemas.md`, `skills/war/references/setup.md`, `agents/war-refiner.md`,
+`skills/red-team/SKILL.md`, `skills/red-team/references/lenses.md`, `skills/red-team/references/loop-budget.md`,
+`skills/war-strategy/SKILL.md`, `skills/war-strategy/references/fork-trials.md`,
+`skills/war-strategy/references/plan-interview.md`, `skills/war-strategy/references/strategy-verifier.md`,
+`skills/war-machine/SKILL.md`, `skills/war-review/SKILL.md`, `skills/war-room/SKILL.md`,
+`skills/survey-corps/SKILL.md`, `skills/lessons-learned/SKILL.md` (later chain plans edit them);
+`skills/war/references/refiner-recovery.md`, `skills/war/references/auditor-teach.md`,
+`skills/war/references/gate-audit-checklist.md`, `skills/war/references/budget-raise-floor.md`,
+`skills/war/references/disposition-eligibility.md` (pinned or mirrored eviction blocks); `hooks/reply-standard/*`,
+`hooks/vale-md/styles/*`, fixtures, `docs/studies/*` and the record dirs. Files under 4 findings at 365f3da2
+(`skills/snipe/SKILL.md`, `skills/war-help/SKILL.md`, `skills/war-campaign/references/add-resolution.md`,
+`skills/war-room/references/rea-setup.md`) get no task.
+
+### Task 4.1: Vale — root doc and agent cards
+- Files: `CLAUDE.md`, `agents/war-auditor.md`, `agents/war-worker.md`, `agents/war-servitor.md`, `agents/war-evidence-auditor.md`, `agents/war-setup-scout.md`, `docs/seed/README.md`
+- Plan slice: (PIN-22; End state 30) The Phase 4 rules above. `CLAUDE.md` is a risky path: this slice names the edit; the ratified `docs/learnings/` pointer line and every extraction heading stay byte-identical. `agents/war-worker.md` may only shrink.
+- Done when: None — advisory prose pass; End state 30 is judged at audit_sha and the repo gate runs
+- requiresTest: false
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 4.2: Vale — `/war` references, group A
+- Files: `skills/war/references/resume-and-recovery.md`, `skills/war/references/glossary-cold.md`, `skills/war/references/design.md`, `skills/war/references/backward-chain-examples.md`, `skills/war/references/backward-chain-fix.md`, `skills/war/references/staged-script.md`, `skills/war/references/learnings-publication.md`, `skills/war/references/backward-chain-audit.md`
+- Plan slice: (PIN-22; End state 30) The Phase 4 rules above. `glossary-cold.md` entries evicted from the glossary are frozen blocks. The two sha-pinned sections of `learnings-publication.md` are frozen (T3.5 re-pins them under PIN-33).
+- Done when: None — advisory prose pass; End state 30 is judged at audit_sha and the repo gate runs
+- requiresTest: false
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 4.3: Vale — `/war` references, group B
+- Files: `skills/war/references/worker-servitor-edges.md`, `skills/war/references/run-manifest.md`, `skills/war/references/retired-token-sweep.md`, `skills/war/references/finding-class.md`, `skills/war/references/file-followups.md`, `skills/war/references/gate-failure-classification.md`, `skills/war/references/docker-gate.md`, `skills/war/references/pin-transfer.md`
+- Plan slice: (PIN-22; End state 30) The Phase 4 rules above. `run-manifest.md` § Relaunch phrases pinned by Task 3.5 are frozen, and so is the § When on-phase-return bullet its `manifest-tasks-key-and-enum` row reads (PIN-32).
+- Done when: None — advisory prose pass; End state 30 is judged at audit_sha and the repo gate runs
+- requiresTest: false
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 4.4: Vale — `/war` references, group C
+- Files: `skills/war/references/late-defects.md`, `skills/war/references/merge-provenance.md`, `skills/war/references/gastown-design-params.md`, `skills/war/references/budget-rebaseline.md`, `skills/war/references/fix-round-doctrine.md`, `skills/war/references/artifact-evidence-lead.md`, `skills/war/references/touched-doc-accuracy.md`, `skills/war/references/sweep-exclusion.md`
+- Plan slice: (PIN-22; End state 30) The Phase 4 rules above.
+- Done when: None — advisory prose pass; End state 30 is judged at audit_sha and the repo gate runs
+- requiresTest: false
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 4.5: Vale — remaining references
+- Files: `skills/war/references/submodule-flows.md`, `skills/war/references/backward-chain-worker.md`, `skills/war/references/late-fix-pass.md`, `skills/war/references/launch-identity.md`, `skills/war-strategy/references/backward-chain-plan.md`, `skills/war-strategy/references/artifact-evidence.md`, `skills/war-machine/references/afk-conversion.md`, `skills/war-room/references/vale-custom-interview.md`
+- Plan slice: (PIN-22; End state 30) The Phase 4 rules above.
+- Done when: None — advisory prose pass; End state 30 is judged at audit_sha and the repo gate runs
+- requiresTest: false
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 4.6: Vale — other skills
+- Files: `skills/aftermath/SKILL.md`, `skills/war-campaign/SKILL.md`, `skills/lessons-learned/references/seeding.md`, `skills/lessons-learned/references/tighten.md`, `skills/lessons-learned/references/migration.md`, `skills/red-team/references/backstop-legitimacy.md`, `skills/zero-in/SKILL.md`
+- Plan slice: (PIN-22; End state 30) The Phase 4 rules above. `tighten.md` carries eviction blocks; they are frozen, and so are the step 4 and step 5 phrases T3.6 pins (PIN-34).
+- Done when: None — advisory prose pass; End state 30 is judged at audit_sha and the repo gate runs
+- requiresTest: false
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+## Phase 5 — Release
+
+### Task 5.1: Version bump
+- Files: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `README.md`, `CHANGELOG.md`
+- Plan slice: (PIN-24; End state 32) Bump all four slots to the next free patch above the live integration base at land time, per the `/war-strategy` §2 next-free-patch convention (`plugin.json` `version`, `marketplace.json` `metadata.version` and `plugins[0].version`, the README `## Status` line). The expected integration base is the landed tip of `docs/plans/2026-11-08-engine-comment-and-duplication-tidy.md`. Standalone fallback: a run of this plan through plain `/war` resolves the next free patch from the four slots itself. Replace the README `## Status` blurb in place and keep it a byte twin of the new CHANGELOG lead entry. The entry names the living-ADR law and the fold, the doc-truth fixes, the new pins and the Vale pass, and counts nothing it does not enumerate.
+- Done when: `node --test skills/war/assets/version-slots.test.mjs` prints `ℹ fail 0`
+- requiresTest: false
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+## Deferred validations (backstops)
+
+- (PIN-2) The first ADR edit a later plan lands after Phase 2 is an in-place rewrite with a Decision-log line, and any history citation it adds uses `docs/adr/<file> @ <sha>` · why deferred: the Phase 2 guard catches an amendment heading and a missing Decision log, but no test reads the citation form of a future edit · runner: the Lead reads the first landed ADR diff of `docs/plans/2026-11-08-pipeline-skills-and-memory-tooling.md` or `docs/plans/2026-11-08-shell-floors-tests-and-lint.md` (both edit ADR 0044), at that land. Known at revise, settled at finalize: the pipeline-skills plan as first drafted (PIN-24, PIN-25, End state 5) appended dated `## Amendment` sections to ADR 0045 and ADR 0044 and grepped for the heading, which would have redded this plan's guard row. The Operator ruling 2026-11-08 (OD-1, option 1) has that plan use the living-ADR form instead, so this row's Lead read is the remaining check. The shell-floors plan's ADR edits are already in-place Decision-log lines (A16).
+
+## Notes / conscious deviations
+
+- End state 8 adds `produced once` to the spec's V6 grep: the spec's own "produced once … absent until then" text is two separate phrases in the file, and V6's `absent until then` alone misses the `followUps` and `asks` rows.
+- End state 13's token is `✔ surface budget — agents/war-refiner.md`, not the spec's `budget: agents/war-refiner.md`, which the suite never prints (verified: suite output at 365f3da2).
+- End state 15 of the spec (V15, the `mergeSeat` fixture) is dropped with PIN-20; End state 31 and 33 are added.
+- End state 24 reads both glossary files, wider than the spec's V23.
+- Task 2.1 adds `doc-semantics.test.mjs`, `war-config.test.mjs` and `stage-workflow.test.mjs` to the spec's Files: each reads ADR text (Context F). `skills/war-strategy/war-strategy-structure.test.sh` is dropped: it pins no folded token (verified: `grep -c` prints 0 at 35aa4144).
+- PIN-28 puts any refiner-card eviction in Task 3.2, not a separate task: the card and `refiner-recovery.md` are both Task 3.2 files, so a separate task would break file-disjointness.
+- PIN-22 adopts the old plan's ruled 30 % floor over the spec's recorded-count default (A13).
+- Phase 4 is fixed at conversion from a census at 365f3da2 (PIN-29), not at the phase base as the spec says; the counts are re-measured at the base.
+- Downstream plans (pipeline-skills, shell-floors) edit ADRs 0044, 0045 and 0006, 0021, 0044 against pre-fold text (A16); their workers re-read at base. A new ADR they land must carry a `## Decision log`, or the Phase 2 guard reds. The shell-floors form (in-place Decision-log lines) fits the law; the pipeline-skills plan's first-draft form (dated `## Amendment` sections, grepped by its End state 5) did not, and the Operator ruling 2026-11-08 (OD-1) moved it to the living-ADR form.
+- Fact trials: none qualified; the sweep was replaced by checkout greps (see Trials run).
+- The drafter is write-scoped to this file, so the fork-trials usage comment on #2436 is left for the Lead.
+- No issue was unreachable.
+- Revise-seat decisions (grill findings answered from the tree; `/red-team` ratifies):
+  - P1 → Task 3.1 folded into Task 3.5 (wave 2, `deps: [3.3, 3.4]`): the `schemas.md` rewrites red the D40 pins, and `skill-doc-contracts.test.mjs` can have one owner per phase (rule 1; the old plan's PIN-25 says the same). Not merged the other way, because every other 3.5 pin needs the same test file.
+  - P6 → D8 and the T3.5 pin name the exact home phrases, verified present in `run-manifest.md` § Relaunch; End state 26 gained the present half.
+  - P11 → D30: extraction-plus-equality rows for the four restated facts; the checklist marker row sits in `engine-1.test.mjs` (T3.2 owns it), the three `schemas.md` rows in `skill-doc-contracts.test.mjs` (T3.5); End states 34 and 35 added.
+  - P16 → D15 and T3.2(b): the header carries a `Post-eviction edits:` list, no count word, re-read at base, with the sibling plans' edits named; the assert message and a non-empty-list row follow it.
+  - P17 → End state 15 counts distinct tokens; End states 12, 17, 18, 24 and 26 each gained a present check on new text (`matches nothing`, `RELEASE_SLOT_FILES`, `widening (4)` plus a count-word-absent regex, `refuse by filename`, the run-manifest home phrase).
+  - P20 → Evidence rows for #2560 and #1914 added.
+  - P21 → D2, T1.1 and T2.1 now carry the old plan's rows (D1, PIN-2, PIN-26, PIN-28): the `retired:` sha is the INTRODUCING commit (oldest `git log --reverse -S` hit), the log line is `date · what flipped · driving issue · retired:`, the three citation forms and the OD-1 policy-lifecycle/record boundary are in the meta-ADR's Decision, and old D2's D43 precondition is stated as met at base (D3, Context F).
+  - P22 → kept both auditor cards (#2557 names them as missing homes) with `auditPrompt` as the one dispatched twin (the evidence seat rides it; the gate-audit-family seats never raise a seat conflict); the sentence carries a seat lever (A19: a blank `suggested_fix` is what parks the ask). End state 27 stays at 8.
+  - P23 → the `living-adr-terms` test asserts the slug glob matched exactly one file.
+  - P12, P19 → Context F census corrected (30 files by the trailing-space regex, 32 by the widened one, 67 headings; eight test files name `docs/adr`, two pin folded tokens); End state 3 reads 32 at base.
+  - P3 → A15's check now says what T2.1's Done-when does (one `retired:` presence grep), not a count.
+  - X2 → the fold grammar, the guard row, End state 3 and the T2.1 Done-when widened to `^#{2,} (Amendment|Addendum|Correction)s?\b`, covering the `## Amendments` containers in ADR 0028 and ADR 0055 and the H3 in ADR 0018.
+  - X1 → not self-decided; raised as OD-1, ruled 2026-11-08 (see the Operator ruling bullet above).
+- Evidence fold 2026-11-08: End states 36 and 37 were appended from survey rows (the bold `**Amended …**` inline form the heading census missed, and ADR 0002's "memory root" overclaim); both are Task 2.1 work and the operator re-confirms the intent. Two residuals outside any task's construct went to Non-goals for filing. No plan claim was refuted.
+- Claimed 2026-11-08 (operator ruling: survey-derived residuals are campaign work): #2681 (PIN-31, T3.2, End state 38), #2682 (PIN-32, T3.5 with `run-manifest.md` added to its Files, End state 39); rerouted: none; kept deferred: none. Both fixes live in files this plan already owns (`gate-audit-checklist.md`, `workflow-template.js` and `engine-1.test.mjs` in T3.2; `run-manifest.md` was a T4.3 Vale file and is now also a T3.5 file, a different phase, so Phase 3 stays file-disjoint). The three sibling plans that also edit `run-manifest.md` (auditor-and-worker-guard-habits, engine-recovery, model-routing) land before this plan in chain order; T3.5 re-reads § When at its base.
+- Claimed 2026-11-08 by reroute from pipeline-skills-and-memory-tooling: #2713 (PIN-33, T3.5 with `learnings-publication.md` and ADR 0022 added to its Files, End state 40, A22, A24), #2714 (PIN-34, new Task 3.6 in Phase 3 wave 1 owning `tighten.md` and `lessons-learned-doc-contract.test.mjs`, End state 41, A23). #2713 sits in T3.5 and not in a task of its own because the § Promotion steps sha pin lives in `skill-doc-contracts.test.mjs`, which only T3.5 owns in Phase 3 (rule 1). No other Phase 3 task owns any file T3.5 or T3.6 gained; both references stay in their Phase 4 Vale tasks (T4.2, T4.6), a different phase, where the pinned text is frozen. Budgets: no card, no engine file and no `CLAUDE.md` change, so the staged-template cap (459 B of room at 279a0d4a) and the card budgets are untouched; the GLOSSARY **Promotion** clause rides T3.5's PIN-23 headroom rule (455 B at 279a0d4a).
+- Operator ruling 2026-11-08: OD-1 resolved as option 1. The sibling plan `docs/plans/2026-11-08-pipeline-skills-and-memory-tooling.md` records its ADR 0044 and ADR 0045 decisions in the living-ADR form — an in-place edit plus one dated `## Decision log` line, never a dated `## Amendment` heading; another seat verifies that plan now. This plan's Phase 2 guard row and End state 3 stay as written, with no exemption for ADR 0044 or ADR 0045. Backstop row 1 keeps its Lead read of the first ADR diff that plan lands.
+
+## Open decisions
+
+None — OD-1 was resolved by operator ruling 2026-11-08 (option 1; see Notes / conscious deviations).
