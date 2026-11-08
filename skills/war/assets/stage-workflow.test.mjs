@@ -1317,13 +1317,16 @@ test('(t) every write leaves a matching sidecar', () => {
   const runs = [
     [tpl, dir, 'slug', '1'], // fresh stage
     [tpl, dir, 'slug', '1', '--force'], // --force over a clean stage
-    [withTail, dir, 'slug', '2', '--args', writeArgs(dir, { a: 1 })], // fresh --args stage
-    [withTail, dir, 'slug', '2', '--force', '--args', writeArgs(dir, { a: 2 })], // --force re-embed
+    // Each payload gets its own args file, so the fresh stage embeds { a: 1 } and only a real
+    // --force re-embed can make the phase-2 file read { a: 2 }.
+    [withTail, dir, 'slug', '2', '--args', writeArgs(scratch('stage-args1-'), { a: 1 })], // fresh --args stage
+    [withTail, dir, 'slug', '2', '--force', '--args', writeArgs(scratch('stage-args2-'), { a: 2 })], // --force re-embed
     [tpl, dir, 'slug', '3', DISCARD_FLAG], // --discard-injections with nothing there
   ]
-  for (const args of runs) {
+  for (const [i, args] of runs.entries()) {
     const p = runStager(args).stdout.trim()
     assert.equal(readFileSync(p + SIDECAR_SUFFIX, 'utf8'), sha256(readFileSync(p, 'utf8')) + '\n', `sidecar matches after: ${args.slice(2).join(' ')}`)
+    if (i === 2) assert.match(readFileSync(p, 'utf8'), /"a":1/, 'the fresh --args stage embedded the first args')
   }
   assert.match(readFileSync(join(dir, deriveName('slug', '2') + '.js'), 'utf8'), /"a":2/, 'the --force re-embed over a clean stage took the new args')
 })

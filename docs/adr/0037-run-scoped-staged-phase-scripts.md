@@ -157,7 +157,8 @@ sanctioned surface for both display identity and approved stage injection.**
   decision 3).** Breaks approved stage-injection survival and risks the replayed script drifting from
   what a journal was recorded against. Idempotent regeneration (same inputs ⇒ same bytes) was considered
   as a middle ground but still overwrites a hand-edited injection; write-if-absent is strictly safer, and
-  `--force` covers the one case idempotence was meant to serve — a deliberate propagation.
+  `--force` covers the one case idempotence was meant to serve — a deliberate propagation — for a
+  clean stage, and `--discard-injections` for a hand-edited one.
 - **One shared staged script per run, not per phase (rejected).** The harness titles by dispatched
   basename; a single shared script across a multi-phase plan would still render identically per phase,
   reproducing the exact defect this ADR fixes.

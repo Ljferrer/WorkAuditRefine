@@ -327,7 +327,8 @@ function main(argv) {
   const basename = deriveName(planSlug, phaseId, campaignOrdinal) + '.js'
   const stagedPath = path.resolve(stagedDir, basename)
 
-  // Write-if-absent: an existing staged file is the run's script — never clobber it without --force.
+  // Write-if-absent: an existing staged file is the run's script — never clobber it without --force,
+  // and --force itself refuses a file whose sidecar does not match.
   // It short-circuits BEFORE any --args processing, exactly as before; the only addition is one
   // stderr warning so an operator who believes they just re-embedded is told otherwise. Exit code and
   // stdout stay byte-unchanged — a resume re-running the same stage command sees an accurate,
