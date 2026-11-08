@@ -615,7 +615,7 @@ test('late-defect: route #2622 — a failed late-fix probe falls back to the ori
   const { out, calls, logs } = await runPhase(LF_SWEEP_ARGS(), lateReauditImpl(rows), failed)
   assert.equal(out.landDecision, 'landed')
   assert.equal(lfProbeCalls(calls).length, 1, 'the late-fix probe ran')
-  assert.ok(logs.some(l => /^p3-latefix-1: no late-fix probe, so task t1's probe judges in-diff\.$/.test(l)), 'the fallback is logged')
+  assert.ok(logs.some(l => /^p3-latefix-1: no late-fix probe, so task t1's probe, if any, judges in-diff\.$/.test(l)), 'the fallback is logged')
   assert.equal(noteOf(out, 'lf only note').length, 1, 'today\'s route: a late-fix-only file is out of diff, so the note stays a note')
   assert.ok(polishPromptOf(calls).includes('lf origin note'), 'today\'s route: an origin-file note is in diff and absorbs')
   // Red proof by mutation: an empty set in place of the fallback puts the origin file out of diff.

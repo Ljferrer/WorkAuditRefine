@@ -369,12 +369,14 @@ const PIN_TRANSFER = { type: 'object', required: ['status'], properties: {
 // DIFF_PROBE_RESULT (in-band-absorb-default D4, PIN-6): the per-task (and per late-fix round, #2622)
 // `diff-probe` dispatch's
 // return — `diff_files`, the GIT-derived changed-file list of the task branch
-// (`git diff --name-only <dispatchBase>..<tip>` in the task worktree, one repo-relative path per
+// (`git diff --name-only <dispatchBase>...<tip>` in the task worktree, one repo-relative path per
 // entry), read by dispositionOf's engine default and the intake filing floor. Its OWN schema (the
 // PIN_TRANSFER precedent): no MergeResult status, HARD_ESCALATION_REASONS member, or
 // KNOWN_LAND_DECISIONS member changes. ALL fields optional (fail-open): a dead dispatch, a thrown
 // dispatch, or a return without a diff_files array leaves the probe ABSENT — logged — and the task
 // keeps the old severity default with the floor skipped (its filed rows carry demote:floor-skipped).
+// A failed late-fix round probe instead falls back to the origin task's probe, so the floor still
+// runs if the origin has one (#2622).
 // Worker files_changed is never the source (deterministic: git-derived only).
 const DIFF_PROBE_RESULT = { type: 'object', properties: {
   diff_files: { type: 'array', items: { type: 'string' } }, detail: { type: 'string' } } }
@@ -6851,7 +6853,7 @@ const lateFixPass = async () => {
       // The round's own Minor/Nit rows walk the shared ladder on BOTH the approve and the reject arm
       // (the ace re-audit precedent): the auditLog row above is a record, not a route (PIN-1).
       const lfDiff = await probeDiff(lfTask, ph.integrationBranch, w.head_sha)
-      if (!lfDiff) log(id + ': no late-fix probe, so task ' + origin.id + '\'s probe judges in-diff.')
+      if (!lfDiff) log(id + ': no late-fix probe, so task ' + origin.id + '\'s probe, if any, judges in-diff.')
       routeReauditMinors(lfRecord, seats, { noReentry: lfNoReentry, diff: lfDiff && new Set([...(diffFilesOf(origin) || []), ...lfDiff]) })
       if (!ok) {
         lfPrior = 'round ' + lfRound + ' at ' + w.head_sha + ' — the re-audit did not approve: ' + blockingOf(seats).map(b => '[' + b.severity + '] ' + (b.title ?? '') + (b.suggested_fix ? ' → ' + b.suggested_fix : '')).join('; ')
