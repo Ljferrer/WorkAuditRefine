@@ -6983,15 +6983,14 @@ const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e &&
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
   : 'held:nothing-merged'
-// Retryable-interruption visibility (#1411): when every escalation is soft-environment, say so —
-// concatenation-built (census-safe), never a routing change (the landDecision above is already computed).
-// Seed stamp (#2641, PIN-1): a seeded task's soft record carries its seed row with its seedId, and any
-// task's soft record carries the seed rows folded into its slice (foldedSeeds). At a landed phase's
-// relaunch the Lead threads only those rows, and the seedId keeps the seed's id and branch (a held
-// phase's relaunch keeps its own rows). Never a carriedTasks
-// row: the relaunch would run them twice.
 {
+  // Seed stamp (#2641, PIN-1): a seeded task's soft record carries its seed row with its seedId, and any
+  // task's soft record carries the seed rows folded into its slice (foldedSeeds). At a landed phase's
+  // relaunch the Lead threads only those rows, and the seedId keeps the seed's id and branch (a held
+  // phase's relaunch keeps its own rows). Never a carriedTasks row: the relaunch would run them twice.
   for (const e of escalated) { const t = e && SOFT_ENV_REASONS.includes(e.reason) && tasks.find(x => x.id === e.task); if (t && t.seed) e.seed = { ...t.seed, seedId: t.id }; if (t && t.foldedSeeds) e.foldedSeeds = t.foldedSeeds }
+  // Retryable-interruption visibility (#1411): when every escalation is soft-environment, say so —
+  // concatenation-built (census-safe), never a routing change (the landDecision above is already computed).
   const softEnvEscalated = escalated.filter(e => e && SOFT_ENV_REASONS.includes(e.reason))
   if (softEnvEscalated.length > 0 && !hardEscalation) {
     log('Phase ' + ph.id + ': ' + softEnvEscalated.length + ' soft environment escalation(s) [' + softEnvEscalated.map(e => e.reason + ':' + e.task).join(', ') + '] — a retryable interruption, never a hard escalation: '
