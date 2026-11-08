@@ -1520,12 +1520,12 @@ comment in code state and drops the leading indent of every top-level code line 
 residual recorded in the reference below), because the
 Workflow tool refuses a script over its 524,288-byte `scriptPath` cap and the shipped template alone
 crossed it at 0.21.11; a staged copy still over the cap after the strip exits non-zero naming both
-sizes and writes nothing, and a pre-existing staged file over the cap is refused with an error naming
-`--force` rather than reused. Full doctrine: `skills/war/references/staged-script.md`.
+sizes and writes nothing, and a pre-existing staged file over the cap is refused, naming
+`--discard-injections`, rather than reused. Full doctrine: `skills/war/references/staged-script.md`.
 **Write-if-absent**: an existing staged file *is* the run's script and is reused byte-untouched
 (approved stage injections and journal-replay identity survive the same-journal resume) — unless the existing file is over the `scriptPath` cap, which the stager refuses (the
-#2099 entry above); a deliberate `--force` overwrites it with a fresh, comment- and indent-stripped substitution
-from the shipped template. A fresh run or Recovery relaunch mints a new `runId` and stages
+#2099 entry above); a deliberate `--force` restage refuses unless the file's `<staged>.sha256` sidecar
+matches (override flag `--discard-injections`). A fresh run or Recovery relaunch mints a new `runId` and stages
 into its own directory per `skills/war/references/launch-identity.md`, including same-day retries.
 Retention is **manifest-equivalent** — kept, never reaped, doubling as dispatch provenance for
 `/war-review`. The **sole sanctioned home** for approved stage injection (superseding an edit to the
@@ -1536,6 +1536,14 @@ the harness renders the workflow-list title from the dispatched script's own bas
 shipped template to inject an approved stage (the staged copy is now the sanctioned home); treating a
 same-`runId` restage that reuses the existing file as a bug (same phase ⇒ same basename ⇒ benign reuse
 by construction).
+
+**Staged-script sidecar**:
+`<staged>.sha256`, the digest of a staged file's bytes, written on every stage. `--force` overwrites
+only a file whose sidecar matches; the override flag `--discard-injections` skips the check.
+
+**Provenance stamp**:
+The D4 stamp key `planFile` on an args row, which passes the #1413 own-token floor; the red-team
+string form: `schemas.md`'s provenance-floor row.
 
 ### Memory
 
