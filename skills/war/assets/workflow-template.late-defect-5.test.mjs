@@ -309,6 +309,17 @@ test('late-defect: carry soft env — a relaunch threading only the stamped seed
   assert.ok(w, 'the relaunch mints the seed as seed-2, never seed-1')
   assert.ok(w.prompt.includes('war/wtprov-a/p4-seed-2') && w.prompt.includes(third.suggested_fix), 'its own branch and slice')
   assert.ok(!workerOf(relaunch.calls, 'seed-1'), 'no task reuses the merged seed-1 id')
+  // A seed with a folded row, threaded seed first: the folded row folds into the seed under its seedId.
+  const both = await runPhase(NEXT([ROW(), third, ROW({ file: 'src/b.js', title: 'folded defect', suggested_fix: 'fix the folded one' })], { finalPhase: false }), diesOn('seed-2'))
+  const e2 = softOf(both.out, 'seed-2')
+  assert.equal(e2 && e2.foldedSeeds && e2.foldedSeeds.length, 1, 'presence guard: seed-2 holds one folded row')
+  const rows = JSON.parse(JSON.stringify([e2.seed, ...e2.foldedSeeds]))
+  const re = await runPhase(NEXT(rows, { tasks: [], finalPhase: false }), defaultImpl)
+  assert.ok(workerOf(re.calls, 'seed-2').prompt.includes('fix the folded one'), 'the folded row folds into seed-2 again')
+  assert.ok(!re.calls.some(c => /^work:seed-1/.test(labelOf(c))), 'no task takes the merged seed-1 id')
+  // A suffixed seedId (the collision loop's form) passes the entry check and names the task.
+  const sfx = await runPhase(NEXT([ROW({ seedId: 'seed-1-1' })], { tasks: [], finalPhase: false }), defaultImpl)
+  assert.ok(workerOf(sfx.calls, 'seed-1-1'), 'a seed-1-1 seedId mints seed-1-1')
 })
 
 test('late-defect: carry soft env — a plain task soft escalation has no seed field', async () => {
@@ -347,15 +358,16 @@ test('late-defect: carry docs — schemas.md and the Lead runbook name the soft 
   const doc = name => readFileSync(new URL('../references/' + name, import.meta.url), 'utf8')
   const bullet = (schemasMd.match(/^- \*\*`escalated\[\]\.seed`\*\* and \*\*`escalated\[\]\.foldedSeeds`\*\*[^\n]*/m) || [''])[0]
   for (const rule of ['on each `SOFT_ENV_REASONS` record whose `task` names a phase task', 'the rows never re-carry on `carriedTasks[]`',
-    'the Lead threads only these rows as `args.seededTasks`, and the intake reuses `seedId`, so the seed keeps its `seed-<n>` id and branch'])
+    'the Lead threads only these rows as `args.seededTasks`, `seed` first, then `foldedSeeds` in order, and the intake reuses `seedId`, so the seed keeps its `seed-<n>` id and branch'])
     assert.ok(bullet.includes(rule), 'the escalated[] seed bullet states: ' + rule)
   // The stamp writes seedId, and the intake reuses it, so threading only the record's rows keeps the id.
   assert.ok(src.includes('e.seed = { ...t.seed, seedId: t.id }') && src.includes("let id = s.seedId || 'seed-'"), 'the stamp writes seedId and the intake reuses it')
   const carry = (doc('resume-and-recovery.md').match(/^- \*\*Task carry \(late-defects D9\/PIN-9\)\*\*[^\n]*/m) || [''])[0]
-  assert.ok(carry.includes('thread only those rows as `args.seededTasks`. The `seedId` on `seed` keeps the seed\'s id and branch. Never thread the launch\'s other rows, and never into `carriedTasks`.'), 'the Task carry bullet threads only the record rows')
+  assert.ok(carry.includes('thread only those rows as `args.seededTasks`, `seed` first. The `seedId` on `seed` keeps the seed\'s id and branch. Never thread the launch\'s other rows, and never into `carriedTasks`.'), 'the Task carry bullet threads only the record rows')
   assert.ok(doc('resume-and-recovery.md').includes('If the record carries `seed` or `foldedSeeds`, thread only those rows as `args.seededTasks`, per its Task carry bullet.'), 'the env-blocked arm points at the Task carry bullet')
   const ld = doc('late-defects.md')
-  for (const rule of ['When you relaunch that task, thread only those rows, verbatim, as the relaunch\'s `args.seededTasks`.',
+  for (const rule of ['When you relaunch that task, thread only those rows, verbatim, as the relaunch\'s `args.seededTasks`: `seed` first, then `foldedSeeds` in their order.',
+    'The engine names each seed by its row\'s `seedId` when it carries one, else `seed-<1-based row index>`',
     'Never thread the launch\'s other rows: a merged seed or a seed the cap rule carried would run again.', 'A seeded task needs no `args.tasks` entry, because its row mints it again.',
     'Never append a record\'s rows to `carriedTasks`, because the relaunch would run them twice.', 'On the relaunch of a held phase, the rule above already threads the held launch\'s own rows, so add no record rows.'])
     assert.ok(ld.includes(rule), 'late-defects.md states: ' + rule)

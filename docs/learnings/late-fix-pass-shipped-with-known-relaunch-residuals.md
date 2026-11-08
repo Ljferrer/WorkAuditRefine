@@ -81,7 +81,7 @@ The #2641 ruling resolved residual 7. Check the Checkpoint ruling before you cha
 By design: a final-phase seed hold names the seed id (`seed-1`), because the Lead rules on the task in this phase.
 A carried row keeps the first origin task through `carryTaskOf`, so a seed of a seed never re-keys onto an unrelated `seed-1`.
 
-Locate-cue (phase 6): verify still present before acting — the seed stamp loop `for (const e of escalated)` just above `const softEnvEscalated` the `owner.foldedSeeds` push in the seededTasks fold arm and the `let id = s.seedId ||` mint (all added by #2641, so found after c43cebee), the seeded `tasks.push({ id, title: 'carried defect: '` line with no `fixRounds`, and `const carryTaskOf` in `skills/war/assets/workflow-template.js`, found @ phase 6 integration tip c43cebee, the second parent of landed tip 66c0f263 (the run's `_refinery` worktree).
+Locate-cue (phase 6): verify still present before acting — the seed stamp loop `for (const e of escalated)` just above `const softEnvEscalated`, the `owner.foldedSeeds` push in the seededTasks fold arm and the `let id = s.seedId ||` mint (all added by #2641, so found after c43cebee), the seeded `tasks.push({ id, title: 'carried defect: '` line with no `fixRounds`, and `const carryTaskOf` in `skills/war/assets/workflow-template.js`, found @ phase 6 integration tip c43cebee, the second parent of landed tip 66c0f263 (the run's `_refinery` worktree).
 
 Also see [[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]] and [[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]].
 
