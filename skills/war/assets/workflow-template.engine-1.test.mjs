@@ -10651,7 +10651,7 @@ test('provenance floor: a token-less intent naming a foreign docs/plans identifi
   assert.equal(calls.length, 0, 'zero agents spawned')
 })
 
-test('provenance floor: own-token matching is word-boundary — a substring hit inside a larger word proves nothing', async () => {
+test('provenance floor: own-token matching is alphanumeric-boundary — a substring hit inside a larger word proves nothing', async () => {
   // 'wtprovision' CONTAINS 'wtprov' but a letter follows it, so no boundary — the recalibrated floor refuses.
   const args = PROVISION_ARGS({ intent: 'Improve the wtprovisioning subsystem throughput.' })
   const { out } = await runPhase(args, defaultImpl)
@@ -10660,10 +10660,10 @@ test('provenance floor: own-token matching is word-boundary — a substring hit 
     'the refusal lists the own tokens that failed to match')
 })
 
-test('provenance floor: a word-boundary own-token hit passes (case-insensitive)', async () => {
+test('provenance floor: an alphanumeric-boundary own-token hit passes (case-insensitive)', async () => {
   const args = PROVISION_ARGS({ intent: 'Deliver the WTPROV throttle end states without regressions.' })
   const { out } = await runPhase(args, defaultImpl)
-  assert.equal(out.landDecision, 'landed', `word-boundary token hit passes the floor — got ${out.landDecision}`)
+  assert.equal(out.landDecision, 'landed', `alphanumeric-boundary token hit passes the floor — got ${out.landDecision}`)
 })
 
 test('provenance floor: stoplist fallback logs and still fires', async () => {
