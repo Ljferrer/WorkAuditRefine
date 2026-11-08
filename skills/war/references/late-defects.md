@@ -59,4 +59,5 @@ Moved from the `**Terminal pass**` entry, after "it convenes with `run.ace` off 
 
 A seat-raised `behavior` absorb or note was raised
 after the late-fix pass: it carries as a `carriedTasks[]` row (non-final) or files `demote:terminal-pass`
-"raised after the late-fix pass" (final), never a hold (ADR 0012).
+"raised after the late-fix pass" (final), never a hold (ADR 0012). With no fix on a named file it parks
+as an ask instead (#2624).

@@ -6969,6 +6969,15 @@ const carryLate = (f, why) => {
   log('carriedTasks: "' + f.title + '" — ' + why + ' (PIN-21).')
   carriedTasks.push({ ...f, task: origin ? carryTaskOf(origin) : f.task, raisedTask: f.task, findingClass: 'behavior', fixRounds: origin ? spentOf(origin.fixRounds) : 0, ...(origin ? { roster: origin.roster } : {}), planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
 }
+// parkFixless (#2624, PIN-2): the polish and terminal arms skip intakeFloor, so a behavior row with no
+// file or a blank suggested_fix parks as an ask here, before carryLate or the final-phase demote.
+// Returns true when it parked the row.
+const parkFixless = (f, who) => {
+  if (typeof f.file === 'string' && f.file && !blankText(f.suggested_fix)) return false
+  log(who + ' REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" behavior row with no fix on a named file → ask (parked, PIN-2).')
+  parkAsk(f)
+  return true
+}
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
@@ -7178,12 +7187,13 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       auditLog.push({ task: polishTask.id, verdict: pDied ? 'env-died' : sweepApproved ? 'approve' : 'polish-rejected', findings: pSeats.flatMap(s => s.findings || []), requested: pExpected, returned: pSeats.length, ...(pDied ? { blocked: pDied } : {}) })
       // Behavior rows (late-defects D21, PIN-21): a polish-panel behavior row that is not an explicit ask
       // or follow-up was raised after the late-fix pass, so it leaves both arms below — carriedTasks
-      // (non-final) or filed (final). An ask still parks and a follow-up still files on those arms; a
+      // (non-final) or filed (final), or a parked ask with no fix on a named file (#2624). An ask still parks and a follow-up still files on those arms; a
       // re-mint still corroborates. The seat's own disposition is read, so the #1550 census is unchanged.
       sweepMinors = sweepMinors.filter(f => {
         if (f.findingClass !== 'behavior' || f.disposition === 'ask' || f.disposition === 'follow-up') return true
         const b = remintBlock(f)
         if (b) { log('phase-close sweep: re-mint of "' + f.title + '" — ' + b); corroborateSurvivor(f) }
+        else if (parkFixless(f, 'phase-close sweep')) {}
         else if (!finalPhase) carryLate(f, 'raised after the late-fix pass by the polish panel')
         else demote(f, 'follow-up', 'demote:sweep-discarded — raised after the late-fix pass (polish panel, final phase)')
         return false
@@ -7271,7 +7281,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // (final) — never a second pass. A fresh absorb the seat raises rides carriedPhaseClose on a
       // non-final phase and demotes demote:terminal-pass "raised on the terminal pass" on the final.
       // A seat-raised behavior absorb or note instead carries on carriedTasks (non-final) or files
-      // "raised after the late-fix pass" (final), late-defects PIN-21.
+      // "raised after the late-fix pass" (final), late-defects PIN-21. With no fix on a named file it
+      // parks as an ask instead (#2624).
       const terminalRows = []
       for (const f of terminalQueue) {
         if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless terminal-pass absorb takes the severity default (never ace-eligible)')
@@ -7298,7 +7309,9 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           if (d === 'ask') parkAsk(f)
           else if (b) { log('terminal pass: seat re-mint of "' + (f.title ?? '') + '" (task ' + polishTask.id + ') at ' + sha + ' — ' + b + '; not recorded again (logged, never silent).'); corroborateSurvivor(f) }
           else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f); log('terminal pass: seat-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped (no intake floor ran for the polish pseudo-task).') }
-          // A behavior absorb or note (late-defects D21, PIN-21) was raised after the late-fix pass.
+          // A behavior absorb or note (late-defects D21, PIN-21) was raised after the late-fix pass. With no
+          // fix on a named file it parks as an ask (#2624); otherwise it carries or files.
+          else if (f.findingClass === 'behavior' && parkFixless(f, 'terminal pass')) {}
           else if (f.findingClass === 'behavior' && !finalPhase) carryLate(f, 'raised after the late-fix pass by the terminal seat at ' + sha)
           else if (f.findingClass === 'behavior') demote(f, 'follow-up', 'demote:terminal-pass — raised after the late-fix pass (terminal seat at ' + sha + ', final phase)')
           else if (d === 'note') notes.push(f)

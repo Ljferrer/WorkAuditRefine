@@ -40,8 +40,8 @@ This ADR amends four ADRs by reference. Their text stays as written, and each re
   and classless rows only. Before the late-fix pass, every `behavior` row is sorted: a row on a
   stacked-owned or unowned file joins the pass, and a row on a parallel-owned, task-owned or release-slot
   file demotes with a stated reason. A `behavior` row first raised by the sweep or the terminal seat carries
-  on a non-final phase, or files "raised after the late-fix pass" on the final phase. The never-hold rule
-  for the sweep stands.
+  on a non-final phase, or files "raised after the late-fix pass" on the final phase. If that row has no
+  fix on a named file, it parks as an `ask` instead (#2624). The never-hold rule for the sweep stands.
 - [ADR 0013](0013-commanders-intent-and-disposition-routing.md): Decision 4's `note` ("never an issue")
   now holds for cosmetic and classless rows only. A `behavior` note never stays a note: with a fix on a
   named file it becomes `absorb`, else it parks as an `ask`. A behavior defect that the task adds stays a

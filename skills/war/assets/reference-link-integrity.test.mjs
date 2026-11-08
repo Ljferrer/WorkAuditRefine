@@ -770,7 +770,8 @@ test('late-defect: doctrine eviction — SKILL.md points at late-defects.md in t
   for (const [heading, bytes, digest, pointer] of [
     ['### Exclusion set — the behavior-row sort', 381, '9e8839092a447c4f40105329845ba3436932a478b19242c09f3d71949a4c6243',
       '`behavior` row never reaches this set: when sorting one, read skills/war/references/late-defects.md.'],
-    ['### Terminal pass — a seat-raised behavior row', 223, '97c36e9615d7e31041e10d2aa810cc720fa75f9536df59af0a03b47586e0f147',
+    // Re-pinned for #2624 (operator ruling 2026-11-08): the passage adds that a row with no fix on a named file parks as an ask.
+    ['### Terminal pass — a seat-raised behavior row', 287, '3ac4b382feacc3b65daf2ba0bf8ff22c1d6f17de3308ea977bdef2bae10c9142',
       'When a seat raises a `behavior` row,\nread skills/war/references/late-defects.md.'],
   ]) {
     const at = text.indexOf(`\n${heading}\n\n`);
