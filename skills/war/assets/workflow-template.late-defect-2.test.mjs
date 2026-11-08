@@ -11,6 +11,7 @@ import {
   src,
   schemasMd,
   refinerMd,
+  refinerRecoveryMd,
   runPhase,
   PROVISION_ARGS,
   defaultImpl,
@@ -601,7 +602,8 @@ test('late-defect: route #2622 — a preMerged origin has no probe, and the late
   assert.ok(polishPromptOf(calls).includes('lf bare follow-up'), 'it reroutes to absorb and rides the sweep')
 })
 
-test('late-defect: route #2622 — schemas.md names the late-fix round probe beside the per-task one', () => {
+test('late-defect: route #2622 — schemas.md and refiner-recovery.md name the late-fix round probe beside the per-task one', () => {
+  assert.match(refinerRecoveryMd, /## Diff probe\n[^]*?one \*\*`diff-probe:<late-fix id>`\*\* per round[^\n]*\(#2622\)/, 'the refiner § Diff probe names the late-fix probe')
   assert.match(schemasMd, /## DiffProbeResult[^\n]*per late-fix round, after its re-audit\)/, 'the heading names both sites')
   assert.match(schemasMd, /one `diff-probe:<late-fix id>` per round[^\n]*\(#2622\)/, 'the paragraph names the late-fix probe and the ruling')
   assert.ok(src.includes("await probeDiff(lfTask, ph.integrationBranch, w.head_sha)"), 'the engine dispatches the probe the docs describe')

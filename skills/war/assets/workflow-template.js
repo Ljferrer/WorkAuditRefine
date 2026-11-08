@@ -366,7 +366,8 @@ const PIN_TRANSFER = { type: 'object', required: ['status'], properties: {
   rebased_tip: { type: 'string' }, dispatch_base: { type: 'string' }, pre_rebase_patch_id: { type: 'string' }, post_rebase_patch_id: { type: 'string' },
   already_upstream_commits: { type: 'array' }, conflict_files: { type: 'array' }, detail: { type: 'string' } } }
 
-// DIFF_PROBE_RESULT (in-band-absorb-default D4, PIN-6): the per-task refiner `diff-probe` dispatch's
+// DIFF_PROBE_RESULT (in-band-absorb-default D4, PIN-6): the per-task (and per late-fix round, #2622)
+// `diff-probe` dispatch's
 // return — `diff_files`, the GIT-derived changed-file list of the task branch
 // (`git diff --name-only <dispatchBase>..<tip>` in the task worktree, one repo-relative path per
 // entry), read by dispositionOf's engine default and the intake filing floor. Its OWN schema (the

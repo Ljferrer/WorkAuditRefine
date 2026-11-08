@@ -640,7 +640,9 @@ function evictedSectionBody(text, heading) {
 }
 const EVICTED_2115 = [
   ['refiner-recovery.md § Diff probe', () => evictedSectionBody(refinerRecoveryText, '## Diff probe'),
-    876, 'bc2b1e25d68275932cdb36afaa7e13f0541cf61b7ca43acb2d778277fc47f0f5'],
+    // Re-pinned for #2622 (operator ruling 2026-11-08): the body names the late-fix round probe.
+    // Precedent: a46c4f09 re-pinned this row for ADR 0057.
+    1083, 'c68fa4aa271abc19e1824182ea42eb9840436b9a8c7103670047545285ac2bf5'],
   ['refiner-recovery.md § merge-task two-worktree split', () => evictedSectionBody(refinerRecoveryText, '## merge-task two-worktree split'),
     373, '2fe2c5679e6e35e823317680184ed17ce3110675fbc0cde0e78094243af085cf'],
   ['refiner-recovery.md § Submodule land arms routing tail', () => {
