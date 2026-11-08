@@ -11,6 +11,7 @@ import {
   src,
   schemasMd,
   refinerMd,
+  refinerRecoveryMd,
   runPhase,
   PROVISION_ARGS,
   defaultImpl,
@@ -544,7 +545,7 @@ test('late-defect: route — a rejected late-fix round routes its Minor/Nit rows
   assert.equal(noteOf(out, 'lf note').length, 1, 'the rejected round\'s note reaches notes')
   assert.ok(polishPromptOf(calls).includes('lf absorb'), 'the rejected round\'s absorb rides the sweep')
   // Red proof by mutation: the engine without the route call records the rows only in auditLog.
-  const call = 'routeReauditMinors(lfRecord, seats, { noReentry: lfNoReentry })'
+  const call = 'routeReauditMinors(lfRecord, seats, { noReentry: lfNoReentry, diff: lfDiff && new Set([...(diffFilesOf(origin) || []), ...lfDiff]) })'
   assert.ok(src.includes(call), 'the mutation target is the live route call')
   const mutated = await runPhase(LF_SWEEP_ARGS(), lateReauditImpl([[LF_ASK, LF_FOLLOW_UP, LF_NOTE, LF_ABSORB]]), PROBE, src.replace(call, ''))
   assert.equal(mutated.out.landDecision, 'landed', 'the mutant still lands, so a green land never proves the route')
@@ -564,6 +565,64 @@ test('late-defect: route — a preMerged origin task has no wave record, and the
   assert.equal(askOf(out, 'lf ask')[0].task, 't1')
   const filed = demotionOf(out, 'lf follow-up')
   assert.ok(filed && filed.task === 't1', 'the follow-up files under the preMerged origin')
+})
+
+// #2622 (operator ruling 2026-11-08): each late-fix round runs its own diff probe, and the re-audit
+// rows judge in-diff against the union of the origin's probe and the late-fix probe. A failed
+// late-fix probe falls back to the origin's probe alone. LF_PROBES answers the wave probe with the
+// origin's file and the late-fix probe (label diff-probe:p3-latefix-1) with `lf`.
+const LF_PROBES = lf => ({ 'diff-probe': (p, o) => o.label === 'diff-probe:p3-latefix-1' ? lf : { diff_files: ['src/a.js'] } })
+const LF_NOTE_FIX = (title, file) => lfRow({ title, file, severity: 'Nit', disposition: 'note', findingClass: 'cosmetic', suggested_fix: 'reword the line' })
+const lfProbeCalls = calls => calls.filter(c => c.opts.label === 'diff-probe:p3-latefix-1')
+
+test('late-defect: route #2622 — a late-fix round probes its own diff, so a note with a fix on a late-fix-only file is absorbed, and an origin-file note keeps its in-diff route', async () => {
+  const rows = [[LF_NOTE_FIX('lf only note', 'src/lf-only.js'), LF_NOTE_FIX('lf origin note', 'src/a.js')]]
+  const { out, calls, logs } = await runPhase(LF_SWEEP_ARGS(), lateReauditImpl(rows), LF_PROBES({ diff_files: ['./src/lf-only.js'] }))
+  assert.equal(out.landDecision, 'landed')
+  const probes = lfProbeCalls(calls)
+  assert.equal(probes.length, 1, 'one late-fix probe per late-fix round')
+  assert.match(probes[0].prompt, /git -C \S+\/p3-latefix-1 diff --name-only integration\/\S+\.\.\.abcdef1 /, 'the probe diffs the integration branch to the round head_sha in the late-fix worktree')
+  for (const t of ['lf only note', 'lf origin note']) {
+    assert.ok(polishPromptOf(calls).includes(t), `"${t}" rides the sweep as an absorb`)
+    assert.equal(noteOf(out, t).length, 0, `"${t}" does not stay a note`)
+  }
+  assert.ok(logs.some(l => /intake floor REROUTED: \[Nit\] "lf only note" \(task t1\)/.test(l)), 'the intake floor names the reroute')
+})
+
+test('late-defect: route #2622 — a preMerged origin has no probe, and the late-fix probe still lets a barrier-less follow-up reroute to absorb without floorSkipped', async () => {
+  const args = PROVISION_ARGS({ phase: ES_PHASE, tasks: [LATE_TASK()], audit: { roster: [{ lens: 'correctness' }] }, recovery: { sanctioned: true } })
+  const base = lateReauditImpl([[lfRow({ title: 'lf bare follow-up', disposition: 'follow-up', suggested_fix: 'drop the dead branch' })]])
+  const impl = (p, o) => o.dispatchKind === 'provision-barrier' ? { ok: true, preMerged: ['t1'] } : base(p, o)
+  const { out, calls } = await runPhase(args, impl, LF_PROBES({ diff_files: ['src/a.js'] }))
+  assert.equal(out.landDecision, 'landed')
+  assert.ok(!calls.some(c => c.opts.label === 'diff-probe:t1'), 'the preMerged origin ran no wave probe')
+  assert.equal(lfProbeCalls(calls).length, 1)
+  const filed = (out.minorsFiled || []).filter(m => m && m.title === 'lf bare follow-up')
+  assert.equal(filed.length, 0, 'the barrier-less follow-up is not filed')
+  assert.ok(polishPromptOf(calls).includes('lf bare follow-up'), 'it reroutes to absorb and rides the sweep')
+})
+
+test('late-defect: route #2622 — schemas.md and refiner-recovery.md name the late-fix round probe beside the per-task one', () => {
+  assert.match(refinerRecoveryMd, /## Diff probe\n[^]*?one \*\*`diff-probe:<late-fix id>`\*\* per round[^\n]*\(#2622\)/, 'the refiner § Diff probe names the late-fix probe')
+  assert.match(schemasMd, /## DiffProbeResult[^\n]*per late-fix round, after its re-audit\)/, 'the heading names both sites')
+  assert.match(schemasMd, /one `diff-probe:<late-fix id>` per round[^\n]*\(#2622\)/, 'the paragraph names the late-fix probe and the ruling')
+  assert.ok(src.includes("await probeDiff(lfTask, ph.integrationBranch, w.head_sha)"), 'the engine dispatches the probe the docs describe')
+})
+
+test('late-defect: route #2622 — a failed late-fix probe falls back to the origin probe, logged, and a mutant without the fallback reroutes wrong', async () => {
+  const rows = [[LF_NOTE_FIX('lf only note', 'src/lf-only.js'), LF_NOTE_FIX('lf origin note', 'src/a.js')]]
+  const failed = LF_PROBES({ detail: 'fatal: bad revision' })
+  const { out, calls, logs } = await runPhase(LF_SWEEP_ARGS(), lateReauditImpl(rows), failed)
+  assert.equal(out.landDecision, 'landed')
+  assert.equal(lfProbeCalls(calls).length, 1, 'the late-fix probe ran')
+  assert.ok(logs.some(l => /^p3-latefix-1: no late-fix probe, so task t1's probe, if any, judges in-diff\.$/.test(l)), 'the fallback is logged')
+  assert.equal(noteOf(out, 'lf only note').length, 1, 'today\'s route: a late-fix-only file is out of diff, so the note stays a note')
+  assert.ok(polishPromptOf(calls).includes('lf origin note'), 'today\'s route: an origin-file note is in diff and absorbs')
+  // Red proof by mutation: an empty set in place of the fallback puts the origin file out of diff.
+  const call = 'diff: lfDiff && new Set([...(diffFilesOf(origin) || []), ...lfDiff])'
+  assert.ok(src.includes(call), 'the mutation target is the live union')
+  const mutated = await runPhase(LF_SWEEP_ARGS(), lateReauditImpl(rows), failed, src.replace(call, 'diff: new Set(lfDiff || [])'))
+  assert.equal(noteOf(mutated.out, 'lf origin note').length, 1, 'without the fallback the origin-file note stays a note')
 })
 
 test('late-defect: hold — the docs name the pass, the hold, carriedTasks and the trailer, and point at land-decision.mjs for the reason list', () => {

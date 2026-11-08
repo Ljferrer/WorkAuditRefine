@@ -69,7 +69,7 @@ shared across the whole file's history, not reset per phase.
 > archived 2026-10-27: resolved — moved to archive
 
 **Update (2026-11-04, plan 2026-11-04-late-defects-fixed-in-run phase 1, code-verified).**
-The literal above is stale: `ARGS_HEADROOM_BYTES` is now `121856` (119 KiB) in `skills/war/assets/stage-workflow.test.mjs`.
+The literal above is stale: `ARGS_HEADROOM_BYTES` is now `119808` (117 KiB, #2622) in `skills/war/assets/stage-workflow.test.mjs`.
 The floor check `bytes + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP` still exists, and `SCRIPT_BYTE_CAP` is still 524288 in `skills/war/assets/stage-workflow.mjs`.
 `stripFullLineComments` now also drops the leading indent of top-level code lines (#2613), so the staged copy is smaller than a comment-only strip.
 Read in the run's `_refinery` worktree at 6c4f0f4e, the gate-audited sha whose tree the land merge 99d325fd keeps.

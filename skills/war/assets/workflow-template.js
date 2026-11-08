@@ -366,14 +366,17 @@ const PIN_TRANSFER = { type: 'object', required: ['status'], properties: {
   rebased_tip: { type: 'string' }, dispatch_base: { type: 'string' }, pre_rebase_patch_id: { type: 'string' }, post_rebase_patch_id: { type: 'string' },
   already_upstream_commits: { type: 'array' }, conflict_files: { type: 'array' }, detail: { type: 'string' } } }
 
-// DIFF_PROBE_RESULT (in-band-absorb-default D4, PIN-6): the per-task refiner `diff-probe` dispatch's
+// DIFF_PROBE_RESULT (in-band-absorb-default D4, PIN-6): the per-task (and per late-fix round, #2622)
+// `diff-probe` dispatch's
 // return — `diff_files`, the GIT-derived changed-file list of the task branch
-// (`git diff --name-only <dispatchBase>..<tip>` in the task worktree, one repo-relative path per
+// (`git diff --name-only <dispatchBase>...<tip>` in the task worktree, one repo-relative path per
 // entry), read by dispositionOf's engine default and the intake filing floor. Its OWN schema (the
 // PIN_TRANSFER precedent): no MergeResult status, HARD_ESCALATION_REASONS member, or
 // KNOWN_LAND_DECISIONS member changes. ALL fields optional (fail-open): a dead dispatch, a thrown
 // dispatch, or a return without a diff_files array leaves the probe ABSENT — logged — and the task
 // keeps the old severity default with the floor skipped (its filed rows carry demote:floor-skipped).
+// A failed late-fix round probe instead falls back to the origin task's probe, so the floor still
+// runs if the origin has one (#2622).
 // Worker files_changed is never the source (deterministic: git-derived only).
 const DIFF_PROBE_RESULT = { type: 'object', properties: {
   diff_files: { type: 'array', items: { type: 'string' } }, detail: { type: 'string' } } }
@@ -1702,6 +1705,31 @@ const dispositionOf = (f, diff) => {
 // arm never register — null there, the old default. Never worker files_changed.
 const diffFilesByTask = new Map()
 const diffFilesOf = t => { const v = diffFilesByTask.get(t && t.id); return v instanceof Set ? v : null }
+const aceRelSet = arr => new Set((Array.isArray(arr) ? arr : []).map(aceRelPath).filter(p => typeof p === 'string' && p.length > 0))
+// The diff probe dispatch, shared by the wave side (one per task, registered in diffFilesByTask) and
+// the late-fix pass (one per round, never registered, #2622). Returns the git-derived file Set, or
+// null when the probe is absent (fail-open, logged).
+const probeDiff = async (task, probeBase, tip) => {
+  const L = 'diff-probe:' + task.id
+  let probe = null
+  try {
+    probe = await dispatchSite(
+      pt`DIFF PROBE for WAR task ${task.id} (a read-only git read, no merge, no push, no rebase, no gate). `
+      + pt`In the task worktree ${task.worktree} (branch ${task.branch}) run EXACTLY: git -C ${shq(task.worktree)} diff --name-only ${shq(probeBase)}...${tip} — the three dots diff from the merge-base of ${probeBase} and the task tip. `
+      + pt`Return { diff_files: [<one repo-relative path per line of that output, verbatim>] } — the GIT-derived changed-file list of the task branch; never the worker's own file report. Idempotent: re-running on a resume yields the same list. On any git error return { detail: "<the error>" } with NO diff_files — the engine keeps its old default for this task (fail-open); never block.`,
+      { phase: 'Audit', label: L, dispatchKind: 'diff-probe', schema: DIFF_PROBE_RESULT, ...helperOpts(task.worktree, probeBase, tip) })
+  } catch (err) {
+    // A non-infra throw (dispatchSite rethrows those): still fail-open here — the probe is absent.
+    log(L + ' dispatch threw — ' + ((err && err.message) || String(err)) + '; the probe is ABSENT for this task (fail-open).')
+  }
+  if (probe && Array.isArray(probe.diff_files)) {
+    const s = aceRelSet(probe.diff_files)
+    log(L + ' recorded ' + s.size + ' changed file(s) at ' + tip + ' — dispositionOf and the intake floor read them (D4).')
+    return s
+  }
+  log(L + ' returned no diff_files (' + (deathOf(probe) || (probe && probe.detail ? probe.detail : 'dead dispatch or non-conforming return')) + ') — the probe is ABSENT (D4, fail-open).')
+  return null
+}
 const floorSkipLogged = new Set()
 // Intake filing floor (in-band-absorb-default D4, PIN-6): runs right after dispositionOf at every
 // task-seat routing site, before any row is filed — SEAT ROWS ONLY (a demote()-stamped engineFiled
@@ -2362,7 +2390,8 @@ const routeReauditMinors = (r, seats, opts) => {
   // merge-slot or late-fix re-audit's findings walk the SAME disposition ladder every wave-side site uses.
   const noReentry = (opts && opts.noReentry) || null
   r.reentryQueue = r.reentryQueue || []
-  const diff = diffFilesOf(r.task)
+  // opts.diff (#2622): the late-fix pass passes its union probe set. Absent ⇒ the task's own probe.
+  const diff = (opts && opts.diff) || diffFilesOf(r.task)
   for (const f of minorsOf(seats).map(x => ({ task: r.task.id, ...x }))) {
     const d = intakeFloor(f, dispositionOf(f, diff), diff)
     const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
@@ -4322,7 +4351,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // disagreeing worker list, a pre-dispatch tip whose tree is not the approved tree, a file outside
   // the footprint, or a re-audit seat that detects a file outside the claimed set ⇒ the FULL panel
   // re-runs (fail-closed, PIN-18).
-  const aceRelSet = arr => new Set((Array.isArray(arr) ? arr : []).map(aceRelPath).filter(p => typeof p === 'string' && p.length > 0))
   const aceScope = (r, ev, findings) => {
     const git = aceRelSet(ev && ev.files)
     if (!git.size) return { roster: null, why: 'the tip probe\'s git-derived ace file list is empty' }
@@ -5147,24 +5175,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // integration branch does not exist — its dispatch base is the submodule base (targetBase),
         // the same split the worker prompt and the merge dispatch already model.
         const probeBase = task.taskType === 'submodule' ? (task.targetBase || '<targetBase>') : ph.integrationBranch
-        let probe = null
-        try {
-          probe = await dispatchSite(
-            pt`DIFF PROBE for WAR task ${task.id} (a read-only git read, no merge, no push, no rebase, no gate). `
-            + pt`In the task worktree ${task.worktree} (branch ${task.branch}) run EXACTLY: git -C ${shq(task.worktree)} diff --name-only ${shq(probeBase)}...${tip} — the three dots diff from the merge-base of ${probeBase} and the task tip. `
-            + pt`Return { diff_files: [<one repo-relative path per line of that output, verbatim>] } — the GIT-derived changed-file list of the task branch; never the worker's own file report. Idempotent: re-running on a resume yields the same list. On any git error return { detail: "<the error>" } with NO diff_files — the engine keeps its old default for this task (fail-open); never block.`,
-            { phase: 'Audit', label: 'diff-probe:' + task.id, dispatchKind: 'diff-probe', schema: DIFF_PROBE_RESULT, ...helperOpts(task.worktree, probeBase, tip) })
-        } catch (err) {
-          // A non-infra throw (dispatchSite rethrows those): still fail-open here — the probe is absent.
-          log('diff-probe:' + task.id + ' dispatch threw — ' + ((err && err.message) || String(err)) + '; the probe is ABSENT for this task (fail-open).')
-        }
-        if (probe && Array.isArray(probe.diff_files)) {
-          diffFilesByTask.set(task.id, aceRelSet(probe.diff_files))
-          log('diff-probe:' + task.id + ' recorded ' + diffFilesByTask.get(task.id).size + ' changed file(s) at ' + tip + ' — dispositionOf and the intake floor read them (D4).')
-        } else {
-          diffFilesByTask.set(task.id, null)
-          log('diff-probe:' + task.id + ' returned no diff_files (' + (deathOf(probe) || (probe && probe.detail ? probe.detail : 'dead dispatch or non-conforming return')) + ') — the probe is ABSENT (D4, fail-open).')
-        }
+        diffFilesByTask.set(task.id, await probeDiff(task, probeBase, tip))
       }
 
       let round = 0, verdict = null, seats = [], expected = 0, blocked = null, escalateReason = null, died = null, spent = false
@@ -6794,9 +6805,11 @@ const lateFixPass = async () => {
       planSlice: 'fix the late defect "' + (f.title ?? '') + '" of task ' + origin.id + ': ' + (f.suggested_fix ?? '') }
     // The re-audit rows route under the origin task's real id, never the late-fix pseudo id: the
     // origin's wave record when it has one (a preMerged task has none), else a fresh record on it.
-    // dispositionOf then judges in-diff against the origin's own diff probe (the late-fix branch has
-    // no probe); with noReentry both arms end at the sweep, or, for a behavior row, at carryLate
-    // (non-final) or a filed follow-up "raised after the late-fix pass" (final), PIN-21.
+    // dispositionOf then judges in-diff against the union of the origin's diff probe and this round's
+    // late-fix probe (#2622, operator ruling 2026-11-08); a failed late-fix probe falls back to the
+    // origin's probe alone. The late-fix id is never registered in diffFilesByTask. With noReentry
+    // both arms end at the sweep, or, for a behavior row, at carryLate (non-final) or a filed
+    // follow-up "raised after the late-fix pass" (final), PIN-21.
     const lfRecord = [...liveTaskRecords].find(r => r.task === origin) || { task: origin }
     const lfNoReentry = 'born at the late-fix re-audit of ' + id + ' for task ' + origin.id + ' — past the wave side, so re-entry can never dispatch; the phase-close sweep is the vehicle'
     let stop = holding.length ? 'the phase already holds (' + holding.join(', ') + '), so the late-fix pass never ran' : null
@@ -6839,7 +6852,9 @@ const lateFixPass = async () => {
       if (died) { stop = 'the late-fix re-audit died (' + died + ')'; break }
       // The round's own Minor/Nit rows walk the shared ladder on BOTH the approve and the reject arm
       // (the ace re-audit precedent): the auditLog row above is a record, not a route (PIN-1).
-      routeReauditMinors(lfRecord, seats, { noReentry: lfNoReentry })
+      const lfDiff = await probeDiff(lfTask, ph.integrationBranch, w.head_sha)
+      if (!lfDiff) log(id + ': no late-fix probe, so task ' + origin.id + '\'s probe, if any, judges in-diff.')
+      routeReauditMinors(lfRecord, seats, { noReentry: lfNoReentry, diff: lfDiff && new Set([...(diffFilesOf(origin) || []), ...lfDiff]) })
       if (!ok) {
         lfPrior = 'round ' + lfRound + ' at ' + w.head_sha + ' — the re-audit did not approve: ' + blockingOf(seats).map(b => '[' + b.severity + '] ' + (b.title ?? '') + (b.suggested_fix ? ' → ' + b.suggested_fix : '')).join('; ')
         continue
