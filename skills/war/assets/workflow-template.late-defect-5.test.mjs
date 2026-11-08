@@ -328,10 +328,17 @@ test('late-defect: carry docs — schemas.md documents args.seededTasks, its row
 test('late-defect: carry docs — schemas.md and the Lead runbook name the soft seed fields and their re-thread', () => {
   const doc = name => readFileSync(new URL('../references/' + name, import.meta.url), 'utf8')
   const bullet = (schemasMd.match(/^- \*\*`escalated\[\]\.seed`\*\* and \*\*`escalated\[\]\.foldedSeeds`\*\*[^\n]*/m) || [''])[0]
-  for (const key of ['SOFT_ENV_REASONS', 'CARRIED DEFECT (PIN-9)', 'args.seededTasks', 'carriedTasks[]'])
-    assert.ok(bullet.includes(key), 'the escalated[] seed bullet names ' + key)
+  for (const rule of ['on each `SOFT_ENV_REASONS` record whose `task` names a phase task', 'the rows never re-carry on `carriedTasks[]`',
+    'the Lead threads that full list again, in its original order, so each seed keeps its `seed-<n>` id and branch'])
+    assert.ok(bullet.includes(rule), 'the escalated[] seed bullet states: ' + rule)
+  // The full list keeps each seed-<n> id: the engine names a seed by its row index.
+  assert.ok(src.includes("let id = 'seed-' + (i + 1)"), 'the engine names each seed by its 1-based row index')
   const carry = (doc('resume-and-recovery.md').match(/^- \*\*Task carry \(late-defects D9\/PIN-9\)\*\*[^\n]*/m) || [''])[0]
-  assert.ok(carry.includes('as `seed` and `foldedSeeds` (#2641): thread each row into the relaunch\'s `args.seededTasks`, never into `carriedTasks`'), 'the Task carry bullet re-threads the soft seed rows')
+  assert.ok(carry.includes('thread all of the launch\'s own `args.seededTasks` rows again, in their original order, so each seed keeps its id and branch. Never thread a row twice, and never into `carriedTasks`.'), 'the Task carry bullet re-threads the full list')
   assert.ok(doc('resume-and-recovery.md').includes('If the record carries `seed` or `foldedSeeds`, re-thread those rows per its Task carry bullet.'), 'the env-blocked arm points at the Task carry bullet')
-  assert.ok(doc('late-defects.md').includes('When you relaunch that task, thread each of those rows verbatim into the relaunch\'s `args.seededTasks`'), 'late-defects.md states the re-thread')
+  const ld = doc('late-defects.md')
+  for (const rule of ['thread all of the launch\'s own `args.seededTasks` rows again, in their original order', 'a seed that already merged reads `preMerged` and skips',
+    'Never thread a row twice, and never append a record\'s rows to `carriedTasks`, because the relaunch would run them twice.'])
+    assert.ok(ld.includes(rule), 'late-defects.md states: ' + rule)
+  assert.ok(readFileSync(new URL('../SKILL.md', import.meta.url), 'utf8').includes('and the launch\'s own rows again at the relaunch of a task whose soft record names a `seed` or `foldedSeeds` row'), 'SKILL.md names the soft relaunch source')
 })

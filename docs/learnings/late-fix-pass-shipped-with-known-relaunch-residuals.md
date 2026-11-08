@@ -64,11 +64,11 @@ Phase 4 (task 4.1, the behavior-row sort, PIN-21) added two residuals. Both went
 Locate-cue (phase 4): verify still present before acting — `const parkFixless` and its calls in the `sweepMinors = sweepMinors.filter(` block and `routeTerminalMinors` (#2624), and the owner-only `queueLateRow` call in the BEHAVIOR-ROW SORT block, found @ phase 4 landed tip 28e74359.
 
 Phase 6 (task 6.1, `args.seededTasks`, PIN-9) added the carry intake and two more residuals.
-Check the Checkpoint ruling before you change either route.
+The #2641 ruling resolved residual 7. Check the Checkpoint ruling before you change residual 8's route.
 
 7. **RESOLVED (#2641): a seeded task that ended `env-died` or `env-blocked` dropped off the carry channel.** Now one stamp pass after the land decision sets `e.seed` on each soft record of a seeded task.
    It also sets `e.foldedSeeds` on each soft record of a task that holds folded seed rows (`CARRIED DEFECT (PIN-9)`), per an operator ruling of 2026-11-08.
-   The Lead re-threads those rows into `args.seededTasks` at the recovery relaunch. It never re-carries on `carriedTasks`, so the relaunch cannot run it twice.
+   At the recovery relaunch the Lead threads the launch's full own `args.seededTasks` again, in order, so each seed keeps its `seed-<n>` id and branch. It never re-carries on `carriedTasks`, so the relaunch cannot run it twice.
    The original text follows. Only the cap routes (`r.spent` at the audit loop, floor exhaustion) push to `seedCapped`.
    The soft escalation records are `{ task, reason, ... }` with no `seed` row.
    On a non-final phase the phase still lands, and `carriedTasks` holds nothing for that defect.
