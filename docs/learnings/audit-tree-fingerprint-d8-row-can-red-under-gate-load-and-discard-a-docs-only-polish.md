@@ -1,6 +1,6 @@
 ---
 name: audit-tree-fingerprint-d8-row-can-red-under-gate-load-and-discard-a-docs-only-polish
-description: "The fingerprint test reds under heavy machine load on diffs that cannot touch the hook, and a quiet rerun passes"
+description: "PARTLY RESOLVED (#2615): the watchdog rows now use a 10 s deadline, but row 112 still reds when one hook run outlasts the 540 s default (#2724)"
 metadata:
   node_type: memory
   type: project
@@ -30,10 +30,17 @@ metadata:
     - hypothesis
   created: 2026-11-04
   originSessionId: f18978de-02f5-4ccd-9681-eb7dbaa3087b
-  modified: 2026-11-05T23:48:47.146Z
+  modified: 2026-11-08T00:00:00.000Z
 ---
 
 # The fingerprint test reds under heavy load (phase 1: mechanism is a hypothesis; phase 2: load is evidenced)
+
+**PARTLY RESOLVED (#2615, PR #2722, 2026-11-08).** The 2 s `run_shim` budget caused the row 166 flake.
+A 3 s stall on wtB's `git status` reproduced the phase 1 symptom exactly: marker wtB, skipped list `wtB wtD wtS`.
+Every `run_shim` row now uses a 10 s deadline (`SHIM_D`), and the six rows that wait for the kill run their hook in one parallel wave.
+The d8 row now carries that 3 s stall on every run, so it proves its own margin.
+Row 112 is still open (#2724). It never used `run_shim`: it reds when one hook run outlasts the hook's own 540 s default under extreme load.
+The sections below are the record from before the fix. Their 2 s mechanism no longer applies to the `run_shim` rows.
 
 **This is a hypothesis note.** No inward refute pass ran, and no rerun proved the flake.
 
