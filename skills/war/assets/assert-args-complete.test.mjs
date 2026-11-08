@@ -503,6 +503,25 @@ test('provenance remedy: each own-token arm names its own stamp field, in one li
   assert.doesNotMatch(line, /drop the foreign/, 'no foreign arm fired')
 })
 
+test('provenance remedy: a coordinate-less ruledAsks record takes the planSlug clause', () => {
+  const r = runCli([], JSON.stringify(PROV({ ruledAsks: [{ title: 'use the faster approach', suggested_fix: 'go faster', ruling: 'accepted' }] })))
+  assert.equal(r.status, 1, `exit 1 on a coordinate-less record — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /is missing required planSlug coordinate/, 'the template refusal is the coordinate-less arm')
+  const stampLines = r.stderr.split('\n').filter((l) => STAMP_LINE.test(l))
+  assert.equal(stampLines.length, 1, `exactly one remedy line — got ${JSON.stringify(stampLines)}`)
+  assert.ok(stampLines[0].includes("set each refused args.ruledAsks row's planSlug field to"), `the planSlug clause — got ${stampLines[0]}`)
+  assert.ok(!stampLines[0].includes('args.ruledAsks row with planFile'), 'never the planFile clause')
+})
+
+test('provenance remedy: the planSlug clause falls back to the plan.file basename, then the placeholder', () => {
+  const p = ["workflow-template: args.ruledAsks contains none of the run's own plan-slug tokens [x] — a cross-plan args leak; refused at entry (#1413)"]
+  const clause = (args) => aac.provenanceRemedies(p, args)[0]
+  assert.equal(clause({ planSlug: SLUG, plan: { file: 'docs/plans/other.md' } }), `set each refused args.ruledAsks row's planSlug field to ${SLUG}`)
+  assert.equal(clause({ plan: { file: PLAN_FILE } }), `set each refused args.ruledAsks row's planSlug field to ${SLUG}`)
+  assert.equal(clause({ plan: { file: 'docs/plans/Some-Plan.MD' } }), "set each refused args.ruledAsks row's planSlug field to Some-Plan")
+  assert.equal(clause({}), "set each refused args.ruledAsks row's planSlug field to the run plan slug")
+})
+
 test('provenance mirror: missing floor markers exit 2', () => {
   const dir = mkdtempSync(join(tmpdir(), 'aac-nomarker-'))
   try {

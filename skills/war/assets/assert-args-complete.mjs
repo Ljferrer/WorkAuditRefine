@@ -527,7 +527,9 @@ const SLUG_STAMPED = new Set(['ruledAsks', 'seededPhaseClose', 'seededTasks'])
 export function provenanceRemedies (problems, args) {
   const a = (args && typeof args === 'object' && !Array.isArray(args)) ? args : {}
   const file = (a.plan && typeof a.plan === 'object' && isStr(a.plan.file)) ? a.plan.file : '<plan.file>'
-  const slug = isStr(a.planSlug) ? a.planSlug : 'the run plan slug'
+  // No planSlug: the template anchors planSlug stamps on the plan.file basename without .md.
+  const slug = isStr(a.planSlug) ? a.planSlug
+    : isStr(a.plan && a.plan.file) ? a.plan.file.replace(/^.*\//, '').replace(/\.md$/i, '') : 'the run plan slug'
   const out = []
   for (const p of problems || []) {
     const name = (/^workflow-template: args\.(\w+) /.exec(p) || [])[1] || '?'
