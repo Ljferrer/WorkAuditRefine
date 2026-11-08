@@ -22,7 +22,7 @@
 # verdict escalates with `AUDIT-TAMPER: fingerprint timeout` and the record
 # carries `timeout: true`; the pre-check rows set
 # WAR_FINGERPRINT_DEADLINE_SECONDS=0, and the watchdog rows (Task 8.1) cross
-# a 2 s deadline inside a `git status` slowed by a shim.
+# a 10 s deadline inside a git call slowed by a shim.
 #
 # FIXTURES: a throwaway repo with real worktrees under a mktemp dir, outside
 # any git working tree (git-probing-hook-requires-fixtures-outside-any-git-repo),
@@ -1481,53 +1481,101 @@ else
 fi
 # --- the per-call watchdog (Task 8.1, ruling A, 2026-10-24) ------------------
 # The deadline rows above expire at a pre-check. These rows cross the deadline
-# INSIDE a git call: a `git` shim runs the real git and then sleeps 5 s on the
-# status call whose arguments carry SHIM_SLOW (`<worktree> status`), or on the
-# hash-object or ls-files call whose arguments carry it (`<worktree>
-# hash-object`, `<worktree> ls-files`), or
+# INSIDE a git call: a `git` shim runs the real git and then sleeps SHIM_NAP
+# seconds on the status call whose arguments carry SHIM_SLOW (`<worktree>
+# status`), or on the hash-object or ls-files call whose arguments carry it
+# (`<worktree> hash-object ...`, `<worktree> ls-files`), or
 # fails before git runs when they carry SHIM_FAIL, or kills itself with
-# SIGTERM before git runs when they carry SHIM_TERM. The hook must kill the slow call
-# at its deadline (2 s here) instead of waiting for it, so each row also
-# bounds its own wall time. The shim is on PATH for the run under test only;
-# the payload builders use the real jq and git.
+# SIGTERM before git runs when they carry SHIM_TERM. SHIM_DELAY is the load
+# stand-in (#2615): a status call whose arguments carry it waits 3 s, then
+# goes on to the arms above. The hook must kill the slow call at its deadline
+# (SHIM_D) instead of waiting for it, so each row also bounds its own wall
+# time: a killed call ends near SHIM_D, a call left to run takes at least
+# SHIM_NAP, and SHIM_CAP sits between them. The shim is on PATH for the run
+# under test only; the payload builders use the real jq and git.
+# The deadline is SHIM_D = 10 s, never 2 s (#2615, operator ruling
+# 2026-11-08): under a loaded gate the real git calls before the slowed one
+# outran a 2 s budget, and the watchdog fired at the wrong worktree. The
+# deadline is real time and the hook offers no other clock, so a row whose
+# slowed call is killed waits SHIM_D. Those rows run their hook in one
+# parallel wave (shim_bg, then wait), so the block waits SHIM_D once.
+SHIM_D=10
+SHIM_NAP=30
+SHIM_CAP=20
 REALGIT="$(command -v git)"
 SHIMG="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimg)"
 cat > "$SHIMG/git" <<SHIM
 #!/bin/bash
 case " \$* " in
   *" status "*)
+    if [ -n "\${SHIM_DELAY-}" ]; then case "\$*" in *"\$SHIM_DELAY"*) sleep 3 ;; esac; fi
     if [ -n "\${SHIM_FAIL-}" ]; then case "\$*" in *"\$SHIM_FAIL"*) exit 128 ;; esac; fi
     if [ -n "\${SHIM_TERM-}" ]; then case "\$*" in *"\$SHIM_TERM"*) kill -TERM \$\$; sleep 5; exit 1 ;; esac; fi
-    if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep 5; exit \$_rc ;; esac; fi ;;
+    if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep $SHIM_NAP; exit \$_rc ;; esac; fi ;;
   *" hash-object "*)
-    if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep 5; exit \$_rc ;; esac; fi ;;
+    if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep $SHIM_NAP; exit \$_rc ;; esac; fi ;;
   *" ls-files "*)
     if [ -n "\${SHIM_FAIL-}" ]; then case "\$*" in *"\$SHIM_FAIL"*) exit 128 ;; esac; fi
-    if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep 5; exit \$_rc ;; esac; fi ;;
+    if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep $SHIM_NAP; exit \$_rc ;; esac; fi ;;
 esac
 exec "$REALGIT" "\$@"
 SHIM
 chmod +x "$SHIMG/git"
-# run_shim <payload>: like run, under the shim PATH and a 2 s deadline; sets EL
-# to the wall seconds the hook took.
+# run_shim <payload>: like run, under the shim PATH and the SHIM_D deadline;
+# sets EL to the wall seconds the hook took. SHIM_TAG keeps a parallel run's
+# stderr file apart.
 run_shim() {
   _t0=$SECONDS
-  OUT="$(printf '%s' "$1" | PATH="$SHIMG:$PATH" WAR_FINGERPRINT_DEADLINE_SECONDS=2 bash "$HOOK" 2>"$TMP/err")"; RC=$?
+  OUT="$(printf '%s' "$1" | PATH="$SHIMG:$PATH" WAR_FINGERPRINT_DEADLINE_SECONDS=$SHIM_D bash "$HOOK" 2>"$TMP/err${SHIM_TAG-}")"; RC=$?
   EL=$((SECONDS - _t0))
-  ERR="$(cat "$TMP/err")"
+  ERR="$(cat "$TMP/err${SHIM_TAG-}")"
 }
-# (1) The verdict arm: wtA is dirty (f modified above), so its fingerprint
-# runs status. The slow status is killed at the deadline, the hook returns in
-# under 5 s, and the reason names the hashing step.
+# shim_bg <tag> <payload>: run_shim in the background, with the caller's
+# SHIM_* assignments; shim_get <tag> (after wait) sets OUT, RC, EL and ERR
+# from it. A run that left no result reads as RC=x, which fails its row.
+shim_bg() {
+  ( SHIM_TAG=".$1"; run_shim "$2"; printf '%s' "$OUT" > "$TMP/bg.$1.out"; printf '%s %s\n' "$RC" "$EL" > "$TMP/bg.$1.rc" ) &
+}
+shim_get() {
+  OUT="$(cat "$TMP/bg.$1.out" 2>/dev/null)"; ERR="$(cat "$TMP/err.$1" 2>/dev/null)"
+  RC=x; EL=x; read -r RC EL < "$TMP/bg.$1.rc" 2>/dev/null || { RC=x; EL=x; }
+}
+# The wave. (1c) needs an untracked name ending in CR in wtA, so the name is
+# made before every row's start record and removed after row (3). Each row
+# then sees the same wtA from its start record to its verdict. (1b) slows
+# only the batched `--stdin-paths` call, so the CR name's own call runs at
+# full speed there.
+printf 'cr\n' > "$TMP/wtA/$CRN"
 run "$(mk_start "$AUD" d6)"
 run "$(mk_read "$AUD" d6 "$TMP/wtA/f")"
-_p="$(mk_verdict "$AUD" d6)"
-SHIM_SLOW="$WTA status" run_shim "$_p"
+_p6="$(mk_verdict "$AUD" d6)"
+run "$(mk_start "$AUD" d6b)"
+run "$(mk_read "$AUD" d6b "$TMP/wtA/f")"
+_p6b="$(mk_verdict "$AUD" d6b)"
+run "$(mk_start "$AUD" d6c)"
+run "$(mk_read "$AUD" d6c "$TMP/wtA/f")"
+_p6c="$(mk_verdict "$AUD" d6c)"
+run "$(mk_start "$AUD" d6e)"
+run "$(mk_read "$AUD" d6e "$TMP/wtA/f")"
+_p6e="$(mk_verdict "$AUD" d6e)"
+_p7="$(mk_start "$AUD" d7)"
+_p8="$(mk_start "$AUD" d8)"
+SHIM_SLOW="$WTA status" shim_bg d6 "$_p6"
+SHIM_SLOW="$WTA hash-object --no-filters --stdin-paths" shim_bg d6b "$_p6b"
+SHIM_SLOW="$WTA hash-object --no-filters -- " shim_bg d6c "$_p6c"
+SHIM_SLOW="$WTA ls-files" shim_bg d6e "$_p6e"
+SHIM_DELAY="$WTA status" SHIM_SLOW="$WTB status" shim_bg d7 "$_p7"
+SHIM_DELAY="$WTB status" SHIM_FAIL="$WTA status" SHIM_SLOW="$WTS status" shim_bg d8 "$_p8"
+wait
+# (1) The verdict arm: wtA is dirty (f modified above), so its fingerprint
+# runs status. The slow status is killed at the deadline, the hook returns
+# before SHIM_CAP, and the reason names the hashing step.
+shim_get d6
 ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
 rec="$TAMPER_ROOT/d6.json"
-case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline 2s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
-if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$EL" -lt 5 ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = true ]; then
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline ${SHIM_D}s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$EL" -lt "$SHIM_CAP" ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = true ]; then
   pass "watchdog kills a slow git call at the deadline"
 else
   fail "watchdog kills a slow git call at the deadline (rc=$RC ver=$ver el=${EL}s rsn=|$rsn| err=|$ERR| rec=$(cat "$rec" 2>/dev/null))"
@@ -1535,33 +1583,24 @@ fi
 # (1b) The hash-object watchdog: wtA's status is fast, and its modified `f`
 # goes to the batched `hash-object --stdin-paths` call, which the shim slows.
 # The kill lands inside blob_lines (bounded is shared, so a direct hash-object
-# call would wait the full 5 s), and the reason names the hashing step.
-run "$(mk_start "$AUD" d6b)"
-run "$(mk_read "$AUD" d6b "$TMP/wtA/f")"
-_p="$(mk_verdict "$AUD" d6b)"
-SHIM_SLOW="$WTA hash-object" run_shim "$_p"
+# call would wait the full SHIM_NAP), and the reason names the hashing step.
+shim_get d6b
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
-case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline 2s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
-if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$EL" -lt 5 ]; then
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline ${SHIM_D}s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$EL" -lt "$SHIM_CAP" ]; then
   pass "watchdog kills a slow hash-object call at the deadline"
 else
   fail "watchdog kills a slow hash-object call at the deadline (rc=$RC el=${EL}s rsn=|$rsn| err=|$ERR|)"
 fi
-# (1c) The single-path hash-object arm: an untracked name ending in CR in wtA
-# gets its own `hash-object -- <path>` call, which runs inside the record
+# (1c) The single-path hash-object arm: the untracked CR name in wtA gets its
+# own `hash-object --no-filters -- <path>` call, which runs inside the record
 # loop before the batch (wtA's modified `f` is still queued for it). The shim
-# slows that call, the kill lands in the single-path arm, and the hook
-# returns in under 5 s. The CR name is removed afterwards so the rows below
-# see wtA as before.
-printf 'cr\n' > "$TMP/wtA/$CRN"
-run "$(mk_start "$AUD" d6c)"
-run "$(mk_read "$AUD" d6c "$TMP/wtA/f")"
-_p="$(mk_verdict "$AUD" d6c)"
-SHIM_SLOW="$WTA hash-object" run_shim "$_p"
-rm -f "$TMP/wtA/$CRN"
+# slows only that call (the trailing space after `--` leaves the batch out),
+# the kill lands in the single-path arm, and the hook returns before SHIM_CAP.
+shim_get d6c
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
-case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline 2s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
-if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$EL" -lt 5 ]; then
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline ${SHIM_D}s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$EL" -lt "$SHIM_CAP" ]; then
   pass "watchdog kills a slow single-path hash-object call at the deadline"
 else
   fail "watchdog kills a slow single-path hash-object call at the deadline (rc=$RC el=${EL}s rsn=|$rsn| err=|$ERR|)"
@@ -1570,31 +1609,28 @@ fi
 # status before the deadline. The hook reads that as a git error (the
 # `unverifiable fingerprint (git error on ...)` reason, `timeout: false`),
 # never as the timeout reason, which offers the Lead a fail-open ruling.
-# Oracle, independent of the hook: the row's wall time stays under the 2 s
-# deadline, so no watchdog could have fired.
+# Oracle, independent of the hook: the row's wall time stays under the
+# SHIM_D deadline, so no watchdog could have fired.
 run "$(mk_start "$AUD" d6d)"
 run "$(mk_read "$AUD" d6d "$TMP/wtA/f")"
 _p="$(mk_verdict "$AUD" d6d)"
 SHIM_TERM="$WTA status" run_shim "$_p"
 ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
-if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (git error on $WTA)" ] && [ "$EL" -lt 2 ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/d6d.json" 2>/dev/null)" = false ]; then
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (git error on $WTA)" ] && [ "$EL" -lt "$SHIM_D" ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/d6d.json" 2>/dev/null)" = false ]; then
   pass "a SIGTERM before the deadline is a git error, never the timeout reason"
 else
   fail "a SIGTERM before the deadline is a git error, never the timeout reason (rc=$RC ver=$ver el=${EL}s rsn=|$rsn| err=|$ERR| rec=$(cat "$TAMPER_ROOT/d6d.json" 2>/dev/null))"
 fi
 # (1e) The ls-files watchdog: the flagged-path scan (`ls-files -v -z`) runs
 # under bounded like status and hash-object, so a slow ls-files on wtA is
-# killed at the deadline, the hook returns in under 5 s, and the reason is
+# killed at the deadline, the hook returns before SHIM_CAP, and the reason is
 # the fingerprint timeout naming the hashing step.
-run "$(mk_start "$AUD" d6e)"
-run "$(mk_read "$AUD" d6e "$TMP/wtA/f")"
-_p="$(mk_verdict "$AUD" d6e)"
-SHIM_SLOW="$WTA ls-files" run_shim "$_p"
+shim_get d6e
 ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
-case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline 2s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
-if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$EL" -lt 5 ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/d6e.json" 2>/dev/null)" = true ]; then
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline ${SHIM_D}s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$EL" -lt "$SHIM_CAP" ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/d6e.json" 2>/dev/null)" = true ]; then
   pass "ls-files watchdog kills a slow git ls-files call at the deadline"
 else
   fail "ls-files watchdog kills a slow git ls-files call at the deadline (rc=$RC ver=$ver el=${EL}s rsn=|$rsn| err=|$ERR| rec=$(cat "$TAMPER_ROOT/d6e.json" 2>/dev/null))"
@@ -1614,27 +1650,27 @@ if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$rsn" = "AUDIT-TAMPER: unverifia
 else
   fail "a failing git ls-files call is a git error, never an empty flagged set (rc=$RC ver=$ver rsn=|$rsn| err=|$ERR| rec=$(cat "$TAMPER_ROOT/d6f.json" 2>/dev/null))"
 fi
-# (2) The start arm: wtA records before the deadline, wtB's slow status is
-# killed at it, and the marker names wtB with an elapsed value of at least the
-# deadline (so it came from the killed call, not a pre-check at 0 s). The
+# (2) The start arm: wtA records before the deadline, even though its status
+# waits 3 s (the SHIM_DELAY load stand-in), wtB's slow status is killed at
+# the deadline, and the marker names wtB with an elapsed value of at least
+# the deadline (so it came from the killed call, not a pre-check at 0 s). The
 # skipped list is wtB plus every worktree after it (wtD has had no .git since
 # row a4 and wtS is the submodule's; the start arm never reached either).
-_p="$(mk_start "$AUD" d7)"
-SHIM_SLOW="$WTB status" run_shim "$_p"
+shim_get d7
 _m="$(cat "$FP_ROOT/d7/timeout" 2>/dev/null)"; _mn="${_m%% *}"
-if [ "$RC" = 0 ] && [ "$EL" -lt 5 ] && grep -Fq " $WTA" "$FP_ROOT/d7/start" && ! grep -Fq " $WTB" "$FP_ROOT/d7/start" \
-   && [ "$_m" = "$_mn 2 $WTB" ] && [ "$_mn" -ge 2 ] 2>/dev/null \
+if [ "$RC" = 0 ] && [ "$EL" -lt "$SHIM_CAP" ] && grep -Fq " $WTA" "$FP_ROOT/d7/start" && ! grep -Fq " $WTB" "$FP_ROOT/d7/start" \
+   && [ "$_m" = "$_mn $SHIM_D $WTB" ] && [ "$_mn" -ge "$SHIM_D" ] 2>/dev/null \
    && [ "$(cat "$FP_ROOT/d7/timeout-skipped" 2>/dev/null)" = "$(printf '%s\n%s\n%s' "$WTB" "$WTD" "$WTS")" ]; then
   pass "a start-arm watchdog kill records the stop point and lists every worktree it skipped"
 else
   fail "start-arm watchdog kill recorded wrong (rc=$RC el=${EL}s marker=|$_m| start=|$(cat "$FP_ROOT/d7/start" 2>/dev/null)| skipped=|$(cat "$FP_ROOT/d7/timeout-skipped" 2>/dev/null)| err=|$ERR|)"
 fi
 # A seat that touched only the skipped wtB gets the timeout reason, naming the
-# stored start-arm deadline (2 s), under the default verdict-arm deadline.
+# stored start-arm deadline (SHIM_D), under the default verdict-arm deadline.
 run "$(mk_read "$AUD" d7 "$TMP/wtB/f")"
 run "$(mk_verdict "$AUD" d7)"
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
-case "$rsn" in "AUDIT-TAMPER: fingerprint timeout (SubagentStart stopped at $WTB after "[0-9]*"s, deadline 2s; $WTB has no start fingerprint; seat verdict approve)") p=1 ;; *) p=0 ;; esac
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout (SubagentStart stopped at $WTB after "[0-9]*"s, deadline ${SHIM_D}s; $WTB has no start fingerprint; seat verdict approve)") p=1 ;; *) p=0 ;; esac
 if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/d7.json" 2>/dev/null)" = true ]; then
   pass "a worktree the start-arm watchdog skipped yields the timeout reason with the stored deadline"
 else
@@ -1657,19 +1693,20 @@ fi
 # (3) A worktree the start arm skipped on a GIT ERROR (status fails for wtA)
 # before a later watchdog kill (slow status on wtS, the last one) is not on
 # the skipped list, so a verdict that touched it keeps `no start record`,
-# never the timeout reason.
-_p="$(mk_start "$AUD" d8)"
-SHIM_FAIL="$WTA status" SHIM_SLOW="$WTS status" run_shim "$_p"
+# never the timeout reason. wtB's status waits 3 s (the SHIM_DELAY load
+# stand-in, #2615): under the old 2 s deadline the watchdog then fired at wtB.
+shim_get d8
 _m="$(cat "$FP_ROOT/d8/timeout" 2>/dev/null)"
 run "$(mk_read "$AUD" d8 "$TMP/wtA/f")"
 run "$(mk_verdict "$AUD" d8)"
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
-if [ "$_m" = "${_m%% *} 2 $WTS" ] && [ "$(cat "$FP_ROOT/d8/timeout-skipped" 2>/dev/null)" = "$WTS" ] \
+if [ "$_m" = "${_m%% *} $SHIM_D $WTS" ] && [ "$(cat "$FP_ROOT/d8/timeout-skipped" 2>/dev/null)" = "$WTS" ] \
    && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (no start record for $WTA)" ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/d8.json" 2>/dev/null)" = false ]; then
   pass "a worktree skipped on a start-arm git error keeps no start record, never the timeout reason"
 else
   fail "git-error skip labelled wrong (marker=|$_m| skipped=|$(cat "$FP_ROOT/d8/timeout-skipped" 2>/dev/null)| rsn=|$rsn| start=|$(cat "$FP_ROOT/d8/start" 2>/dev/null)|)"
 fi
+rm -f "$TMP/wtA/$CRN"
 # A clean worktree spawns one temp file per fingerprint (the ls-files output,
 # then the status output, in the same file), never a second for hash output
 # or for the flagged paths: blob_lines makes its file on its first
