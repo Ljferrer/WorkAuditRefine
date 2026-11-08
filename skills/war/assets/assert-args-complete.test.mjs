@@ -6,6 +6,10 @@ import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { ptSpans, ptSpanRanges, extractInterpolations, extractArgsFields, unguardedTopLevelKeys, checkArgs, EXEMPT_FIELDS, boundaryWarnings } from './assert-args-complete.mjs'
+// The provenance mirror and the command-shape exports ride a namespace import, so each new test reds
+// on its own when an export is absent instead of failing the whole file at import.
+import * as aac from './assert-args-complete.mjs'
+import { stripFullLineComments } from './stage-workflow.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const CLI = join(here, 'assert-args-complete.mjs')
@@ -389,4 +393,389 @@ test('CLI: a boundary warning goes to stderr and keeps exit 0 (warn, never refus
   const quiet = runCli([], JSON.stringify({ ...args, tasks: [btask({ roster: [{ lens: 'security', tier: 'high' }] })] }))
   assert.equal(quiet.status, 0)
   assert.doesNotMatch(quiet.stderr, /warning/, 'an opus seat leaves stderr clean')
+})
+
+// ---------------------------------------------------------------------------
+// Tokenizer: comments and strings outside spans open no span (#1775); bracket chains (#1760)
+// ---------------------------------------------------------------------------
+
+test('ptSpanRanges: a pt backtick inside a string or comment opens no span', () => {
+  const src = [
+    "const s1 = 'a pt`${x.y}` in a string'",
+    'const s2 = "pt`${x.z}` in a double-quoted string"',
+    '// pt`${c.d}` in a line comment',
+    '/* pt`${e.f}` in a block comment */',
+    // A regex literal holding a quote and a backtick: a skipper that reads the quote as a string
+    // opener swallows the real span after it, and one that reads the backtick opens a phantom template.
+    "const re = /['`]pt/g; const real = pt`${ok.chain}`",
+    'const s3 = `plain pt`',
+    'const tail = pt`${ok.tail}`',
+  ].join('\n')
+  const spans = ptSpanRanges(src)
+  assert.deepEqual(spans.map((s) => s.text), ['${ok.chain}', '${ok.tail}'], `only the two real spans open — got ${JSON.stringify(spans.map((s) => s.text))}`)
+  assert.deepEqual([...extractInterpolations(src).keys()], ['ok.chain', 'ok.tail'])
+  assert.equal(src.slice(spans[0].start, spans[0].end), 'pt`${ok.chain}`', 'the real span keeps its exact offsets')
+})
+
+test('extractInterpolations: bracket-indexed chain is censused', () => {
+  const src = 'const { tasks } = A\nconst a = pt`first task ${tasks[0].id} and ${tasks[12].title}`'
+  const chains = extractInterpolations(src)
+  assert.ok(chains.has('tasks[0].id') && chains.has('tasks[12].title'), `bracket chains are censused — got ${JSON.stringify([...chains.keys()])}`)
+  const fields = extractArgsFields(src)
+  assert.ok(fields.includes('tasks[].id') && fields.includes('tasks[].title'), `tasks[N].x maps to tasks[].x — got ${JSON.stringify(fields)}`)
+  assert.ok(!fields.some((f) => /\[\d+\]/.test(f)), 'no index survives into a field name')
+  assert.ok(!chains.has('tasks[x].id') && !extractInterpolations('pt`${tasks[i].id}`').size, 'a non-digit index is not a pure chain')
+})
+
+test('CLI --template: EMBEDDED_ARGS prose leaves the field set unchanged', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aac-embedded-'))
+  try {
+    const args = { ...COMPLETE(), adjudications: ['x: keep the row form, never pt`${plan.zzz}` prose'] }
+    const argsFile = join(dir, 'args.json')
+    writeFileSync(argsFile, JSON.stringify(args))
+    const st = spawnSync(process.execPath, [join(here, 'stage-workflow.mjs'), join(here, 'workflow-template.js'), join(dir, 'staged'), 'x', '3', '--args', argsFile], { encoding: 'utf8' })
+    assert.equal(st.status, 0, `the stager writes the staged copy — stderr: ${st.stderr}`)
+    const stagedPath = st.stdout.trim()
+    const staged = readFileSync(stagedPath, 'utf8')
+    assert.ok(staged.includes('const EMBEDDED_ARGS = ') && staged.includes('pt`${plan.zzz}`'), 'the fixture embeds the pt-backtick prose in the EMBEDDED_ARGS line')
+    const fields = extractArgsFields(staged)
+    assert.deepEqual(fields, extractArgsFields(templateSrc), `the staged field set equals the shipped one — got ${JSON.stringify(fields)}`)
+    assert.ok(!fields.includes('plan.zzz'), 'the phantom plan.zzz from the args prose is not a field')
+    const r = runCli(['--template', stagedPath], JSON.stringify(args))
+    assert.equal(r.status, 0, `the staged copy certifies the same args — stderr: ${r.stderr}`)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// ---------------------------------------------------------------------------
+// Provenance mirror (#1896): the preflight runs the template's own floor code
+// ---------------------------------------------------------------------------
+
+const SLUG = '2026-11-08-args-floor'
+const PLAN_FILE = `docs/plans/${SLUG}.md`
+const PROV = (over = {}) => ({ ...COMPLETE(), planSlug: SLUG, plan: { file: PLAN_FILE, gate: 'make gate' }, ...over })
+const STAMP_LINE = /at its ledger source/
+
+test('provenance mirror: token-less adjudication string row exits 1 naming args.adjudications', () => {
+  const r = runCli([], JSON.stringify(PROV({ adjudications: ['use the faster approach everywhere'] })))
+  assert.equal(r.status, 1, `exit 1 on a token-less row — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /args\.adjudications/, 'stderr names the refused surface')
+  assert.match(r.stderr, /\[args, floor\]/, 'stderr carries the token list verbatim from the template')
+  assert.match(r.stderr, /refused at entry \(#1413\)/, 'the template refusal is printed verbatim')
+  const stampLines = r.stderr.split('\n').filter((l) => STAMP_LINE.test(l))
+  assert.equal(stampLines.length, 1, `exactly one stderr line tells the Lead to stamp the row at its ledger source — got ${JSON.stringify(stampLines)}`)
+  assert.match(stampLines[0], /not the launch copy/, 'the one line names the launch copy as the wrong place')
+})
+
+test('provenance mirror: planFile-stamped row exits 0', () => {
+  const r = runCli([], JSON.stringify(PROV({ adjudications: [{ why: 'use the faster approach everywhere', planFile: PLAN_FILE }] })))
+  assert.equal(r.status, 0, `exit 0 on the stamped row — stderr: ${r.stderr}`)
+  assert.match(r.stdout, /dispatch-complete/)
+  assert.doesNotMatch(r.stderr, STAMP_LINE, 'no stamp line on a pass')
+})
+
+test('provenance remedy: a foreign-stamped adjudication row is dropped, never restamped with the run planFile', () => {
+  const r = runCli([], JSON.stringify(PROV({ adjudications: [{ why: 'use the args floor approach', planFile: 'docs/plans/2026-01-01-other-plan.md' }] })))
+  assert.equal(r.status, 1, `exit 1 on a foreign stamp — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /provenance stamp naming a foreign plan/, 'the template refusal is the foreign-stamp arm')
+  const stampLines = r.stderr.split('\n').filter((l) => STAMP_LINE.test(l))
+  assert.equal(stampLines.length, 1, `exactly one remedy line — got ${JSON.stringify(stampLines)}`)
+  assert.match(stampLines[0], /not the launch copy/)
+  assert.match(stampLines[0], /drop the foreign args\.adjudications row, never restamp it/, 'the remedy drops the foreign row')
+  assert.ok(!stampLines[0].includes(`planFile: ${PLAN_FILE}`), `the remedy never tells the Lead to stamp the row with the run's own planFile — got ${stampLines[0]}`)
+  const id = runCli([], JSON.stringify(PROV({ backstops: ['see docs/plans/2026-01-01-other-plan.md for the args floor'] })))
+  assert.equal(id.status, 1, `exit 1 on a foreign docs/plans id — stderr: ${id.stderr}`)
+  assert.match(id.stderr, /foreign docs\/plans identifier/, 'the template refusal is the foreign-id arm')
+  const idLine = id.stderr.split('\n').find((l) => STAMP_LINE.test(l)) || ''
+  assert.match(idLine, /drop the foreign args\.backstops row, never restamp it/, 'the foreign-id arm also drops the row')
+  assert.ok(!idLine.includes('planFile:'), `no planFile stamp remedy on the foreign-id arm — got ${idLine}`)
+})
+
+test('provenance remedy: each own-token arm names its own stamp field, in one line', () => {
+  const r = runCli([], JSON.stringify(PROV({ intent: 'ship it quickly', backstops: ['run the slow suite nightly'], ruledAsks: ['use the faster approach'] })))
+  assert.equal(r.status, 1, `exit 1 on three token-less surfaces — stderr: ${r.stderr}`)
+  const stampLines = r.stderr.split('\n').filter((l) => STAMP_LINE.test(l))
+  assert.equal(stampLines.length, 1, `exactly one remedy line — got ${JSON.stringify(stampLines)}`)
+  const line = stampLines[0]
+  assert.match(line, /fix the args\.intent text so it names this run's plan/, 'intent has no row to stamp')
+  assert.ok(line.includes(`stamp each refused args.backstops row with planFile: ${PLAN_FILE}`), `backstops take the planFile stamp — got ${line}`)
+  assert.ok(line.includes(`set each refused args.ruledAsks row's planSlug field to ${SLUG}`), `ruledAsks take the planSlug field — got ${line}`)
+  assert.doesNotMatch(line, /args\.ruledAsks row with planFile/, 'the planFile remedy never names a planSlug-stamped surface')
+  assert.doesNotMatch(line, /drop the foreign/, 'no foreign arm fired')
+})
+
+test('provenance remedy: a coordinate-less ruledAsks record takes the planSlug clause', () => {
+  const r = runCli([], JSON.stringify(PROV({ ruledAsks: [{ title: 'use the faster approach', suggested_fix: 'go faster', ruling: 'accepted' }] })))
+  assert.equal(r.status, 1, `exit 1 on a coordinate-less record — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /is missing required planSlug coordinate/, 'the template refusal is the coordinate-less arm')
+  const stampLines = r.stderr.split('\n').filter((l) => STAMP_LINE.test(l))
+  assert.equal(stampLines.length, 1, `exactly one remedy line — got ${JSON.stringify(stampLines)}`)
+  assert.ok(stampLines[0].includes("set each refused args.ruledAsks row's planSlug field to"), `the planSlug clause — got ${stampLines[0]}`)
+  assert.ok(!stampLines[0].includes('args.ruledAsks row with planFile'), 'never the planFile clause')
+})
+
+test('provenance remedy: the planSlug clause falls back to the plan.file basename, then the placeholder', () => {
+  const p = ["workflow-template: args.ruledAsks contains none of the run's own plan-slug tokens [x] — a cross-plan args leak; refused at entry (#1413)"]
+  const clause = (args) => aac.provenanceRemedies(p, args)[0]
+  assert.equal(clause({ planSlug: SLUG, plan: { file: 'docs/plans/other.md' } }), `set each refused args.ruledAsks row's planSlug field to ${SLUG}`)
+  assert.equal(clause({ plan: { file: PLAN_FILE } }), `set each refused args.ruledAsks row's planSlug field to ${SLUG}`)
+  assert.equal(clause({ plan: { file: 'docs/plans/Some-Plan.MD' } }), "set each refused args.ruledAsks row's planSlug field to Some-Plan")
+  assert.equal(clause({}), "set each refused args.ruledAsks row's planSlug field to the run plan slug")
+})
+
+test('provenance mirror: missing floor markers exit 2', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aac-nomarker-'))
+  try {
+    const tpl = join(dir, 'tpl.js')
+    // A template with prompt interpolations (so the zero-field guard passes) but no floor markers.
+    writeFileSync(tpl, templateSrc.split('\n').filter((l) => l.trim() !== 'const provenanceProblems = []').join('\n'))
+    const r = runCli(['--template', tpl], JSON.stringify(PROV()))
+    assert.equal(r.status, 2, `exit 2 when the markers are absent — stdout: ${r.stdout}; stderr: ${r.stderr}`)
+    assert.match(r.stderr, /const provenanceProblems = \[\]/, 'stderr names the missing marker')
+    assert.throws(() => aac.provenanceProblems('const a = 1\n', PROV()), aac.PreflightToolingError, 'the export throws the tooling error class, never a refusal list')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('provenance mirror: runs on the stripped staged form', () => {
+  const stripped = stripFullLineComments(templateSrc)
+  assert.notEqual(stripped, templateSrc, 'the fixture really is the stripped form')
+  for (const args of [
+    PROV({ adjudications: ['use the faster approach everywhere'] }),
+    PROV({ adjudications: [{ why: 'use the faster approach everywhere', planFile: PLAN_FILE }] }),
+    PROV({ backstops: ['an args floor backstop'], intent: 'nothing that names the run' }),
+    PROV(),
+  ]) {
+    assert.deepEqual(aac.provenanceProblems(stripped, args), aac.provenanceProblems(templateSrc, args), `same refusals and logs on both forms for ${JSON.stringify(args.adjudications ?? args.backstops ?? null)}`)
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'aac-stripped-'))
+  try {
+    const tpl = join(dir, 'staged.js')
+    writeFileSync(tpl, stripped)
+    const bad = runCli(['--template', tpl], JSON.stringify(PROV({ adjudications: ['use the faster approach everywhere'] })))
+    assert.equal(bad.status, 1, `the staged form refuses the token-less row — stderr: ${bad.stderr}`)
+    assert.match(bad.stderr, /args\.adjudications/)
+    const ok = runCli(['--template', tpl], JSON.stringify(PROV({ adjudications: [{ why: 'x', planFile: PLAN_FILE }] })))
+    assert.equal(ok.status, 0, `the staged form passes the stamped row — stderr: ${ok.stderr}`)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('provenance mirror: copied bindings are byte-equal to the template', () => {
+  const B = aac.FLOOR_BINDINGS
+  assert.ok(Array.isArray(B), 'FLOOR_BINDINGS is exported')
+  const constructs = [
+    ['the destructure', /^const \{ phase: ph, plan, .*\} = A$/],
+    ['intent', /^const intent = /],
+    ['backstops', /^const backstops = /],
+    ['the adjudications head', /^const adjudications = Array\.isArray\(A\.adjudications\)$/],
+    ['the adjudications continuation', /^\? A\.adjudications\.filter\(.*\) : \[\]$/],
+    ['planSlug', /^const planSlug = A\.planSlug$/],
+  ]
+  for (const [name, re] of constructs) assert.equal(B.filter((b) => re.test(b)).length, 1, `FLOOR_BINDINGS holds exactly one ${name} line`)
+  const lines = templateSrc.split('\n').map((l) => l.replace(/^[ \t]+/, ''))
+  for (const b of B) {
+    assert.equal(b, b.replace(/^[ \t]+/, ''), 'an entry carries no leading whitespace')
+    assert.equal(lines.filter((l) => l === b).length, 1, `the template holds exactly one line equal to ${JSON.stringify(b)}, leading whitespace stripped`)
+  }
+})
+
+test('provenance mirror: the shipped slice is self-contained', () => {
+  const rows = () => [
+    'a prose string row with no own word',
+    { why: 'an object row with no own word', check: 'true' },
+    { why: 'an auto row', source: 'auto' },
+    { why: 'a stamped row', planFile: PLAN_FILE },
+  ]
+  for (const args of [
+    PROV({ intent: 'an intent that names the args floor', backstops: rows(), adjudications: rows() }),
+    PROV({ intent: 'an intent with no own word', backstops: rows().slice(0, 2), adjudications: rows().slice(0, 1) }),
+  ]) {
+    let res
+    assert.doesNotThrow(() => { res = aac.provenanceProblems(templateSrc, args) }, 'the slice reads no name it does not bind')
+    assert.ok(Array.isArray(res.problems) && Array.isArray(res.logs), 'the result is a refusal list (maybe empty) and a log list')
+  }
+})
+
+// The tooling arms of provenanceProblems past the marker check: a missing FLOOR_BINDINGS line, a
+// slice that does not compile, a foreign throw from the slice, and a slice that yields no refusal
+// list. Each must exit 2, never collapse into exit 1 or a pass.
+const withTemplate = (name, edit, fn) => {
+  const dir = mkdtempSync(join(tmpdir(), `aac-${name}-`))
+  try {
+    const tpl = join(dir, 'tpl.js')
+    const src = edit(templateSrc)
+    assert.notEqual(src, templateSrc, 'the fixture edit applied')
+    writeFileSync(tpl, src)
+    fn(tpl, src)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+}
+
+test('provenance tooling: a missing FLOOR_BINDINGS line exits 2 naming the drift', () => {
+  withTemplate('nobinding', (src) => src.split('\n').filter((l) => l.trim() !== 'const planSlug = A.planSlug').join('\n'), (tpl, src) => {
+    const r = runCli(['--template', tpl], JSON.stringify(PROV()))
+    assert.equal(r.status, 2, `exit 2 on a missing binding line — stdout: ${r.stdout}; stderr: ${r.stderr}`)
+    assert.match(r.stderr, /FLOOR_BINDINGS drift/, 'stderr names the FLOOR_BINDINGS drift')
+    assert.match(r.stderr, /const planSlug = A\.planSlug/, 'stderr names the missing line')
+    assert.throws(() => aac.provenanceProblems(src, PROV()), aac.PreflightToolingError)
+  })
+})
+
+test('provenance tooling: a foreign throw in the slice exits 2 naming the ReferenceError', () => {
+  withTemplate('foreign', (src) => src.split('\n').flatMap((l) => l.trim() === 'const provenanceProblems = []' ? [l, 'void zzUnbound'] : [l]).join('\n'), (tpl, src) => {
+    const r = runCli(['--template', tpl], JSON.stringify(PROV()))
+    assert.equal(r.status, 2, `exit 2 on a foreign throw — stdout: ${r.stdout}; stderr: ${r.stderr}`)
+    assert.match(r.stderr, /provenance floor slice threw ReferenceError/, 'stderr says the slice threw and names the ReferenceError')
+    assert.match(r.stderr, /zzUnbound/, 'stderr names the unbound name')
+    assert.throws(() => aac.provenanceProblems(src, PROV()), aac.PreflightToolingError)
+  })
+})
+
+const afterFloorStart = (line) => (src) => src.split('\n').flatMap((l) => l.trim() === 'const provenanceProblems = []' ? [l, line] : [l]).join('\n')
+
+test('provenance tooling: an uncompilable slice exits 2 naming the compile failure', () => {
+  withTemplate('nocompile', afterFloorStart('{'), (tpl, src) => {
+    const r = runCli(['--template', tpl], JSON.stringify(PROV()))
+    assert.equal(r.status, 2, `exit 2 on an uncompilable slice — stdout: ${r.stdout}; stderr: ${r.stderr}`)
+    assert.match(r.stderr, /provenance floor slice does not compile: SyntaxError/, 'stderr says the slice does not compile and names the SyntaxError')
+    assert.throws(() => aac.provenanceProblems(src, PROV()), aac.PreflightToolingError)
+  })
+})
+
+test('provenance tooling: a slice that yields no refusal list exits 2', () => {
+  withTemplate('nolist', afterFloorStart('return 0'), (tpl, src) => {
+    const r = runCli(['--template', tpl], JSON.stringify(PROV()))
+    assert.equal(r.status, 2, `exit 2 on a non-array slice result — stdout: ${r.stdout}; stderr: ${r.stderr}`)
+    assert.match(r.stderr, /provenance floor slice did not yield its refusal list/, 'stderr names the missing refusal list')
+    assert.throws(() => aac.provenanceProblems(src, PROV()), aac.PreflightToolingError)
+  })
+})
+
+test('planDoneWhenBullets: a command on the line after an empty key keeps no leading space', () => {
+  const plan = [
+    '- Done when:',
+    '  `node --test x.test.mjs`',
+    '- Done when:',
+    '  `` a `b` c ``',
+    '- Done when:',
+    '  echo plain',
+    '- Done when: `on the key line`',
+    '',
+  ].join('\n')
+  assert.deepEqual(aac.planDoneWhenBullets(plan), ['node --test x.test.mjs', 'a `b` c', 'echo plain', 'on the key line'])
+})
+
+// ---------------------------------------------------------------------------
+// Command shapes (#2674, #2675), the dispatch-shape line (#2677), the Done-when compare (#2717)
+// ---------------------------------------------------------------------------
+
+test('check-shape: an unparsable End state check command exits 1 naming the row', () => {
+  const a = COMPLETE()
+  a.phase.endState = [{ condition: 'c1', check: "grep -q 'unterminated f && echo PASS-E1" }, { condition: 'c2', check: "grep -q 'ok' f && echo PASS-E2" }, 'a bare string row']
+  const r = runCli([], JSON.stringify(a))
+  assert.equal(r.status, 1, `exit 1 on an unparsable check — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /phase\.endState\[1\]\.check does not parse as shell: /, 'stderr names the row by its 1-based index')
+  assert.doesNotMatch(r.stderr, /phase\.endState\[[23]\]/, 'the well-formed sibling and the bare-string row are not named')
+  a.phase.endState.shift()
+  assert.equal(runCli([], JSON.stringify(a)).status, 0, 'a launch whose checks all parse exits 0')
+})
+
+test('check-shape: a prose doneWhen exits 1 naming the task and the null remedy', () => {
+  const a = COMPLETE()
+  a.tasks = [{ ...a.tasks[0], doneWhen: 'None — release slot files' }, { id: 't2', title: 'Task two', planSlice: 's', doneWhen: null }]
+  const r = runCli([], JSON.stringify(a))
+  assert.equal(r.status, 1, `exit 1 on a prose doneWhen — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /tasks\[t1\]\.doneWhen is the plan's no-command arm/, 'stderr names the task')
+  assert.match(r.stderr, /stage doneWhen: null, never the prose/, 'stderr names the null remedy')
+  assert.doesNotMatch(r.stderr, /tasks\[t2\]/, 'the null sibling passes')
+})
+
+test('CLI exit 0: the dispatch-complete line names the two dispatch shapes', () => {
+  const r = runCli([], JSON.stringify(COMPLETE()))
+  assert.equal(r.status, 0, `exit 0 — stderr: ${r.stderr}`)
+  const line = r.stdout.split('\n').find((l) => /dispatch-complete/.test(l))
+  assert.ok(line, 'one stdout line certifies the launch')
+  assert.match(line, /parsed object as the Workflow args/, 'the first shape')
+  assert.match(line, /no args over an --args staged script/, 'the second shape')
+  assert.match(line, /never a file path string/, 'the file path string is forbidden')
+  assert.match(line, /file path/)
+})
+
+test('check-shape: a doneWhen one space off its plan Done when bullet exits 1 naming the task', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aac-donewhen-'))
+  try {
+    const wrapped = 'node --test a.test.mjs && echo PASS-1'
+    const spaced = "grep -c -E '^  (a|b)' f"
+    writeFileSync(join(dir, 'plan.md'), [
+      '### Task t1 — first',
+      '- Files: `a.mjs`',
+      '- Done when: `node --test a.test.mjs &&',
+      '  echo PASS-1` (the `PASS-1` token proves it)',
+      '- deps: []',
+      '',
+      '### Task t2 — second',
+      "- Done when: `grep -c -E '^  (a|b)' f`",
+      '',
+    ].join('\n'))
+    assert.deepEqual(aac.planDoneWhenBullets(readFileSync(join(dir, 'plan.md'), 'utf8')), [wrapped, spaced], 'the intake rule joins soft wraps and keeps the code span body only')
+    const a = COMPLETE()
+    a.plan.file = 'plan.md'
+    a.mainCheckout = dir
+    a.tasks = [{ ...a.tasks[0], doneWhen: wrapped }, { id: 't2', title: 'Task two', planSlice: 's', doneWhen: "grep -c -E '^ (a|b)' f" }]
+    const r = runCli([], JSON.stringify(a))
+    assert.equal(r.status, 1, `exit 1 on the one-space form — stderr: ${r.stderr}`)
+    assert.match(r.stderr, /tasks\[t2\]\.doneWhen equals no Done when bullet of plan\.md byte for byte — differs at byte 14 /, 'stderr names the task and the first differing byte')
+    assert.match(r.stderr, /re-extract the command with its whitespace kept, never hand-edit the staged string/, 'stderr names the remedy')
+    assert.doesNotMatch(r.stderr, /tasks\[t1\]/, 'the verbatim sibling is not named')
+    a.tasks[1].doneWhen = spaced
+    const ok = runCli([], JSON.stringify(a))
+    assert.equal(ok.status, 0, `exit 0 once both strings equal their bullets — stderr: ${ok.stderr}`)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('CLI refusal: a staged doneWhen string with plan.file absent exits 2', () => {
+  const a = COMPLETE()
+  delete a.plan.file
+  a.tasks[0].doneWhen = 'true'
+  const r = runCli([], JSON.stringify(a))
+  assert.equal(r.status, 2, `exit 2 when plan.file is absent — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /plan\.file is absent/)
+})
+
+test('CLI refusal: an unparsable doneWhen outside the None arm exits 1 naming the task', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aac-dwparse-'))
+  try {
+    writeFileSync(join(dir, 'plan.md'), "- Done when: `echo 'open`\n")
+    const a = COMPLETE()
+    a.plan.file = 'plan.md'
+    a.mainCheckout = dir
+    a.tasks[0].doneWhen = "echo 'open"
+    const r = runCli([], JSON.stringify(a))
+    assert.equal(r.status, 1, `exit 1 on an unparsable doneWhen — stderr: ${r.stderr}`)
+    assert.match(r.stderr, /tasks\[t1\]\.doneWhen does not parse as shell: /)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('CLI refusal: a plan with no Done when bullet exits 1 saying so', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aac-nobullet-'))
+  try {
+    writeFileSync(join(dir, 'plan.md'), '### Task t1 — first\n- Files: `a.mjs`\n')
+    const a = COMPLETE()
+    a.plan.file = 'plan.md'
+    a.mainCheckout = dir
+    a.tasks[0].doneWhen = 'true'
+    const r = runCli([], JSON.stringify(a))
+    assert.equal(r.status, 1, `exit 1 when the plan has no bullet — stderr: ${r.stderr}`)
+    assert.match(r.stderr, /the plan has no Done when bullet/)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('check-shape: a staged doneWhen with an unreadable plan file exits 2', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aac-noplan-'))
+  try {
+    const a = COMPLETE()
+    a.plan.file = 'docs/plans/missing.md'
+    a.mainCheckout = dir
+    a.tasks[0].doneWhen = 'true'
+    const r = runCli([], JSON.stringify(a))
+    assert.equal(r.status, 2, `exit 2 on an unreadable plan — stderr: ${r.stderr}`)
+    assert.ok(r.stderr.includes(join(dir, 'docs/plans/missing.md')), `stderr names the resolved path — got ${r.stderr}`)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
