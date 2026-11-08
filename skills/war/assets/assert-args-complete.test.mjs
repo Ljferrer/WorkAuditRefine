@@ -473,6 +473,36 @@ test('provenance mirror: planFile-stamped row exits 0', () => {
   assert.doesNotMatch(r.stderr, STAMP_LINE, 'no stamp line on a pass')
 })
 
+test('provenance remedy: a foreign-stamped adjudication row is dropped, never restamped with the run planFile', () => {
+  const r = runCli([], JSON.stringify(PROV({ adjudications: [{ why: 'use the args floor approach', planFile: 'docs/plans/2026-01-01-other-plan.md' }] })))
+  assert.equal(r.status, 1, `exit 1 on a foreign stamp — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /provenance stamp naming a foreign plan/, 'the template refusal is the foreign-stamp arm')
+  const stampLines = r.stderr.split('\n').filter((l) => STAMP_LINE.test(l))
+  assert.equal(stampLines.length, 1, `exactly one remedy line — got ${JSON.stringify(stampLines)}`)
+  assert.match(stampLines[0], /not the launch copy/)
+  assert.match(stampLines[0], /drop the foreign args\.adjudications row, never restamp it/, 'the remedy drops the foreign row')
+  assert.ok(!stampLines[0].includes(`planFile: ${PLAN_FILE}`), `the remedy never tells the Lead to stamp the row with the run's own planFile — got ${stampLines[0]}`)
+  const id = runCli([], JSON.stringify(PROV({ backstops: ['see docs/plans/2026-01-01-other-plan.md for the args floor'] })))
+  assert.equal(id.status, 1, `exit 1 on a foreign docs/plans id — stderr: ${id.stderr}`)
+  assert.match(id.stderr, /foreign docs\/plans identifier/, 'the template refusal is the foreign-id arm')
+  const idLine = id.stderr.split('\n').find((l) => STAMP_LINE.test(l)) || ''
+  assert.match(idLine, /drop the foreign args\.backstops row, never restamp it/, 'the foreign-id arm also drops the row')
+  assert.ok(!idLine.includes('planFile:'), `no planFile stamp remedy on the foreign-id arm — got ${idLine}`)
+})
+
+test('provenance remedy: each own-token arm names its own stamp field, in one line', () => {
+  const r = runCli([], JSON.stringify(PROV({ intent: 'ship it quickly', backstops: ['run the slow suite nightly'], ruledAsks: ['use the faster approach'] })))
+  assert.equal(r.status, 1, `exit 1 on three token-less surfaces — stderr: ${r.stderr}`)
+  const stampLines = r.stderr.split('\n').filter((l) => STAMP_LINE.test(l))
+  assert.equal(stampLines.length, 1, `exactly one remedy line — got ${JSON.stringify(stampLines)}`)
+  const line = stampLines[0]
+  assert.match(line, /fix the args\.intent text so it names this run's plan/, 'intent has no row to stamp')
+  assert.ok(line.includes(`stamp each refused args.backstops row with planFile: ${PLAN_FILE}`), `backstops take the planFile stamp — got ${line}`)
+  assert.ok(line.includes(`set each refused args.ruledAsks row's planSlug field to ${SLUG}`), `ruledAsks take the planSlug field — got ${line}`)
+  assert.doesNotMatch(line, /args\.ruledAsks row with planFile/, 'the planFile remedy never names a planSlug-stamped surface')
+  assert.doesNotMatch(line, /drop the foreign/, 'no foreign arm fired')
+})
+
 test('provenance mirror: missing floor markers exit 2', () => {
   const dir = mkdtempSync(join(tmpdir(), 'aac-nomarker-'))
   try {
@@ -678,6 +708,43 @@ test('check-shape: a doneWhen one space off its plan Done when bullet exits 1 na
     a.tasks[1].doneWhen = spaced
     const ok = runCli([], JSON.stringify(a))
     assert.equal(ok.status, 0, `exit 0 once both strings equal their bullets — stderr: ${ok.stderr}`)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('CLI refusal: a staged doneWhen string with plan.file absent exits 2', () => {
+  const a = COMPLETE()
+  delete a.plan.file
+  a.tasks[0].doneWhen = 'true'
+  const r = runCli([], JSON.stringify(a))
+  assert.equal(r.status, 2, `exit 2 when plan.file is absent — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /plan\.file is absent/)
+})
+
+test('CLI refusal: an unparsable doneWhen outside the None arm exits 1 naming the task', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aac-dwparse-'))
+  try {
+    writeFileSync(join(dir, 'plan.md'), "- Done when: `echo 'open`\n")
+    const a = COMPLETE()
+    a.plan.file = 'plan.md'
+    a.mainCheckout = dir
+    a.tasks[0].doneWhen = "echo 'open"
+    const r = runCli([], JSON.stringify(a))
+    assert.equal(r.status, 1, `exit 1 on an unparsable doneWhen — stderr: ${r.stderr}`)
+    assert.match(r.stderr, /tasks\[t1\]\.doneWhen does not parse as shell: /)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('CLI refusal: a plan with no Done when bullet exits 1 saying so', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aac-nobullet-'))
+  try {
+    writeFileSync(join(dir, 'plan.md'), '### Task t1 — first\n- Files: `a.mjs`\n')
+    const a = COMPLETE()
+    a.plan.file = 'plan.md'
+    a.mainCheckout = dir
+    a.tasks[0].doneWhen = 'true'
+    const r = runCli([], JSON.stringify(a))
+    assert.equal(r.status, 1, `exit 1 when the plan has no bullet — stderr: ${r.stderr}`)
+    assert.match(r.stderr, /the plan has no Done when bullet/)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 

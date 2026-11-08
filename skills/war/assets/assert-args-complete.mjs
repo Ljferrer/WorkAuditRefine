@@ -26,7 +26,9 @@
 //       required field; an End state `check` or task `doneWhen` that does not parse as shell, or a
 //       `None — …` doneWhen; a staged doneWhen string that equals no plan `Done when:` bullet; a
 //       provenance floor refusal, printed verbatim from the template plus one line telling the
-//       Lead to stamp the row at its ledger source, not the launch copy.
+//       Lead to fix the row at its ledger source, not the launch copy (provenanceRemedies names
+//       the per-surface remedy: a planFile or planSlug stamp, the intent text, or a dropped
+//       foreign row).
 //   A boundary warning (#2545 part 3, boundaryWarnings below) goes to stderr and never changes the exit code.
 //   2 — tooling error: unreadable template, unreadable args file/stdin, unparseable args JSON,
 //       a readable template that yields ZERO fallback-free interpolations (wrong template source —
@@ -516,6 +518,29 @@ export function checkDoneWhenText (args, bullets) {
   return out
 }
 
+// One remedy clause per refused surface, keyed by the template's own refusal wording. A foreign
+// stamp or a foreign docs/plans id is a cross-plan leak: the row is dropped, never restamped.
+// An own-token miss is stamped by the surface's own field: planFile on backstops and
+// adjudications, planSlug on ruledAsks, seededPhaseClose and seededTasks; intent has no row to
+// stamp, so its text is fixed at its source.
+const SLUG_STAMPED = new Set(['ruledAsks', 'seededPhaseClose', 'seededTasks'])
+export function provenanceRemedies (problems, args) {
+  const a = (args && typeof args === 'object' && !Array.isArray(args)) ? args : {}
+  const file = (a.plan && typeof a.plan === 'object' && isStr(a.plan.file)) ? a.plan.file : '<plan.file>'
+  const slug = isStr(a.planSlug) ? a.planSlug : 'the run plan slug'
+  const out = []
+  for (const p of problems || []) {
+    const name = (/^workflow-template: args\.(\w+) /.exec(p) || [])[1] || '?'
+    let clause
+    if (/provenance stamp naming a foreign plan|foreign docs\/plans identifier/.test(p)) clause = `drop the foreign args.${name} row, never restamp it with this run's plan`
+    else if (name === 'intent') clause = 'fix the args.intent text so it names this run\'s plan'
+    else if (SLUG_STAMPED.has(name)) clause = `set each refused args.${name} row's planSlug field to ${slug}`
+    else clause = `stamp each refused args.${name} row with planFile: ${file}`
+    if (!out.includes(clause)) out.push(clause)
+  }
+  return out
+}
+
 // ---- CLI -----------------------------------------------------------------------------------
 // Repo-canonical main-guard idiom (war-config.mjs / stage-workflow.mjs / war-memory.mjs): realpath
 // the argv entry so a symlinked invocation still RUNS the floor — the retired file:// string-build
@@ -608,8 +633,7 @@ if (invokedDirectly) {
   if (prov.problems.length) {
     process.stderr.write(`assert-args-complete: the template's provenance floor refuses these args (${prov.problems.length} refusal(s)):\n`)
     for (const line of prov.problems) process.stderr.write(`${line}\n`)
-    const stampFile = (parsed.plan && typeof parsed.plan === 'object' && isStr(parsed.plan.file)) ? parsed.plan.file : '<plan.file>'
-    process.stderr.write(`assert-args-complete: stamp each refused row with planFile: ${stampFile} at its ledger source (the record the Lead assembles the args from), not the launch copy — a patched launch copy is lost at the next assembly\n`)
+    process.stderr.write(`assert-args-complete: fix each refused row at its ledger source (the record the Lead assembles the args from), not the launch copy — ${provenanceRemedies(prov.problems, parsed).join('; ')} — a patched launch copy is lost at the next assembly\n`)
     process.exit(1)
   }
   // Scope the claim to what was proven: the fallback-free prompt interpolations, the command
