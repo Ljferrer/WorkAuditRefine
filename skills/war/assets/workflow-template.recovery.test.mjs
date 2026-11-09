@@ -1458,13 +1458,14 @@ test('recovery predecessor seed (#2575): the first fresh merge after a preMerged
   assert.ok(calls.some(c => c.opts.label === 'work:t2'), 'the fresh task runs')
   assert.equal(preMergeTipOf(evPromptOf(calls), 't2'), tip, 'the fresh task rebased onto the adopted integration tip, so its mapped range starts there')
   const barrier = calls.find(isProvision).prompt
-  assert.match(barrier, /return the third field of a TASK_INTEGRATED line \(the integration tip\) as `integrationTip`/, 'the derive step asks for integrationTip')
+  assert.match(barrier, /return the last field of a TASK_INTEGRATED line \(the integration tip, after the merge commit\) as `integrationTip`/, 'the derive step asks for integrationTip')
   // No fresh merge: a one-task phase whose only task is pre-merged, with a held land. tipSha reads
   // lastLandedTip, which the seed never sets.
   const held = (env) => runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, recovery: { sanctioned: true } }),
     (p, o) => o.dispatchKind === 'provision-barrier' ? env : o.phase === 'Land' && seatOf(o) === 'war-refiner' ? { mode: 'land-phase', status: 'land_stale' } : defaultImpl(p, o))
   const seeded = await held({ ok: true, preMerged: ['t1'], integrationTip: tip })
   const bare = await held({ ok: true, preMerged: ['t1'] })
+  assert.ok(seeded.out.handoff && bare.out.handoff, 'the held phase emits a handoff (presence guard for the tipSha compare)')
   assert.notEqual(seeded.out.landDecision, 'landed', 'the land holds (presence guard)')
   assert.equal(seeded.out.handoff && seeded.out.handoff.tipSha, bare.out.handoff && bare.out.handoff.tipSha, 'tipSha is unchanged by the seed')
   assert.notEqual(seeded.out.handoff && seeded.out.handoff.tipSha, tip, 'the seed never reaches tipSha')
@@ -1498,13 +1499,19 @@ test('prior-return carry (#2700): a pre-merged task gets its held-attempt aced a
     aced: [{ task: 'p3-t1', finding: { severity: 'Nit', title: 'held ace' }, sha: 'abc1234' }, { task: 't2', finding: { severity: 'Nit', title: 'other ace' }, sha: 'abc1234' }],
     minorsFiled: [{ task: 't1', severity: 'Minor', title: 'held follow-up', rationale: 'r', disposition: 'follow-up', issue: 77 }],
   }
-  const { out, logs } = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true, priorReturn } }), barrierEnv({ ok: true, preMerged: ['t1'] }))
+  const { out, logs, calls } = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true, priorReturn } }), barrierEnv({ ok: true, preMerged: ['t1'] }))
+  const filing = calls.find(c => c.opts.dispatchKind === 'file-followups')
+  assert.ok(filing && filing.prompt.includes('title: "held follow-up"') && filing.prompt.includes('already filed #77 (reuse it: no new issue, no comment)'), 'the file-followups prompt marks the carried row as already filed')
   const a = out.aced.filter(r => r.recovered === true)
   assert.deepEqual(a.map(r => r.finding.title), ['held ace'], 'only the pre-merged task\'s aced row is carried')
   assert.ok(!out.aced.some(r => r.finding && r.finding.title === 'other ace'), 'the re-running task\'s row is dropped')
   const m = out.minorsFiled.find(r => r.title === 'held follow-up')
   assert.ok(m && m.recovered === true, 'the minorsFiled row is carried, stamped recovered')
   assert.equal(m.issue, 77, 'a row already carrying issue keeps it')
+  const n = Number(filing.prompt.match(/ {2}(\d+)\. title: "held follow-up"/)[1])
+  const env = barrierEnv({ ok: true, preMerged: ['t1'] })
+  const refiled = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true, priorReturn } }), (p, o) => o.dispatchKind === 'file-followups' ? { filed: [{ n, issue: 99 }], clusters: [{ ordinals: [n], issue: 99 }] } : env(p, o))
+  assert.equal(refiled.out.minorsFiled.find(r => r.title === 'held follow-up').issue, 77, 'a filing reply never overwrites a carried issue number')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('prior-return carry: task t1 carries 1 aced and 1 minorsFiled')), 'one log line per task with both counts')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('prior-return carry: dropped 1 row')), 'the dropped rows are logged')
   const none = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), barrierEnv({ ok: true, preMerged: ['t1'] }))
