@@ -1579,11 +1579,12 @@ fi
 # stand-in (#2615): a status call whose arguments carry it waits 3 s, then
 # goes on to the arms above. SHIM_BLOCK stubs any other git call to block: a
 # call whose arguments carry it sleeps SHIM_NAP before git runs (the BD rows,
-# one per git call PIN-15 put under bounded). The hook must kill the slow call at its deadline
-# (SHIM_D) instead of waiting for it, so each row also bounds its own wall
-# time: a killed call ends near SHIM_D, a call left to run takes at least
-# SHIM_NAP, and SHIM_CAP sits between them. The shim is on PATH for the run
-# under test only; the payload builders use the real jq and git.
+# one per git call PIN-15 put under bounded). The hook must kill the slow
+# call at its deadline (SHIM_D) instead of waiting for it, so each row also
+# bounds its own wall time: a killed call ends near SHIM_D, a call left to
+# run takes at least SHIM_NAP, and SHIM_CAP sits between them. The shim is on
+# PATH for the run under test only; the payload builders use the real jq and
+# git.
 # The deadline is SHIM_D = 10 s, never 2 s (#2615, operator ruling
 # 2026-11-08): under a loaded gate the real git calls before the slowed one
 # outran a 2 s budget, and the watchdog fired at the wrong worktree. The
