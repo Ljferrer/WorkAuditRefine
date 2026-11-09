@@ -167,8 +167,9 @@
 #   directly under the record tree and prints `pruned: <path>`.
 #   `--prune --stale` removes every record directory there with no file
 #   modified in the last 24 hours (no audit seat lives that long, A28). A bad
-#   name, a missing directory or no git common dir exits 2 with nothing
-#   removed. The mode runs before the stdin payload is read.
+#   name, a missing directory, a symlinked record tree (or a symlinked
+#   .claude or .claude/war above it) or no git common dir exits 2 with
+#   nothing removed. The mode runs before the stdin payload is read.
 #
 # PAYLOAD CONTRACT
 #   `agent_id` and `agent_type` ride SubagentStart and SubagentStop (confirmed
@@ -324,6 +325,9 @@ if [ "${1-}" = --prune ]; then
   main_common
   [ -n "$MAIN" ] || infra "--prune: no git common dir from cwd '$cwd'"
   _pr="$MAIN/.claude/war/audit-fingerprints"
+  # The record tree must be a real directory path: a symlink at .claude,
+  # .claude/war or the tree itself would aim rm -rf at the link target.
+  [ -d "$_pr" ] && [ "$(cd -P -- "$_pr" 2>/dev/null && pwd -P)" != "$(cd -P -- "$MAIN" 2>/dev/null && pwd -P)/.claude/war/audit-fingerprints" ] && infra "--prune: $_pr is not a real record tree"
   # prune_one <dir>: rm -rf on a real directory that sits directly under the
   # record tree, else exit 2.
   prune_one() {
@@ -695,8 +699,10 @@ fingerprint() {
 # On a recording arm (LIST_TOOL set) a failed list leaves a mark (see seat_mark).
 # The list runs under bounded with the PROBE_FLOOR floor (a list called after
 # the deadline still runs, so a start arm under a spent deadline names the
-# worktrees it skips). A killed list prints nothing and returns 3; the arm
-# that walked reads the spent deadline and takes its own timeout path.
+# worktrees it skips). A killed list prints nothing and returns 3. The Bash
+# and Grep arms then read the spent deadline and leave their mark. The start
+# arm records no line for the unlisted worktrees, which the verdict arm then
+# reads as `no start record` (fail closed).
 LIST_TOOL=""
 marked_worktrees_of() {
   _bfl=$PROBE_FLOOR bcap git -C "$1" worktree list --porcelain; _wrc=$?
@@ -1094,7 +1100,8 @@ ignored_dir() {
 # root reads nothing, and walking its parent would touch sibling worktrees.
 # Each folder's answer is cached for the walk (`_gno` not ignored, `_gyes`
 # ignored), so the worktrees under one folder cost one check-ignore spawn for
-# it. A watchdog kill in any check stops the walk (return 3). The git-pattern rule stands for a
+# it. A watchdog kill in any check stops the walk, and the Grep arm's
+# deadline check then leaves its mark. The git-pattern rule stands for a
 # Grep with a `glob` (#2476): a ripgrep `--glob` wins over ignore rules, so a
 # glob that matches an ignored folder's name can read a worktree this walk
 # leaves untouched. That residual is recorded in the fingerprint lesson and in
