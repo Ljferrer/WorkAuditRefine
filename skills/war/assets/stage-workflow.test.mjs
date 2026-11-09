@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, isAbsolute } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR, SCRIPT_BYTE_CAP, deriveName, deriveDescription, stripFullLineComments } from './stage-workflow.mjs'
+import { createHash } from 'node:crypto'
+import { NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR, SCRIPT_BYTE_CAP, DISCARD_FLAG, SIDECAR_SUFFIX, deriveName, deriveDescription, stripFullLineComments } from './stage-workflow.mjs'
 import { extractInterpolations, extractArgsFields, unguardedTopLevelKeys, ptSpanRanges } from './assert-args-complete.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -162,13 +163,16 @@ test('(f) anchor guard: each imported anchor occurs exactly once in the shipped 
 })
 
 // (g) --force restage — the same pre-existing different-content staged file is overwritten with a
-// fresh substitution when --force is passed (red: flag ignored, stale bytes survive).
+// fresh substitution when --force is passed and its digest sidecar matches its bytes (a clean stage
+// from an older template; red: flag ignored, stale bytes survive). Arm (t) covers the refusals.
+const sha256 = (text) => createHash('sha256').update(text).digest('hex')
 test('(g) --force overwrites a pre-existing different-content staged file with a fresh substitution', () => {
   const dir = scratch('stage-force-')
   const tpl = join(dir, 'tpl.js')
   writeFileSync(tpl, MINIMAL_TEMPLATE)
   const stagedPath = join(dir, deriveName('slug', '1') + '.js')
   writeFileSync(stagedPath, '// stale bytes\n')
+  writeFileSync(stagedPath + SIDECAR_SUFFIX, sha256('// stale bytes\n') + '\n')
   const { status } = runStager([tpl, dir, 'slug', '1', '--force'])
   assert.equal(status, 0)
   const staged = readFileSync(stagedPath, 'utf8')
@@ -393,7 +397,7 @@ test('(l) --args on a pre-existing staged file warns on stderr, leaves it byte-u
   assert.equal(readFileSync(stagedPath, 'utf8'), sentinel, 'the staged file is byte-untouched — no re-embed')
   assert.match(
     stderr,
-    /stage-workflow: existing staged file reused — --args ignored \(pass --force to re-embed\)/,
+    /stage-workflow: existing staged file reused — --args ignored \(pass --force or --discard-injections to re-embed\)/,
     'the ignored --args must be reported once on stderr',
   )
 })
@@ -1188,7 +1192,7 @@ test('indent-strip: skip-signal scan lists a skip near a staged-form signal and 
 // an over-cap --args payload is named as such; the boundary is `at or under dispatches, over
 // refuses` (exactly SCRIPT_BYTE_CAP bytes stages, one more refuses); the live 0.21.11 shape — the
 // shipped template plus an over-size-class args payload — stages under the cap; and a pre-existing
-// over-cap staged file is refused (naming --force) rather than reused, byte-untouched.
+// over-cap staged file is refused (naming --discard-injections) rather than reused, byte-untouched.
 const CAP_FRAGMENT = new RegExp(`over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap`)
 const padFixture = (dir, name, padBytes) => {
   const p = join(dir, name)
@@ -1235,7 +1239,7 @@ test('(q) the live 0.21.11 shape: the shipped template plus a ~104.5 KB --args p
   assert.ok(Buffer.byteLength(readFileSync(stdout.trim(), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP)
 })
 
-test('(q) write-if-absent refuses a pre-existing staged file over the cap, naming --force, file untouched', () => {
+test('(q) write-if-absent refuses a pre-existing staged file over the cap, naming --discard-injections, file untouched', () => {
   const dir = scratch('stage-cap-reuse-')
   const tpl = join(dir, 'tpl.js')
   writeFileSync(tpl, MINIMAL_TEMPLATE)
@@ -1246,10 +1250,136 @@ test('(q) write-if-absent refuses a pre-existing staged file over the cap, namin
   assert.notEqual(r.status, 0)
   assert.match(r.stderr, /existing staged file/)
   assert.match(r.stderr, CAP_FRAGMENT)
-  assert.match(r.stderr, /--force/)
+  assert.match(r.stderr, /restage it with --discard-injections/)
+  assert.doesNotMatch(r.stderr, /--force/, 'a sidecar-less over-cap file would refuse --force, so the remedy never names it')
   assert.equal(readFileSync(stagedPath, 'utf8'), stale, 'the refused file is left byte-untouched')
-  const forced = runStager([tpl, dir, 'slug', '1', '--force'])
-  assert.ok(Buffer.byteLength(readFileSync(forced.stdout.trim(), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP, '--force restages a fresh, under-cap copy')
+  const forced = runStager([tpl, dir, 'slug', '1', DISCARD_FLAG])
+  assert.ok(Buffer.byteLength(readFileSync(forced.stdout.trim(), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP, '--discard-injections restages a fresh, under-cap copy')
+})
+
+// (t) Digest sidecar (#2345, PIN-10). Every write leaves `<staged>.sha256` holding the digest of the
+// written bytes; --force overwrites only a file whose sidecar matches; a hand-edited file or a file
+// with no sidecar refuses --force with exit 1 naming DISCARD_FLAG, file byte-untouched; DISCARD_FLAG
+// overwrites regardless. The flag and the suffix come from the stager's exports, never a literal.
+const DISCARD_FRAGMENT = new RegExp(DISCARD_FLAG)
+const stagedFixture = () => {
+  const dir = scratch('stage-sidecar-')
+  const tpl = join(dir, 'tpl.js')
+  writeFileSync(tpl, MINIMAL_TEMPLATE)
+  const stagedPath = runStager([tpl, dir, 'slug', '1']).stdout.trim()
+  return { dir, tpl, stagedPath }
+}
+test('(t) --force over a hand-edited file exits 1 naming --discard-injections', () => {
+  const { dir, tpl, stagedPath } = stagedFixture()
+  const edited = readFileSync(stagedPath, 'utf8') + 'export const injected = 1 // an approved stage\n'
+  writeFileSync(stagedPath, edited)
+  const sidecar = readFileSync(stagedPath + SIDECAR_SUFFIX, 'utf8')
+  const r = runStager([tpl, dir, 'slug', '1', '--force'], { expectFail: true })
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, DISCARD_FRAGMENT)
+  assert.match(r.stderr, /differs from its \.sha256 digest sidecar/)
+  assert.equal(r.stdout, '', 'no staged path is printed on refusal')
+  assert.equal(readFileSync(stagedPath, 'utf8'), edited, 'the refused file is left byte-untouched')
+  assert.equal(readFileSync(stagedPath + SIDECAR_SUFFIX, 'utf8'), sidecar, 'the sidecar is left byte-untouched')
+})
+test('(t) --force with no sidecar exits 1', () => {
+  const dir = scratch('stage-nosidecar-')
+  const tpl = join(dir, 'tpl.js')
+  writeFileSync(tpl, MINIMAL_TEMPLATE)
+  const stagedPath = join(dir, deriveName('slug', '1') + '.js')
+  writeFileSync(stagedPath, '// a pre-sidecar stage\n')
+  const r = runStager([tpl, dir, 'slug', '1', '--force'], { expectFail: true })
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, DISCARD_FRAGMENT)
+  assert.match(r.stderr, /has no \.sha256 digest sidecar/)
+  assert.equal(readFileSync(stagedPath, 'utf8'), '// a pre-sidecar stage\n', 'the refused file is left byte-untouched')
+  assert.ok(!existsSync(stagedPath + SIDECAR_SUFFIX), 'no sidecar is written on refusal')
+})
+test('(t) --discard-injections overwrites', () => {
+  const { dir, tpl, stagedPath } = stagedFixture()
+  writeFileSync(stagedPath, '// hand-edited stage\n')
+  const sideless = join(dir, deriveName('slug', '2') + '.js')
+  writeFileSync(sideless, '// no sidecar\n')
+  for (const [phase, p] of [['1', stagedPath], ['2', sideless]]) {
+    const r = runStager([tpl, dir, 'slug', phase, DISCARD_FLAG])
+    assert.equal(r.stdout.trim(), p)
+    const staged = readFileSync(p, 'utf8')
+    assert.ok(staged.includes(`name: '${deriveName('slug', phase)}'`), 'a fresh substitution replaced the file')
+    assert.equal(readFileSync(p + SIDECAR_SUFFIX, 'utf8').trim(), sha256(staged), 'the overwrite wrote a matching sidecar')
+  }
+})
+test('(t) every write leaves a matching sidecar', () => {
+  const dir = scratch('stage-sidecar-all-')
+  const tpl = join(dir, 'tpl.js')
+  writeFileSync(tpl, MINIMAL_TEMPLATE)
+  const withTail = join(dir, 'with-tail.js')
+  writeFileSync(withTail, MINIMAL_TEMPLATE + `const A = typeof args === 'object' ? args ${ARGS_FALLBACK_ANCHOR}\n`)
+  const runs = [
+    [tpl, dir, 'slug', '1'], // fresh stage
+    [tpl, dir, 'slug', '1', '--force'], // --force over a clean stage
+    // Each payload gets its own args file, so the fresh stage embeds { a: 1 } and only a real
+    // --force re-embed can make the phase-2 file read { a: 2 }.
+    [withTail, dir, 'slug', '2', '--args', writeArgs(scratch('stage-args1-'), { a: 1 })], // fresh --args stage
+    [withTail, dir, 'slug', '2', '--force', '--args', writeArgs(scratch('stage-args2-'), { a: 2 })], // --force re-embed
+    [tpl, dir, 'slug', '3', DISCARD_FLAG], // --discard-injections with nothing there
+  ]
+  for (const [i, args] of runs.entries()) {
+    const p = runStager(args).stdout.trim()
+    assert.equal(readFileSync(p + SIDECAR_SUFFIX, 'utf8'), sha256(readFileSync(p, 'utf8')) + '\n', `sidecar matches after: ${args.slice(2).join(' ')}`)
+    if (i === 2) assert.match(readFileSync(p, 'utf8'), /"a":1/, 'the fresh --args stage embedded the first args')
+  }
+  assert.match(readFileSync(join(dir, deriveName('slug', '2') + '.js'), 'utf8'), /"a":2/, 'the --force re-embed over a clean stage took the new args')
+})
+
+// staged-script doc (#2345, operator ruling 3, 2026-11-08): the three doc surfaces that state the
+// --force rule name the override flag and the sidecar suffix in one grammar (`override flag
+// `<flag>`` and `` `<staged><suffix>` ``), extracted here and compared with the stager's exports; the
+// GLOSSARY **Provenance stamp** entry's `stamp key `<key>`` equals the template's planFile key; and
+// the old always-overwrites wording is absent from each surface that carried it (whitespace-normalized,
+// because the GLOSSARY entries soft-wrap mid-phrase).
+test("staged-script doc: names the stager's override flag and sidecar suffix", () => {
+  const root = join(HERE, '..', '..', '..')
+  const read = (rel) => readFileSync(join(root, rel), 'utf8')
+  const norm = (t) => t.replace(/\s+/g, ' ')
+  const between = (text, start, end, label) => {
+    const a = text.indexOf(start)
+    assert.ok(a !== -1, `${label}: start marker not found: ${start}`)
+    const b = text.indexOf(end, a + start.length)
+    assert.ok(b !== -1, `${label}: end marker not found: ${end}`)
+    return text.slice(a, b)
+  }
+  const doc = read('skills/war/references/staged-script.md')
+  const adr = read('docs/adr/0037-run-scoped-staged-phase-scripts.md')
+  const decision3 = between(adr, '\n3. **', '\n4. **', 'ADR 0037 decision 3')
+  const amendment = decision3.split('\n\n').find((p) => p.trimStart().startsWith('**Amendment (2026-11-08'))
+  assert.ok(amendment, 'ADR 0037 decision 3 carries no 2026-11-08 amendment paragraph')
+  const glossary = read('GLOSSARY.md')
+  const stagedEntry = between(glossary, '**Staged phase script**:', '**Staged-script sidecar**:', 'GLOSSARY staged-copy entry')
+  const sidecarEntry = between(glossary, '**Staged-script sidecar**:', '**Provenance stamp**:', 'GLOSSARY sidecar entry')
+  const stampEntry = between(glossary, '**Provenance stamp**:', '\n### ', 'GLOSSARY Provenance stamp entry')
+  const surfaces = { 'staged-script.md': doc, 'ADR 0037 decision 3 amendment': amendment, 'GLOSSARY staged-copy entry': stagedEntry, 'GLOSSARY sidecar entry': sidecarEntry }
+  for (const [label, text] of Object.entries(surfaces)) {
+    const flags = [...norm(text).matchAll(/override flag `(--[a-z-]+)`/g)].map((m) => m[1])
+    const suffixes = [...norm(text).matchAll(/`<staged>(\.[a-z0-9]+)`/g)].map((m) => m[1])
+    assert.ok(flags.length > 0, `${label}: no \`override flag \`<flag>\`\` restatement — the guard is fail-closed`)
+    assert.ok(suffixes.length > 0, `${label}: no \`<staged><suffix>\` restatement — the guard is fail-closed`)
+    for (const f of flags) assert.equal(f, DISCARD_FLAG, `${label}: names override flag ${f}, the stager exports ${DISCARD_FLAG}`)
+    for (const x of suffixes) assert.equal(x, SIDECAR_SUFFIX, `${label}: names sidecar suffix ${x}, the stager exports ${SIDECAR_SUFFIX}`)
+  }
+  const tpl = readFileSync(TEMPLATE, 'utf8')
+  const tplKey = tpl.match(/if \(typeof row\.(\w+) === 'string' && row\.\1\) \{\s*\n\s*if \(ownPlanBase && baseOf\(row\.\1\)/)
+  assert.ok(tplKey, 'could not locate the provenance stamp read in workflow-template.js rowText')
+  const stampKeys = [...norm(stampEntry).matchAll(/stamp key `(\w+)`/g)].map((m) => m[1])
+  assert.ok(stampKeys.length > 0, 'GLOSSARY Provenance stamp entry: no `stamp key `<key>`` restatement')
+  for (const k of stampKeys) assert.equal(k, tplKey[1], `GLOSSARY Provenance stamp entry names key ${k}, the template reads ${tplKey[1]}`)
+  const retired = {
+    'staged-script.md': [doc, ['any injected stage in the old file is lost', 'naming `--force`']],
+    'ADR 0037 decision 3': [decision3, ['the only path that overwrites', 'refuses with an error naming `--force`']],
+    'GLOSSARY.md': [glossary, ['a deliberate `--force` overwrites it', 'refused with an error naming `--force`']],
+  }
+  for (const [label, [text, phrases]] of Object.entries(retired)) {
+    for (const phrase of phrases) assert.ok(!norm(text).includes(phrase), `${label} still carries the old always-overwrites wording: ${phrase}`)
+  }
 })
 
 // (r) Cap doc pins (#2099). Every doctrine surface that restates the scriptPath cap writes it in one

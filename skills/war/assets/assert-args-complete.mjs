@@ -6,7 +6,10 @@
 // the vacuous-phase family of silent degradations (#1421 / the missing-plan-file incident). This
 // floor runs BEFORE dispatch: it reads the template source, mechanically extracts the fallback-free
 // `${…}` member-chain interpolations inside pt-tagged prompt spans, maps each to the launch-args
-// field it reads, and checks the supplied args object for every mapped field.
+// field it reads, and checks the supplied args object for every mapped field. It then checks that
+// each staged End state `check` and task `doneWhen` parses as shell (`bash -n`), that no `doneWhen`
+// is the plan's `None — …` prose, that each staged `doneWhen` string equals its plan `Done when:`
+// bullet byte for byte, and runs the template's own provenance floor (#1896) over the args.
 //
 // Usage:
 //   node assert-args-complete.mjs [--template <path>] [<args-file.json>|-]
@@ -16,25 +19,38 @@
 // an argv guarantee must not hold in one mode by accident of positional handling).
 //
 // Exit contract (floor scripts exit 0/1/2; 2 never collapses into the floor status):
-//   0 — every required field is present; the launch is dispatch-complete.
-//   1 — a required field is missing: stderr names each missing field. Fix the assembled args.
+//   0 — every check passes; the launch is dispatch-complete. The stdout line names the two dispatch
+//       shapes: the parsed object as the Workflow args, or no args over an --args staged script.
+//   1 — the args fail a check, and stderr names each failure. Fix the assembled args (or the row at
+//       its ledger source). The checks run in order and the first failing one exits: a missing
+//       required field; an End state `check` or task `doneWhen` that does not parse as shell, or a
+//       `None — …` doneWhen; a staged doneWhen string that equals no plan `Done when:` bullet; a
+//       provenance floor refusal, printed verbatim from the template plus one line telling the
+//       Lead to fix the row at its ledger source, not the launch copy (provenanceRemedies names
+//       the per-surface remedy: a planFile or planSlug stamp, the intent text, or a dropped
+//       foreign row).
 //   A boundary warning (#2545 part 3, boundaryWarnings below) goes to stderr and never changes the exit code.
-//   2 — tooling error: unreadable template, unreadable args file/stdin, unparseable args JSON, or
+//   2 — tooling error: unreadable template, unreadable args file/stdin, unparseable args JSON,
 //       a readable template that yields ZERO fallback-free interpolations (wrong template source —
-//       certifying against zero requirements would be a silent pass) — never reported as
+//       certifying against zero requirements would be a silent pass), a `bash` that cannot spawn,
+//       an unreadable plan.file while a doneWhen string is staged, or a provenance mirror that
+//       cannot run (missing floor markers, a missing FLOOR_BINDINGS line, an uncompilable slice,
+//       or a throw from the slice that is not the floor's own refusal) — never reported as
 //       "missing field" and never a floor pass.
 //
 // Extraction mechanics (A2 — mechanism latitude granted by the plan's Commander's Intent):
 //   - Only pt-tagged template literals are scanned (the dispatched-prompt surface). Comments, error
-//     messages, and derivation helpers are not prompt bytes; they are excluded today only
-//     incidentally — the scanner seeds on any pt` byte-run and models no comment or string context —
-//     and the default-deny census in workflow-template.engine-1.test.mjs is what keeps the extracted set clean.
-//   - An interpolation qualifies when its expression is a PURE member chain (`a.b.c` — no `??`,
-//     `||`, ternary, call, or optional chaining): any of those is a fallback/guard, so the site is
-//     not fallback-free.
+//     messages, and derivation helpers are not prompt bytes. The seed scan skips `//` and `/* */`
+//     comments, `'…'` / `"…"` strings and regex literals outside spans (#1775), so a pt` byte-run in
+//     one of them (a staged copy's embedded-args JSON string included) opens no span; error messages and helpers
+//     outside pt spans contribute nothing. The default-deny census in
+//     workflow-template.engine-1.test.mjs still pins the extracted set.
+//   - An interpolation qualifies when its expression is a PURE member chain (`a.b.c`, with
+//     `[<digits>]` index segments admitted, #1760 — no `??`, `||`, ternary, call, or optional
+//     chaining): any of those is a fallback/guard, so the site is not fallback-free.
 //   - Chains map to args fields by root: `ph.X` → phase.X; `plan.X` → plan.X; `task.X` / `t.X` /
-//     `r.task.X` → tasks[].X; a bare identifier maps to a top-level args key only when the template
-//     binds it as an unguarded `const <local> = A.<key>` read or a no-default destructure off `A`
+//     `r.task.X` / `tasks[N].X` → tasks[].X (any other indexed chain maps to no field); a bare
+//     identifier maps to a top-level args key only when the template binds it as an unguarded `const <local> = A.<key>` read or a no-default destructure off `A`
 //     (mechanically parsed from the source) — detection keys on the LOCAL name, but the emitted
 //     field is the ARGS key (an aliased `{ phase: ph }` binding emits `phase`, never `ph`).
 //     Locals and loop variables have no such binding and drop out.
@@ -54,9 +70,11 @@
 // module's exports: any NEW fallback-free interpolation reds the census and forces an explicit
 // classification (required here, or exempt with a reason).
 
-import { readFileSync, realpathSync } from 'node:fs'
+import { readFileSync, realpathSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, isAbsolute, resolve } from 'node:path'
+import { tmpdir } from 'node:os'
+import { spawnSync } from 'node:child_process'
 import { MODEL_RANK, DEFAULTS } from './war-config.mjs'
 
 // Fields extracted from pt spans but deliberately NOT required of the launch args. Keys are the
@@ -72,8 +90,8 @@ export const EXEMPT_FIELDS = new Map([
 ])
 
 // ---- pt-span tokenizer ---------------------------------------------------------------------
-// Collect the raw text of every pt-tagged template literal. A mode STACK tracks `${…}` expression
-// nesting, plain-brace nesting inside expressions, and nested backtick templates (an inner pt`…`
+// Collect the raw text of every pt-tagged template literal. A mode STACK (walkPtSpan) tracks `${…}`
+// expression nesting, plain-brace nesting inside expressions, and nested backtick templates (an inner pt`…`
 // inside a ternary), so a span never terminates early — the outer span's text INCLUDES every
 // nested span, and one flat re-scan over the collected text sees both. ptSpanRanges is the one
 // scanner; it returns each span with its [start, end) source offsets (start at the pt` tag, end
@@ -84,45 +102,120 @@ export const EXEMPT_FIELDS = new Map([
 // `{ nested: true }` also emits each inner span (found by re-scanning every top-level expression
 // body, offsets in the caller's source) after its outer span, so a prose-vs-code judgment can pick
 // the innermost enclosing span. ptSpans is the text-only, top-level view of the same result.
+const REGEX_AFTER_WORD = new Set(['return', 'case', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'yield', 'await', 'do', 'else', 'throw'])
+const REGEX_AFTER_SIG = '(,=:[!&|?{};+-*%<>~^'
 export function ptSpanRanges (source, { nested = false } = {}) {
   const spans = []
-  const re = /\bpt`/g
-  let m
-  while ((m = re.exec(source))) {
-    const start = m.index
-    let i = m.index + m[0].length
-    const stack = ['tpl'] // 'tpl' = template text, 'expr' = ${…} body, 'brace' = plain {…} inside an expr
-    const exprs = []
-    let exprStart = -1
-    let out = ''
-    while (i < source.length && stack.length) {
-      const c = source[i]
-      const top = stack[stack.length - 1]
-      // Escaped pairs are DROPPED, not copied: an escaped `\${…}` is prompt PROSE (an
-      // agent-resolved placeholder), and copying it would make the flat re-scan count it as a
-      // real interpolation. Dropping still consumes both chars, so `\`` never terminates a span.
-      if (c === '\\' && top === 'tpl') { i += 2; continue }
-      if (top === 'tpl') {
-        if (c === '`') { stack.pop(); if (!stack.length) break; out += c; i++; continue }
-        if (c === '$' && source[i + 1] === '{') { if (stack.length === 1) exprStart = i; stack.push('expr'); out += '${'; i += 2; continue }
-      } else { // 'expr' or 'brace'
-        if (c === '`') { stack.push('tpl'); out += c; i++; continue }
-        if (c === '{') { stack.push('brace'); out += c; i++; continue }
-        if (c === '}') { stack.pop(); if (stack.length === 1) exprs.push([exprStart, i + 1]); out += c; i++; continue }
-      }
-      out += c; i++
+  const n = source.length
+  // Seed scan (#1775, PIN-6): the code/template stack, comment, string and regex arms are adapted
+  // from stripFullLineComments in stage-workflow.mjs. A `//` or `/* */` comment, a `'…'` or `"…"`
+  // string (line-local, `\` escapes honoured) and a regex literal (a `/` after an operator, an opener
+  // or a REGEX_AFTER_WORD keyword; `\` escapes and `[…]` classes honoured) are skipped, so a quote or
+  // backtick inside one never desyncs the scan. A plain template literal is walked as text, and its
+  // `${…}` bodies are code, so a pt span inside one still opens.
+  const stack = [{ type: 'code' }]
+  let lastSig = ''
+  let prevSig = ''
+  let lastWord = ''
+  let wordProp = false
+  let i = 0
+  while (i < n) {
+    const ctx = stack[stack.length - 1]
+    const c = source[i]
+    const c2 = source[i + 1]
+    if (ctx.type === 'template') {
+      if (c === '\\') { i += 2; continue }
+      if (c === '`') { stack.pop(); prevSig = lastSig; lastSig = '`'; lastWord = ''; i++; continue }
+      if (c === '$' && c2 === '{') { stack.push({ type: 'code', interp: true, depth: 0 }); prevSig = lastSig; lastSig = '{'; lastWord = ''; i += 2; continue }
+      i++
+      continue
     }
-    spans.push({ start, end: Math.min(i + 1, source.length), text: out, exprs })
-    if (nested) {
-      for (const [a, b] of exprs) {
-        for (const inner of ptSpanRanges(source.slice(a, b), { nested: true })) {
-          spans.push({ ...inner, start: inner.start + a, end: inner.end + a, exprs: inner.exprs.map(([x, y]) => [x + a, y + a]) })
+    if (c === '/' && c2 === '/') { const nl = source.indexOf('\n', i); i = nl === -1 ? n : nl; continue }
+    if (c === '/' && c2 === '*') { const close = source.indexOf('*/', i + 2); i = close === -1 ? n : close + 2; continue }
+    if (c === "'" || c === '"') {
+      let j = i + 1
+      while (j < n && source[j] !== c && source[j] !== '\n') { if (source[j] === '\\') j++; j++ }
+      i = j < n && source[j] === '\n' ? j : j + 1
+      lastSig = c; prevSig = ''; lastWord = ''
+      continue
+    }
+    const postfix = (lastSig === '+' || lastSig === '-') && prevSig === lastSig
+    if (c === '/' && (lastSig === '' || (REGEX_AFTER_SIG.includes(lastSig) && !postfix) || (REGEX_AFTER_WORD.has(lastWord) && !wordProp))) {
+      let j = i + 1
+      let inClass = false
+      while (j < n && source[j] !== '\n') {
+        const d = source[j]
+        if (d === '\\') { j += source[j + 1] === '\n' ? 1 : 2; continue }
+        if (inClass) { if (d === ']') inClass = false } else if (d === '[') inClass = true
+        else if (d === '/') break
+        j++
+      }
+      i = j < n && source[j] === '\n' ? j : j + 1
+      while (i < n && /[a-z]/.test(source[i])) i++
+      prevSig = lastSig; lastSig = '/'; lastWord = ''
+      continue
+    }
+    if (c === 'p' && c2 === 't' && source[i + 2] === '`' && !/\w/.test(source[i - 1] ?? '')) {
+      const span = walkPtSpan(source, i)
+      spans.push(span)
+      if (nested) {
+        for (const [a, b] of span.exprs) {
+          for (const inner of ptSpanRanges(source.slice(a, b), { nested: true })) {
+            spans.push({ ...inner, start: inner.start + a, end: inner.end + a, exprs: inner.exprs.map(([x, y]) => [x + a, y + a]) })
+          }
         }
       }
+      i = span.end
+      prevSig = lastSig; lastSig = '`'; lastWord = ''
+      continue
     }
-    re.lastIndex = i
+    if (c === '`') { stack.push({ type: 'template' }); i++; continue }
+    if (ctx.interp) {
+      if (c === '{') ctx.depth++
+      else if (c === '}') {
+        if (ctx.depth === 0) { stack.pop(); prevSig = lastSig; lastSig = '}'; lastWord = ''; i++; continue }
+        ctx.depth--
+      }
+    }
+    if (!/\s/.test(c)) {
+      prevSig = lastSig
+      lastSig = c
+      if (/[\w$]/.test(c)) {
+        const fresh = !/[\w$]/.test(source[i - 1] ?? '')
+        if (fresh) wordProp = prevSig === '.'
+        lastWord = fresh ? c : lastWord + c
+      } else lastWord = ''
+    }
+    i++
   }
   return spans
+}
+
+// Walk one pt span from its tag at `start`; the span's own mode stack (unchanged by #1775).
+function walkPtSpan (source, start) {
+  let i = start + 3
+  const stack = ['tpl'] // 'tpl' = template text, 'expr' = ${…} body, 'brace' = plain {…} inside an expr
+  const exprs = []
+  let exprStart = -1
+  let out = ''
+  while (i < source.length && stack.length) {
+    const c = source[i]
+    const top = stack[stack.length - 1]
+    // Escaped pairs are DROPPED, not copied: an escaped `\${…}` is prompt PROSE (an
+    // agent-resolved placeholder), and copying it would make the flat re-scan count it as a
+    // real interpolation. Dropping still consumes both chars, so `\`` never terminates a span.
+    if (c === '\\' && top === 'tpl') { i += 2; continue }
+    if (top === 'tpl') {
+      if (c === '`') { stack.pop(); if (!stack.length) break; out += c; i++; continue }
+      if (c === '$' && source[i + 1] === '{') { if (stack.length === 1) exprStart = i; stack.push('expr'); out += '${'; i += 2; continue }
+    } else { // 'expr' or 'brace'
+      if (c === '`') { stack.push('tpl'); out += c; i++; continue }
+      if (c === '{') { stack.push('brace'); out += c; i++; continue }
+      if (c === '}') { stack.pop(); if (stack.length === 1) exprs.push([exprStart, i + 1]); out += c; i++; continue }
+    }
+    out += c; i++
+  }
+  return { start, end: Math.min(i + 1, source.length), text: out, exprs }
 }
 
 export function ptSpans (source) {
@@ -137,7 +230,7 @@ export function extractInterpolations (source) {
     let m
     while ((m = re.exec(span))) {
       const e = m[1].trim()
-      if (!/^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*$/.test(e)) continue
+      if (!/^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*|\[\d+\])*$/.test(e)) continue
       chains.set(e, (chains.get(e) || 0) + 1)
     }
   }
@@ -172,6 +265,11 @@ export function extractArgsFields (source) {
   const topLevel = unguardedTopLevelKeys(source)
   const fields = new Set()
   for (const expr of extractInterpolations(source).keys()) {
+    // A bracket-indexed chain (#1760): `tasks[N].x` reads tasks[].x; any other indexed chain is
+    // censused by extractInterpolations but maps to no args field.
+    const indexed = expr.match(/^tasks\[\d+\]\.([A-Za-z_$][\w$]*)$/)
+    if (indexed) { fields.add(`tasks[].${indexed[1]}`); continue }
+    if (expr.includes('[')) continue
     const parts = expr.split('.')
     const root = parts[0]
     if (root === 'ph' && parts.length === 2) fields.add(`phase.${parts[1]}`)
@@ -267,6 +365,184 @@ export function boundaryWarnings (args) {
   return out
 }
 
+// A preflight tooling error (exit 2): the check could not run, so it is never a floor status.
+export class PreflightToolingError extends Error {}
+
+// ---- Provenance mirror (#1896, PIN-1, PIN-2) -------------------------------------------------
+// The preflight runs the template's OWN provenance floor code, never a copy of its rules. The two
+// D1 marker lines bound the slice; every line is matched with leading whitespace ignored, because
+// the staged form strips the indent of every top-level code line. The slice runs in `new Function`
+// with `A` (the parsed args) and `log` (a collector) after FLOOR_BINDINGS, the template's binding
+// lines for the module-level names the slice reads.
+export const FLOOR_MARKERS = ['const provenanceProblems = []', 'if (provenanceProblems.length) throw']
+// One entry per physical line, leading whitespace stripped (PIN-12). A later plan that hoists a name
+// the slice reads to module level adds that binding line here, in the same commit as the hoist.
+export const FLOOR_BINDINGS = [
+  'const { phase: ph, plan, tasks, learningsTarget, agents = {}, audit = {}, run = {} } = A',
+  "const intent = (typeof A.intent === 'string' && A.intent) ? A.intent : null",
+  'const backstops = Array.isArray(A.backstops) ? A.backstops : null',
+  'const adjudications = Array.isArray(A.adjudications)',
+  "? A.adjudications.filter(r => r && (typeof r === 'string' || typeof r === 'object')) : []",
+  'const planSlug = A.planSlug',
+]
+// Returns { problems, logs }: the template's refusal messages (empty on pass) and its logged lines.
+// The slice ends BEFORE the floor's throw line and returns provenanceProblems, so any throw that
+// escapes it (a ReferenceError on an unbound name, a TypeError) is foreign, never the floor's own
+// refusal. Missing markers, a missing binding line, an uncompilable slice, a foreign throw and a
+// non-array slice result each throw PreflightToolingError naming the cause.
+export function provenanceProblems (source, args) {
+  const lines = String(source).split(/\r?\n/)
+  const bare = lines.map(l => l.replace(/^[ \t]+/, ''))
+  const from = bare.findIndex(l => l.trimEnd() === FLOOR_MARKERS[0])
+  const to = from === -1 ? -1 : bare.findIndex((l, i) => i > from && l.startsWith(FLOOR_MARKERS[1]))
+  if (from === -1 || to === -1) {
+    throw new PreflightToolingError(`template has no provenance floor slice — marker line ${JSON.stringify(from === -1 ? FLOOR_MARKERS[0] : FLOOR_MARKERS[1])} not found`)
+  }
+  for (const b of FLOOR_BINDINGS) {
+    if (!bare.includes(b)) throw new PreflightToolingError(`template binding line not found (FLOOR_BINDINGS drift): ${JSON.stringify(b)}`)
+  }
+  let fn
+  try {
+    fn = new Function('A', 'log', [...FLOOR_BINDINGS, ...lines.slice(from, to), 'return provenanceProblems'].join('\n'))
+  } catch (err) {
+    throw new PreflightToolingError(`provenance floor slice does not compile: ${err && err.name}: ${err && err.message}`)
+  }
+  const logs = []
+  let problems
+  try {
+    problems = fn(args, m => { logs.push(String(m)) })
+  } catch (err) {
+    throw new PreflightToolingError(`provenance floor slice threw ${err && err.name}: ${err && err.message} — a name the slice reads is unbound (add its line to FLOOR_BINDINGS) or the slice changed shape`)
+  }
+  if (!Array.isArray(problems)) throw new PreflightToolingError('provenance floor slice did not yield its refusal list')
+  return { problems: problems.map(String), logs }
+}
+
+// ---- Command shapes (#2674, #2675, PIN-16, PIN-17) --------------------------------------------
+const NONE_ARM = /^\s*None\b/i
+const isStr = v => typeof v === 'string' && v !== ''
+// Each phase.endState object row's `check` and each string tasks[].doneWhen must parse as shell
+// (`bash -n`, A21); a doneWhen in the plan's no-command arm (`None — <basis>`) must be staged null.
+// Returns the problem lines; a bash spawn failure throws PreflightToolingError.
+export function checkCommandShapes (args) {
+  const a = (args && typeof args === 'object' && !Array.isArray(args)) ? args : {}
+  const rows = (a.phase && typeof a.phase === 'object' && Array.isArray(a.phase.endState)) ? a.phase.endState : []
+  const tasks = Array.isArray(a.tasks) ? a.tasks : []
+  const out = []
+  let dir = null
+  let k = 0
+  const parseError = cmd => {
+    if (!dir) dir = mkdtempSync(join(tmpdir(), 'aac-shape-'))
+    const f = join(dir, `cmd-${k++}.sh`)
+    writeFileSync(f, cmd + '\n')
+    const r = spawnSync('bash', ['-n', f], { encoding: 'utf8' })
+    if (r.error) throw new PreflightToolingError(`cannot run bash -n: ${r.error.message}`)
+    if (r.status === 0) return null
+    const first = String(r.stderr || '').split('\n').find(l => l.trim()) || `bash -n exited ${r.status ?? r.signal}`
+    return first.split(f + ': ').join('')
+  }
+  try {
+    rows.forEach((row, n) => {
+      if (!row || typeof row !== 'object' || !isStr(row.check)) return
+      const e = parseError(row.check)
+      if (e !== null) out.push(`phase.endState[${n + 1}].check does not parse as shell: ${e}`)
+    })
+    for (const t of tasks) {
+      if (!t || !isStr(t.doneWhen)) continue
+      const id = t.id ?? '?'
+      if (NONE_ARM.test(t.doneWhen)) { out.push(`tasks[${id}].doneWhen is the plan's no-command arm (None — …) — stage doneWhen: null, never the prose`); continue }
+      const e = parseError(t.doneWhen)
+      if (e !== null) out.push(`tasks[${id}].doneWhen does not parse as shell: ${e}`)
+    }
+  } finally {
+    if (dir) rmSync(dir, { recursive: true, force: true })
+  }
+  return out
+}
+
+// ---- Done-when text compare (#2717, PIN-19) ---------------------------------------------------
+// Every `- Done when:` bullet by the skills/war/SKILL.md intake rule: the text after the key, soft-
+// wrapped physical lines joined with single spaces until the next `- ` bullet or a blank line, and,
+// when the text opens with a backtick run, the body of that code span (a run of N backticks closes
+// at the next run of exactly N, CommonMark's one padding space stripped from each end; prose after
+// the span is dropped), else the whole text.
+export function planDoneWhenBullets (planText) {
+  const lines = String(planText).split(/\r?\n/)
+  const out = []
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*- Done when:(.*)$/)
+    if (!m) continue
+    let text = m[1].trim()
+    for (let j = i + 1; j < lines.length && lines[j].trim() !== '' && !/^\s*- /.test(lines[j]); j++) text += ' ' + lines[j].trim()
+    // A key line with nothing after the key leaves a leading join space, so trim before the span test.
+    text = text.trim()
+    const open = text.match(/^`+/)
+    if (open) {
+      const n = open[0].length
+      const re = /`+/g
+      re.lastIndex = n
+      let close
+      while ((close = re.exec(text)) && close[0].length !== n);
+      if (close) {
+        let body = text.slice(n, close.index)
+        if (body.length > 1 && body.startsWith(' ') && body.endsWith(' ') && body.trim() !== '') body = body.slice(1, -1)
+        text = body
+      }
+    }
+    out.push(text)
+  }
+  return out
+}
+
+// Each string tasks[].doneWhen outside the None arm must equal one bullet byte for byte. Returns
+// the problem lines; the nearest bullet is the one with the longest shared byte prefix.
+export function checkDoneWhenText (args, bullets) {
+  const a = (args && typeof args === 'object' && !Array.isArray(args)) ? args : {}
+  const planFile = (a.plan && typeof a.plan === 'object' && a.plan.file) || '<plan.file>'
+  const plan = (bullets || []).map(b => Buffer.from(b, 'utf8'))
+  const out = []
+  for (const t of (Array.isArray(a.tasks) ? a.tasks : [])) {
+    if (!t || !isStr(t.doneWhen) || NONE_ARM.test(t.doneWhen)) continue
+    const staged = Buffer.from(t.doneWhen, 'utf8')
+    if (plan.some(b => b.equals(staged))) continue
+    const head = `tasks[${t.id ?? '?'}].doneWhen equals no Done when bullet of ${planFile} byte for byte`
+    const tail = 're-extract the command with its whitespace kept, never hand-edit the staged string'
+    if (!plan.length) { out.push(`${head} — the plan has no Done when bullet; ${tail}`); continue }
+    const shared = b => { let i = 0; while (i < b.length && i < staged.length && b[i] === staged[i]) i++; return i }
+    let best = plan[0]
+    for (const b of plan) if (shared(b) > shared(best)) best = b
+    const at = shared(best)
+    const cut = b => JSON.stringify(b.subarray(Math.max(0, at - 20), at + 20).toString('utf8'))
+    out.push(`${head} — differs at byte ${at} from the nearest bullet (staged: ${cut(staged)}, plan: ${cut(best)}); ${tail}`)
+  }
+  return out
+}
+
+// One remedy clause per refused surface, keyed by the template's own refusal wording. A foreign
+// stamp or a foreign docs/plans id is a cross-plan leak: the row is dropped, never restamped.
+// An own-token miss is stamped by the surface's own field: planFile on backstops and
+// adjudications, planSlug on ruledAsks, seededPhaseClose and seededTasks; intent has no row to
+// stamp, so its text is fixed at its source.
+const SLUG_STAMPED = new Set(['ruledAsks', 'seededPhaseClose', 'seededTasks'])
+export function provenanceRemedies (problems, args) {
+  const a = (args && typeof args === 'object' && !Array.isArray(args)) ? args : {}
+  const file = (a.plan && typeof a.plan === 'object' && isStr(a.plan.file)) ? a.plan.file : '<plan.file>'
+  // No planSlug: the template anchors planSlug stamps on the plan.file basename without .md.
+  const slug = isStr(a.planSlug) ? a.planSlug
+    : isStr(a.plan && a.plan.file) ? a.plan.file.replace(/^.*\//, '').replace(/\.md$/i, '') : 'the run plan slug'
+  const out = []
+  for (const p of problems || []) {
+    const name = (/^workflow-template: args\.(\w+) /.exec(p) || [])[1] || '?'
+    let clause
+    if (/provenance stamp naming a foreign plan|foreign docs\/plans identifier/.test(p)) clause = `drop the foreign args.${name} row, never restamp it with this run's plan`
+    else if (name === 'intent') clause = 'fix the args.intent text so it names this run\'s plan'
+    else if (SLUG_STAMPED.has(name)) clause = `set each refused args.${name} row's planSlug field to ${slug}`
+    else clause = `stamp each refused args.${name} row with planFile: ${file}`
+    if (!out.includes(clause)) out.push(clause)
+  }
+  return out
+}
+
 // ---- CLI -----------------------------------------------------------------------------------
 // Repo-canonical main-guard idiom (war-config.mjs / stage-workflow.mjs / war-memory.mjs): realpath
 // the argv entry so a symlinked invocation still RUNS the floor — the retired file:// string-build
@@ -327,9 +603,44 @@ if (invokedDirectly) {
     for (const line of missing) process.stderr.write(`  - ${line}\n`)
     process.exit(1)
   }
-  // Scope the claim to what was proven: the fallback-free prompt-interpolation surface only —
-  // the template's own entry validation (fallback-guarded required fields like plan.file /
-  // tasks[].planSlice) still applies at dispatch.
-  process.stdout.write('assert-args-complete: launch args are dispatch-complete — every fallback-free prompt interpolation is supplied (template entry validation still applies)\n')
+  const tooling = err => {
+    process.stderr.write(`assert-args-complete: ${err instanceof PreflightToolingError ? '' : 'unexpected error: '}${(err && err.message) || err}\n`)
+    process.exit(2)
+  }
+  let shapes
+  try { shapes = checkCommandShapes(parsed) } catch (err) { tooling(err) }
+  if (shapes.length) {
+    process.stderr.write(`assert-args-complete: ${shapes.length} staged command(s) cannot run as staged:\n`)
+    for (const line of shapes) process.stderr.write(`  - ${line}\n`)
+    process.exit(1)
+  }
+  // The Done-when compare reads plan.file only when some task stages a command string.
+  const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : []
+  if (tasks.some(t => t && isStr(t.doneWhen) && !NONE_ARM.test(t.doneWhen))) {
+    const file = parsed.plan && typeof parsed.plan === 'object' ? parsed.plan.file : undefined
+    if (!isStr(file)) tooling(new PreflightToolingError('a task stages a doneWhen string but plan.file is absent — cannot read the plan Done when bullets'))
+    const planPath = (isStr(parsed.mainCheckout) && isAbsolute(parsed.mainCheckout)) ? resolve(parsed.mainCheckout, file) : resolve(file)
+    let planText
+    try { planText = readFileSync(planPath, 'utf8') } catch (err) { tooling(new PreflightToolingError(`cannot read plan ${planPath} for the Done when compare: ${err.message}`)) }
+    const drift = checkDoneWhenText(parsed, planDoneWhenBullets(planText))
+    if (drift.length) {
+      process.stderr.write(`assert-args-complete: ${drift.length} staged doneWhen string(s) differ from the plan:\n`)
+      for (const line of drift) process.stderr.write(`  - ${line}\n`)
+      process.exit(1)
+    }
+  }
+  let prov
+  try { prov = provenanceProblems(src, parsed) } catch (err) { tooling(err) }
+  for (const line of prov.logs) process.stderr.write(`assert-args-complete: floor log: ${line}\n`)
+  if (prov.problems.length) {
+    process.stderr.write(`assert-args-complete: the template's provenance floor refuses these args (${prov.problems.length} refusal(s)):\n`)
+    for (const line of prov.problems) process.stderr.write(`${line}\n`)
+    process.stderr.write(`assert-args-complete: fix each refused row at its ledger source (the record the Lead assembles the args from), not the launch copy — ${provenanceRemedies(prov.problems, parsed).join('; ')} — a patched launch copy is lost at the next assembly\n`)
+    process.exit(1)
+  }
+  // Scope the claim to what was proven: the fallback-free prompt interpolations, the command
+  // shapes, the Done-when text and the provenance floor — the template's other entry validation
+  // (fallback-guarded required fields like plan.file / tasks[].planSlice) still applies at dispatch.
+  process.stdout.write('assert-args-complete: launch args are dispatch-complete — every fallback-free prompt interpolation is supplied, every staged check and doneWhen parses, each staged doneWhen string equals its plan bullet, and the provenance floor passes (template entry validation still applies); dispatch the parsed object as the Workflow args, or no args over an --args staged script, never a file path string (the template cannot read a file and refuses a non-JSON string at entry with 0 agents)\n')
   process.exit(0)
 }
