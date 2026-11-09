@@ -46,9 +46,13 @@
 #   token or follows one listed head (-S -G -L --grep= --format= --pretty=,
 #   with format:/tformat: on the last two), the closing quote ends the token,
 #   the body is not empty, and a bare body does not start with `-`, so no flag
-#   ever rides in a quote. A double-quoted body with $ ` \ or ! is refused, and
-#   so is any body with the two control bytes audit-tree-fingerprint.sh swaps in.
-#   Anything else leaves the command unmasked and the residue rule denies it.
+#   ever rides in a quote. One exception (ADR 0029 Amendment 2026-11-08): a
+#   bare body that starts with `-` right after the word `-e` is masked as
+#   DASHQUOTEDVALUE, and the guard admits that word only where the git grep
+#   loop reads it as an -e value; anywhere else it denies. A double-quoted
+#   body with $ ` \ or ! is refused, and so is any body with the two control
+#   bytes audit-tree-fingerprint.sh swaps in. Anything else leaves the command
+#   unmasked, and the quote rule denies it by name.
 #
 # GLOBAL GIT FLAGS DENIED (even before subcommand check)
 #   -c / --config       : override git config (security risk)
@@ -63,11 +67,12 @@
 # READ-ONLY SUBCOMMAND ALLOWLIST
 #   diff, log, show, merge-base, rev-parse, status, ls-files, ls-tree,
 #   cat-file, blame, branch (read forms only — see the per-token loop below),
-#   grep (ONE narrow form only — `git grep -F -e <token>`, see the per-token
-#   loop below; plan 2026-10-20-rea-artifact-evidence D21, ADR 0029 Amendment
-#   2026-10-22: on Claude Code 2.1.304 no auditor seat had the Grep tool, so
-#   the fixed-string form is the fallback search channel. The `-O` pager hole
-#   that kept the verb out stays closed by per-flag policing.)
+#   grep (one policed form only — `-F` or `-E` plus one or more `-e <token>`,
+#   see the per-token loop below; plan 2026-10-20-rea-artifact-evidence D21,
+#   ADR 0029 Amendments 2026-10-22 and 2026-11-08: on Claude Code 2.1.304 no
+#   auditor seat had the Grep tool, so this form is the fallback search
+#   channel. The `-O` pager hole that kept the verb out stays closed by
+#   per-flag policing.)
 #
 # CONSTRAINTS
 #   Runs on macOS bash 3.2.57 — no globstar, no associative arrays, no ${,,}.
@@ -97,7 +102,8 @@ esac
 
 # deny <reason>: emit WAR: marker on stderr and exit 2.
 deny() {
-  echo "WAR: auditor git guard DENIED: ${1//QUOTEDVALUE/<quoted value>}" >&2
+  _dm="${1//DASHQUOTEDVALUE/QUOTEDVALUE}"
+  echo "WAR: auditor git guard DENIED: ${_dm//QUOTEDVALUE/<quoted value>}" >&2
   exit 2
 }
 
@@ -123,11 +129,13 @@ esac
 
 # ---------------------------------------------------------------------------
 # QUOTED VALUES: rewrite $cmd with each admitted quoted value masked, or leave
-# it untouched so the residue rule below denies the quote. Any return 1 leaves
+# it untouched so the quote rule below denies the quote. Any return 1 leaves
 # $cmd alone: the assignment is the last step. MAX_QUOTED_VALUES bounds the
 # peel: each pass copies the rest of the command, and a real seat needs three.
+# quote_word holds the refused token's start for the quote rule's message.
 # ---------------------------------------------------------------------------
 MAX_QUOTED_VALUES=8
+quote_word=""
 mask_quoted_values() {
   _rem="$cmd"; _out=""; _vals=0
   while :; do
@@ -136,6 +144,9 @@ mask_quoted_values() {
       cmd="$_out$_rem"
       return 0
     fi
+    _qw="${_rem:${#_pre}}"
+    quote_word="${_pre##* }${_qw%% *}"
+    _mask=QUOTEDVALUE
     _vals=$((_vals + 1))
     [ "$_vals" -le "$MAX_QUOTED_VALUES" ] || return 1
     _q="${_rem:${#_pre}:1}"
@@ -150,16 +161,24 @@ mask_quoted_values() {
       case "$_body" in *'$'*|*'`'*|*'\'*|*'!'*) return 1 ;; esac
     fi
     case "${_pre##* }" in
-      "") case "$_body" in -*) return 1 ;; esac ;;
+      "") case "$_body" in
+            -*)
+              # Dash-led: admitted only right after the word -e (PIN-2). The
+              # grep loop admits DASHQUOTEDVALUE only as an -e value.
+              _pw="${_pre%"${_pre##*[! ]}"}"
+              [ "${_pw##* }" = "-e" ] || return 1
+              _mask=DASHQUOTEDVALUE ;;
+          esac ;;
       -S|-G|-L|--grep=) ;;
       --format=|--format=format:|--format=tformat:) ;;
       --pretty=|--pretty=format:|--pretty=tformat:) ;;
       *) return 1 ;;
     esac
-    _out="$_out${_pre}QUOTEDVALUE"
+    _out="$_out${_pre}$_mask"
   done
 }
-mask_quoted_values || true
+quote_refused=0
+mask_quoted_values || quote_refused=1
 
 # ---------------------------------------------------------------------------
 # CHARACTER ALLOWLIST check (fail-closed).
@@ -172,50 +191,82 @@ mask_quoted_values || true
 # stripping erases a newline-ONLY residue, so the allowlist alone never denied
 # a newline; the explicit pre-check above owns that deny (#1828).
 #
-# The deny message NAMES the rule that fired, classified from the residue
-# BEFORE the message is composed (#1435, refining #1412 fix 1's single
-# unconditional message that over-attributed chain denials to the
-# metacharacter rule):
-#   - residue of ONLY chain/control operators (& ; | — a newline never reaches
-#     this classifier: the pre-check above denies every newline-carrying
-#     command before the residue assignment, so the \n member of the
-#     classifier's delete set is defense in depth only) →
-#     the chain-operator rule: one bare git command per Bash call, with the
-#     #1421(b) ergonomics guidance (split && / ; chains into separate calls;
-#     filter/search with Read/Grep/Glob) retained on THIS branch, where the
-#     186-denial composed-command churn actually occurred;
-#   - any other residue byte present (quotes, glob *, $, parens, backtick,
-#     braces, backslash, …) → the metacharacter rule: a genuine search shape
-#     (git grep a\|b, --include=*.py), remedied by the Grep tool's
-#     glob:/type: filters, or with no Grep tool by the one admitted
-#     `git grep -F -e <token>` form (D21), and it names the quoted form that
-#     carries such a byte as data, plus the quote shape limits, because a
-#     refused quote lands here too. A mixed residue (e.g. a\|b: \ + |)
-#     classifies metacharacter — the non-chain byte proves a search/expansion
-#     shape, not mere composition.
+# The deny message NAMES the rule that fired (#1435, #1829, PIN-1). A refused
+# quote (quote_refused) names the quote rule and its token, never a residue
+# of quote bytes. Otherwise the residue is classified BEFORE the message is
+# composed, by byte set plus a word-position test for & and \:
+#   - metacharacter: any byte outside the chain and grouping sets (quotes
+#     never reach here, glob *, ?, [, ], $, !, backtick, ...), or an & or \
+#     inside a word (HEAD:a&b.txt, a\|b). The remedy is the Grep tool's
+#     glob:/type: filters, the git grep fallback form, and single-quoting the
+#     whole value; the message prints the quoted rewrite of that word.
+#   - grouping (redirect, grouping, continuation): < > ( ) { }, a \ that ends
+#     a word, and the & of a >& or <& redirect. The remedy is one bare git
+#     command per Bash call, a quoted brace value or git log -g; the message
+#     prints the quoted rewrite of a word that holds a brace or an inner paren,
+#     never of a redirect.
+#   - chain-operator: only & ; | bytes, each & either doubled or ending a word
+#     (a newline never reaches this classifier: the pre-check above denies
+#     every newline-carrying command before the residue assignment, so the \n
+#     member of the delete sets is defense in depth only). The remedy is the
+#     #1421(b) guidance: split && / ; chains into separate calls, filter and
+#     search with Read/Grep/Glob.
 # Message text only — the decision, exit code, and routing (char check first,
 # before any verb parsing) are byte-unchanged.
 # ---------------------------------------------------------------------------
 residue="$(printf '%s' "$cmd" | LC_ALL=C tr -d 'A-Za-z0-9 ./_=:,@^~%+-')"
 if [ -n "$residue" ]; then
-  # Truncated residue echo via pure parameter expansion (bash-3.2-safe): a
+  # Truncated echoes via pure parameter expansion (bash-3.2-safe): a
   # pipeline assignment here would run in errexit context — `head -c 20`
   # exiting early can SIGPIPE `tr` (141), and set -e/pipefail would exit the
   # guard non-2 (fail-open: a non-2 PreToolUse exit does NOT block the tool
   # call). Parameter expansion has no exit status, so deny's exit 2 is the
   # only reachable exit on this path.
+  if [ "$quote_refused" = 1 ]; then
+    deny "command contains a refused quoted value at: ${quote_word:0:40} — the quote rule fired: a quote must open the token or follow -S, -G, -L, -e, --grep=, --format= or --pretty=, must close the token, holds at most $MAX_QUOTED_VALUES values per command, and a bare value must not start with - unless it is the value of git grep -e; single-quote the whole value: -S'two words', --format='%H %s', 'sha:app/[id]/f', git grep -F -e '- x'; a double-quoted value must not hold a dollar sign, a backtick, a backslash or a bang"
+  fi
   residue_echo="${residue//$'\n'/}"
   residue_echo="${residue_echo:0:20}"
-  # Classify: delete the chain/control operator bytes from the residue; anything
-  # left is a non-chain metacharacter. tr interprets its own '\n' escape, so
-  # the tr ARGUMENT needs no shell-level $'\n' literal (the parameter expansion
-  # above does use one). The \n member is defense in depth: the pre-check
-  # above denies every newline-carrying command before this point, so no
-  # newline reaches the residue; the member stays so a mixed residue like
-  # "\n&&" would still classify as chain-operator if the pre-check were lost.
-  nonchain_residue="$(printf '%s' "$residue" | LC_ALL=C tr -d '&;|\n')"
-  if [ -n "$nonchain_residue" ]; then
-    deny "command contains forbidden character(s): $residue_echo — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep; with no Grep tool, git grep -F -e <token> is the one admitted search form; to pass these bytes to git as data, single-quote the whole value: -G'a[b]c', -S'two words', --format='%H %s', -L '/re/,+3', 'sha:app/[id]/f', -- '*.md'; a quote must open the token or follow -S, -G, -L, --grep=, --format= or --pretty=, must close the token, and a bare value must not start with -"
+  # Byte classes. tr interprets its own '\n' and '\\' escapes, so the tr
+  # arguments need no shell-level escape.
+  meta_residue="$(printf '%s' "$residue" | LC_ALL=C tr -d '&;|\n<>(){}\\')"
+  group_residue="$(printf '%s' "$residue" | LC_ALL=C tr -d '&;|\n')"
+  # Word scan: the first word holding a metacharacter byte or an in-word & or
+  # \, and the first word holding a grouping byte. The split is safe under
+  # set -f; each word is tested with pattern expansions only.
+  meta_word=""; group_word=""; inword=0
+  set -f
+  # shellcheck disable=SC2086
+  for _w in $cmd; do
+    _wa="${_w//&&/}"; _wa="${_wa//>&/>}"; _wa="${_wa//<&/<}"
+    _winword=0
+    case "${_wa%&}" in *'&'*) _winword=1 ;; esac
+    case "${_w%\\}" in *'\'*) _winword=1 ;; esac
+    if [ "$_winword" = 1 ]; then
+      inword=1
+      [ -n "$meta_word" ] || meta_word="$_w"
+    fi
+    if [ -n "$meta_residue" ] && [ -z "$meta_word" ]; then
+      _wr="$(printf '%s' "$_w" | LC_ALL=C tr -d 'A-Za-z0-9 ./_=:,@^~%+&;|<>(){}\\-')"
+      [ -z "$_wr" ] || meta_word="$_w"
+    fi
+    if [ -z "$group_word" ]; then
+      case "$_w" in *'<'*|*'>'*|*'('*|*')'*|*'{'*|*'}'*|*'\') group_word="$_w" ;; esac
+    fi
+  done
+  if [ -n "$meta_residue" ] || [ "$inword" = 1 ]; then
+    rewrite=""
+    [ -z "$meta_word" ] || rewrite="; quoted rewrite: '${meta_word:0:60}'"
+    deny "command contains forbidden character(s): $residue_echo — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep; with no Grep tool, git grep -F -e <token> (or -E -e <regex>) is the admitted search form; to pass these bytes to git as data, single-quote the whole value: -G'a[b]c', -S'two words', --format='%H %s', -L '/re/,+3', 'sha:app/[id]/f', -- '*.md'$rewrite"
+  elif [ -n "$group_residue" ]; then
+    rewrite=""
+    case "$group_word" in
+      *'<'*|*'>'*|*'\') ;;
+      *'{'*|*'}'*) rewrite="; quoted rewrite: '${group_word:0:60}'" ;;
+      '('*|')'*|*'('|*')') ;;
+      *'('*|*')'*) rewrite="; quoted rewrite: '${group_word:0:60}'" ;;
+    esac
+    deny "command contains forbidden character(s): $residue_echo — the grouping rule fired: one bare git command per Bash call — no redirect, grouping or continuation; quote a value that holds a brace or bracket: 'HEAD@{1}', or use git log -g; read output with the Read/Grep/Glob tools, never through a redirect$rewrite"
   else
     deny "command contains forbidden character(s): $residue_echo — the chain-operator rule fired: the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools; use git -C <path> in place of cd <path> &&, and -n <count> on log or show in place of | head"
   fi
@@ -238,7 +289,7 @@ cmd="$*"
 # ---------------------------------------------------------------------------
 case "$cmd" in
   git\ *|git) ;;
-  *) deny "not a git command; auditors use the Read/Grep/Glob tools for file access (grep: the Grep tool; cat/sed/head: Read; ls/find: Glob; a tool-result file: Read or Grep); with no Grep tool, git grep -F -e <token> is the one admitted search form" ;;
+  *) deny "not a git command; auditors use the Read/Grep/Glob tools for file access (grep: the Grep tool; cat/sed/head: Read; ls/find: Glob; a tool-result file: Read or Grep); with no Grep tool, git grep -F -e <token> (or -E -e <regex>) is the admitted search form" ;;
 esac
 
 # Strip the leading 'git' token and any surrounding spaces to get the rest.
@@ -307,8 +358,18 @@ case "$rest" in
   *)
     # Extract first word for a cleaner error message.
     first_word="$(printf '%s' "$rest" | cut -d' ' -f1)"
-    deny "git subcommand '$first_word' is not in the read-only allowlist (diff/log/show/merge-base/rev-parse/status/ls-files/ls-tree/cat-file/blame/branch/grep); for repo-wide search use the Grep tool, or with no Grep tool the one admitted form git grep -F -e <token>" ;;
+    deny "git subcommand '$first_word' is not in the read-only allowlist (diff/log/show/merge-base/rev-parse/status/ls-files/ls-tree/cat-file/blame/branch/grep); for repo-wide search use the Grep tool, or with no Grep tool the admitted form git grep -F -e <token> (or -E -e <regex>)" ;;
 esac
+
+# A dash-led quoted value (DASHQUOTEDVALUE) is data only as the value of a
+# git grep -e; the grep loop below polices its position. On any other verb it
+# denies here, so no flag rides in a quote (PIN-2).
+if [ "$subcmd" != "grep" ]; then
+  case " $rest " in
+    *" DASHQUOTEDVALUE "*)
+      deny "a quoted value that starts with - is admitted only as the value of git grep -e; on $subcmd drop the leading - or quote a value that does not start with it" ;;
+  esac
+fi
 
 # ---------------------------------------------------------------------------
 # READ-FORM branch enforcement (D4): `branch` is admitted only in read shapes.
@@ -319,6 +380,8 @@ esac
 # --set-upstream-to/…), a combined short cluster (-av), or a space-form value
 # (--contains <rev>) denies — WITHOUT enumerating the write flags (default-deny
 # by token shape). --format is deliberately absent (the loop denies it by default).
+# --list may take one pattern word right after it, bare or quoted (PIN-4); the
+# word must not start with -, so `--list -d x` still denies at -d.
 # bash-3.2-safe: unquoted `for tok in $branch_rest` word-split is safe here —
 # the char allowlist already excludes quotes and glob chars, so no re-split/glob.
 # COUPLING: the deny string's two parenthesized flag groups are parsed by the
@@ -328,46 +391,68 @@ esac
 if [ "$subcmd" = "branch" ]; then
   branch_rest="${rest#branch}"
   branch_rest="${branch_rest# }"
+  branch_list=0
   for tok in $branch_rest; do
+    if [ "$branch_list" = 1 ]; then
+      branch_list=2
+      case "$tok" in
+        -*) ;;
+        *) continue ;;               # the one --list pattern word
+      esac
+    fi
     case "$tok" in
+      --list) [ "$branch_list" != 0 ] || branch_list=1 ;;
       --contains=*|--no-contains=*|--merged=*|--no-merged=*|--points-at=*|--sort=*) ;;
-      --list|--all|-a|--remotes|-r|--show-current|--verbose|-v|-vv) ;;
+      --all|-a|--remotes|-r|--show-current|--verbose|-v|-vv) ;;
       *)
-        deny "git branch admits read forms only: value-carrying flags =-attached (--contains=<rev>, --no-contains=<rev>, --merged=<rev>, --no-merged=<rev>, --points-at=<rev>, --sort=<key>), bare read flags (--list, --all, -a, --remotes, -r, --show-current, --verbose, -v, -vv); '$tok' is not one — space-form values and write flags deny" ;;
+        deny "git branch admits read forms only: value-carrying flags =-attached (--contains=<rev>, --no-contains=<rev>, --merged=<rev>, --no-merged=<rev>, --points-at=<rev>, --sort=<key>), bare read flags (--list, --all, -a, --remotes, -r, --show-current, --verbose, -v, -vv), and --list may take one pattern word right after it; '$tok' is not one — space-form values and write flags deny" ;;
     esac
   done
 fi
 
 # ---------------------------------------------------------------------------
-# NARROW-FORM grep enforcement (D21, ADR 0029 Amendment 2026-10-22): `grep` is
-# admitted in ONE shape — `-F` (or `--fixed-strings`) plus exactly one
-# `-e <token>` — with optional `-n -i -l -w -c` (bare, or in a short cluster
-# parsed letter by letter), at most one bare revision, and an optional
-# `-- <pathspec>...` (a glob byte passes only inside a quoted value). The token
-# may be one quoted value (masked above), so `-e 'two words'` is this form. EVERY
-# other token denies by shape, without enumerating the option space: any other
-# long flag (`--open-files-in-pager`, `--no-index`, `--recurse-submodules`,
-# `--file`, the regex selectors), any other cluster letter (`O` in `-O`, `-nO`,
-# `-Ovim`; `E`/`G`/`P`; `f`; `e` inside a cluster), a bare pattern without
-# `-e`, a second `-e`, a dangling `-e`, a second revision. `-O` is named in its
-# deny: it runs an arbitrary pager command, the hole that kept the verb out of
-# the allowlist from 2026-07-26 until this per-flag policing. The pattern token
-# after `-e` is consumed as data whatever it looks like (git does the same), so
-# `-e -O` searches for the literal "-O". bash-3.2-safe: the unquoted word-split
-# is safe for the same reason as the branch loop above.
-# COUPLING: the deny string's opening fragment ("git grep admits one form only")
-# and its "-O runs a pager command" clause are pinned by group P of
-# hooks/validate-auditor-git.test.sh — reshape both together.
+# POLICED-FORM grep enforcement (D21, ADR 0029 Amendments 2026-10-22 and
+# 2026-11-08): `grep` is admitted in ONE shape — exactly one selector, `-F`
+# (or `--fixed-strings`) or `-E`, plus one or more `-e <token>` — with
+# optional `-n -i -l -w -c` (bare, or in a short cluster parsed letter by
+# letter), the context counts `-A <n>`, `-B <n>`, `-C <n>` and `-A<n>` (digits
+# only, each its own token), at most one bare revision, and an optional
+# `-- <pathspec>...` (a glob byte passes only inside a quoted value). Each
+# token may be one quoted value (masked above), so `-e 'two words'` is this
+# form, and a dash-led quoted value is admitted only as an -e value. EVERY
+# other token denies by shape, without enumerating the option space: any
+# other long flag (`--open-files-in-pager`, `--no-index`,
+# `--recurse-submodules`, `--file`, the long regex selectors), any other
+# cluster letter (`O` in `-O`, `-nO`, `-Ovim`; `G`/`P`; `f`; `e` or a count
+# letter inside a cluster), a bare pattern without `-e`, `-E` with `-F`, a
+# dangling `-e` or count, a non-digit count, a second revision. `-O` is named
+# in its deny: it runs an arbitrary pager command, the hole that kept the
+# verb out of the allowlist from 2026-07-26 until this per-flag policing.
+# The pattern token after `-e` is consumed as data whatever it looks like
+# (git does the same), so `-e -O` searches for the literal "-O".
+# bash-3.2-safe: the unquoted word-split is safe for the same reason as the
+# branch loop above.
+# COUPLING: the deny string's opening fragment ("git grep admits one form
+# only") and its "-O runs a pager command" clause are pinned by group P and
+# group GF of hooks/validate-auditor-git.test.sh, and the D6 grep test in
+# skills/war/assets/workflow-template.engine-1.test.mjs reads the string: it
+# locates the opening fragment, takes the first "optional " clause as the
+# -n/-i/-l/-w/-c list and requires it set-equal to the n|i|l|w|c cluster arm
+# below (the first lowercase x|y|z) arm in this file). So the selector and
+# context flags ride a later clause without the word "optional" — reshape
+# all three together.
 # ---------------------------------------------------------------------------
 if [ "$subcmd" = "grep" ]; then
   grep_rest="${rest#grep}"
   grep_rest="${grep_rest# }"
   grep_deny() {
-    deny "git grep admits one form only: -F (or --fixed-strings) plus exactly one -e <token>, optional -n/-i/-l/-w/-c (bare or in a short cluster), at most one revision, optional -- <pathspec>...; $1 — -O/--open-files-in-pager runs a pager command and stays denied, as do -f/--file, --no-index, --recurse-submodules and every regex selector; with no Grep tool this form is the search channel"
+    deny "git grep admits one form only: -F (or --fixed-strings) or -E, never both, plus one or more -e <token>, optional -n/-i/-l/-w/-c (bare or in a short cluster), context counts -A <n>, -B <n>, -C <n> or -A<n> as their own tokens with digits only, at most one revision, optional -- <pathspec>...; $1 — -O/--open-files-in-pager runs a pager command and stays denied, as do -f/--file (reads patterns from a file), --no-index (searches outside the repo), --recurse-submodules (leaves the repo), -P (a second regex engine) and -G or the long regex selectors; with no Grep tool this form is the search channel"
   }
   grep_fixed=0
+  grep_ext=0
   grep_patterns=0
   grep_expect=0
+  grep_count=""
   grep_revs=0
   grep_dashdash=0
   for tok in $grep_rest; do
@@ -379,10 +464,23 @@ if [ "$subcmd" = "grep" ]; then
       grep_expect=0
       continue                      # the -e value is data, whatever it looks like
     fi
+    if [ -n "$grep_count" ]; then
+      case "$tok" in
+        *[!0-9]*) grep_deny "'$tok' after $grep_count is not a count: context counts take digits only" ;;
+      esac
+      grep_count=""
+      continue
+    fi
     case "$tok" in
       --)              grep_dashdash=1 ;;
       --fixed-strings) grep_fixed=1 ;;
       -e)              grep_expect=1 ;;
+      -A|-B|-C)        grep_count="$tok" ;;
+      DASHQUOTEDVALUE) grep_deny "a quoted value that starts with - is admitted only as the value of git grep -e" ;;
+      -A[0-9]*)
+        case "${tok#-A}" in
+          *[!0-9]*) grep_deny "'$tok' is not -A<n>: -A<n> takes digits only" ;;
+        esac ;;
       --*)             grep_deny "'$tok' is not part of that form" ;;
       -?*)
         cluster="${tok#-}"
@@ -392,8 +490,10 @@ if [ "$subcmd" = "grep" ]; then
           case "$ch" in
             F)         grep_fixed=1 ;;
             n|i|l|w|c) ;;
+            E)         grep_ext=1 ;;
             O)         grep_deny "'$tok' carries -O: -O runs a pager command" ;;
             e)         grep_deny "'$tok' carries -e inside a cluster: -e must be its own token" ;;
+            A|B|C)     grep_deny "'$tok' carries -$ch inside a cluster: a context count is its own token" ;;
             *)         grep_deny "'$tok' carries -$ch, which is not part of that form" ;;
           esac
         done ;;
@@ -406,8 +506,10 @@ if [ "$subcmd" = "grep" ]; then
     esac
   done
   [ "$grep_expect" = 0 ] || grep_deny "-e has no <token>"
-  [ "$grep_fixed" = 1 ] || grep_deny "-F (or --fixed-strings) is missing"
-  [ "$grep_patterns" = 1 ] || grep_deny "exactly one -e <token> is required (found $grep_patterns)"
+  [ -z "$grep_count" ] || grep_deny "$grep_count has no <n>"
+  [ "$grep_fixed$grep_ext" != 11 ] || grep_deny "-E and -F together: pick one selector"
+  [ "$grep_fixed$grep_ext" != 00 ] || grep_deny "-F (or --fixed-strings) or -E is missing"
+  [ "$grep_patterns" -ge 1 ] || grep_deny "at least one -e <token> is required (found 0)"
 fi
 
 # ---------------------------------------------------------------------------
