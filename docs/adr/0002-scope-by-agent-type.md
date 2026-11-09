@@ -132,8 +132,10 @@ the MCP arm of the same `agent_type`-keyed, suffix-anchored structural guard.
 
 ## Addendum (2026-11-08): Windows path form and clearer worker denials
 
-Plan `docs/plans/2026-11-08-auditor-and-worker-guard-habits.md` (Task 1.2) keeps every deny and
-widens no allow route. It changes path spelling and deny texts only.
+Plan `docs/plans/2026-11-08-auditor-and-worker-guard-habits.md` (Task 1.2) admits Windows-form
+spellings of already-allowed paths and adds `..` denials; it removes no deny. On a POSIX host a `\`
+is a filename byte, so the scope hook's worker and servitor arms and the memory query `local`
+fence deny a raw value that holds a `\` and does not start with a drive `X:`.
 
 - **`norm_path`.** One shell function, byte-equal in `validate-worktree-scope.sh`,
   `validate-servitor-provenance.sh` and `validate-evidence-auditor-mcp.sh`, turns every `\` into

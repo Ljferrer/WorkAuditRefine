@@ -40,7 +40,8 @@
 #                    existing non-WAR flow is newly constrained (back-compat).
 #
 # Every path, and $HOME, is read in norm_path form (`\` to `/`, a leading `X:`
-# to `/x`) before any check below. A write with no file_path (e.g. a
+# to `/x`) before any check below. The worker and servitor arms first deny a
+# raw path that holds a `\` and does not start with a drive `X:`. A write with no file_path (e.g. a
 # tool_input without a path) is always allowed. Note: the servitor no longer holds Bash (capability allowlist:
 # Read, Grep, Glob, Write, Edit plus the read-only memory query tool — F01 D1),
 # so Bash can only slip through this hook for the worker or refiner, not the
@@ -73,7 +74,19 @@ norm_path() {
   esac
   printf '%s' "$np_p"
 }
+raw_path="$path"
 path="$(norm_path "$path")"
+# posix_backslash_deny: on macOS or Linux a `\` is a filename byte, not a
+# separator, so the write lands at the raw path while the checks read the
+# normalized one. The worker and servitor arms call this first: a raw path
+# that holds a `\` and does not start with a drive `X:` is denied, so
+# norm_path admits only Windows-form spellings of already-allowed paths.
+posix_backslash_deny() {
+  case "$raw_path" in
+    [a-zA-Z]:*) ;;
+    *\\*) deny "path '$raw_path' holds a backslash outside a Windows drive path; use / separators." ;;
+  esac
+}
 
 # Reject any path that contains a '..' segment before per-agent checks. The
 # path is already in norm_path form here, so a backslash `..` is caught too.
@@ -120,6 +133,7 @@ case "$atype" in
     ;;
   *war-worker)
     [ -z "$path" ] && exit 0
+    posix_backslash_deny
     d="$(dirname "$path")"
     # Walk ancestors until a .war-task marker is found, or until dirname stops
     # making progress. The progress guard (prev) is essential: for a relative
@@ -136,6 +150,7 @@ case "$atype" in
     ;;
   *war-servitor)
     [ -z "$path" ] && exit 0
+    posix_backslash_deny
     # $HOME anchor (#810): confine the write to the CURRENT user's local memory
     # root, not merely any path of the right SHAPE. ${HOME:-} is mandatory — a
     # bare $HOME under `set -u` with HOME unset would kill the hook before the
