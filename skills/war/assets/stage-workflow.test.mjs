@@ -518,6 +518,17 @@ test('args sibling (D38): an over-cap args file refuses and writes nothing', () 
   const staged = join(dir, deriveName('d38-cap', '1') + '.js')
   assert.ok(!existsSync(staged) && !existsSync(argsSiblingPath(staged)), 'neither file is written')
 })
+test('args sibling (D38): an over-cap existing sibling refuses reuse', () => {
+  const { dir, siblingPath } = d38Stage()
+  const inflated = 'x'.repeat(SCRIPT_BYTE_CAP + 1)
+  writeFileSync(siblingPath, inflated)
+  const r = runStager([TEMPLATE, dir, 'd38-slug', '1'], { expectFail: true })
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, new RegExp(`existing args sibling .* is ${SCRIPT_BYTE_CAP + 1} bytes, over the Workflow tool's`))
+  assert.match(r.stderr, new RegExp(DISCARD_FLAG))
+  assert.equal(r.stdout, '', 'a refused reuse prints no staged path')
+  assert.equal(readFileSync(siblingPath, 'utf8'), inflated, 'the sibling is left byte-untouched')
+})
 test('args sibling (D38): dispatched args skip the loader', async () => {
   const { stagedPath } = d38Stage()
   const loads = []

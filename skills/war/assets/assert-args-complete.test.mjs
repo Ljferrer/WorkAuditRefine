@@ -823,6 +823,14 @@ test('prior-manifest (#2495): a root mismatch exits 1 and prints both roots', ()
     assert.ok(r.stderr.includes(other) && r.stderr.includes(RUNNING_ROOT), `stderr prints both roots — got ${r.stderr}`)
     assert.ok(r.stderr.includes(`--plugin-dir ${other}`), 'the --plugin-dir form names the prior root')
   })
+  // An empty string is a written value, not an absent one: it compares as written and mismatches.
+  for (const manifest of [{ pluginRoot: '', pluginVersion: RUNNING_VERSION }, { pluginRoot: RUNNING_ROOT, pluginVersion: '' }]) {
+    withManifest(manifest, (p) => {
+      const r = runCli(['--prior-manifest', p], JSON.stringify(RECOVERY()))
+      assert.equal(r.status, 1, `exit 1 on an empty-string identity field ${JSON.stringify(manifest)} — stderr: ${r.stderr}`)
+      assert.doesNotMatch(r.stderr, /warning: /, 'an empty-string field is compared, never warned past')
+    })
+  }
 })
 
 test('prior-manifest (#2495): a manifest without the fields warns and exits 0', () => {
@@ -856,8 +864,14 @@ test('prior-manifest (#2495): a matching root and version exits 0 with no warnin
     assert.doesNotMatch(r.stderr, /warning|plugin root|plugin version/, 'no identity warning on a matching identity')
     assert.match(r.stdout, /dispatch-complete/)
   })
-  withManifest({ pluginRoot: join(RUNNING_ROOT, 'skills', '..'), pluginVersion: RUNNING_VERSION }, (p) => {
-    assert.equal(runCli(['--prior-manifest', p], JSON.stringify(RECOVERY())).status, 0, 'the manifest root is realpath\'d before the compare')
+  // A symlink to the running root (path.join would normalize a `..` form before the CLI sees it).
+  withManifest({}, (_, dir) => {
+    const link = join(dir, 'root-link')
+    symlinkSync(RUNNING_ROOT, link)
+    const p = join(dir, 'm-link.json')
+    writeFileSync(p, JSON.stringify({ pluginRoot: link, pluginVersion: RUNNING_VERSION }))
+    const r = runCli(['--prior-manifest', p], JSON.stringify(RECOVERY()))
+    assert.equal(r.status, 0, `the manifest root is realpath'd before the compare — stderr: ${r.stderr}`)
   })
 })
 

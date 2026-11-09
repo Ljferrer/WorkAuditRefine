@@ -623,13 +623,14 @@ if (invokedDirectly) {
     if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) {
       process.stderr.write(`assert-args-complete: the prior manifest ${priorManifest} is not a JSON object\n`); process.exit(2)
     }
-    const absent = v => v === undefined || v === null || v === ''
+    const absent = v => v === undefined || v === null
     const mismatches = []
     if (absent(manifest.pluginRoot)) {
       process.stderr.write('assert-args-complete: warning: the prior manifest has no pluginRoot — the plugin root is not compared; the relaunch proceeds from the current root\n')
     } else {
       let prior = String(manifest.pluginRoot)
-      try { prior = realpathSync(prior) } catch { /* an unresolvable prior root compares as written, and so mismatches */ }
+      // realpathSync('') resolves to the cwd, so an empty root skips it and compares as written.
+      if (prior !== '') try { prior = realpathSync(prior) } catch { /* an unresolvable prior root compares as written, and so mismatches */ }
       if (prior !== root) mismatches.push(`plugin root: prior run ${prior}, this run ${root}`)
     }
     if (absent(manifest.pluginVersion)) {
