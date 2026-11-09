@@ -359,7 +359,7 @@ test('late-defect: hold — a dead late-fix worker or a dead late-fix re-audit s
   assert.match(sHeld[0].detail, /the late-fix re-audit died \(.*529 Overloaded/, 'the hold names the re-audit death')
   assert.doesNotMatch(sHeld[0].detail, /the fix budget is spent/)
   // Red proofs by mutation: without each stop the pass spends the whole budget on the dead API.
-  const wStop = "      if (deathOf(w)) { stop = 'the late-fix worker died (' + deathOf(w) + ')'; break }\n"
+  const wStop = "      if (wDied) { stop = 'the late-fix worker died (' + wDied + ')'; break }\n"
   assert.ok(src.includes(wStop), 'the mutation target is the live worker stop')
   const wMut = await runPhase(args(), deadAt(/^late-fix:/), {}, src.replace(wStop, ''))
   assert.equal(lateWorkers(wMut.calls).length, 4, 'the mutant dispatches roundLimit workers into the dead API')
