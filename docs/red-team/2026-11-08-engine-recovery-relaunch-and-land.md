@@ -2,8 +2,8 @@
 
 - **Plan:** `docs/plans/2026-11-08-engine-recovery-relaunch-and-land.md`
 - **Base:** `7e70e874` (plans 1 and 2 of campaign 2026-11-08-survey-debt landed)
-- **Rounds:** 1
-- **Verdict:** BLOCKED (route upstream: the staged-template cap needs an operator ruling)
+- **Rounds:** 2
+- **Verdict:** ADJUDICATED (round 2: every blocker patched in place and AI-declared under --afk; round 1 was BLOCKED on the staged-template cap, which the operator ruled on 2026-11-09)
 - **Probes:** 13 (6 spine, 7 bespoke), 5 executed, 8 analyzed, none dropped. Escape guard exit 0 against the snapshot.
 
 ## Blocker that needs a ruling
@@ -31,3 +31,35 @@
 
 - **Staged cap ruling:** the stager moves the phase args into a sibling args script that the staged copy loads with `workflow({ scriptPath })`. `ARGS_HEADROOM_BYTES` then reserves only that loader line. Plan patch: D38, TRIAL-3 (a 387 B parent loaded 109,925 B of real phase args from a child script, 0 agents), T1.2 owns the change, T1.1 deps on T1.2, End states 33 and 34.
 - **Open-list patches:** T1.1 now owns `workflow-template.recovery.test.mjs` and names its three pins. T3.1 re-derives the worker card funding at 20 B free and carries the #2750 `floorFixHead` sentence. The T4.2 Done when and End state 23 check `patch-id`, `repoint` and `Manifest restamp`. The T5.1 Done when is marked a guardrail. D37 points at `setup.md` § Run root and the `schemas.md` staleRemote row. The D32 anchor, the D10 evidence and the issue counts (28, all open) are fixed.
+
+## Round 2 (2026-11-09)
+
+13 probes ran, all on target, none dropped (6 executed, 7 analyzed). The escape guard exited 0 against its baseline. The first gate pass was BLOCKED with routeUpstream, because four needsDecision findings were unstamped at round 2. The Lead ruled each once (AI-declared, --afk) and patched the plan. The re-piped gate is ADJUDICATED with routeUpstream false: 9 blockers and 4 needsDecision, all stamped, and 27 minors.
+
+### Adjudications
+
+| Finding | Ruling | Provenance |
+|---|---|---|
+| T1.1 Done-when awk used a bare `#` (4 probes) | The anchor now matches `\(\\#2657\)` and `\(\\#2699\)`, as every other check does | AI-declared |
+| T2.1 snapshot `git_error` had no schema field | D5 adds optional `git_error` to `MERGE_SNAPSHOT`. A Git-error reply sends empty-string SHA fields, so it still passes `required` | AI-declared |
+| D38 loader could throw above the engine's `try {` | The loader runs only when no args were dispatched, inside a try/catch. The anchor rewrite throws a named error inside the engine's try. PIN-25 holds | AI-declared |
+| D38 broke the submodule staged-copy test (no `workflow` binding) | T1.2 owns `workflow-template.submodule-1.test.mjs` and compiles a local `workflow` stub. The shared harness stays with T1.1 | AI-declared |
+| D38 left GLOSSARY and stager prose stale | T1.2 owns `GLOSSARY.md`'s staged-script entry and the stager header. SKILL.md stays, because the sibling is part of the stage | AI-declared |
+| D38 partial presence was unspecified | A staged copy with no sibling refuses reuse. A lone sibling is overwritten. `--force` refuses on either sidecar mismatch | AI-declared |
+| T5.1 Done when was green at base | It now also requires the plugin version to be strictly above `origin/master`'s (red at base) | AI-declared |
+| #2750 sentence had no decision row | D39 records it, #2750 is claimed (29 issues), and T3.1's Done when counts a `merge-slot lease (#2750)` fixture | AI-declared |
+
+### Minors patched
+
+- Negative prose guards are case-insensitive on stable tokens. Positive card greps are `grep -qi`.
+- End state 23 and the T4.2 Done when check all three run-manifest.md frozen phrases. The E18 and E23 red-at-base lists are complete.
+- The Critical path makes T1.2 Phase 1's first wave, with T1.1 after it. The deps note is on its own line.
+- Constraint 12, Context and Notes say the per-task funding rule is superseded by D38. Engine tasks fund growth only if arm (p) would go red.
+- Card budgets restated at 7e70e874 (refiner 66 B free, worker 20 B free). A22 and A23 re-costed.
+- T4.2 points at the `schemas.md` staleRemote adopt form. D17 covers (a) to (f). The #2509 Non-goals row points at D29.
+- D10 describes the plugin-root derivation as new code.
+- T1.2 names the seven stage-workflow rows it must rewrite and keeps `EMBEDDED_ARGS` out of staged-script.md (the D30 census).
+
+### Not patched
+
+- The per-issue evidence join could not read issues from the sandbox clone (no GitHub remote). This is an environment gap, not a plan defect.

@@ -7,9 +7,9 @@ Campaign chain position: third of nine. This plan stacks on
 `docs/plans/2026-11-08-args-floor-and-launch-preflight.md`. It lands before
 `docs/plans/2026-11-08-engine-findings-ace-and-late-fix.md`.
 
-Issues claimed (28): #1823, #1910, #2328, #2412, #2442, #2494, #2495, #2509, #2555, #2575, #2588, #2589,
+Issues claimed (29): #1823, #1910, #2328, #2412, #2442, #2494, #2495, #2509, #2555, #2575, #2588, #2589,
 #2590, #2645, #2646, #2657, #2659, #2662, #2669, #2670, #2671, #2699, #2700, #2701, #2702, #2703, #2704,
-#2705. #2669–#2671 are one run's friction reports (83f08e8c, the Aligned repo), folded after conversion; the
+#2705, #2750. #2669–#2671 are one run's friction reports (83f08e8c, the Aligned repo), folded after conversion; the
 rows of theirs this plan does not own are listed in `## Non-goals / deferred` with their owner. #2699–#2705
 are the seven survey-derived residuals the 2026-11-08 evidence fold first recorded in Non-goals; the operator
 ruled them campaign work, they were filed, and context L claims each.
@@ -83,8 +83,8 @@ escape-guard: clean
 - TRIAL-3 · fact · can a staged phase script load its args from a sibling script through `workflow({ scriptPath })`? · settles: D38 · base: 7e70e874 · sandbox: `.claude/red-team/trial-args/` (a 387 B parent and a 110,379 B child holding plan 2026-11-08-auditor-and-worker-guard-habits phase 1 args) · result: settled, yes. The parent got an object back with 22 keys, 6 tasks, the right `runId` and 109,925 B of JSON, with 0 agents in 23 ms (Workflow run wf_b792e04d-c79) · wall: 1 min
 
 **Critical path:**
-- End states 1–4 ← T1.1 (bottleneck: T1.1, because it is Phase 1's single `workflow-template.js` owner and every later phase rebases onto its engine).
-- End state 5 ← T1.2 (independent chain; it shares no file with T1.1, so it runs in the same wave).
+- End states 5, 33 and 34 ← T1.2 (Phase 1's first wave: T1.1 depends on it through `deps: [1.2]`, because the args sibling script frees the staged room T1.1's engine growth needs).
+- End states 1–4 ← T1.1 (bottleneck: the Phase 1 chain is T1.2 then T1.1; T1.1 is Phase 1's single `workflow-template.js` owner and every later phase rebases onto its engine).
 - End states 6–9 ← T2.1.
 - End states 10–14 ← T3.1.
 - End states 15–17 ← T4.1; End state 18 ← T4.2 (independent chain, same wave).
@@ -98,7 +98,7 @@ escape-guard: clean
 
 ## Context — the gap / problem
 
-All 28 claimed issues are open (verified: `gh issue view` on each, 2026-11-09) (verified: issue state read for each number, 2026-11-08). They touch one
+All 29 claimed issues are open (verified: `gh issue view` on each, 2026-11-09) (verified: issue state read for each number, 2026-11-08). They touch one
 area: what the engine and the refiner do when a phase dies, is relaunched, moves an approved pin, or lands.
 The engine is `skills/war/assets/workflow-template.js` (810,684 B) (verified: `wc -c` at 35aa4144). Its
 standing prompt twins are `agents/war-refiner.md` and `agents/war-worker.md`. Recovery is common and costly in
@@ -433,7 +433,7 @@ issue state read 2026-11-08). Each fix lives in a file this plan owns.
   cross-machine resume; what is missing is the carry list. A tool that moves run state is outside this
   campaign (no plan owns one); this plan ships the Lead-side carry recipe.
 
-**Staged cap (re-measured at `7e70e874`, operator ruling 2026-11-09: the staged-template cap is funded by moving the embedded args into a sibling args script).** At the live base the comment- and indent-stripped engine is 404,473 B, so the room under arm (p) is 7 B, not the 459 B measured below at `279a0d4a` (verified: `stripFullLineComments` over the template, red-team round 1). The engine growth of this plan's slices is about 4 to 5 KB. T1.2 funds it: the stager writes the phase args to a sibling args script that the staged copy loads with `workflow({ scriptPath })`, so `ARGS_HEADROOM_BYTES` reserves only that one prelude line (D38). The older text follows. The comment- and indent-stripped engine plus `ARGS_HEADROOM_BYTES` had 459 B of room under
+**Staged cap (re-measured at `7e70e874`, operator ruling 2026-11-09: the staged-template cap is funded by moving the embedded args into a sibling args script).** At the live base the comment- and indent-stripped engine is 404,473 B, so the room under arm (p) is 7 B, not the 459 B measured below at `279a0d4a` (verified: `stripFullLineComments` over the template, red-team round 1). The engine growth of this plan's slices is about 4 to 5 KB. T1.2 funds it: the stager writes the phase args to a sibling args script that the staged copy loads with `workflow({ scriptPath })`, so `ARGS_HEADROOM_BYTES` reserves only that one prelude line (D38). The older text follows, superseded by D38: The comment- and indent-stripped engine plus `ARGS_HEADROOM_BYTES` had 459 B of room under
 the 524,288 B script cap (verified: `stripFullLineComments` over the engine, `ARGS_HEADROOM_BYTES` 119,808 and
 `SCRIPT_BYTE_CAP` at 279a0d4a; the roadmap's contention row says the same). Every engine byte this plan adds
 counts against it; full-line comments are free. The seven claims add about 860 B of code and prompt prose
@@ -441,8 +441,8 @@ across T1.1, T2.1, T3.1 and T4.1 (estimates per decision row), so each engine ta
 per commit and funds growth by removing dead code or tightening prompt prose byte-for-byte, never by lowering
 `ARGS_HEADROOM_BYTES` (constraint 12).
 
-**Card budgets.** `agents/war-refiner.md` 38,889 B of a 38,912 B hard line (23 B free); `agents/war-worker.md`
-13,215 B of 13,312 B (97 B free) (verified: `wc -c` and `prompt-surface-budgets.test.mjs` at 35aa4144). The
+**Card budgets.** `agents/war-refiner.md` 38,846 B of a 38,912 B hard line (66 B free); `agents/war-worker.md`
+13,292 B of 13,312 B (20 B free) (verified: `wc -c` at 7e70e874, red-team round 2). The
 two predecessor plans edit both cards first, so headroom is re-measured at each task's rebased base. Refiner
 card: the two land-phase bullets T1.1 evicts are 155 B and 313 B, and no test names their labels, but `workflow-template.recovery.test.mjs` pins the Server-side push error text (red-team round 1, see T1.1) (verified: `wc -c`
 per line and grep of `Land-advance escalate` / `Server-side push error` across `skills/war/assets/*.test.mjs`
@@ -482,7 +482,7 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
     full-DAG relaunch, new runId" (verified: DocTrail Aligned/reports/2026-10-30-docs-mirror/lead/rulings-p1.md,
     WAR 0.21.35). The sanctioned full-DAG relaunch with a new runId is the recovery shape D27 (T4.1) and D29
     (T4.2) serve; neither may assume a resumed runId.
-12. Staged cap (the roadmap's contention row for `stage-workflow.test.mjs` arm (p)), amended by operator ruling 2026-11-09: the staged-template cap is funded by moving the embedded args into a sibling args script (D38): T1.2 lands first and lowers `ARGS_HEADROOM_BYTES` to the sibling-loader prelude size (at most 4 digits), because the args no longer ride the staged copy. That lowering is the ruled exception to the rule below, never a precedent for lowering it while args are embedded. Every later engine task still measures the stripped size per commit. The original text: the stripped engine plus
+12. Staged cap (the roadmap's contention row for `stage-workflow.test.mjs` arm (p)), amended by operator ruling 2026-11-09: the staged-template cap is funded by moving the embedded args into a sibling args script (D38): T1.2 lands first and lowers `ARGS_HEADROOM_BYTES` to the sibling-loader prelude size (at most 4 digits), because the args no longer ride the staged copy. That lowering is the ruled exception to the rule below, never a precedent for lowering it while args are embedded. After T1.2, each engine task measures and records the stripped size per commit, and funds growth only if arm (p) would go red; `ARGS_HEADROOM_BYTES` is never raised and never lowered again. The original text, superseded by D38: the stripped engine plus
     `ARGS_HEADROOM_BYTES` had 459 B of room at 279a0d4a. Every engine task measures the stripped size per
     commit (`stripFullLineComments` over the file, plus `ARGS_HEADROOM_BYTES`, against `SCRIPT_BYTE_CAP`) and
     funds growth by removing dead code or tightening prompt prose byte-for-byte; `ARGS_HEADROOM_BYTES` is
@@ -496,7 +496,7 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
 | D2 | D4 prose fix | `refiner-recovery.md`: the retry exits 0 only when the follower lags; when it already sits at `<merge-sha>`, it exits 3 and the land confirm returns `landed` | (verified: issue #2657 (2026-11-08)) | PIN-2→slice (T1.1) |
 | D3 | Never-move wording | Keep engine behavior. New sentence: "A task branch whose tip is already an ancestor of the integration tip is merged: never rebase, move or re-merge it; the engine holds it for the Lead and never records a merge from your report." No apostrophe (the harness regex is single-quote) | (verified: issue #2662 (2026-11-08)) | PIN-3→slice (T1.1) |
 | D4 | Pin dispatch failure scope | In `verifyPinTransfer` and `mergeSnapshot`, a dispatch-layer throw (`warDispatchDeath === true`) that `infraDeathCause` does not match counts as a failed attempt and the loop retries within `roundLimit` (the next attempt already runs on the recovery tier). Exhaustion keeps each site's existing arm: the pin proof returns `null` → `pin-transfer:unverified` for that task; the snapshot keeps its HARD `Git merge snapshot unavailable` throw, whose message now also names the last caught reason. A caught non-infra throw is never minted into a `DISPATCH_DEATH` record, so no `env-died` is read from it (the D21 comment's fail-safe: an unmatched dispatch-layer death stays in the louder class). An untagged throw rethrows HARD at once. No backoff | (verified: issue #2589 (2026-11-04); the `mergeSnapshot` tail at 35aa4144) | PIN-4→slice (T2.1) |
-| D5 | Typed Git-read error | Optional `git_error: { type:'string' }` on `PIN_GIT_PROOF`; the prompt says return `{"remote_sha":"","git_error":"<stderr tail>"}`; the engine logs it on the `pin-transfer:unverified` auditLog row | (verified: issue #2589 (2026-11-04)) | PIN-5→slice (T2.1) |
+| D5 | Typed Git-read error | Optional `git_error: { type:'string' }` on `PIN_GIT_PROOF` and on `MERGE_SNAPSHOT`; each prompt says on a Git read error return its required SHA fields as empty strings plus `"git_error":"<stderr tail>"` (so the reply still passes the schema's `required` list); the engine logs it on the `pin-transfer:unverified` auditLog row, and the snapshot loop appends it to the HARD `Git merge snapshot unavailable` message when its last reply had no usable snapshot | (verified: issue #2589 (2026-11-04)) | PIN-5→slice (T2.1) |
 | D6 | Approved ace tree | Repro first: a real-git fixture of a subset-mode approved ace then a merge, asserting `pin-transfer:git-verified` and `pins[0]` equal to the ace tip, proven red at the phase base. Fix rule: every arm that sets `r.seats` to an approving re-audit at tip T also sets `r.aceSha = T`, and no later read overwrites an approved tip | (verified: issue #2590 (2026-11-04)) | PIN-6→slice (T2.1) |
 | D7 | Reused-worktree provision | `provisionStep`'s task-worktree prompt gets a save-and-restore preamble as two named consts (so a test can extract their exact spelling the way `PROVISION_CLEAN_SENTENCE` extracts the clean line): before step 1, run `git reset -q` (unstage everything, keep the edits in the tree — `git checkout -- .` restores from the INDEX, so a staged edit would survive the clean line and make the later apply fail as a false conflict), then if `git status --porcelain --untracked-files=no` prints anything, write `git diff --binary HEAD` to `.war/preprovision-<task id>.patch`; after the steps and the clean line, `git apply <that patch>` (worktree only — no `--index`, no `reset`). Untracked files, including a formerly staged new file, are never touched by the clean line and stay in place. An apply failure keeps the patch and returns `ok:true` with optional `savedWork: "<patch path>"` on `ENV_OUTCOME`; the worker prompt names the patch when `savedWork` is set, and the card's `## Inputs` list gets one bullet for it (recovery only). `PROVISION_RERUN_CLAUSE` is unchanged | (verified: issue #2588 (2026-11-04); the grill's scratch repos d7a/d7b at 365f3da2 — staged edits survive `git checkout -- .` and then fail `git apply --index`) | PIN-7→slice (T4.1) |
 | D8 | Recovery push path | `STALE_PRIOR_ATTEMPT_RULE` applies only when `git merge-base --is-ancestor origin/<branch> <pre-rebase HEAD>` exits 1, where `<pre-rebase HEAD>` is the SHA the worker records with `git rev-parse HEAD` before its rebase (`ORIG_HEAD` right after the rebase holds the same value); the sentence names that read, so a worker whose rebase has moved HEAD can still run the test. When the remote tip is an ancestor, `FORCE_WITH_LEASE_RULE` already allows the lease push. Engine const and card sentence change together; the old unconditional sentence is gone from both surfaces | (verified: issue #2646 (2026-11-06); the plain push of a reused, already-pushed branch after a dispatch rebase is non-fast-forward, so the lease is the only push — DocTrail Aligned/reports/2026-10-30-proof-of-contemplation/phases/result-p1held2.json, WAR 0.21.31) | PIN-8→slice (T3.1) |
@@ -508,7 +508,7 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
 | D14 | Retire the worker trailer | Delete `taskProvenanceClause`'s trailer sentence; keep its no-empty-commit and `git rev-parse HEAD` sentences; card step 5 the same. `Late-Fix:` and `Ace-Charge:` untouched | (verified: issue #2659 (2026-11-08)) | PIN-14→slice (T3.1) |
 | D15 | Commit-message read rule | One worker sentence on both surfaces: never read a commit message from a scratchpad or any path outside your own task worktree | (verified: issue #2494 (2026-10-29)) | PIN-15→slice (T3.1) |
 | D16 | Refinery hygiene rows | `worktreeHygieneClause` names `ensure-refinery-worktree` too, captured as `{ task: null, refinery: true, path, action, detail }`; card barrier step mirrors it | (verified: issue #1823 (2026-08-27)) | PIN-16→slice (T4.1) |
-| D17 | Runbook lines | `resume-and-recovery.md` § Recovery relaunch: (a) rebuild `agents`/`audit`/`run`/`gate` from `war-config.mjs --fill-defaults`; (b) capture `git -C <worktree> status --short` per escalated task first; (c) confirm the manifest's `transcriptDir` exists before `resumeFromRunId`; (d) stop a resume that re-dispatches seats (cache miss) and relaunch fresh; (e) a 0-agent `held:workflow-error` with no text is a harness entry refusal | (verified: issues #2328 (2026-09-24), #2442 (2026-10-26), #1910 (2026-08-28), #2645 (2026-11-06)) | PIN-17→slice (T4.2) |
+| D17 | Runbook lines | `resume-and-recovery.md` § Recovery relaunch: (a) rebuild `agents`/`audit`/`run`/`gate` from `war-config.mjs --fill-defaults`; (b) capture `git -C <worktree> status --short` per escalated task first; (c) confirm the manifest's `transcriptDir` exists before `resumeFromRunId`; (d) stop a resume that re-dispatches seats (cache miss) and relaunch fresh; (e) a 0-agent `held:workflow-error` with no text is a harness entry refusal; (f) a diverged local copy is repointed to its remote (End state 24) | (verified: issues #2328 (2026-09-24), #2442 (2026-10-26), #1910 (2026-08-28), #2645 (2026-11-06)) | PIN-17→slice (T4.2) |
 | D18 | Enum set | No new `KNOWN_LAND_DECISIONS` or `HARD_ESCALATION_REASONS` member | spec constraint 4 | PIN-18→guardrail |
 | D19 | Git is truth | A refiner `landed` after a land confirm still passes `confirmMerge`; an unconfirmed `landed` never lands | (verified: `confirmMerge` at 35aa4144) | PIN-19→guardrail ‡ |
 | D20 | preMerged tip | `lastLandedTip` stays unset in the preMerged block; `tipSha` unchanged | (verified: issue #2575 (2026-11-02)) | PIN-20→guardrail |
@@ -529,7 +529,8 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
 | D35 | 40-hex `head_sha` | (a) `WORKER_RESULT.head_sha` gets `pattern: '^[0-9a-f]{40}$'`; the field stays optional, so a blocked worker without a commit is unaffected, and a 39-hex reply is re-asked at the tool layer (the `GATE_CHECK` if/then precedent). (b) In the audit-pin reconciliation: when the worker's reported pin (`pins[0]`) is the only mismatch and every seat `audit_sha` resolved equal to `head_sha`, repair the pin to `head_sha`, push an auditLog row `verdict: 'pin-repaired:worker'`, and let the seats stand — no `pin-mismatch:reconcile` re-audit; any seat mismatch keeps today's full re-audit. (c) Both worker surfaces say `head_sha` is all 40 hex characters from `git rev-parse HEAD` (the kept D14 sentence, extended on the card and in `taskProvenanceClause`). About 200 B of engine growth | (verified: issue #2703 (2026-11-08); `WORKER_RESULT`, the `GATE_CHECK` if/then, the ponytail comment at the merge queue, `resolved.pins.some(...)` at 279a0d4a) | PIN-35→slice (T3.1) |
 | D36 | Audit-pin retry | The `audit-pin:` dispatch is re-dispatched once when its reply is malformed: `pins` not an array, `pins.length !== reported.length` (the helper's documented Git-error reply `{ head_sha: '', pins: [] }` for a non-empty request has this shape), or a non-null pin failing the prefix check. One log line names the shape and the retry. A second malformed reply takes today's arm (seats dropped → the dropped-seat `audit-blocked` lane; no new reason, PIN-18). A dead dispatch keeps `deathOf` → env-died on either attempt. The helper card is unchanged (it already says to follow the prompt's error rule). About 90 B | (verified: issue #2704 (2026-11-08); the `resolved.pins.length !== reported.length` arm and the prompt's last sentence at 279a0d4a) | PIN-36→slice (T2.1) |
 | D37 | Cross-machine state carry | Lead-side doc only. `resume-and-recovery.md` § Resume reconciliation pre-flight gains a **Machine-local run state** bullet: the run manifest, the team ledger and owned-refs (`.claude/teams/<run-id>/`), the args files, the saved phase returns and the staged script are git-excluded and never travel; a resume on another machine first fetches origin and recreates the local integration and task branches the ledger names (the `git branch <branch> <remoteSha>` adopt form in `schemas.md`'s staleRemote row (read-only here, constraint 8)), copies the manifest, ledger, owned-refs, args files and the held return to the same paths under the new machine's run root (`skills/war/references/setup.md` § Run root, ADR 0059) by hand, with the ledger and owned-refs under `$MAIN/.claude/teams/`, then takes a fresh Recovery relaunch — new runId, never `resumeFromRunId`, whose `transcriptDir` check (D17 (c)) fails there by construction — threading `seededPhaseClose`, `seededTasks`, `priorReturn` (D32) and `ownedFile` from the copied files; Manifest catch-up (D29) then restamps from the copied manifest. No tooling: a state-carry script is outside this campaign | (verified: issue #2705 (2026-11-08); grep `machine` empty in the runbook; the ledger and owned-refs paths in `skills/war/SKILL.md` and the runbook at 279a0d4a) | PIN-37→slice (T4.2) |
-| D38 | Args ride a sibling args script | The stager's `--args <file>` writes `<staged basename>.args.js` beside the staged copy: `export const meta = { … }`, then `return <the validated args JSON>`. The staged copy's prelude becomes one line, `const EMBEDDED_ARGS = await workflow({ scriptPath: '<absolute args script path>' })`, and the `ARGS_FALLBACK_ANCHOR` rewrite is unchanged, so dispatched args still win. The args script gets its own `.sha256` sidecar, write-if-absent and `--force` follow the staged copy (both files or neither), and the size floor checks each file against `SCRIPT_BYTE_CAP`. `ARGS_HEADROOM_BYTES` drops to the prelude reserve. The Lead still types no args (the #1134 fix holds) and still dispatches with no Workflow args. The engine never calls `workflow()` itself, so the one-level nesting limit holds | (verified: TRIAL-3, 2026-11-09) · operator ruling 2026-11-09: the staged-template cap is funded by moving the embedded args into a sibling args script | PIN-21 n/a (no card) · T1.2 |
+| D39 | Lease after a merge-slot rebase (#2750) | `floorFixHead` gets one sentence: a merge-slot rebase may move the task branch off its pushed remote, that rebase counts as a dispatch-rebase for the lease carve-out, and a host-denied lease push takes the D28 route; `FORCE_WITH_LEASE_RULE` stays byte-identical (PIN-26); no card twin, because the worker card already points at the lease rule | (verified: issue #2750 (2026-11-09)) · AI-declared, --afk | PIN-21 n/a · T3.1 |
+| D38 | Args ride a sibling args script | The stager's `--args <file>` writes `<staged basename>.args.js` beside the staged copy: `export const meta = { … }`, then `return <the validated args JSON>`. The staged copy's prelude loads it with `workflow({ scriptPath: '<absolute args script path>' })` only when no args were dispatched, inside a try/catch that stores the error, so nothing above the engine's `try {` throws and PIN-25 holds. The `ARGS_FALLBACK_ANCHOR` rewrite adds a named throw for a failed load, inside the engine's try, so a bad sibling returns `held:workflow-error`, and dispatched args still win. The args script gets its own `.sha256` sidecar; write-if-absent and `--force` cover both files; a staged copy with no sibling refuses reuse; `--force` refuses on either sidecar mismatch; and the size floor checks each file against `SCRIPT_BYTE_CAP`. `ARGS_HEADROOM_BYTES` drops to the prelude reserve. The Lead still types no args (the #1134 fix holds) and still dispatches with no Workflow args. The engine never calls `workflow()` itself, so the one-level nesting limit holds | (verified: TRIAL-3, 2026-11-09) · operator ruling 2026-11-09: the staged-template cap is funded by moving the embedded args into a sibling args script | PIN-21 n/a (no card) · T1.2 |
 
 ## Assumptions ledger
 
@@ -556,8 +557,8 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
 | A19 | A 0-agent death with no text is a harness entry refusal (script parse or size cap) the script cannot catch (D17 (e)) | TRIAL-1; the stager's `SCRIPT_BYTE_CAP` comment says the tool refuses before entry validation (verified: `stage-workflow.mjs` at 35aa4144) | the cause is elsewhere and stays undiagnosed; the runbook line still names the first checks | backstop row 4 |
 | A20 | The guard-habits plan lands the commit-message write half (D15) | its spec D10 | T3.1 lands the whole sentence | T3.1 worker greps the card at its rebased base |
 | A21 | The Lead can see a resume cache miss from the journal or dispatch counts while the run is live (D17 (d)) | spec D17 | (d) becomes a post-hoc `/war-review` check only | backstop row 4 |
-| A22 | RETIRED — the spec's chosen card bullet is the cheapest eviction | replaced: T1.1 evicts both land-phase exit bullets, which no test pins (verified: grep at 35aa4144) | — | — |
-| A23 | The refiner card's existing pointer to `refiner-recovery.md` § Uncertain merge reconciliation counts as the standing twin for the `git_error` answer | spec T2.1 note; the pointer line exists (verified: `agents/war-refiner.md` § Git mutation recovery at 35aa4144) | pre-funded: T2.1 adds one card sentence (≤ 60 B) in § Git mutation recovery, paid from the ≥ 200 B of headroom T1.1 must leave (T1.1's eviction frees about 468 B and its pointer bullet costs about 110 B); `agents/war-refiner.md` is already in T2.1's Files, so no plan change | audit of T2.1; T1.1's commit body records the measured headroom |
+| A22 | RETIRED — the spec's chosen card bullet is the cheapest eviction | replaced: T1.1 evicts the two land-phase exit bullets; `workflow-template.recovery.test.mjs` pins the Server-side push error text three ways, so T1.1 either updates those pins or keeps that text and evicts other bytes; the ≥ 200 B reserve and D31's sentence bind on either branch | — | — |
+| A23 | The refiner card's existing pointer to `refiner-recovery.md` § Uncertain merge reconciliation counts as the standing twin for the `git_error` answer | spec T2.1 note; the pointer line exists (verified: `agents/war-refiner.md` § Git mutation recovery at 35aa4144) | pre-funded: T2.1 adds one card sentence (≤ 60 B) in § Git mutation recovery, paid from the ≥ 200 B of headroom T1.1 must leave (at 7e70e874: 66 B free + about 468 B evicted − the pointer bullet, about 156 B linked or about 120 B plain-path − D3's +55 B on step 1 − D31's step-9 sentence; T1.1 caps that sentence at about 120 B or also evicts § Gate contract, so the reserve holds); `agents/war-refiner.md` is already in T2.1's Files, so no plan change | audit of T2.1; T1.1's commit body records the measured headroom |
 | A24 | `workflow-template.git-4.test.mjs` has room for one more real-git fixture | harness header: 6 blocks, ~19 s (verified: at 35aa4144) | use `workflow-template.git-1.test.mjs` | gate time |
 | A25 | RETIRED — `hooks/reply-standard/subagent-card.war-worker.md` repeats the trailer sentence | verified: 325 B, no `WAR-Task` at 35aa4144 | — | — |
 | A26 | The friction-report rows in Non-goals belong to the named sibling plans (#2328 row 4 → args-floor; #2412 exit-2 attestation → engine-findings; #2442 merge-base-relative check → pipeline-skills; #2509 manifest stamps → this plan's D29, because the doc-truth plan declined that row (verified: its Non-goals, untracked, read 2026-11-08)) | spec §9 | the doc-truth or args-floor plan owns them instead; nothing here changes | `/war-machine` roadmap claim sweep |
@@ -594,7 +595,7 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
   35aa4144). Absorb non-convergence → engine-findings; the merge-base-relative End-state check →
   pipeline-skills-and-memory-tooling.
 - #2509: the #1413 floor death → args-floor; auditor denials, worker scratchpad and Bash-advisory false
-  positives → guard-habits; Lead manifest stamps → doc-truth. Its dropped ace re-entry return is already
+  positives → guard-habits; Lead manifest stamps → this plan's D29 (T4.2). Its dropped ace re-entry return is already
   covered by `nullDied` at the re-entry site (verified: `rwWhy` at 35aa4144).
 - #1910: the harness journal key is out of repo; only D17 (d) lands here.
 - #2494: rewriting the trailer on the already-landed commit is an operator call about a default branch.
@@ -661,7 +662,7 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
      `node --test --test-reporter=tap --test-name-pattern='land-confirm \(#2657\): (every land prompt|a confirmed land)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - land-confirm \(\\#2657\): (every land prompt|a confirmed land)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-E1":"RED-E1"} END{exit !r}'`
      · token: `PASS-E1` · owner T1.1 · red at base: no such test (TRIAL-2 grep read).
   2. `refiner-recovery.md` carries the land-confirm rule and no longer says the retry "exits 0 via Task 1.1"
-     · check: `grep -q "ls-remote origin refs/heads" skills/war/references/refiner-recovery.md && ! grep -q "exits 0 via Task 1.1" skills/war/references/refiner-recovery.md && echo PASS-E2`
+     · check: `grep -q "ls-remote origin refs/heads" skills/war/references/refiner-recovery.md && ! grep -qi "via Task 1.1" skills/war/references/refiner-recovery.md && echo PASS-E2`
      · token: `PASS-E2` · owner T1.1 · red at base: counts `0` and `1`.
   3. A refiner `landed` claim whose SHA origin does not hold never lands · check:
      `node --test --test-reporter=tap --test-name-pattern='land-confirm \(#2657\): an unconfirmed landed claim' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - land-confirm \(\\#2657\): an unconfirmed landed claim/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E3":"RED-E3"} END{exit !r}'`
@@ -669,7 +670,7 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
      it stays green if `landConfirmArm` is deleted, by design; End state 1 is the delete-the-feature check.
   4. The never-move sentence says the engine holds the task, and the old ending is gone from the engine and
      the card · check:
-     `! grep -q "and report it merged" skills/war/assets/workflow-template.js agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='2485/ES9' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - 2485\/ES9/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E4":"RED-E4"} END{exit !r}'`
+     `! grep -qi "re-merge it, and report it merged" skills/war/assets/workflow-template.js agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='2485/ES9' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - 2485\/ES9/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E4":"RED-E4"} END{exit !r}'`
      · token: `PASS-E4` · owner T1.1 · red at base: the old ending is present once in each file.
   5. A sanctioned recovery run from another plugin root or version is refused before launch, a
      non-recovery launch never reads the manifest, and the relaunch doctrine the runbook sends the Lead to
@@ -701,7 +702,7 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
   10. No worker prompt or worker card asks for a `WAR-Task` trailer, and the card still carries the kept
       no-empty-commit and `git rev-parse HEAD` sentences (so deleting step 5 outright is not a pass) ·
       check:
-      `! grep -q "WAR-Task" agents/war-worker.md && grep -q "Never create an empty commit" agents/war-worker.md && grep -q "git rev-parse HEAD" agents/war-worker.md && node --test --test-reporter=tap --test-name-pattern='task provenance \(#2659\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - task provenance \(\\#2659\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-E10":"RED-E10"} END{exit !r}'`
+      `! grep -q "WAR-Task" agents/war-worker.md && grep -qi "never create an empty commit" agents/war-worker.md && grep -q "git rev-parse HEAD" agents/war-worker.md && node --test --test-reporter=tap --test-name-pattern='task provenance \(#2659\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - task provenance \(\\#2659\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-E10":"RED-E10"} END{exit !r}'`
       · token: `PASS-E10` · owner T3.1 · red at base: `WAR-Task` is on the card once; no such test. The
       recovery fixtures are two: OLD-absent on both surfaces, NEW-present on both surfaces.
   11. The worker prompt and card forbid reading a commit message from outside the task worktree · check:
@@ -711,7 +712,7 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
       prior attempt: the narrowed sentence (with the ancestry test and the `rev-parse HEAD` before-rebase
       read) is on both surfaces, and the old unconditional run "shares only an older base is a stale prior
       attempt" is on neither · check:
-      `grep -q "merge-base --is-ancestor origin/" agents/war-worker.md && ! grep -qF "shares only an older base is a stale prior attempt" agents/war-worker.md skills/war/assets/workflow-template.js && node --test --test-reporter=tap --test-name-pattern='stale-prior-attempt \(#2646\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - stale-prior-attempt \(\\#2646\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E12":"RED-E12"} END{exit !r}'`
+      `grep -q "merge-base --is-ancestor origin/" agents/war-worker.md && ! grep -qiF "older base is a stale prior attempt" agents/war-worker.md skills/war/assets/workflow-template.js && node --test --test-reporter=tap --test-name-pattern='stale-prior-attempt \(#2646\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - stale-prior-attempt \(\\#2646\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E12":"RED-E12"} END{exit !r}'`
       · token: `PASS-E12` · owner T3.1 · red at base: the ancestry phrase is absent from the card and the
       old run is present once on each surface.
   13. A resolved-null implementation worker records verdict `env-died`, and a control that removes the
@@ -747,8 +748,8 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
       cache-miss stop, the 0-agent entry death and the `preprovision-` patch the provision prompt leaves ·
       check:
       `F=skills/war/references/resume-and-recovery.md; grep -qi -e "--fill-defaults" "$F" && grep -qi "transcriptDir" "$F" && grep -qi "status --short" "$F" && grep -qi "cache miss" "$F" && grep -qi "0-agent" "$F" && grep -qi "preprovision-" "$F" && echo PASS-E18`
-      · token: `PASS-E18` · owner T4.2 · red at base: `fill-defaults`, `transcriptDir` and `preprovision-`
-      are absent.
+      · token: `PASS-E18` · owner T4.2 · red at base: `fill-defaults`, `transcriptDir`, `status --short`, `cache miss`, `0-agent` and
+      `preprovision-` are absent.
   19. All four release slots name one version, the next free patch above the integration base · HARD at audit_sha
       (observable: `.claude-plugin/plugin.json` `version`, `marketplace.json` `metadata.version`
       and `plugins[0].version`, and the README `## Status` line are equal, and that version is above the
@@ -773,9 +774,9 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
   23. The runbook carries the `push_denied:` hand-push recipe (the `--force-with-lease=<branch>:<remote
       tip>` form) and the Manifest catch-up first act, and `run-manifest.md` carries the hand-off catch-up
       and keeps the three phrases the doc-truth plan pins · check:
-      `F=skills/war/references/resume-and-recovery.md; M=skills/war/references/run-manifest.md; grep -qi "push_denied" "$F" && grep -qi "force-with-lease=" "$F" && grep -qi "Manifest catch-up" "$F" && grep -qi "Hand-off catch-up" "$M" && grep -qi "Dispatch counts are summed across attempts" "$M" && grep -qi "Manifest restamp" "$F" && echo PASS-E23`
+      `F=skills/war/references/resume-and-recovery.md; M=skills/war/references/run-manifest.md; grep -qi "push_denied" "$F" && grep -qi "force-with-lease=" "$F" && grep -qi "Manifest catch-up" "$F" && grep -qi "Hand-off catch-up" "$M" && grep -qi "Dispatch counts are summed across attempts" "$M" && grep -qiE 'overwrite .workflowRunId. \+ .transcriptDir. together' "$M" && grep -qiE 'Archive the died attempt under .attempts\[\].' "$M" && grep -qi "Manifest restamp" "$F" && echo PASS-E23`
       · token: `PASS-E23` · owner T4.2 · red at base: `push_denied`, `force-with-lease=`, `Manifest
-      catch-up` and `Hand-off catch-up` count 0; the frozen-phrase grep is green at base by design (the
+      catch-up`, `Manifest restamp` and `Hand-off catch-up` count 0; the three run-manifest.md frozen-phrase greps are green at base by design (the
       present half that keeps the doc-truth pins valid).
   24. The relaunch runbook names the diverged-local-copy repoint before a relaunch: a reused task branch whose
       local tip diverged from origin with an equal patch-id is repointed to the origin tip so the relaunch
@@ -807,7 +808,7 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
       `wrap-up:phase-<id>` once and stays held; a `held:land-failed` phase emits a handoff whose `tipSha` is
       the last merge commit; a `held:workflow-error` phase dispatches no servitor (guardrail); and the
       servitor card says it runs on a held land · check:
-      `grep -q "held land" agents/war-servitor.md && node --test --test-reporter=tap --test-name-pattern='held-land wrap-up \(#2702\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - held-land wrap-up \(\\#2702\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-E29":"RED-E29"} END{exit !r}'`
+      `grep -qi "held land" agents/war-servitor.md && node --test --test-reporter=tap --test-name-pattern='held-land wrap-up \(#2702\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - held-land wrap-up \(\\#2702\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-E29":"RED-E29"} END{exit !r}'`
       · token: `PASS-E29` · owner T2.1 · red at base: `held land` is absent from the card; no such test; the
       Wrap-up gate reads `landResult.status === 'landed'`.
   30. `WORKER_RESULT.head_sha` carries the 40-hex pattern, and a worker pin that resolves null while every
@@ -828,7 +829,7 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
       runbook.
   33. A staged phase script carries a one-line args loader and no args JSON, and its sibling args script
       returns the exact args (D38, operator ruling 2026-11-09: the staged-template cap is funded by moving the embedded args into a sibling args script) · check:
-      `node --test --test-reporter=tap --test-name-pattern='args sibling \(D38\)' skills/war/assets/stage-workflow.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - args sibling \(D38\)/{n++} END{r=(n>=4&&!b)} END{print r?"PASS-E33":"RED-E33"} END{exit !r}'`
+      `node --test --test-reporter=tap --test-name-pattern='args sibling \(D38\)' skills/war/assets/stage-workflow.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - args sibling \(D38\)/{n++} END{r=(n>=7&&!b)} END{print r?"PASS-E33":"RED-E33"} END{exit !r}'`
       · token: `PASS-E33` · owner T1.2 · red at base: no such test.
   34. `ARGS_HEADROOM_BYTES` reserves only the loader prelude · check:
       `grep -qE 'const ARGS_HEADROOM_BYTES = [0-9]{1,4}$' skills/war/assets/stage-workflow.test.mjs && echo PASS-E34`
@@ -891,18 +892,19 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
   `git push origin HEAD:refs/heads/<integration branch>` and the card carries `HEAD:refs/heads/`; prove it red
   against the phase-base engine before the change. Measure the stripped engine size per commit (constraint
   12) and record it in the commit body.
-- Done when: `! grep -q "and report it merged" skills/war/assets/workflow-template.js agents/war-refiner.md && grep -q "ls-remote origin refs/heads" skills/war/references/refiner-recovery.md && ! grep -q "exits 0 via Task 1.1" skills/war/references/refiner-recovery.md && grep -q "HEAD:refs/heads" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='land-confirm \(#2657\)|2485/ES9|first-push refspec \(#2699\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (land-confirm \(#2657\)|2485\/ES9|first-push refspec \(#2699\))/{n++} END{r=(n>=6&&!b)} END{print r?"PASS-T1.1":"RED-T1.1"} END{exit !r}'` · token: `PASS-T1.1` (ES9, the land-prompt pin, its delete control, the saved-reconcile fixture, the unconfirmed-claim fixture and the first-push fixture)
+- Done when: `! grep -qi "re-merge it, and report it merged" skills/war/assets/workflow-template.js agents/war-refiner.md && grep -q "ls-remote origin refs/heads" skills/war/references/refiner-recovery.md && ! grep -qi "via Task 1.1" skills/war/references/refiner-recovery.md && grep -q "HEAD:refs/heads" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='land-confirm \(#2657\)|2485/ES9|first-push refspec \(#2699\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (land-confirm \(\\#2657\)|2485\/ES9|first-push refspec \(\\#2699\))/{n++} END{r=(n>=6&&!b)} END{print r?"PASS-T1.1":"RED-T1.1"} END{exit !r}'` · token: `PASS-T1.1` (ES9, the land-prompt pin, its delete control, the saved-reconcile fixture, the unconfirmed-claim fixture and the first-push fixture)
 - requiresTest: true
 - requiresPackaging: false
-- deps: [1.2] (T1.1 grows the engine, and arm (p) has room only after T1.2 lands the args sibling script)
+- deps: [1.2]
+- deps note: the engine growth needs the staged room the args sibling script frees.
 - target repo: superproject
 
 ### Task 1.2: Plugin identity floor for a sanctioned recovery relaunch, and the args sibling script
-- Files: `skills/war/assets/assert-args-complete.mjs`, `skills/war/assets/assert-args-complete.test.mjs`, `skills/war/references/launch-identity.md`, `skills/war/assets/stage-workflow.mjs`, `skills/war/assets/stage-workflow.test.mjs`, `skills/war/references/staged-script.md`, `docs/adr/0037-run-scoped-staged-phase-scripts.md`
+- Files: `skills/war/assets/assert-args-complete.mjs`, `skills/war/assets/assert-args-complete.test.mjs`, `skills/war/references/launch-identity.md`, `skills/war/assets/stage-workflow.mjs`, `skills/war/assets/stage-workflow.test.mjs`, `skills/war/references/staged-script.md`, `docs/adr/0037-run-scoped-staged-phase-scripts.md`, `skills/war/assets/workflow-template.submodule-1.test.mjs`, `GLOSSARY.md`
 - Plan slice: Add `--prior-manifest <path>` per D10 (PIN-10). When `args.recovery.sanctioned === true`,
-  compare the running plugin root — the script's own location, `realpathSync(fileURLToPath(import.meta.url))`
-  up three directories from `skills/war/assets/`, the same idiom the script's default `--template` path
-  uses; never `process.env` — and its `.claude-plugin/plugin.json` version with the manifest's `pluginRoot`
+  compare the running plugin root — new code: `realpathSync(fileURLToPath(import.meta.url))`, then three
+  `dirname()` calls up from `skills/war/assets/` (the default `--template` path uses `fileURLToPath` without
+  the realpath); never `process.env` — and its `.claude-plugin/plugin.json` version with the manifest's `pluginRoot`
   (realpath'd) and `pluginVersion`. A mismatch exits 1 and prints both values and the `--plugin-dir` form;
   an absent or null field warns on stderr and exits 0; a non-recovery launch, or a launch without the flag,
   never reads the manifest. Update the header exit contract and usage lines. Re-find the flag loop and the
@@ -918,20 +920,39 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
   restated). That sentence is the Lead-side wiring; the SKILL.md preflight line is unchanged.
   Then the args sibling script (D38, operator ruling 2026-11-09: the staged-template cap is funded by moving the embedded args into a sibling args script). In `stage-workflow.mjs`, under `--args <file>`, write the
   validated args to `<staged basename>.args.js` (a meta statement, then `return` of the JSON) and make
-  `insertArgsPrelude` emit `const EMBEDDED_ARGS = await workflow({ scriptPath: '<absolute path>' })`. Keep
-  the `ARGS_FALLBACK_ANCHOR` rewrite and the `EMBEDDED_ARGS` name. Give the args script its own
+  `insertArgsPrelude` emit a loader that runs only when no args were dispatched and never throws at load:
+  `let EMBEDDED_ARGS = null, EMBEDDED_ARGS_ERROR = null` and `if (!args) try { EMBEDDED_ARGS = await
+  workflow({ scriptPath: '<absolute path>' }) } catch (e) { EMBEDDED_ARGS_ERROR = e }`. The
+  `ARGS_FALLBACK_ANCHOR` rewrite becomes `(args || EMBEDDED_ARGS || <throw a named Error: args sibling load
+  failed, plus the caught message>)`; the anchor sits inside the engine's top-level `try {`, so a bad
+  sibling returns a structured `held:workflow-error` and PIN-25 holds. Keep the `EMBEDDED_ARGS` name.
+  Partial presence: a staged copy whose sibling is missing exits non-zero and names `--force` /
+  `--discard-injections`; a sibling with no staged copy is overwritten; `--force` refuses when either
+  file's sidecar mismatches. Give the args script its own
   `.sha256` sidecar, apply write-if-absent and `--force` to both files together, and refuse either file
   over `SCRIPT_BYTE_CAP`. Lower `ARGS_HEADROOM_BYTES` in `stage-workflow.test.mjs` to the prelude reserve
   (4,096 B or less) and keep arm (p). Add fixtures named `args sibling (D38): <case>`: the staged copy
   carries the one-line loader and no args JSON; the sibling returns the exact args object (evaluate its
   body with a stub `workflow`); a `--force` restage over a hand-edited sibling refuses; an over-cap args
-  file refuses. Update `assert-args-complete.test.mjs`'s `CLI --template: EMBEDDED_ARGS prose` fixture to
+  file refuses; dispatched args skip the loader; a missing sibling yields a `held:workflow-error` whose
+  message names the args sibling; a staged copy with no sibling refuses reuse. Rewrite the seven existing
+  `stage-workflow.test.mjs` rows the sibling change turns red: (i) restore-roundtrip, (i) CRLF two lines,
+  (j) prelude byte-equal, (m) falsy-args fallback (it needs a `workflow` stub), `indent-strip:
+  NAME_ANCHOR and ARGS_FALLBACK_ANCHOR substitute on the staged form`, (q) over-cap naming of the args
+  size, and (t) every write leaves a matching sidecar. In `workflow-template.submodule-1.test.mjs`, compile
+  the staged copy locally with a `workflow` parameter that evaluates the sibling (a helper one test uses
+  stays local; wrap the compile site in `runForm`), so the shared harness is untouched. Update `assert-args-complete.test.mjs`'s `CLI --template: EMBEDDED_ARGS prose` fixture to
   read the prose from the sibling, and keep `assert-args-complete.mjs` reading the args file the Lead
   passes. In `staged-script.md`, rewrite the room snapshot and the embedding description for the sibling
-  (touched-doc rule: de-mirror the byte numbers to a pointer at arm (p)). Append a dated ADR 0037 amendment
+  (touched-doc rule: de-mirror the byte numbers to a pointer at arm (p)); never write the `EMBEDDED_ARGS`
+  identifier there, because the D30 census in `skill-doc-contracts.test.mjs` pins its surfaces. In
+  `GLOSSARY.md`'s staged-script entry, replace the prelude-carries-the-args and two-prelude-lines
+  wording with the sibling args script and its loader. Also fix the stager header's travel-with-the-script
+  sentence. Append a dated ADR 0037 amendment
   that records D38 and the ruled headroom drop. Leave `workflow-template.js` and `skills/war/SKILL.md`
-  unchanged: the fallback anchor and the `EMBEDDED_ARGS` name keep their prose true.
-- Done when: `grep -q -- "--prior-manifest" skills/war/references/launch-identity.md && node --test --test-reporter=tap --test-name-pattern='prior-manifest \(#2495\)' skills/war/assets/assert-args-complete.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - prior-manifest \(\\#2495\)/{n++} END{r=(n>=5&&!b)} END{print r?"PASS-T1.2":"RED-T1.2"} END{exit !r}' && node --test --test-reporter=tap --test-name-pattern='args sibling \(D38\)' skills/war/assets/stage-workflow.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - args sibling \(D38\)/{n++} END{r=(n>=4&&!b)} END{print r?"PASS-T1.2b":"RED-T1.2b"} END{exit !r}' && grep -qE 'const ARGS_HEADROOM_BYTES = [0-9]{1,4}$' skills/war/assets/stage-workflow.test.mjs && echo PASS-T1.2c` · token: `PASS-T1.2`, then `PASS-T1.2b`, then `PASS-T1.2c`
+  unchanged: the fallback anchor and the `EMBEDDED_ARGS` name keep the engine true, and SKILL.md's
+  "over-size args ride the staged script (`--args <file>`)" stays true because the sibling is part of the stage.
+- Done when: `grep -q -- "--prior-manifest" skills/war/references/launch-identity.md && node --test --test-reporter=tap --test-name-pattern='prior-manifest \(#2495\)' skills/war/assets/assert-args-complete.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - prior-manifest \(\\#2495\)/{n++} END{r=(n>=5&&!b)} END{print r?"PASS-T1.2":"RED-T1.2"} END{exit !r}' && node --test --test-reporter=tap --test-name-pattern='args sibling \(D38\)' skills/war/assets/stage-workflow.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - args sibling \(D38\)/{n++} END{r=(n>=7&&!b)} END{print r?"PASS-T1.2b":"RED-T1.2b"} END{exit !r}' && grep -qE 'const ARGS_HEADROOM_BYTES = [0-9]{1,4}$' skills/war/assets/stage-workflow.test.mjs && echo PASS-T1.2c` · token: `PASS-T1.2`, then `PASS-T1.2b`, then `PASS-T1.2c`
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -956,7 +977,7 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
   site's existing arm — the pin proof returns `null` (→ `pin-transfer:unverified`), the snapshot keeps its
   HARD `Git merge snapshot unavailable` throw with the last caught reason appended to the message. When the
   last attempt returned a reply with no usable snapshot instead of throwing, append that reply's `git_error`
-  when present (D5's optional field rides the snapshot schema too), so a working branch with no local ref is
+  when present (D5: add optional `git_error` to `MERGE_SNAPSHOT` and a Git-error answer to the `git-snapshot:` and `git-pin-snapshot:` prompts — empty-string SHA fields plus `git_error` — so the reply passes the schema), so a working branch with no local ref is
   named in the hold rather than the bare site label (End state 25; survey fold 2026-11-08). Never
   mint a `DISPATCH_DEATH` record from a caught non-infra throw (the binding guardrail); an untagged throw
   rethrows HARD at once. D5 (PIN-5): optional `git_error` on
@@ -1007,7 +1028,7 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
   fixture shape; `handoff.tipSha` equals the last merge commit), `held-land wrap-up (#2702): no servitor on
   held:workflow-error` (guardrail). Prove each red against the phase-base engine before the change. Measure
   the stripped engine size per commit (constraint 12) and record it in the commit body.
-- Done when: `grep -q "git_error" skills/war/references/refiner-recovery.md && grep -q "held land" agents/war-servitor.md && node --test --test-reporter=tap --test-name-pattern='approved ace tip \(#2590\)' skills/war/assets/workflow-template.git-4.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - approved ace tip \(\\#2590\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-T2.1a":"RED-T2.1a"} END{exit !r}' && node --test --test-reporter=tap --test-name-pattern='pin-proof (throw|git_error) \(#2589\)|snapshot reply git_error \(#2589\)|dispatchFailures \(#2645\)|audit-pin retry \(#2704\)|held-land wrap-up \(#2702\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (pin-proof (throw|git_error) \(\\#2589\)|snapshot reply git_error \(\\#2589\)|dispatchFailures \(\\#2645\)|audit-pin retry \(\\#2704\)|held-land wrap-up \(\\#2702\))/{n++} END{r=(n>=11&&!b)} END{print r?"PASS-T2.1b":"RED-T2.1b"} END{exit !r}'` · token: `PASS-T2.1a` then `PASS-T2.1b` (the five earlier engine-1 fixtures, the End state 25 snapshot fixture, the two audit-pin fixtures and the three held-land fixtures)
+- Done when: `grep -q "git_error" skills/war/references/refiner-recovery.md && grep -qi "held land" agents/war-servitor.md && node --test --test-reporter=tap --test-name-pattern='approved ace tip \(#2590\)' skills/war/assets/workflow-template.git-4.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - approved ace tip \(\\#2590\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-T2.1a":"RED-T2.1a"} END{exit !r}' && node --test --test-reporter=tap --test-name-pattern='pin-proof (throw|git_error) \(#2589\)|snapshot reply git_error \(#2589\)|dispatchFailures \(#2645\)|audit-pin retry \(#2704\)|held-land wrap-up \(#2702\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (pin-proof (throw|git_error) \(\\#2589\)|snapshot reply git_error \(\\#2589\)|dispatchFailures \(\\#2645\)|audit-pin retry \(\\#2704\)|held-land wrap-up \(\\#2702\))/{n++} END{r=(n>=11&&!b)} END{print r?"PASS-T2.1b":"RED-T2.1b"} END{exit !r}'` · token: `PASS-T2.1a` then `PASS-T2.1b` (the five earlier engine-1 fixtures, the End state 25 snapshot fixture, the two audit-pin fixtures and the three held-land fixtures)
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -1035,9 +1056,8 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
   route a resolved null at the implementation, fix-round, floor-fix, late-fix and wave-side ace sites
   through `nullDied`. D12 (PIN-12): widen `INFRA_DEATH_RE` with the bounded phrases D12 lists and no bare
   term; update its header comment and the null-arm
-  comment above it in the same diff. Fund the worker card (PIN-21): at 279a0d4a the card has 97 B free
-  (13,215 of 13,312 B), `## Harness note` is 171 B and `## Comment hygiene (before commit)` is 616 B; the
-  D8, D15 and D28 sentences add more than 171 B, so expect to move both blocks. Red-team round 1: at `7e70e874` the card has 20 B free (13,292 B), and each moved block leaves an ADR 0042 trigger pointer of about 140 to 190 B, so the two blocks free about 516 B net against at least 577 B needed. Measure each pointer before you count a block as freed, and move a third unpinned tier-2 block or shorten the new sentences until the hard line holds. #2750 (AI-declared, --afk): add one sentence to `floorFixHead` saying a merge-slot rebase may have moved your task branch off its pushed remote, that this rebase counts as a dispatch-rebase for the lease carve-out, and that a host-denied lease push takes the D28 route. `FORCE_WITH_LEASE_RULE` stays byte-identical (PIN-26). If the net card growth
+  comment above it in the same diff. Fund the worker card (PIN-21): `## Harness note` is 171 B and `## Comment hygiene (before commit)` is 616 B; the
+  D8, D15 and D28 sentences add more than 171 B, so expect to move both blocks. At `7e70e874` the card has 20 B free (13,292 B), and each moved block leaves an ADR 0042 trigger pointer of about 140 to 190 B, so the two blocks free about 516 B net against at least 577 B needed. Measure each pointer before you count a block as freed, and move a third unpinned tier-2 block or shorten the new sentences until the hard line holds. D39 (#2750): add one sentence to `floorFixHead` saying a merge-slot rebase may have moved your task branch off its pushed remote, that this rebase counts as a dispatch-rebase for the lease carve-out, and that a host-denied lease push takes the D28 route. `FORCE_WITH_LEASE_RULE` stays byte-identical (PIN-26). Engine-1 fixture `merge-slot lease (#2750): floorFixHead names the dispatch-rebase carve-out`; prove it red against the phase-base engine. If the net card growth
   exceeds the headroom measured at the rebased base, move one tier-2 block byte-identical into
   `worker-servitor-edges.md` with a trigger pointer; candidate `## Harness note` (heading and body named
   by no test), then `## Comment hygiene (before commit)`; never `## Prior lessons (memory)`, which
@@ -1082,7 +1102,7 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
   the head; exactly one panel dispatch, verdict approve, a `pin-repaired:worker` row, no
   `pin-mismatch:reconcile` row — red at base: two panels and a reconcile row). Measure the stripped engine
   size per commit (constraint 12) and record it in the commit body.
-- Done when: `! grep -q "WAR-Task" agents/war-worker.md && grep -q "merge-base --is-ancestor origin/" agents/war-worker.md && ! grep -qF "shares only an older base is a stale prior attempt" agents/war-worker.md skills/war/assets/workflow-template.js && node --test --test-reporter=tap --test-name-pattern='task provenance \(#2659\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - task provenance \(\\#2659\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-T3.1a":"RED-T3.1a"} END{exit !r}' && node --test --test-reporter=tap --test-name-pattern='stale-prior-attempt \(#2646\)|commit-message read \(#2494\)|worker-site null \(#2555\)|INFRA_DEATH_RE \(#2328\)|push-denied \(#2671\)|worker head_sha \(#2703\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (stale-prior-attempt \(\\#2646\)|commit-message read \(\\#2494\)|worker-site null \(\\#2555\)|INFRA_DEATH_RE \(\\#2328\)|push-denied \(\\#2671\)|worker head_sha \(\\#2703\))/{n++} END{r=(n>=8&&!b)} END{print r?"PASS-T3.1b":"RED-T3.1b"} END{exit !r}'` · token: `PASS-T3.1a` then `PASS-T3.1b`
+- Done when: `! grep -q "WAR-Task" agents/war-worker.md && grep -q "merge-base --is-ancestor origin/" agents/war-worker.md && ! grep -qiF "older base is a stale prior attempt" agents/war-worker.md skills/war/assets/workflow-template.js && node --test --test-reporter=tap --test-name-pattern='task provenance \(#2659\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - task provenance \(\\#2659\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-T3.1a":"RED-T3.1a"} END{exit !r}' && node --test --test-reporter=tap --test-name-pattern='stale-prior-attempt \(#2646\)|commit-message read \(#2494\)|worker-site null \(#2555\)|INFRA_DEATH_RE \(#2328\)|push-denied \(#2671\)|worker head_sha \(#2703\)|merge-slot lease \(#2750\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (stale-prior-attempt \(\\#2646\)|commit-message read \(\\#2494\)|worker-site null \(\\#2555\)|INFRA_DEATH_RE \(\\#2328\)|push-denied \(\\#2671\)|worker head_sha \(\\#2703\)|merge-slot lease \(\\#2750\))/{n++} END{r=(n>=9&&!b)} END{print r?"PASS-T3.1b":"RED-T3.1b"} END{exit !r}'` · token: `PASS-T3.1a` then `PASS-T3.1b`
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -1161,7 +1181,7 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
   holds: the returned `carriedPhaseClose` row keeps `carriedFrom.phase === 5` while a row born in phase 6
   carries 6). Prove both red against the phase-base engine before the change. Measure the stripped engine
   size per commit (constraint 12) and record it in the commit body; D32's growth (about 320 B) is the largest
-  single addition in this plan, so fund it in the same commit.
+  single addition in this plan; fund it only if arm (p) would go red (constraint 12).
 - Done when: `grep -q "preprovision-" agents/war-worker.md && grep -q "refinery: true" agents/war-refiner.md && grep -q "record-as-owned" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='reused-worktree provision \(#2588\)|recovery predecessor seed \(#2575\)|refinery hygiene \(#1823\)|owned-file adoption \(#2671\)|prior-return carry \(#2700\)|carried-from origin \(#2701\)' skills/war/assets/workflow-template.recovery.test.mjs skills/war/assets/workflow-template.git-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (reused-worktree provision \(\\#2588\)|recovery predecessor seed \(\\#2575\)|refinery hygiene \(\\#1823\)|owned-file adoption \(\\#2671\)|prior-return carry \(\\#2700\)|carried-from origin \(\\#2701\))/{n++} END{r=(n>=9&&!b)} END{print r?"PASS-T4.1":"RED-T4.1"} END{exit !r}'` · token: `PASS-T4.1` (three provision fixtures, the seed fixture, the hygiene fixture, the two adoption fixtures, the prior-return fixture, the carried-from fixture)
 - requiresTest: true
 - requiresPackaging: false
@@ -1170,7 +1190,7 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
 
 ### Task 4.2: Recovery relaunch runbook lines
 - Files: `skills/war/references/resume-and-recovery.md`, `skills/war/references/run-manifest.md`
-- Plan slice: In § Recovery relaunch, add D17 (PIN-17) (a)–(e), short, one line each: (a) rebuild
+- Plan slice: In § Recovery relaunch, add D17 (PIN-17) (a)–(f), short, one line each: (a) rebuild
   `agents`/`audit`/`run`/`gate` with the `war-config.mjs --fill-defaults` flag, never copy a prior attempt's
   args (flag form only — `doc-cli-consistency.test.mjs` scans this file, and `war-config.mjs` has no verb
   subcommands); (b) capture `git -C <worktree> status --short` per escalated task before a relaunch, because
@@ -1214,13 +1234,13 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
   same phase). D37 (PIN-37, #2705): in § Resume reconciliation pre-flight, one **Machine-local run state**
   bullet: the run manifest, the team ledger and owned-refs, the args files, the saved phase returns and the
   staged script are git-excluded and machine-local; a resume on another machine first fetches origin and
-  recreates the local integration and task branches the ledger names (point at the runbook's existing
-  `git branch <br> <remoteSha>` adopt form), copies the manifest, ledger, owned-refs, args files and the held
+  recreates the local integration and task branches the ledger names (point at the `git branch <branch> <remoteSha>` adopt form in `schemas.md`'s
+  staleRemote row, read-only per constraint 8), copies the manifest, ledger, owned-refs, args files and the held
   return to the same paths under the new machine's run root (`skills/war/references/setup.md` § Run root, ADR 0059) by hand, with the ledger and owned-refs under `$MAIN/.claude/teams/`, then takes a fresh Recovery relaunch — new runId, never
   `resumeFromRunId` (its `transcriptDir` is gone there by construction, line (c)) — threading
   `seededPhaseClose`, `seededTasks`, `priorReturn` and `ownedFile` from the copied files, and runs Manifest
   catch-up from the copied manifest. Short lines; pointers, not restatements.
-- Done when: `F=skills/war/references/resume-and-recovery.md; M=skills/war/references/run-manifest.md; grep -qi -e "--fill-defaults" "$F" && grep -qi "transcriptDir" "$F" && grep -qi "status --short" "$F" && grep -qi "cache miss" "$F" && grep -qi "0-agent" "$F" && grep -qi "preprovision-" "$F" && grep -qi "push_denied" "$F" && grep -qi "force-with-lease=" "$F" && grep -qi "Manifest catch-up" "$F" && grep -qi "machine-local" "$F" && grep -qi "priorReturn" "$F" && grep -qi "Hand-off catch-up" "$M" && grep -qi "Dispatch counts are summed across attempts" "$M" && grep -qi "patch-id" "$F" && grep -qi "repoint" "$F" && grep -qi "Manifest restamp" "$F" && echo PASS-T4.2` · token: `PASS-T4.2` (doc-only task; the gate's `doc-cli-consistency.test.mjs` under `skills/_shared/` also scans this file)
+- Done when: `F=skills/war/references/resume-and-recovery.md; M=skills/war/references/run-manifest.md; grep -qi -e "--fill-defaults" "$F" && grep -qi "transcriptDir" "$F" && grep -qi "status --short" "$F" && grep -qi "cache miss" "$F" && grep -qi "0-agent" "$F" && grep -qi "preprovision-" "$F" && grep -qi "push_denied" "$F" && grep -qi "force-with-lease=" "$F" && grep -qi "Manifest catch-up" "$F" && grep -qi "machine-local" "$F" && grep -qi "priorReturn" "$F" && grep -qi "Hand-off catch-up" "$M" && grep -qi "Dispatch counts are summed across attempts" "$M" && grep -qiE 'overwrite .workflowRunId. \+ .transcriptDir. together' "$M" && grep -qiE 'Archive the died attempt under .attempts\[\].' "$M" && grep -qi "patch-id" "$F" && grep -qi "repoint" "$F" && grep -qi "Manifest restamp" "$F" && echo PASS-T4.2` · token: `PASS-T4.2` (doc-only task; the gate's `doc-cli-consistency.test.mjs` under `skills/_shared/` also scans this file)
 - requiresTest: false
 - requiresPackaging: false
 - deps: []
@@ -1243,7 +1263,7 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
   the `push_denied:` stop rule, the manifest catch-up, the first-push refspec, the prior-return carry, the
   carried-from origin, the held-land wrap-up, the 40-hex `head_sha`, the audit-pin retry and the
   machine-local state carry line, and counts nothing it does not enumerate.
-- Done when: `node --test --test-reporter=tap skills/war/assets/version-slots.test.mjs | awk '/^not ok/{b=1} /^ok /{n++} END{r=(n>0&&!b)} END{print r?"PASS-T5.1":"RED-T5.1"} END{exit !r}'` · token: `PASS-T5.1` (a guardrail, green at base by design: End state 19's HARD judgment catches a missing bump)
+- Done when: `node --test --test-reporter=tap skills/war/assets/version-slots.test.mjs | awk '/^not ok/{b=1} /^ok /{n++} END{r=(n>0&&!b)} END{print r?"PASS-T5.1":"RED-T5.1"} END{exit !r}' && node -e "const cp=require('child_process'),v=(t)=>JSON.parse(t).version.split('.').map(Number),a=v(require('fs').readFileSync('.claude-plugin/plugin.json','utf8')),b=v(cp.execSync('git show origin/master:.claude-plugin/plugin.json',{encoding:'utf8'})),d=(a[0]-b[0])||(a[1]-b[1])||(a[2]-b[2]),ok=d>0,o=console.log(ok?'PASS-T5.1b':'RED-T5.1b'),x=process.exit(ok?0:1)"` · token: `PASS-T5.1`, then `PASS-T5.1b` (the version is strictly above the landing branch's; red at base)
 - requiresTest: false
 - requiresPackaging: false
 - deps: []
@@ -1282,11 +1302,11 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
 ## Notes / conscious deviations
 
 - **Red-team round 1 adjudications (2026-11-09).** Operator ruling: the staged-template cap is funded by the args sibling script (D38, T1.2, End states 33 and 34), and lowering `ARGS_HEADROOM_BYTES` to the loader prelude is part of that ruling. AI-declared under --afk: End states 24 to 32 bind as intent as appended, the #2750 `floorFixHead` sentence rides T3.1, and the check rewrites (semicolon-free awk END rules, TAP `\#` anchors, `grep -qi` runbook greps) keep each check's meaning. Report: `docs/red-team/2026-11-08-engine-recovery-relaunch-and-land.md`.
+- **Red-team round 2 adjudications (2026-11-09, AI-declared under --afk).** The args loader is conditional and caught, so PIN-25 holds (D38). `MERGE_SNAPSHOT` gets the optional `git_error` (D5). #2750 is claimed as D39. T5.1 gains a red-at-base version check. The submodule staged-copy test compiles its own `workflow` stub, so the shared harness stays with T1.1.
 
 - Test ownership (PIN-22): the spec split each engine phase into an engine task and a test task with `deps`.
   Engine-1 and recovery already pin text the engine tasks change (context J), so a split engine task reds its
-  own gate. Each engine task now owns its pinning tests and new fixtures. Phases 1 and 4 keep a parallel doc
-  or floor task.
+  own gate. Each engine task now owns its pinning tests and new fixtures. Phase 4 keeps a parallel doc task. Phase 1 runs T1.2 then T1.1 (`deps: [1.2]`).
 - D6 repro and fix share T2.1, so the worker proves red at the phase base and green after the fix in one
   task (spec §8's "must go red before T2.1 merges").
 - D13 shrinks to `dispatchFailures`: TRIAL-1 shows the args prologue already reaches the catch. The spec's
@@ -1297,7 +1317,7 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
 - Phase 4 adds `skills/war/references/refiner-recovery.md` as the eviction destination, and Phase 3 adds
   `skills/war/references/worker-servitor-edges.md`, both for PIN-21.
 - The `--test-reporter=tap` flag rides every test check because the default reporter prints no `# fail 0`.
-- Issue fetches: all 18 first-draft issues were read, and all 28 claimed issues are open at 2026-11-09; none was unreachable.
+- Issue fetches: all 18 first-draft issues were read, and all 29 claimed issues are open at 2026-11-09; none was unreachable.
 - Grill revise pass (2026-11-08), self-decided findings:
   - P3 → D12 uses bounded phrases (`api error: 401`, `oauth access token`, `disabled claude subscription`,
     `enotfound`, `getaddrinfo`, `eai_again`), the two #2328 strings are the positive fixtures, three
@@ -1363,9 +1383,7 @@ tasks share no file. Phase 4's two tasks run in one wave, and Phase 1 runs T1.2 
   (T2.1, D36), #2705 (T4.2, doc-only, D37); rerouted: none; kept deferred: none — only #2705's mechanical
   half (a state-carry tool) stays in Non-goals, because no campaign plan owns one. The seven residual
   bullets left Non-goals; context L carries the verified defects. End states 26–32 are appended, not
-  reworded, and need the operator's re-confirmation of the intent. The staged cap (constraint 12) is now
-  named in this plan: the claims add about 860 B of engine growth against 459 B of room, so each engine task
-  funds its growth in the same commit.
+  reworded, and need the operator's re-confirmation of the intent. The staged cap (constraint 12) is funded by D38 (operator ruling 2026-11-09).
 
 ## Open decisions
 
