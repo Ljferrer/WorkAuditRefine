@@ -8187,6 +8187,11 @@ const mergedRowsOf = m => (Array.isArray(m.merged) ? m.merged : []).filter(x => 
 // followUps projection both spread it, so a `behavior` row folded under another row keeps its class on
 // the surface the Checkpoint floor reads.
 const findingClassOf = x => FINDING_CLASSES.includes(x && x.findingClass) ? { findingClass: x.findingClass } : {}
+// foldedFixOf (ADR 0058 fix-now): the folded row's own `suggested_fix` and `line`, as a spreadable object —
+// each key present only when the row carries it. The pre-filing collapse spreads it onto the merged[] row,
+// so a fix-now seed of a folded row takes that row's fix and line, never the representative's
+// (skills/war/references/late-defects.md § The behavior follow-up floor).
+const foldedFixOf = f => ({ ...(typeof f.suggested_fix === 'string' && f.suggested_fix.trim() ? { suggested_fix: f.suggested_fix } : {}), ...(Number.isFinite(f.line) ? { line: f.line } : {}) })
 // drainCauseOf (verdict-integrity D13, PIN-17, #1799): the shape guard for stampDrainCause's field on a
 // filed row — { dispatch, why } with a string dispatch, else null. Read by the filing-prompt row and
 // the handoff followUps projection (both sit outside any local try — a malformed field must never
@@ -8240,7 +8245,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       const fdc = drainCauseOf(f)
       const both = fdc && drainCauseOf(hit)
       if (fdc && !both) hit.drainCause = fdc
-      hit.merged.push({ seat: seatRefOf(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)', ...findingClassOf(f), ...(both ? { drainCause: fdc } : {}) })
+      hit.merged.push({ seat: seatRefOf(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)', ...findingClassOf(f), ...foldedFixOf(f), ...(both ? { drainCause: fdc } : {}) })
     } else collapsed.push(f)
   }
   if (collapsed.length < minorsFiled.length) {

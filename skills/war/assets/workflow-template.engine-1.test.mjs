@@ -6093,9 +6093,10 @@ test('collapse-fidelity (End state 7): a cross-task cross-seat collapse carries 
   assert.deepEqual(out.minorsFiled[0].seats,
     ['audit:t1:correctness (task t1)', 'audit:t2:correctness (task t2)'],
     'seats[] carries seat+task for BOTH tasks on a cross-task collapse')
-  // merged[] fidelity: the merged-away row's title and rationale survive on the representative.
+  // merged[] fidelity: the merged-away row's title and rationale survive on the representative, with
+  // its own line (foldedFixOf: a fix-now seed reads the folded row's line; this row carries no fix).
   assert.deepEqual(out.minorsFiled[0].merged,
-    [{ seat: 'audit:t2:correctness (task t2)', title: 'comment misses the arm', rationale: 'same stale block' }],
+    [{ seat: 'audit:t2:correctness (task t2)', title: 'comment misses the arm', rationale: 'same stale block', line: 105 }],
     'the merged-away row\'s title and rationale ride the survivor\'s merged[] sub-list')
   const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
   // (1) the filing PROMPT renders the merged-away title+rationale on the candidate row…
@@ -20012,6 +20013,33 @@ test('handoff followUps: two rows filed to one issue print it once', async () =>
   assert.equal(folded.minorsFiled.length, 1, 'presence guard: the collapse left one row')
   assert.deepEqual(folded.minorsFiled[0].merged.map(x => x.findingClass), ['behavior'], 'the collapse keeps the folded row\'s class on minorsFiled merged[]')
   assert.equal(floorHalts(folded.handoff), true, 'the floor read sees the collapse-folded behavior row')
+  // fix-now seeds the folded row from its own fix and line (late-defects.md § The behavior follow-up floor).
+  // foldImpl: the correctness seat raises the representative; the other seat raises the row the collapse folds.
+  const foldImpl = (rep, fold) => (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
+      const base = { severity: 'Minor', rationale: 'r', file: 'src/a.js', disposition: 'follow-up', barrier: 'barrier:underspecified' }
+      return { seat: opts.label, lens: 'x', verdict: 'approve', findings: [(opts.label || '').endsWith(':correctness') ? { ...base, title: 'stale enum comment', ...rep } : { ...base, title: 'missing guard', findingClass: 'behavior', ...fold }], confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 42 }], clusters: [{ ordinals: [1], issue: 42 }] }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const own = (await runPhase(args, foldImpl({ line: 100, suggested_fix: 'reword the comment' }, { line: 102, suggested_fix: 'add the null guard' }))).out
+  assert.equal(own.minorsFiled.length, 1, 'presence guard: the collapse left one row')
+  assert.equal(own.minorsFiled[0].suggested_fix, 'reword the comment', 'presence guard: the representative keeps its own fix')
+  assert.equal(own.minorsFiled[0].line, 100, 'presence guard: the representative keeps its own line')
+  assert.equal(own.minorsFiled[0].merged[0].suggested_fix, 'add the null guard', 'the folded row keeps its own fix on merged[]')
+  assert.equal(own.minorsFiled[0].merged[0].line, 102, 'the folded row keeps its own line on merged[]')
+  // the folded row carries no fix: no key, so the seed never inherits the representative's fix by a default
+  const bare = (await runPhase(args, foldImpl({ line: 100, suggested_fix: 'reword the comment' }, { line: 100, suggested_fix: '  ' }))).out
+  assert.equal(bare.minorsFiled[0].merged.length, 1, 'presence guard: the fix-less row folded')
+  assert.ok(!('suggested_fix' in bare.minorsFiled[0].merged[0]), 'a blank fix prints no suggested_fix key')
+  assert.equal(bare.minorsFiled[0].merged[0].line, 100)
+  // both rows lineless with one normalized title: the title fallback folds, and no line key prints
+  const lineless = (await runPhase(args, foldImpl({ title: 'Missing guard' }, { suggested_fix: 'add the null guard' }))).out
+  assert.equal(lineless.minorsFiled[0].merged.length, 1, 'presence guard: the lineless row folded')
+  assert.ok(!('line' in lineless.minorsFiled[0].merged[0]), 'a lineless folded row prints no line key')
+  assert.equal(lineless.minorsFiled[0].merged[0].suggested_fix, 'add the null guard')
   // unfiled rows: each entry keeps its own class
   const unfiledB = (await runPhase(args, impl(null, ['cosmetic', 'behavior']))).out
   assert.deepEqual(unfiledB.handoff.followUps.map(e => e.findingClass), ['cosmetic', 'behavior'], 'ungrouped entries keep their own class')
