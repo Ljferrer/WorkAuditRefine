@@ -20,9 +20,9 @@ from `--git-common-dir`) uses the launch checkout's top level. A launch from the
 `$MAIN`. Resolve it once at Setup, from the launch checkout:
 ```bash
 G=$(git rev-parse --path-format=absolute --git-dir) && C=$(git rev-parse --path-format=absolute --git-common-dir) || exit 1
-MAIN=$(dirname "$C"); RUN=$MAIN; [ "$G" = "$C" ] || RUN=$(git rev-parse --show-toplevel)
+MAIN=$(dirname "$C"); RUN=$MAIN; [ "$G" = "$C" ] || RUN=$(git rev-parse --show-toplevel) || exit 1
 ```
-If either read fails, stop: never fall back to the cwd or to a guessed path.
+If any read fails, stop: never fall back to the cwd or to a guessed path.
 
 - **`worktreeRoot`** is `<run root>/.claude/war/worktrees`.
 - **Run folder.** The manifest is `<run root>/.claude/war/runs/<runId>.json`. The staged scripts and
