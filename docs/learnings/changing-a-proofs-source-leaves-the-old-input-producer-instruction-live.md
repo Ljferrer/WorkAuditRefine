@@ -1,7 +1,8 @@
 ---
 name: changing-a-proofs-source-leaves-the-old-input-producer-instruction-live
-description: Worker prompts still ask for a WAR-Task trailer that the merge-commit proof no longer reads
+description: RESOLVED (2026-11-08 phase 3 task 3.1): worker prompts no longer ask for the WAR-Task trailer
 metadata:
+  promoted: dev/2026-10-28-blocked-ace-and-merge-provenance@phase-3
   node_type: memory
   type: project
   keywords:
@@ -22,7 +23,7 @@ metadata:
     - doctrine-drift
   created: 2026-10-30
   originSessionId: 3f00b529-667c-446f-a615-e0d3485ae35a
-  modified: 2026-10-30T07:47:34.378Z
+  modified: 2026-11-09T17:39:09.518Z
 ---
 
 # Changing a proof's source leaves the old input's producer instruction live
@@ -31,7 +32,13 @@ metadata:
 The instruction that produced the old evidence often survives, because no task owns it.
 It now asks agents for work that proves nothing.
 
-**Instance.** Plan #2485 D14 moved recovery ownership proof to the first-parent `WAR-Task` merge commit.
+**RESOLVED.** Plan 2026-11-08-engine-recovery-relaunch-and-land, phase 3 task 3.1, retired both worker-side trailer instructions.
+At landed tip fe18b242, `taskProvenanceClause` in `skills/war/assets/workflow-template.js` only forbids empty commits and asks for `head_sha`.
+Step 5 of `agents/war-worker.md` no longer asks for a `WAR-Task` trailer.
+The trailer now appears only on the refiner merge commit (`taskMergeTrailer`).
+The text below describes the defect as it stood before the fix. The pattern still applies.
+
+**Instance (historical).** Plan #2485 D14 moved recovery ownership proof to the first-parent `WAR-Task` merge commit.
 `deriveSkipClause` now says "worker commits need no trailer".
 `taskProvenanceClause` still tells workers to put `WAR-Task: <branch>` on their commits.
 `agents/war-worker.md` step 5 also still asks for that trailer.
