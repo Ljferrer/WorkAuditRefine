@@ -6454,7 +6454,7 @@ if (vacuousPhase && endStateClaims.length) log('endstate-check: empty merge queu
 // rendered as CONFIRMED TIP on the three gate-audit-family prompts (confirmedTipLine below).
 const expectedTip = isSha(lastLandedTip) ? lastLandedTip : null
 const confirmedTipLine = expectedTip
-  ? pt`CONFIRMED TIP: ${expectedTip} — compare each artifact's stamped tip_sha against this literal, never your own read of HEAD.\n`
+  ? pt`CONFIRMED TIP: ${expectedTip} — compare each End-state check artifact's (endstate-<phase>-<n>.log) stamped tip_sha against this literal, never your own read of HEAD; a gate log stays judged against the sha its gate ran at, never against this literal.\n`
   : ''
 // ---- LAND-BARRIER ENDSTATE-CHECK DISPATCH (D2/F5, precision-chain Task 3.2) ----
 // Runs ONCE per phase at the integration tip the merge queue left: after its last merge, BEFORE any
@@ -6569,10 +6569,45 @@ if (endStateCheckRows.length > 0 && !vacuousPhase) {
 // claims no conditions — the gate-audit prompt stays byte-identical to today (criterion 10).
 // phaseWideNs (D30, #2695): a condition no merged task's claimedEndStateIds names, and not check:-tagged,
 // is phase-wide — the per-task prompt marks it (endStateBlockOf(true)) and the phase seat judges it.
-const claimedByMerged = new Set(mergedTasksForGateAudit.flatMap(m => Array.isArray(m.claimedEndStateIds) ? m.claimedEndStateIds : []).map(x => String(x).trim()))
-const phaseWideNs = new Set(mergedTasksForGateAudit.length
-  ? endStateRows.map((r, i) => i + 1).filter(n => endStateRows[n - 1].tag !== 'check:' && !claimedByMerged.has(String(n))) : [])
 const PHASE_WIDE_MARK = '[phase-wide: judged by the phase seat]'
+// Binding is whitespace/case-insensitive (#452): seats are told VERBATIM, but a plan_ref that
+// drifts only in whitespace/case must still bind its condition — never a silent 'met'. A trailing
+// End-state tag (` · check: …`, `gate:`, `backstop:`, `HARD at audit_sha`) is dropped on both sides:
+// a condition staged with its tag tail must bind a seat row that echoes the text without it. So is
+// the exact trailing marker the gate-audit prompt renders (` [check:]`, #2329): a seat copies it
+// into condition and plan_ref. So is the per-task PHASE_WIDE_MARK (D30). Any other bracketed text
+// stays part of the compared text.
+const normRef = s => String(s || '').split(PHASE_WIDE_MARK).join('').replace(/\s*·\s*(check:|gate:|backstop:|HARD at audit_sha)[\s\S]*$/i, '').replace(/\s*\[(check:|gate:|backstop:|HARD at audit_sha)\]\s*$/i, '').trim().replace(/\s+/g, ' ').toLowerCase()
+// intentOrdinalByRow (D30): each phase row's ordinal in the threaded intent's numbered End-state
+// list. That ordinal is the id space of claimedEndStateIds (ACCEPTANCE_IDS_RULE). A row's index in
+// endStateRows is its phase-local claim number (the artifact <n>), a different numbering: a phase
+// that claims intent conditions 44 and 45 holds them as rows 1 and 2. Each numbered intent item
+// (its indented continuation lines joined) is compared through normRef: an exact match wins, else an
+// item that starts with the row text. null when no item matches or when the matches name more than
+// one ordinal.
+const intentItems = []
+let intentItemOpen = false
+for (const line of String(intent || '').split('\n')) {
+  const m = /^\s*(\d+)[.)]\s+(.*)$/.exec(line)
+  if (m) { intentItems.push({ ord: String(Number(m[1])), text: m[2] }); intentItemOpen = true }
+  else if (intentItemOpen && /^\s+\S/.test(line)) intentItems[intentItems.length - 1].text += ' ' + line.trim()
+  else intentItemOpen = false
+}
+const intentOrdinalByRow = endStateRows.map(r => {
+  const k = normRef(r.condition)
+  if (!k) return null
+  const ordsOf = hit => [...new Set(intentItems.filter(it => hit(normRef(it.text))).map(it => it.ord))]
+  const exact = ordsOf(t => t === k)
+  const ords = exact.length ? exact : ordsOf(t => t.startsWith(k))
+  return ords.length === 1 ? ords[0] : null
+})
+const claimedByMerged = new Set(mergedTasksForGateAudit.flatMap(m => Array.isArray(m.claimedEndStateIds) ? m.claimedEndStateIds : []).map(x => String(x).trim()))
+// A row with no resolved ordinal is never marked phase-wide: the per-task seats judge it (logged).
+const phaseWideNs = new Set(mergedTasksForGateAudit.length
+  ? endStateRows.map((r, i) => i + 1).filter(n => endStateRows[n - 1].tag !== 'check:' && intentOrdinalByRow[n - 1] !== null && !claimedByMerged.has(intentOrdinalByRow[n - 1])) : [])
+const unresolvedNs = mergedTasksForGateAudit.length
+  ? endStateRows.map((r, i) => i + 1).filter(n => endStateRows[n - 1].tag !== 'check:' && intentOrdinalByRow[n - 1] === null) : []
+if (unresolvedNs.length) log('gate-audit: phase End-state row(s) [' + unresolvedNs.join(', ') + '] match no single numbered End-state item in the threaded intent — not marked phase-wide; the per-task seats judge them (D30).')
 const endStateBlockOf = perTask => endStateClaims.length
   ? pt`\nEND-STATE CHECK (phase-scoped): this phase claims the Commander's-Intent End-state condition(s) below. Three cases, mirroring the provably-unrun/SOFT split: `
     + pt`(1) a condition provably UNMET by the landed content at the CONFIRMED integration tip is HARD — record a Critical/Major finding (gate-evidence lane: one with a suggested_fix goes to the late-fix pass, a fix-less one holds the land); `
@@ -6707,7 +6742,7 @@ if (mergedTasksForGateAudit.length > 0) {
     // claimedIdsLine (A1, Task 3.2): the worker-claimed End-state ids, cross-checked by this seat
     // against its endStateAttestations rows. Empty/absent — or a claims-less phase — ⇒ '' (byte-identical).
     const claimedIdsLine = (endStateClaims.length && Array.isArray(claimedEndStateIds) && claimedEndStateIds.length)
-      ? pt`\nWORKER-CLAIMED END-STATE IDS (A1): the worker reported acceptance_criteria_covered = [${claimedEndStateIds.join(', ')}] — cross-check these claimed ids against your endStateAttestations rows: a claimed condition your evidence cannot support is attested honestly (unmet/unverified, never met-by-claim), and a substantive claim-vs-evidence mismatch is a finding (severity yours).\n`
+      ? pt`\nWORKER-CLAIMED END-STATE IDS (A1): the worker reported acceptance_criteria_covered = [${claimedEndStateIds.join(', ')}] — each id is the condition's ordinal in the intent's numbered End-state list, never a row number of the list below; cross-check these claimed ids against your endStateAttestations rows: a claimed condition your evidence cannot support is attested honestly (unmet/unverified, never met-by-claim), and a substantive claim-vs-evidence mismatch is a finding (severity yours).\n`
       : ''
     const guardLine = guardSpecificity
       // nested pt-tagged interior (first-class census entry): ${guardEvidence} is ternary-guarded.
@@ -6718,7 +6753,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
       + pt`${refineryPath} (the _refinery worktree) and the gate ran at gate-HEAD sha ${gateHeadSha}.\n`
       + pt`Gate-HEAD sha (the rebased task tip the gate ran at, the task merge commit's second parent): ${gateHeadSha}.\n`
-      + pt`PIN STATUS: ${pinStatusLine}. A stamped CONFIRMED or BENIGN-ADVANCE token IS the pin proof — the refiner's evidence dispatch already computed it (gate-pin-status.sh) against the observed _refinery tip ${observedHead || gateHeadSha}. Consume the stamped token; do NOT reconstruct the proof — you MAY spot-verify with a SINGLE read-only \`git -C ${refineryPath} cat-file -t <sha>\` or \`git -C ${refineryPath} rev-parse HEAD\` only if you doubt it${expectedTip ? ' (the CONFIRMED TIP literal below stays the tip you judge artifacts against)' : ''}.\n`
+      + pt`PIN STATUS: ${pinStatusLine}. A stamped CONFIRMED or BENIGN-ADVANCE token IS the pin proof — the refiner's evidence dispatch already computed it (gate-pin-status.sh) against the observed _refinery tip ${observedHead || gateHeadSha}. Consume the stamped token; do NOT reconstruct the proof — you MAY spot-verify with a SINGLE read-only \`git -C ${refineryPath} cat-file -t <sha>\` or \`git -C ${refineryPath} rev-parse HEAD\` only if you doubt it${expectedTip ? ' (the CONFIRMED TIP literal below stays the tip you judge End-state check artifacts against; the gate log stays judged against gate-HEAD)' : ''}.\n`
       + confirmedTipLine
       + pt`CONFIRMED (observed tip == gate-HEAD) or BENIGN-ADVANCE (observed tip descends gate-HEAD and NONE of this task's own files changed in the intervening range) ⇒ the tree you judge corresponds to the current integration tip; a mapped acceptance-criteria test provably unrun AT that confirmed tip stays HARD.\n`
       + pt`STALE-MISMATCH / ERROR / an absent pin-status token ⇒ you CANNOT confirm the executed gate output corresponds to the current integration tip: record a SOFT note, never a HARD finding (the stale-tip defusing rule). The SOFT note MUST state: the observed HEAD sha (or "rev-parse failed"), the expected gate-HEAD sha ${gateHeadSha}, and the reason — "gate-audit worktree not at the integration tip — ${STALE_TIP_PHRASE}, downgraded to SOFT, not a land-halt". Return it as \`disposition: note\`, \`file: null\`, no \`suggested_fix\` — it describes your environment, not the code.\n`
@@ -6920,7 +6955,7 @@ if (endStateClaims.length > 0 && !vacuousPhase && (mergedTasksForGateAudit.lengt
   // End-state conditions — spawn ONE End-state-only seat at the confirmed tip, so a docs-only
   // phase cannot skip its own claimed conditions. The per-task pass's cost saving stands.
   log(esOnlyWidened
-    ? 'gate-audit: ' + phaseWideNs.size + ' phase-wide End-state condition(s) [' + [...phaseWideNs].join(', ') + '] claimed by no merged task and no integrated-tip seat ran — spawning ONE End-state-only seat as their judge (D30).'
+    ? 'gate-audit: ' + phaseWideNs.size + ' phase-wide End-state condition(s), phase row(s) [' + [...phaseWideNs].join(', ') + '], claimed by no merged task and no integrated-tip seat ran — spawning ONE End-state-only seat as their judge (D30).'
     : `gate-audit: mergedTasksForGateAudit is empty but this phase claims ${endStateClaims.length} End-state condition(s) — spawning ONE End-state-only seat at the confirmed tip (D7 cost saving preserved for the per-task pass).`)
   // RECOVERED TASKS (D29, #2694): the preMerged tasks no gate ran for this run. Empty ⇒ ''.
   const recoveredBlock = recoveredIds.length
@@ -6932,7 +6967,7 @@ if (endStateClaims.length > 0 && !vacuousPhase && (mergedTasksForGateAudit.lengt
     pt`END-STATE-ONLY GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence). `
     + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
     + pt`${refineryPath} (the _refinery worktree).\n`
-    + pt`Confirm the tip first: run \`git -C ${refineryPath} rev-parse HEAD\` (read-only git, permitted) and report it as your audit_sha${expectedTip ? '; judge each artifact against the CONFIRMED TIP literal below, not your own read' : ''}. `
+    + pt`Confirm the tip first: run \`git -C ${refineryPath} rev-parse HEAD\` (read-only git, permitted) and report it as your audit_sha${expectedTip ? '; judge each End-state check artifact against the CONFIRMED TIP literal below, not your own read' : ''}. `
     + pt`If the command cannot run, every condition below is unverifiable — SOFT notes only, never a hold.\n`
     + pt`In any cannot-confirm case KEEP verdict at 'approve' or 'request_changes' WITH the SOFT note — NEVER 'escalate' (a finding-less escalate is a HARD hold, reserved for a wrong/underspecified plan; it must never signal an unconfirmable tip).\n`
     + confirmedTipLine + recoveredBlock + gateScopeLine
@@ -8509,14 +8544,7 @@ if (landDecision === 'landed' || landDecision === 'held:escalation' || landDecis
       || (Array.isArray(e.endStateAttestations) && e.endStateAttestations.some(a => a && normRef(a.condition) === normRef(condition)))))
     return e ? e.auditSha : (artifactTipByN.get(n) || null)
   }
-  // Binding is whitespace/case-insensitive (#452): seats are told VERBATIM, but a plan_ref that
-  // drifts only in whitespace/case must still bind its condition — never a silent 'met'. A trailing
-  // End-state tag (` · check: …`, `gate:`, `backstop:`, `HARD at audit_sha`) is dropped on both sides:
-  // a condition staged with its tag tail must bind a seat row that echoes the text without it. So is
-  // the exact trailing marker the gate-audit prompt renders (` [check:]`, #2329): a seat copies it
-  // into condition and plan_ref. So is the per-task PHASE_WIDE_MARK (D30). Any other bracketed text
-  // stays part of the compared text.
-  const normRef = s => String(s || '').split(PHASE_WIDE_MARK).join('').replace(/\s*·\s*(check:|gate:|backstop:|HARD at audit_sha)[\s\S]*$/i, '').replace(/\s*\[(check:|gate:|backstop:|HARD at audit_sha)\]\s*$/i, '').trim().replace(/\s+/g, ' ').toLowerCase()
+  // Binding goes through normRef (defined beside PHASE_WIDE_MARK above).
   // endStateRowOf(condition, n): one handoff endState row (n = the condition's 1-based number).
   const endStateRowOf = (condition, n) => {
     // Vacuous-phase clamp first (D5, End state 10; D8): 'unverified' + note, never green — evaluated

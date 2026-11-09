@@ -9404,6 +9404,11 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'confirmed tip (D28, #2692/#2693): CONFIRMED TIP binds the artifact compare — the three gate-audit-family prompts + the endstate-check dispatch + gate-audit-checklist.md',
       surfaces: [['per-task gate-audit prompt', esSeatP], ['integrated-tip gate-audit prompt', itSeatP], ['end-state-only seat prompt', esOnlyP], ['endstate-check dispatch prompt', esCheckP], ['gate-audit-checklist.md', gateAuditChecklistMd]],
       anchors: [/CONFIRMED TIP/] },
+    // The compare is scoped to the End-state check artifacts: a per-task gate log is stamped with the
+    // gated sha (the merge commit's second parent), which never equals the merge commit.
+    { name: 'confirmed tip scope (D28): the compare names the End-state check artifacts and leaves a gate log on its own gated sha — the three gate-audit-family prompts + gate-audit-checklist.md',
+      surfaces: [['per-task gate-audit prompt', esSeatP], ['integrated-tip gate-audit prompt', itSeatP], ['end-state-only seat prompt', esOnlyP], ['gate-audit-checklist.md', gateAuditChecklistMd]],
+      anchors: [/compare each End-state check artifact's \(`?endstate-<phase(Id)?>-<n>\.log`?\) stamped `?tip_sha`? against/, /gate log stays judged against the sha its gate ran at/] },
   ]
   // citation row, value half: the doc surfaces state the engine's number; the source interpolates it.
   for (const [n, t] of [['war-auditor.md', auditorMd], ['disposition-eligibility.md', eligibilityMd]]) {
@@ -11456,6 +11461,9 @@ const t21Impl = ({ gate = () => null, claims = () => null, esCheck = null, land 
   return gateAuditImpl(prompt, opts)
 }
 const esOnlyCalls = calls => calls.filter(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state')
+// An intent whose numbered End-state list carries the ES_ROWS conditions as items 1, 2 and 3.
+const ES_ROWS_INTENT = 'Purpose: deliver the wtprov end states.\nEnd state:\n'
+  + ES_ROWS.map((r, i) => '  ' + (i + 1) + '. ' + (typeof r === 'string' ? r : r.condition)).join('\n') + '\n'
 const DOCS_TASK = [{ id: 't1', issue: 101, title: 'Docs task', planSlice: 's', roster: [{ lens: 'correctness' }], requiresTest: false }]
 
 test('endstate-check: empty merge queue dispatches nothing — two escalated tasks with a claimed check: row; a merged requiresTest:false task and a zero-task launch still dispatch', async () => {
@@ -11540,10 +11548,23 @@ test('admitGateResult: a refused path is logged and named in the seat prompt', a
 test('endstate: the confirmed tip rides the dispatch and the handoff rows carry attestedAt', async () => {
   const met = label => ({ seat: label, lens: 'execution-evidence', verdict: 'approve', findings: [], confidence: 'high', audit_sha: T21_TIP,
     endStateAttestations: [{ condition: ES_ROWS[0].condition, status: 'met', evidence: 'artifact read' }] })
-  const { out, calls, logs } = await runPhase(ES_ROW_ARGS(), t21Impl({ gate: met, land: { mode: 'land-phase', status: 'landed', working_sha: 'abcdef9999' } }))
+  // The intent numbers the three ES_ROWS conditions, so rows 2 and 3 (unclaimed, not check:) resolve
+  // and the end-state-only seat spawns as their judge (D30).
+  const { out, calls, logs } = await runPhase(ES_ROW_ARGS({ intent: ES_ROWS_INTENT }), t21Impl({ gate: met, land: { mode: 'land-phase', status: 'landed', working_sha: 'abcdef9999' } }))
   const perTask = gateAuditCalls(calls).find(c => c.opts.label === 'gate-audit:t1:execution-evidence')
   assert.ok(perTask && perTask.prompt.includes('CONFIRMED TIP: ' + T21_TIP), 'the per-task seat names the confirmed tip')
   assert.ok(esOnlyCalls(calls).length === 1 && esOnlyCalls(calls)[0].prompt.includes('CONFIRMED TIP: ' + T21_TIP), 'the end-state-only seat names it')
+  // Scope: the compare binds the End-state check artifacts only. The per-task gate log is stamped
+  // with gate-HEAD (the merge commit's second parent), so it can never equal the merge-commit tip.
+  const tipLineOf = p => (p.split('\n').find(l => l.startsWith('CONFIRMED TIP: ')) || '')
+  for (const [name, p] of [['per-task', perTask.prompt], ['end-state-only', esOnlyCalls(calls)[0].prompt]]) {
+    const tl = tipLineOf(p)
+    assert.equal(tl, 'CONFIRMED TIP: ' + T21_TIP + " — compare each End-state check artifact's (endstate-<phase>-<n>.log) stamped tip_sha against this literal, never your own read of HEAD; a gate log stays judged against the sha its gate ran at, never against this literal.",
+      name + ': the tip line scopes the compare to the End-state check artifacts')
+    assert.ok(!/each artifact/.test(p), name + ': no unscoped "each artifact" compare rides the prompt')
+  }
+  assert.ok(perTask.prompt.includes('GATE LOG ARTIFACT:') && perTask.prompt.indexOf('CONFIRMED TIP: ') < perTask.prompt.indexOf('GATE LOG ARTIFACT:'), 'presence guard: the tip line sits above the gate log artifact line')
+  assert.ok(perTask.prompt.includes('(the CONFIRMED TIP literal below stays the tip you judge End-state check artifacts against; the gate log stays judged against gate-HEAD)'), 'the spot-verify clause keeps the gate log on gate-HEAD')
   assert.ok(calls.find(isEndstateCheck).prompt.includes('CONFIRMED TIP: ' + T21_TIP), 'the endstate-check dispatch names it')
   const it = (await runPhase(SWEEP_ARGS({ tasks: [
     { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
@@ -11551,6 +11572,7 @@ test('endstate: the confirmed tip rides the dispatch and the handoff rows carry 
   ] }), p4Base({ evidence: { perTask: [], integratedTipGate: { gate_output: 'ok', tip_sha: 'beefcafe12' } } }))).calls
     .find(c => (c.opts.label || '') === 'gate-audit:phase-3:integrated-tip')
   assert.ok(it && it.prompt.includes('CONFIRMED TIP: beefcafe12'), 'the integrated-tip seat names it')
+  assert.ok(tipLineOf(it.prompt).includes("compare each End-state check artifact's (endstate-<phase>-<n>.log) stamped tip_sha") && !/each artifact/.test(it.prompt), 'the integrated-tip seat carries the same scoped compare')
   assert.ok(out.handoff.endState.every(r => 'attestedAt' in r), 'every handoff endState row carries attestedAt')
   assert.equal(out.handoff.endState[0].attestedAt, T21_TIP, 'the attested row names the seat sha')
   assert.equal(out.handoff.endState[0].status, 'met', 'presence guard: the row is attested met')
@@ -11601,7 +11623,7 @@ test('gate-audit: recovered tasks reach the end-state-only seat and the handoff 
 
 test('gate-audit: an End state no task claims has one judge — the per-task marker, one phase seat, and a per-task out-of-scope Nit reads unverified', async () => {
   const conds = ['cond one holds', 'cond two holds', 'cond three holds']
-  const args = PROVISION_ARGS({ intent: 'Deliver the wtprov end states.', phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: conds },
+  const args = PROVISION_ARGS({ intent: 'Deliver the wtprov end states.\nEnd state:\n  1. cond one holds\n  2. cond two holds\n  3. cond three holds\n', phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: conds },
     tasks: [{ id: 't1', issue: 101, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] }, { id: 't2', issue: 102, title: 'T2', planSlice: 's2', roster: [{ lens: 'correctness' }] }] })
   const oos = label => label === 'gate-audit:t1:execution-evidence'
     ? { seat: label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', audit_sha: T21_TIP,
@@ -11622,6 +11644,57 @@ test('gate-audit: an End state no task claims has one judge — the per-task mar
   const claimedAll = await runPhase(args, t21Impl({ gate: oos, claims: l => l === 'work:t1' ? ['1', '3'] : l === 'work:t2' ? ['2'] : null }))
   assert.equal(esOnlyCalls(claimedAll.calls).length, 0, 'with every condition claimed no phase seat spawns')
   assert.equal(claimedAll.out.handoff.endState.find(r => r.condition === conds[2]).status, 'out-of-scope', 'a claimed condition keeps out-of-scope')
+
+  // Claimed ids are intent ordinals, never phase row numbers. Each arm below runs a phase whose rows
+  // sit at other ordinals in the intent. `marked` reads the per-task prompt: the phase rows (1-based)
+  // that carry the marker.
+  const MARK = ' [phase-wide: judged by the phase seat]'
+  const runOrd = async ({ intent, rows, claims, gate }) => {
+    const r = await runPhase({ ...args, intent, phase: { ...args.phase, endState: rows } }, t21Impl({ gate, claims: l => claims[l] || null }))
+    const marked = id => {
+      const p = (r.calls.find(c => c.opts.label === 'gate-audit:' + id + ':execution-evidence') || {}).prompt || ''
+      assert.ok(p.includes('  1. ' + rows[0]), id + ': presence guard: the per-task prompt lists the phase rows')
+      return rows.map((c, i) => p.includes('  ' + (i + 1) + '. ' + c + MARK) ? i + 1 : 0).filter(Boolean)
+    }
+    return { ...r, marked }
+  }
+  const five = 'Purpose: deliver the wtprov end states.\nEnd state:\n' + ['alpha holds', 'beta holds', 'gamma holds · check: `true`, prints 1', 'delta holds\n     across two lines · gate: the suite', 'epsilon holds (red at base: TRIAL-4)'].map((c, i) => '  ' + (i + 1) + '. ' + c).join('\n') + '\n'
+  const rows345 = ['gamma holds', 'delta holds across two lines', 'epsilon holds']
+  // The intent items exercise each match form: a `· check:` tail (item 3), an indented continuation
+  // line with a `· gate:` tail (item 4), and trailing text the row omits (item 5, a prefix match).
+  // The phase claims intent conditions 3, 4 and 5 as rows 1, 2 and 3. t1 claims "3" and t2 claims
+  // "4": only row 3 (intent condition 5) is unclaimed. A row-number compare marks rows 1 and 2 and
+  // clears row 3. t1 also files an out-of-scope Nit on row 1 (claimed) and on row 3 (phase-wide).
+  const oos2 = label => label === 'gate-audit:t1:execution-evidence'
+    ? { seat: label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', audit_sha: T21_TIP,
+      findings: [rows345[0], rows345[2]].map(c => ({ severity: 'Nit', title: 'out-of-scope: owned elsewhere', rationale: 'r', plan_ref: c })) } : null
+  const b = await runOrd({ intent: five, rows: rows345, claims: { 'work:t1': ['3'], 'work:t2': ['4'] }, gate: oos2 })
+  for (const id of ['t1', 't2']) assert.deepEqual(b.marked(id), [3], id + ': only the row for intent condition 5 carries the marker')
+  assert.equal(esOnlyCalls(b.calls).length, 1, 'one phase seat spawns for the unclaimed row')
+  assert.ok(b.logs.some(l => l.includes('phase row(s) [3], claimed by no merged task')), 'the spawn log names the phase row')
+  assert.ok(!b.logs.some(l => l.includes('match no single numbered End-state item')), 'every row resolved: no unresolved log')
+  assert.equal(b.out.handoff.endState.find(r => r.condition === rows345[2]).status, 'unverified', 'the per-task out-of-scope Nit on the phase-wide row reads unverified')
+  assert.equal(b.out.handoff.endState.find(r => r.condition === rows345[0]).status, 'out-of-scope', 'the per-task out-of-scope Nit on the claimed row keeps out-of-scope')
+  // The phase claims intent conditions 44 and 45 as rows 1 and 2. The worker claims "44".
+  const i4445 = 'Purpose: deliver the wtprov end states.\nEnd state:\n  44. forty-four holds (D28) · check: same form\n  45. forty-five holds (D28) · check: same form\n'
+  const c = await runOrd({ intent: i4445, rows: ['forty-four holds (D28)', 'forty-five holds (D28)'], claims: { 'work:t1': ['44'] } })
+  assert.deepEqual(c.marked('t1'), [2], 'row 1 (intent 44, claimed) has no marker and row 2 (intent 45) has it')
+  // A claimed id that equals a phase row number, and no intent ordinal of the phase, clears nothing.
+  const c2 = await runOrd({ intent: i4445, rows: ['forty-four holds (D28)', 'forty-five holds (D28)'], claims: { 'work:t1': ['1'], 'work:t2': ['2'] } })
+  assert.deepEqual(c2.marked('t1'), [1, 2], 'row numbers "1" and "2" are not intent ordinals 44 and 45')
+  // No resolved ordinal: the row is never marked, no phase seat spawns for it, and one log names it.
+  // Arms: an intent with no numbered list, a null intent, and two intent items with the same text.
+  const dup = 'Purpose: deliver the wtprov end states.\nEnd state:\n  7. twin holds\n  8. twin holds\n  9. solo holds\n'
+  for (const [name, intent, rows, wantMarked, wantLog] of [
+    ['unnumbered intent', 'Deliver the wtprov end states.', conds, [], '[1, 2, 3]'],
+    ['null intent', null, conds, [], '[1, 2, 3]'],
+    ['ambiguous item', dup, ['twin holds', 'solo holds'], [2], '[1]'],
+  ]) {
+    const u = await runOrd({ intent, rows, claims: { 'work:t1': ['1'] } })
+    assert.deepEqual(u.marked('t1'), wantMarked, name + ': an unresolved row carries no marker')
+    assert.equal(esOnlyCalls(u.calls).length, wantMarked.length ? 1 : 0, name + ': an unresolved row spawns no phase seat')
+    assert.equal(u.logs.filter(l => l.startsWith('gate-audit: phase End-state row(s) ' + wantLog + ' match no single numbered End-state item in the threaded intent')).length, 1, name + ': one log names the unresolved rows')
+  }
 })
 
 test('gate-audit floor pass: an environment note stays a note — the phrase keeps a row with a code file and a fix out of the sweep', async () => {
@@ -12167,7 +12240,7 @@ test('auditor-evict (a) — the evicted execution-evidence checklist section is 
   assert.ok(!/\n##? /.test(body.slice(heading.length)), 'the evicted section must be the file\'s last section (heading → end of file)')
   // Non-vacuity: the extraction spans the section's tail bullet.
   assert.match(body, /\*\*End-state ownership mapping:\*\*/, 'the extracted section must span its `**End-state ownership mapping:**` tail bullet')
-  assert.equal(Buffer.byteLength(body, 'utf8'), 5647, 'the approved checklist includes the parallel-gate completion rule and the four T2.1 bullets (D28, D30, D31, D32)')
+  assert.equal(Buffer.byteLength(body, 'utf8'), 5874, 'the approved checklist includes the parallel-gate completion rule and the T2.1 bullets (D28 scoped to the End-state check artifacts, D30 with the intent-ordinal compare, D31, D32)')
   assert.match(body, /parallel repository gate[^\n]*missing `== gate complete:`[^\n]*SOFT cannot-confirm/)
   assert.equal(createHash('sha256').update(body, 'utf8').digest('hex'), GATE_AUDIT_CHECKLIST_SHA256,
     'the evicted checklist section must be byte-identical to the pre-eviction card text (ADR 0042 byte-identical move) — a sanctioned edit re-pins GATE_AUDIT_CHECKLIST_SHA256 in this commit with its rationale')

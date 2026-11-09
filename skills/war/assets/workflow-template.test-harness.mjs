@@ -2537,7 +2537,10 @@ const quietGate = (base) => (prompt, opts) => {
 // Re-pinned (plan 2026-11-08-engine-findings-ace-and-late-fix T2.1): four bullets appended for the
 // execution-evidence seat (D30 phase-wide, D28 confirmed tip, D32 gate scope, D31 environment note);
 // the card gains no byte, and every earlier bullet stays byte-identical.
-const GATE_AUDIT_CHECKLIST_SHA256 = '3cdf022165b234bdc8dd2ef28245119c9bde77853c618fb94fed1209af62262d'
+// Re-pinned (same task, fix round): the D28 bullet scopes the CONFIRMED TIP compare to the End-state
+// check artifacts and leaves a gate log on its own gated sha; the D30 bullet names the intent-ordinal
+// compare. Every other bullet stays byte-identical.
+const GATE_AUDIT_CHECKLIST_SHA256 = 'ea044abe32637b84b4156e89fad699777dac4b5d5764c6ac48f99f0baa0de408'
 
 // A citation-resolved finding: the seat matched the parked ask's NAMED trade-off to a threaded
 // standing adjudication row and returns disposition:'absorb' + citation (A2 — panel judgment),
