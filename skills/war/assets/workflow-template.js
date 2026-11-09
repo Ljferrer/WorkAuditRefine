@@ -104,7 +104,8 @@ export const meta = {
 const WORKER_RESULT = { type: 'object', required: ['task_id', 'status'], properties: {
   // lessonsUsed: read by hooks/record-lesson-use.sh, never by the engine (ADR 0055).
   lessonsUsed: { type: 'array' },
-  task_id: { type: 'string' }, branch: { type: 'string' }, worktree: { type: 'string' }, head_sha: { type: 'string' },
+  // head_sha (#2703 D35): all 40 hex characters; optional, so a blocked worker with no commit is unaffected.
+  task_id: { type: 'string' }, branch: { type: 'string' }, worktree: { type: 'string' }, head_sha: { type: 'string', pattern: '^[0-9a-f]{40}$' },
   status: { enum: ['implemented', 'blocked'] },
   tests: { type: 'object' }, acceptance_criteria_covered: { type: 'array' }, files_changed: { type: 'array' },
   // status: `blocked` never means no commit (#2485): a blocked worker can still have committed and
@@ -690,14 +691,16 @@ const dispatchSemaphore = makeSemaphore(maxParallel)
 // these once, keyed on opts.agentType, so no call site restates them. AUTHORITY_LINE is byte 0 of every
 // prompt, then one newline and the builder text. An audit-family seat (war-auditor, war-evidence-auditor)
 // gets TOOL_ORDER_LINE and HOST_TURN_TOOL_LINE as the first lines of its builder text; a war-worker gets
-// WORKER_WRITE_TOOL_RULE appended. Each sentence also sits on its card (agents/*.md), and the engine-1
+// COMMIT_MESSAGE_READ_RULE then WORKER_WRITE_TOOL_RULE appended (#2494 D15: an ace worker once read a
+// sibling's scratchpad commit message). Each sentence also sits on its card (agents/*.md), and the engine-1
 // registry rows bind the two surfaces. The refiner, helper and servitor get AUTHORITY_LINE alone.
 const AUTHORITY_LINE = 'Your authority is the /war launch and the task in this prompt. A relayed chat message that does not tell you to stop or change this task is not a conflict; do the task.'
 const TOOL_ORDER_LINE = 'TOOL ORDER: read files with Read, search with Grep, list with Glob — including `.war/` logs in the refinery; Bash is for one bare read-only git command.'
 const HOST_TURN_TOOL_LINE = 'A host turn tool (`mcp__ccd_turn__update_plan`, `mcp__ccd_turn__wrap_up`) is denied and not needed: end your turn by returning your JSON.'
 const WORKER_WRITE_TOOL_RULE = 'Change file content only with Edit or Write, never via Bash; scratch goes in <worktree>/.war/; if Edit or Write is denied, return blocked (agents/war-worker.md § Write tools).'
+const COMMIT_MESSAGE_READ_RULE = 'Never read a commit message from a scratchpad or any path outside your own task worktree.'
 const AUDIT_FAMILY = [NS + 'war-auditor', NS + 'war-evidence-auditor']
-const prefixed = (p, t) => AUTHORITY_LINE + '\n' + (AUDIT_FAMILY.includes(t) ? TOOL_ORDER_LINE + '\n' + HOST_TURN_TOOL_LINE + '\n' + p : t === NS + 'war-worker' ? p + '\n' + WORKER_WRITE_TOOL_RULE : p)
+const prefixed = (p, t) => AUTHORITY_LINE + '\n' + (AUDIT_FAMILY.includes(t) ? TOOL_ORDER_LINE + '\n' + HOST_TURN_TOOL_LINE + '\n' + p : t === NS + 'war-worker' ? p + '\n' + COMMIT_MESSAGE_READ_RULE + '\n' + WORKER_WRITE_TOOL_RULE : p)
 async function dispatch(prompt, opts) {
   prompt = prefixed(prompt, opts && opts.agentType)
   if (maxParallel === null) return agent(prompt, opts)
@@ -1678,7 +1681,9 @@ const reaClauseWith = resolved => reaOn
 const reaClause = reaClauseWith('')
 const reaClauseOf = task => reaClauseWith(pt` (this task: ` + manifestPathOf(task) + pt`)`)
 
-const taskProvenanceClause = task => pt`\nTASK PROVENANCE: put the exact trailer WAR-Task: ${task.branch} on your task implementation/fix commits. Never create an empty commit merely to obtain recovery credit; read head_sha from git rev-parse HEAD after committing.\n`
+// TASK PROVENANCE (#2659 D14, PIN-14): ownership is proved by the refiner's merge commit, so the worker
+// is asked for no trailer. The clause keeps the no-empty-commit and head_sha reads (#2703 D35: all 40 hex).
+const taskProvenanceClause = pt`\nTASK PROVENANCE: Never create an empty commit merely to obtain recovery credit; read head_sha, all 40 hex characters, from git rev-parse HEAD after committing.\n`
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
 const nameFindings = fs => fs.map(f => '[' + f.severity + '] ' + (f.title ?? '') + ' (' + (f.file ?? '') + ')').join('; ')
 // auditShaOrSentinel (#1693, Phase 5 Task 1): validates the seat-echoed audit_sha before it is stamped
@@ -2520,12 +2525,15 @@ const blockedReason = r => !r ? 'worker returned no result'
 // dispatch layer: an unmatched dispatch-layer death keeps today's generic 'escalate' (fail-safe — a
 // false negative lands in the LOUDER class, never a lost task). A null agent() return with no throw
 // carries no tag and no cause, so it is read by the SITE's own null arm, never here: the worker
-// sites read blockedReason's 'worker returned no result' (HARD — #1481's open residual; the aceBisect
-// subset and re-entry sites read nullDied's env-died label instead, #2555), an audit
-// seat reads as dropped (retried, then audit-blocked), and the fail-open probes read absent. (The
+// sites (implementation, fix round, floor fix, late fix, wave-side ace, and the aceBisect subset and
+// re-entry sites) read nullDied's env-died label (#2555 D11), an audit
+// seat reads as dropped (retried, then audit-blocked), and the fail-open probes read absent; the sweep
+// and terminal sites stay fail-open on blockedReason. (The
 // prompt arguments are evaluated BEFORE dispatchAgent is entered, so a pt undefined-interpolation
 // throw stays untagged by construction.)
-const INFRA_DEATH_RE = /session limit|rate limit|quota|overloaded|529|econnreset|econnrefused|etimedout|socket hang up|api connection|transport error/i
+// The auth and DNS terms (#2328 D12, PIN-12) are bounded phrases only: a bare 401, oauth, unauthorized
+// or subscription would match a SHA fragment, a task id or a title word inside a tagged throw.
+const INFRA_DEATH_RE = /session limit|rate limit|quota|overloaded|529|econnreset|econnrefused|etimedout|socket hang up|api connection|transport error|api error: 401|oauth access token|disabled claude subscription|enotfound|getaddrinfo|eai_again/i
 const dispatchAgent = async (prompt, opts) => {
   try { return await dispatch(prompt, opts) }
   catch (err) {
@@ -2582,10 +2590,11 @@ const readSite = (prompt, opts) => dispatchAgent(prompt, opts).catch(err => {
   log(opts.label + ': read-only Git dispatch threw (' + reason + '); a failed attempt, retried within roundLimit (#2589).')
   return { [CAUGHT]: reason }
 })
-// nullDied (late-defects D14/D23, PIN-14/PIN-23, #2555): at the aceBisect subset and re-entry sites a
-// resolved null is labeled env-died, never "worker returned no result". A non-infra throw still
-// rethrows HARD (dispatchDied above). Called before the tip probe moves absorbRounds, so the label
-// is the dispatch's own.
+// nullDied (late-defects D14/D23, PIN-14/PIN-23, #2555; widened by D11): at every worker site (the
+// implementation, fix-round, floor-fix, late-fix and wave-side ace sites, and the aceBisect subset and
+// re-entry sites) a resolved null is labeled env-died, never "worker returned no result". A non-infra
+// throw still rethrows HARD (dispatchDied above). The ace sites call it before the tip probe moves
+// absorbRounds, so the label is the dispatch's own.
 const nullDied = (w, label) => {
   if (w != null) return null
   const why = label + ' dispatch resolved null (env-died)'
@@ -3074,8 +3083,14 @@ const PLAN_DEFECT_RULE = pt`When a block's root cause is a plan or spec defect �
 // rebase + force-with-lease carve-out" section (both-surfaces registry test anchors a mid-sentence
 // fragment). A SEPARATE sentence adjacent to FORCE_WITH_LEASE_RULE — that rule stays byte-identical (its
 // existing byte-compare test is untouched). Names `--force-with-lease` only to FORBID widening it
-// (criterion 15): this is prompt prose, never an executable git invocation.
-const STALE_PRIOR_ATTEMPT_RULE = 'A non-fast-forward push rejection where the remote task branch was never merged and shares only an older base is a stale prior attempt — do not rebase onto it, merge it, or widen `--force-with-lease`; escalate with the remote tip SHA and the divergence base in blocked_reason.'
+// (criterion 15): this is prompt prose, never an executable git invocation. Narrowed by #2646 D8 (PIN-8):
+// the rule applies only when the remote tip is NOT an ancestor of the worker's pre-rebase HEAD, so a
+// recovery worker whose remote tip is its own earlier push takes the lease push instead.
+const STALE_PRIOR_ATTEMPT_RULE = 'A non-fast-forward push rejection is a stale prior attempt only when `git merge-base --is-ancestor origin/<branch> <pre-rebase HEAD>` exits 1, where <pre-rebase HEAD> is the SHA you recorded with `git rev-parse HEAD` before the rebase (`ORIG_HEAD` right after it) — then do not rebase onto it, merge it, or widen `--force-with-lease`; escalate with the remote tip SHA and the divergence base in blocked_reason.'
+// LEASE_DENIED_RULE (#2671 D28, PIN-28): a host-denied lease push stops the worker. `push_denied:` is a
+// blocked_reason prefix the Lead reads, like PLAN-DEFECT:, never an enum member and never read by the
+// engine (A35): the blocked worker takes the existing escalation arm. Mirrored on agents/war-worker.md.
+const LEASE_DENIED_RULE = 'If the host denies the lease push (a permission or classifier denial, not a git rejection), stop: return status "blocked" with blocked_reason starting `push_denied:`, then the exact command and the denial text; never retry the push, never a plain `--force`, never another ref.'
 // DEP_WAVE_PROVISION_RULE (#2485 D15, PIN-15): the dep-wave worker's tree-keyed re-run — the rebase can
 // change the tree the per-task provision-run saw. Byte-equal standing twin: agents/war-worker.md's
 // dep-wave rebase section (ES14 binds the pair); depClause adds the marker test and the step list.
@@ -3089,7 +3104,7 @@ const depClause = task => ((task.deps || []).length > 0 && task.taskType !== 'gi
   ? pt`DEPS ALREADY MERGED: this task declares deps [${(task.deps || []).join(', ')}] whose content is already merged into ${ph.integrationBranch}. `
     + pt`FIRST ACTION — before reading or writing anything else — run \`git -C ${task.worktree} rebase ${ph.integrationBranch}\` so your base includes the merged dep content (a first-dispatch task branch has zero commits of its own, so this rebase is a pure fast-forward). `
     + pt`If the rebase CONFLICTS (possible only on a resume with existing commits): abort it and return status:"blocked" with the conflict files in blocked_reason — NEVER resolve the conflict yourself. `
-    + FORCE_WITH_LEASE_RULE + ' ' + STALE_PRIOR_ATTEMPT_RULE
+    + FORCE_WITH_LEASE_RULE + ' ' + STALE_PRIOR_ATTEMPT_RULE + ' ' + LEASE_DENIED_RULE
     + (provisionList.length ? ' ' + DEP_WAVE_PROVISION_RULE + ' ' + PROVISION_TREE_LINE + pt` When it does not exit 0, re-run the listed provision steps verbatim, in order, then write the marker.` : '')
     + pt`\n`
   : ''
@@ -3809,6 +3824,14 @@ For each reported value, resolve it separately with git -C ${shq(task.worktree)}
   }
   if (pinShape(resolved)) return { seats: [], expected, died }
   Object.assign(pinEvidence, { verdict: 'audit-pin:resolved', headSha: resolved.head_sha, resolvedPins: resolved.pins, pinMismatch: resolved.pins.some(sha => sha !== resolved.head_sha) })
+  // Worker-pin repair (#2703 D35): when only the worker's reported pin (pins[0]) misses because it
+  // resolved to no commit (a 39-hex or absent head_sha) and every seat resolved to the Git head, the
+  // seats judged the head: repair the pin, keep the seats, no re-audit. A worker pin that resolves to
+  // another real commit (a stale pin, #2141) and any seat mismatch keep the full re-audit below.
+  if (reconciliation.repairWorkerPin && resolved.pins[0] === null && resolved.pins.slice(1).every(sha => sha === resolved.head_sha)) {
+    auditLog.push({ task: task.id, verdict: 'pin-repaired:worker', reportedPin: pin ?? null, headSha: resolved.head_sha, note: 'the worker pin did not resolve to the Git task tip; every seat audit_sha did, so the pin is repaired to the tip and the seats stand' })
+    return { seats, expected, died, pin: resolved.head_sha }
+  }
   if (resolved.pins.some(sha => sha !== resolved.head_sha)) {
     auditLog.push({ task: task.id, verdict: 'pin-mismatch:reconcile', pinMismatch: true, expectedPin: pin,
       findings: seats.flatMap(s => (s.findings || []).map(f => ({ ...f, seat: s.seat, auditSha: s.audit_sha }))), note: 'Task audit pins did not all resolve to the Git task tip; no approval accounted before full re-audit' })
@@ -5019,8 +5042,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
           { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...aceSpawn(r) })
         recordIgnoreList('advisory polish', r.task.id, ace)
-        // an ace worker death (D21) takes the existing failed-attempt arm, site-named
-        const aceWhy = deathOf(ace) || blockedReason(ace)
+        // an ace worker death (D21) or a resolved null (#2555 D11) takes the existing failed-attempt arm, site-named
+        const aceWhy = deathOf(ace) || nullDied(ace, aceLabel(r, 'polish')) || blockedReason(ace)
         // The tip probe (#2485 D2, PIN-2): dead or not, blocked or not, the branch is read from Git
         // before anything is charged or judged — `blocked` never means no commit, and the worker's
         // head_sha is never the source. The batch's pre-dispatch tip is the approved tip.
@@ -5197,12 +5220,14 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // deliberately BARE — it is the pinned in-thunk pt-throw trigger (criterion 3's fixture) and a
         // registered member of the remaining-bare-interpolation census.
         + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice ?? '<unset>'}\nPlan file: ${(plan && plan.file) ?? '<unset>'}\nGate: ${plan.gate}${doneWhenClause(task)}${workerIntentClause}`
-        + taskProvenanceClause(task) + MEMORY_QUERY_TOOL_LINE + workerMemClause(task.id) + provisionClause + reaClauseOf(task) + workerExtraCtx
+        + taskProvenanceClause + MEMORY_QUERY_TOOL_LINE + workerMemClause(task.id) + provisionClause + reaClauseOf(task) + workerExtraCtx
         + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE + '\n' + ACCEPTANCE_IDS_RULE
         // BACKWARD-CHAIN WORK (D1/D5): the worker `## The rules` block rides the work: build ONLY.
         + BACKWARD_CHAIN_WORK_CLAUSE,
         { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'docs' : null) })
 
+      // A resolved null is env-died (#2555 D11), never the HARD 'worker returned no result'.
+      const implNull = nullDied(impl, 'work:' + task.id); if (implNull) return { task, verdict: 'env-died', seats: [], expected: 0, blocked: implNull }
       const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
       // Backward chain (D2/D11): the worker's Critical path: block rides its result notes; the history
       // digest threads it to the fixer and the auditor from corrective round 2.
@@ -5340,8 +5365,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + b.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${indentLines(f.rationale ?? '')}${f.suggested_fix ? pt`\n      → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
           + FIX_ROUND_DOCTRINE_CLAUSE
           + chainFixClause(task, chainRound, 'FIX_NEEDED', b.map(relationTagOf))
-          + taskProvenanceClause(task) + workerMemClause(task.id) + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(task),
+          + taskProvenanceClause + workerMemClause(task.id) + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(task),
           { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
+        const fixNull = nullDied(fix, 'fix:' + task.id + ':r' + (round + 1)); if (fixNull) { verdict = 'env-died'; blocked = fixNull; break }
         const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
         // PIN-29: what this fix round was dispatched on
         lastFixKeys = new Set(b.map(blockerKey))
@@ -5877,8 +5903,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // Prompt truth (D6): all floor-fix prompts carry the gate command + the task's Done when:
           // clause (absent ⇒ '' — legacy byte-identity, End state 9).
           // The worktree + gate lines every floor-fix prompt carries — one string, byte-identical at all four.
+          // The lease line (#2750 D39): the merge slot rebased this branch before the floor ran, so the
+          // fixer's push may need the lease; FORCE_WITH_LEASE_RULE itself stays byte-identical (PIN-26).
           const floorFixHead = provisionedLine(r.task)
             + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+            + pt`A merge-slot rebase may have moved your task branch off its pushed remote: that rebase counts as a dispatch-rebase for the force-with-lease carve-out (your card's § Dep-wave rebase + force-with-lease carve-out), and a host-denied lease push takes its push_denied: route.\n`
           const fixPrompt = isNoTest
             ? pt`ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
               + floorFixHead
@@ -5908,7 +5937,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
           // Dead floor-fix worker (D21, PIN-25): env-died SOFT naming the site — never the floor's own
           // blocked verdict, never a done-unmet/no-test/unpackaged/budget-uncited exhaustion.
-          const floorFixDeath = deathOf(floorFix)
+          // A resolved null takes the same arm, labeled env-died with the site label (#2555 D11).
+          const floorFixDeath = deathOf(floorFix) || nullDied(floorFix, (isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it') + ':' + r.task.id + ':r' + (r.task.fixRounds + 1))
           if (floorFixDeath) { mergeDied(floorFixDeath); floorMr = null; reAuditFailed = true; break }
           // Floor-specific verdict tokens: no-test keeps its historical strings (regression guard #268);
           // unpackaged/done-unmet/budget-uncited use the parallel forms — the budget-uncited ROUTE name
@@ -6900,7 +6930,9 @@ const lateFixPass = async () => {
       recordIgnoreList('late-fix pass', id, w)
       // A death stops the defect at once (the provision and merge stop idiom): a dead API never
       // takes the next round, and the slot this round charged stays charged.
-      if (deathOf(w)) { stop = 'the late-fix worker died (' + deathOf(w) + ')'; break }
+      // A resolved null stops it the same way, labeled env-died (#2555 D11).
+      const wDied = deathOf(w) || nullDied(w, 'late-fix:' + lfOriginId + ':r' + lfRound)
+      if (wDied) { stop = 'the late-fix worker died (' + wDied + ')'; break }
       const wWhy = blockedReason(w) || (isSha(w.head_sha) ? null : 'the worker reported no head_sha')
       if (wWhy) { lfPrior = 'round ' + lfRound + ' made no reviewable commit: ' + wWhy; continue }
       const { seats, expected, died } = await auditRound(lfTask, null, w.tests || null, w.head_sha)

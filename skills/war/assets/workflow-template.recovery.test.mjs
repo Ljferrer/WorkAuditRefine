@@ -723,9 +723,32 @@ test('derive-and-skip: zero-commit branch dispatches (#1895/#2006/#2196)', async
   const merged = await runPhase(args, barrierEnv({ ok: true, preMerged: ['t1'] }))
   assert.ok(merged.logs.some(l => /task t1 is pre-merged .*task-integrated.sh/.test(l)))
   assert.ok(!merged.calls.some(c => c.opts.label === 'work:t1'))
-  for (const c of (await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl())).calls.filter(c => isWorker(c) || isFixWorker(c))) {
-    assert.ok(c.prompt.includes('TASK PROVENANCE: put the exact trailer WAR-Task: war/wtprov-a/p3-t1'), 'implementation and fix producers carry the trailer')
+})
+
+// #2659 D14 (PIN-14): the merge commit proves task ownership, so no worker surface asks for a WAR-Task
+// trailer. The two fixtures read the implementation and fix producers and the worker card.
+const provenanceSurfaces = async () => {
+  const workers = (await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl())).calls.filter(c => isWorker(c) || isFixWorker(c))
+  assert.ok(workers.some(isWorker) && workers.some(isFixWorker), 'an implementation and a fix producer dispatched (presence guard)')
+  return [['war-worker.md', workerMd], ...workers.map(c => [c.opts.label + ' prompt', c.prompt])]
+}
+test('task provenance (#2659): OLD-absent — the trailer sentence is on neither the dispatched prompt nor the card', async () => {
+  for (const [name, text] of await provenanceSurfaces()) {
+    assert.ok(!text.includes('put the exact trailer'), name + ' no longer asks for the exact trailer')
+    assert.ok(!/WAR-Task/.test(text), name + ' names no WAR-Task trailer')
   }
+})
+test('task provenance (#2659): NEW-present — the no-empty-commit and git rev-parse HEAD sentences are on both', async () => {
+  for (const [name, text] of await provenanceSurfaces()) {
+    assert.match(text, /Never create an empty commit [^.]*recovery credit/i, name + ' keeps the no-empty-commit sentence')
+    assert.match(text, /head_sha`?, all 40 hex characters, from `?git rev-parse HEAD`? after committing/, name + ' keeps the head_sha read from git rev-parse HEAD (all 40 hex, #2703)')
+  }
+  // Non-vacuity on the engine side: dropping taskProvenanceClause from every worker prompt reds the presence match.
+  const USES = /\+ taskProvenanceClause /g
+  assert.equal((src.match(USES) || []).length, 2, 'the implementation and fix prompts each append taskProvenanceClause (mutation target)')
+  const mut = (await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl(), {}, src.replace(USES, ''))).calls.filter(c => isWorker(c) || isFixWorker(c))
+  assert.ok(mut.some(isWorker) && mut.some(isFixWorker), 'the mutant still dispatches both producers (presence guard)')
+  for (const c of mut) assert.doesNotMatch(c.prompt, /head_sha`?, all 40 hex characters, from `?git rev-parse HEAD`? after committing/, c.opts.label + ': without the clause the head_sha read is gone')
 })
 
 // (c) relaunch fix — STRUCTURAL dispatch-layer scoping (the both-ways proof, other direction): an
@@ -1212,6 +1235,16 @@ for (const initial of ['missing-seat', 'bad-seat', 'missing-worker', 'bad-worker
       if (++lookups > 2) throw new Error('unexpected repeated pin reconciliation')
       return fixtureGitProof(p, tip)
     } })
+    if (initial.endsWith('worker')) {
+      // #2703 D35: only the worker pin misses and the one seat resolved to the Git head, so the pin is
+      // repaired to the head without a second panel; `repaired` (the second panel's reply) never runs.
+      assert.equal(lookups, 1, 'the one panel is verified through Git')
+      assert.equal(audits, 1, 'no second panel: the seat already judged the Git head')
+      assert.ok(out.auditLog.some(r => r.task === 't1' && r.verdict === 'pin-repaired:worker' && r.headSha === tip), 'the repair is logged with the Git head')
+      assert.ok(!out.auditLog.some(r => r.verdict === 'pin-mismatch:reconcile'), 'no reconcile re-audit')
+      assert.ok(out.landed.includes('t1'), 'the repaired pin approves')
+      return
+    }
     assert.equal(lookups, 2, 'each panel verified through Git')
     assert.equal(audits, 2, 'fresh review follows the Git lookup')
     assert.equal(out.landed.includes('t1'), repaired, 'only repaired pin evidence can approve')

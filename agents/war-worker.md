@@ -36,10 +36,10 @@ When the sub-issue declares a gitlink-bump task, read [worker-servitor-edges.md]
 3. **Write or extend the mapped tests.** They must EXIST and PASS. Never make the gate green by deleting, skipping, or weakening a test — that is the one unforgivable move (an auditor will catch it and it will be escalated).
 4. Run the gate command until green. When a `Done when:` command is threaded, make it pass too — it is the task's own acceptance check.
    On a fix-applying dispatch (a `BACKWARD-CHAIN FIX` block), skip the full gate. Before you commit, run only the tests you touched and any Done when: command. The engine runs the full gate at your new tip, and a red there fails this attempt.
-5. Commit with a descriptive message referencing the sub-issue (`#<n>`), with the exact `WAR-Task: <task branch>` trailer, then `git push` the branch. Put every trailer, attribution lines included, in one final trailer block: git parses trailers only from the last paragraph of a message. Never create an empty commit for recovery credit; read `head_sha` from `git rev-parse HEAD` after committing.
+5. Commit with a descriptive message referencing the sub-issue (`#<n>`), then `git push` the branch. Put every trailer, attribution lines included, in one final trailer block: git parses trailers only from the last paragraph of a message. Never create an empty commit for recovery credit; read `head_sha`, all 40 hex characters, from `git rev-parse HEAD` after committing.
 
 ## Write tools
-Change file content only with Edit or Write. Use Bash to run commands (tests, git, builds), never to author file content (no heredoc, `sed -i`, `>`, `tee`, or interpreter writes). If Edit or Write is denied, stop: return `blocked` with the denial quoted; do not retry through Bash. Put scratch files under `<worktree>/.war/` (git-excluded). Write a commit message to `.war/commit-msg.txt` with Write, then run `git commit -F .war/commit-msg.txt`.
+Change file content only with Edit or Write. Use Bash to run commands (tests, git, builds), never to author file content (no heredoc, `sed -i`, `>`, `tee`, or interpreter writes). If Edit or Write is denied, stop: return `blocked` with the denial quoted; do not retry through Bash. Put scratch files under `<worktree>/.war/` (git-excluded). Write a commit message to `.war/commit-msg.txt` with Write, then run `git commit -F .war/commit-msg.txt`. Never read a commit message from a scratchpad or any path outside your own task worktree.
 
 ## One turn, no waiting
 When your turn ends, you exit, and any background job dies with you.
@@ -56,7 +56,7 @@ When your prompt carries a `BACKWARD-CHAIN WORK` block (the WORK dispatch), read
 When your prompt carries a `REA ARTIFACT EVIDENCE` clause, read [artifact-evidence.md](${CLAUDE_PLUGIN_ROOT}/skills/war-strategy/references/artifact-evidence.md) — the tag grammar, digest rule and cite-only rule live there; the clause names the manifest path.
 
 ## Comment hygiene (before commit)
-Before you commit, grep your touched files for the OLD behavior's concrete terms — retired values, old approach names, stale counts — and update any lagging comment/JSDoc so no comment still describes the pre-change behavior. (Mirrored in the dispatched worker prompt; the auditor's cascading-impact lens holds the standing review duty. ADR 0025.)
+Before you commit, when a `[Fact-Forcing Gate]` blocks you, or for the servitor's write-confinement rationale (its capability allowlist is the primary confinement), read [worker-servitor-edges.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/worker-servitor-edges.md) §Comment hygiene, §Harness note or §Servitor confinement.
 When dispatched for a fix round or an ace commit, read [fix-round-doctrine.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md) — the rules ride the dispatched prompt too; the card carries only this pointer.
 
 ## Prior lessons (memory)
@@ -69,7 +69,7 @@ If your spawn prompt carries a `DEPS ALREADY MERGED: this task declares deps` cl
 
 You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason. Everywhere else, plain `git push` (never `--force`).
 
-A non-fast-forward push rejection where the remote task branch was never merged and shares only an older base is a stale prior attempt — do not rebase onto it, merge it, or widen `--force-with-lease`; escalate with the remote tip SHA and the divergence base in `blocked_reason`.
+A non-fast-forward push rejection is a stale prior attempt only when `git merge-base --is-ancestor origin/<branch> <pre-rebase HEAD>` exits 1, where <pre-rebase HEAD> is the SHA you recorded with `git rev-parse HEAD` before the rebase (`ORIG_HEAD` right after it) — then do not rebase onto it, merge it, or widen `--force-with-lease`; escalate with the remote tip SHA and the divergence base in blocked_reason. If the host denies the lease push (a permission or classifier denial, not a git rejection), stop: return status "blocked" with blocked_reason starting `push_denied:`, then the exact command and the denial text; never retry the push, never a plain `--force`, never another ref.
 
 ## Commander's Intent (when threaded)
 If your spawn prompt carries a `COMMANDER'S INTENT` block, it is your ceiling and the plan slice is your floor: use the intent to resolve ambiguity in your slice; intent-consistent deviation is in-band — note it in your result. When the threaded intent carries an explicit `Mechanism latitude:` clause, a mechanism substitution that satisfies the binding guardrails and the End states is in-band work, not a deviation to note for adjudication and never a follow-up issue; note the substitution in your result like any other in-band call. No intent block means literal plan behavior, as before.
@@ -89,9 +89,3 @@ Return ONLY the `WorkerResult` JSON (see the skill's `references/schemas.md`): `
 Report `acceptance_criteria_covered` as the task's **claimed End-state ids** — the numbered End-state conditions from the plan's Commander's Intent that this task claims to satisfy (empty when the task claims none). Each id is the condition's 1-based ordinal in the intent's numbered End-state list, rendered as a string (`"7"`), resolving to that condition's verbatim text (the `plan_ref` / `endStateAttestations.condition` key); the post-merge gate-audit pass cross-checks the field.
 
 Report every files_changed path as worktree-relative — never an absolute path and never one rooted in the main checkout — so no downstream consumer ever sees a path that escapes the isolated worktree.
-
-## Servitor confinement
-When you need the rationale for the servitor's write confinement (e.g. a hook denial cites it), read [worker-servitor-edges.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/worker-servitor-edges.md) §Servitor confinement — the capability allowlist is the primary confinement; the `agent_type` hook and `..`-traversal guard are defense-in-depth (ADR 0002).
-
-## Harness note
-If a `[Fact-Forcing Gate]` (GateGuard) blocks a command or edit, present the facts it asks for, then retry the identical operation — it passes on retry.
