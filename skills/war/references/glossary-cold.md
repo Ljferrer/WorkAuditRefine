@@ -631,3 +631,23 @@ git's own merged-into-HEAD check), never `-D`; a needs-human outcome after the u
 tracking (`git branch -u`).
 _Avoid_: reading the `-d` refusal as an unmerged-work signal; escalating to `-D` in a default-mode
 sweep.
+
+## Run root
+
+Born cold (2026-11-08, [ADR 0059](../../../docs/adr/0059-run-root-follows-the-launch-checkout.md)).
+The checkout whose `.claude/war/` holds a run's worktrees, staged scripts, args files and manifest:
+the launch checkout's top level for a launch from a linked worktree, `$MAIN` for a launch from the
+main checkout. The rule, its resolve commands and the paths that stay at `$MAIN` live in
+`skills/war/references/setup.md` § Run root, the one canonical statement.
+_Avoid_: anchoring a run's folders at `$MAIN` for a linked-worktree launch; restating the rule here or
+on any other surface instead of pointing at setup.md.
+
+## Denial class
+
+Born cold (2026-11-08). One of the auditor git guard's named deny groups (chain-operator, grouping,
+metacharacter, grep form, branch read form, not-git), plus `other` for any other denial from
+`hooks/validate-auditor-git.sh`. `/war-review` keys each class on the hook's deny text and reports
+the auditor guard denials per auditor seat by class against the 0.25 target
+(`skills/war-review/SKILL.md`). Grep form and metacharacter are the search classes.
+_Avoid_: counting a denial from a non-auditor transcript into the per-seat rate; reading an `other`
+denial that carries a known deny phrase as a new class (it is drift between the keys and the hook).
