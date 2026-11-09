@@ -14,7 +14,7 @@ At **every** per-phase Workflow launch of a run started under a campaign (`--cam
 
 ## The ledger
 
-The campaign ledger is `$MAIN/.claude/campaigns/<id>/ledger.json` under the **main checkout** (the same `$MAIN` anchor the Run-manifest section documents). Resolve `<id>` as the campaign whose `plans[]` carries an entry with this run's `planSlug`. If more than one ledger qualifies, take the newest by mtime and log the choice. Entry shape: `makePlanEntry` in [`../../war-campaign/assets/campaign-ledger.mjs`](../../war-campaign/assets/campaign-ledger.mjs) (`{ slug, plan, status, files, … }`).
+The campaign ledger is `$MAIN/.claude/campaigns/<id>/ledger.json` under the **main checkout** (`$MAIN` from `git rev-parse --path-format=absolute --git-common-dir`; campaign state never follows the run root). Resolve `<id>` as the campaign whose `plans[]` carries an entry with this run's `planSlug`. If more than one ledger qualifies, take the newest by mtime and log the choice. Entry shape: `makePlanEntry` in [`../../war-campaign/assets/campaign-ledger.mjs`](../../war-campaign/assets/campaign-ledger.mjs) (`{ slug, plan, status, files, … }`).
 
 **Stored ledger `files` are the contention record, not this input.** Re-extract each entry's footprint from its plan file at launch with the exported `extractFilesFromPlanFile` (it unions every `- Files:` block). The ledger CLI's verb set is closed and stays so: import the function in a Node one-liner, do not add a verb.
 

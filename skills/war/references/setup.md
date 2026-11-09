@@ -5,6 +5,50 @@ blocks below are byte-identical to their pre-eviction SKILL.md text at eviction 
 noted in-place amendment — currently the § `--afk` sanity floor block). Each block is read on the
 trigger named at its eviction site; the surrounding Setup / launch steps stay in the SKILL. Positional
 words inside the moved blocks ("above", "below") refer to their original SKILL.md positions.
+§ Run root is new doctrine authored here, never an eviction: it is the one canonical statement of the
+run-root rule ([ADR 0059](../../../docs/adr/0059-run-root-follows-the-launch-checkout.md)), and every
+other surface points at it and restates nothing.
+
+## Run root
+
+Trigger: you resolve where a run's worktrees, staged scripts, args files or manifest live, or you read
+them back (`/war-review`, resume, relaunch).
+
+**The rule.** The run root is the checkout whose `.claude/war/` holds a run's worktrees, staged
+scripts, args files and manifest. A launch from a linked worktree (`git rev-parse --git-dir` differs
+from `--git-common-dir`) uses the launch checkout's top level. A launch from the main checkout uses
+`$MAIN`. Resolve it once at Setup, from the launch checkout:
+```bash
+G=$(git rev-parse --path-format=absolute --git-dir) && C=$(git rev-parse --path-format=absolute --git-common-dir) || exit 1
+MAIN=$(dirname "$C"); RUN=$MAIN; [ "$G" = "$C" ] || RUN=$(git rev-parse --show-toplevel)
+```
+If either read fails, stop: never fall back to the cwd or to a guessed path.
+
+- **`worktreeRoot`** is `<run root>/.claude/war/worktrees`.
+- **Run folder.** The manifest is `<run root>/.claude/war/runs/<runId>.json`. The staged scripts and
+  the args files live in the sibling directory `<run root>/.claude/war/runs/<runId>/`.
+- **Untracked-ness.** Thread `mainCheckout` as `$MAIN`, never the run root. `ensure-exclude` then
+  writes the `.claude/` line into the shared common git dir, which covers every worktree, a
+  linked-worktree run root included. A linked worktree's own git dir holds no `info/exclude` that git
+  reads.
+- **Readers.** `/war-review`, resume and relaunch look under the launch checkout first, then under
+  `$MAIN`, so a run started from either place is found.
+- **What stays at `$MAIN` on purpose.** The audit-tamper record (`$MAIN/.claude/war/audit-fingerprints/`,
+  which the fingerprint hook anchors on `--git-common-dir`), the REA evidence bundles
+  (`$MAIN/.claude/war/evidence/<plan-slug>/`), and all campaign and survey state. The run-root rule
+  does not move them.
+
+**Host-guard note.** In a desktop-app worktree session, the host guard refuses an Edit or Write
+outside the session's own worktree, and subagents inherit that guard. A run root under the launch
+checkout keeps every task worktree, staged script, args file and manifest inside the session's tree,
+so worker writes pass it. The same guard can also refuse a git command aimed at a worktree other than
+the session's own (for example a refiner's or an auditor's `git -C` into a task worktree or
+`_refinery`). If it refuses one, quote the refusal in the phase report and file it: the fallback is to
+launch from the main checkout. A record directory under `$MAIN/.claude/war/audit-fingerprints/` (a
+Lead probe, a finished seat) is removed with
+`bash ${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh --prune <name>` (or `--prune --stale`),
+never a hand `rm`, which the host rm guard refuses from a worktree session; if the guard refuses the
+prune too, run it from a main-checkout session.
 
 ## Crash-heal pre-flight (Setup step 2)
 
