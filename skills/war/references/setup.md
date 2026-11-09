@@ -33,8 +33,9 @@ If either read fails, stop: never fall back to the cwd or to a guessed path.
   reads.
 - **Readers.** `/war-review`, resume and relaunch look under the launch checkout first, then under
   `$MAIN`, so a run started from either place is found.
-- **What stays at `$MAIN` on purpose.** The audit-tamper record (`$MAIN/.claude/war/audit-fingerprints/`,
-  which the fingerprint hook anchors on `--git-common-dir`), the REA evidence bundles
+- **What stays at `$MAIN` on purpose.** The audit-tamper record (`$MAIN/.claude/war/audit-tamper/`) and the
+  fingerprint state (`$MAIN/.claude/war/audit-fingerprints/`), which the fingerprint hook anchors on
+  `--git-common-dir`, the REA evidence bundles
   (`$MAIN/.claude/war/evidence/<plan-slug>/`), and all campaign and survey state. The run-root rule
   does not move them.
 

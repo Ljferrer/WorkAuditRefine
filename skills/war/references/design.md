@@ -139,7 +139,9 @@ holds or was just told. Its reply changes a decision only when the read disagree
 Workflow sandbox has no shell, so every Git read costs one dispatch. Each row names its site by its
 `dispatchKind` and label literal in `workflow-template.js`, never by a line number. The verdict is one
 of: **keep** (the read is already minimal), **script it** (one tested script prints the proof, so the
-dispatch runs one command on the helper card), or **remove**. This table removes nothing. Each
+dispatch runs one command on the helper card), or **remove**. This table removes nothing. The Deferred
+validations backstop on this table (row 6 of the plan 2026-11-08-auditor-and-worker-guard-habits) is
+its drift check. Each
 "script it" or "remove" row becomes its own follow-up issue. It is a dated inventory, not a contract:
 when an engine change renames a `dispatchKind` or label, grep each row's literals and correct the row.
 

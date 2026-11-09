@@ -150,13 +150,13 @@ the deny text:
 | grep form | `git grep admits one form only:` |
 | branch read form | `git branch admits read forms only:` |
 | not-git | `not a git command` |
-| other | any other denial from that hook |
+| other | any other denial from that hook (for example `the quote rule fired`, a refused verb or flag) |
 
 Render the rate against the **0.25 target** (at most 0.25 denials per auditor seat). The search
 classes are grep form and metacharacter. Close rules, read by the Lead, never by this skill:
 #1915 and #2001 close when one full run meets the 0.25 target; #2374 closes when no search-class
-denial shows in the last two phases of that run. An `other` denial whose text carries a deny phrase
-the hook prints today means the class keys drifted from the hook: report it as friction.
+denial shows in the last two phases of that run. An `other` denial whose text carries a `... rule fired`
+phrase not named in this table means the class keys drifted from the hook: report it as friction.
 
 Lead with the run header: `runId`, `planPath`, `configProfile`, run wall-clock (`n/a` when the
 degenerate-timestamp guard above fires), and the best-effort-harness-read caveat.
