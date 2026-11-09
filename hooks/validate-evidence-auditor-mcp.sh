@@ -173,8 +173,9 @@ MEMORY_TOOL='mcp__plugin_work-audit-refine_war-memory__memory_query'
 # alone would match a leading component such as `x/`), and itself match
 # `*/.claude/projects/*/memory`, with one trailing `/` tolerated. The three
 # checks read the norm_path form of the value (PIN-13, PIN-20), so a
-# Windows-form root passes and a backslash `..` segment is denied; the deny
-# texts quote the value as sent. Returns on pass; the caller exits 0.
+# Windows-form root passes and a backslash `..` segment is denied. A raw value
+# with a `\` and no leading drive `X:` is denied too. The deny texts quote
+# the value as sent. Returns on pass; the caller exits 0.
 memory_fence() {
   mf_type="$(printf '%s' "$input" | jq -r '.tool_input | type')"
   case "$mf_type" in
@@ -194,6 +195,12 @@ memory_fence() {
     case "$mf_np" in
       /*) ;;
       *) deny "tool '$tool' names local '$mf_val' that is not an absolute path (PIN-4) for agent type '$atype'." ;;
+    esac
+    # On a POSIX host a `\` is a filename byte, so a raw value with a `\` and
+    # no drive `X:` is denied: norm_path admits only Windows-form roots.
+    case "$mf_val" in
+      [a-zA-Z]:*) ;;
+      *\\*) deny "tool '$tool' names local '$mf_val' that holds a backslash outside a Windows drive path (PIN-4) for agent type '$atype'." ;;
     esac
     case "$mf_np" in
       */.claude/projects/*/memory|*/.claude/projects/*/memory/) ;;

@@ -617,6 +617,10 @@ expect_deny "WP2: war-auditor memory tool backslash '..' local denied" \
 # `..` check in the hook).
 expect_deny "WP3: war-worker REA output_directory with a backslash '..' denied" \
   "$(mk_in 'war-worker' "$WRITE_TOOL" "$(jq -nc --arg d "$EVID_DIR\\..\\..\\x" '{output_directory:$d}')")" ".. segment"
+# A raw `\` value with no drive `X:` is a POSIX filename byte, so it is denied
+# even though its norm_path form matches the memory-root glob.
+expect_deny "WP4: war-auditor memory tool POSIX local with a backslash denied" \
+  "$(mk_local 'war-auditor' '/Users/wp/.claude/projects\p\memory')" "backslash"
 
 # ---------------------------------------------------------------------------
 # WM: the REA-allowlist deny text by agent type (PIN-14). A non-member,

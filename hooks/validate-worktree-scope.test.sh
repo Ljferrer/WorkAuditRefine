@@ -519,6 +519,15 @@ expect "WP3: war-servitor backslash '..' escape from the memory root denied" \
   2 "$(run_home "$SERV_HOME" "$(mk 'war-servitor' "$SERV_HOME/.claude/projects/p/memory/..\\..\\..\\..\\etc\\x.md")")"
 expect "WP4: war-servitor memory path allowed under a Windows-form \$HOME" \
   0 "$(run_home 'C:\Users\wp' "$(mk 'war-servitor' "/c/Users/wp/.claude/projects/p/memory/x.md")")"
+# On a POSIX host a `\` is a filename byte, so the write lands at the raw path.
+# A raw `\` path with no drive `X:` is denied in the worker and servitor arms.
+# Without the deny, WP5 and WP7 normalize into an allowed root and pass.
+expect "WP5: war-worker backslash before the marked dir denied (raw path lands outside)" \
+  2 "$(run "$(mk 'war-worker' "$WT/wt\\task-1\\x.txt")")"
+expect "WP6: war-worker backslash after the marked dir denied" \
+  2 "$(run "$(mk 'war-worker' "$WT/wt/task-1\\x.txt")")"
+expect "WP7: war-servitor POSIX path with a backslash memory segment denied" \
+  2 "$(run_home "$SERV_HOME" "$(mk 'war-servitor' "$SERV_HOME/.claude/projects\\p\\memory\\x.md")")"
 
 # ---------------------------------------------------------------------------
 # WS: the worker deny names the scratch place (PIN-10). A Lead-scratchpad-shaped
