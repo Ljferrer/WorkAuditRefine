@@ -533,13 +533,20 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   assert.ok(refinerRecoveryMd.includes(RELAND_DISC_DIVERGE), 'refiner-recovery.md names the nonzero-right-count divergence branch')
   assert.ok(refinerRecoveryMd.split(RELAND_REMOTE_REJECTED).length - 1 >= 2,
     'refiner-recovery.md names the server-side remote rejection as a retry in BOTH the superproject and submodule-2A land variants (#2626)')
-  assert.ok(refinerMd.includes(RELAND_REMOTE_REJECTED), 'agents/war-refiner.md names the server-side remote rejection as a retry (#2626)')
+  // #2657 (PIN-21): the card's two land-phase exit bullets moved byte-identical into § Reland discrimination;
+  // the card keeps one linked pointer, and the moved Server-side push error bullet carries both #2626 sentences.
+  const serverSideBullet = '- **Server-side push error:** a server-side `[remote rejected]` push with origin unmoved is a retry, never `land_stale`. `land-advance` retries it itself (3 times). Run land-advance as a foreground call with timeout 300000, because spent retries alone wait 70 s. If it still exits 3, take the escalate arm above.'
+  assert.ok(refinerRecoveryMd.split('\n').includes(serverSideBullet), 'refiner-recovery.md carries the moved Server-side push error bullet byte-identical (#2626, #2657)')
+  assert.ok(refinerRecoveryMd.split('\n').includes('- **Land-advance escalate:** on any exit but 0 or 2, return `status: "error"` with the command\'s stderr in `segment_note`, so the Lead reads the die text.'), 'refiner-recovery.md carries the moved Land-advance escalate bullet byte-identical (#2657)')
+  assert.ok(!refinerMd.includes(RELAND_REMOTE_REJECTED) && !refinerMd.includes(RELAND_ADVANCE_TIMEOUT), 'the card no longer carries the moved bullets (#2657)')
+  assert.ok(refinerMd.split('\n').includes('- When land-advance exits non-zero, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) (§ Reland discrimination).'), 'the card keeps the linked land-advance exit pointer (#2657)')
   assert.ok(refinerRecoveryMd.split(RELAND_ADVANCE_TIMEOUT).length - 1 >= 2,
     'refiner-recovery.md raises the land-advance tool timeout in BOTH the superproject and submodule-2A land variants (#2626)')
+  // Every timeout copy is its own every-attempt line, never inside a final-attempt paragraph, except the
+  // moved card bullet, which states the timeout for every attempt in its own bullet.
   const timeoutLines = refinerRecoveryMd.split('\n').filter(l => l.includes(RELAND_ADVANCE_TIMEOUT))
-  assert.ok(timeoutLines.length >= 2 && timeoutLines.every(l => /^(   - )?Every attempt, not only the final one: /.test(l)),
-    'each refiner-recovery.md timeout copy is its own every-attempt line, never inside a final-attempt paragraph (#2626)')
-  assert.ok(refinerMd.includes(RELAND_ADVANCE_TIMEOUT), 'agents/war-refiner.md raises the land-advance tool timeout (#2626)')
+  assert.ok(timeoutLines.filter(l => /^(   - )?Every attempt, not only the final one: /.test(l)).length >= 2 && timeoutLines.every(l => /^(   - )?Every attempt, not only the final one: /.test(l) || l === serverSideBullet),
+    'each refiner-recovery.md timeout copy is its own every-attempt line or the moved bullet, never inside a final-attempt paragraph (#2626)')
   // the discrimination must appear for BOTH the superproject land and the submodule-2A land variant.
   assert.ok((refinerRecoveryMd.match(/git rev-list --left-right --count <merge-sha>\.\.\.origin\//g) || []).length >= 2,
     'the discrimination command is present in BOTH the superproject and submodule-2A land variants')
@@ -551,7 +558,7 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   assert.deepEqual(recoveryTriggers.sort(), [
     'Submodule-as-repo provisioning', 'Uncertain merge reconciliation and § Exact Git diff identity', 'Recovery task provenance',
     'Pin-transfer arms', 'Land-barrier endstate-check steps',
-    'Reland discrimination — superproject land-phase step 3', 'Submodule phase — 2A / § Submodule phase — 2B',
+    'Reland discrimination — superproject land-phase step 3', 'Reland discrimination', 'Submodule phase — 2A / § Submodule phase — 2B',
     'Post-merge evidence opener',
   ].sort())
   assert.match(refinerRecoveryMd, /## Land-barrier endstate-check steps/, 'the evicted endstate-check steps section landed at the destination')

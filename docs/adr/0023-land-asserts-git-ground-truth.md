@@ -77,6 +77,12 @@ Auto-reconciling it would require phase-base context that breaks the stable 2-ar
 worth it. The load-bearing exit-0 branch remains correct for the in-loop transient recovery (D), where
 `cmd_ensure_integration` has not yet run and the follower genuinely lags.
 
+**Amendment (2026-11-09, #2657 D1):** the refiner now resolves this residual, not the
+escalation-completion path. On an exit 3 the refiner's land confirm (`landConfirmArm`) reads
+`git ls-remote origin refs/heads/<working>` and the follower. If both equal `<merge-sha>`, it returns
+`landed`. The Workflow still confirms that land in Git (`confirmMerge`), and `land-advance`'s exit
+contract is unchanged.
+
 ### (D) A contender-less transient is auto-recovered, not surrendered
 
 On final CAS-attempt failure the reland loop fetches and runs

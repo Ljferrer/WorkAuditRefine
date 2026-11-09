@@ -1294,6 +1294,39 @@ const RELAND_DISC_DIVERGE = 'nonzero right count'                               
 const RELAND_REMOTE_REJECTED = 'push with origin unmoved is a retry, never'                         // A4 (#2626): a server-side [remote rejected] is a retry, never land_stale
 const RELAND_ADVANCE_TIMEOUT = 'Run land-advance as a foreground call with timeout 300000'           // A5 (#2626): 70 s of retry waits plus up to 4 pushes can near the 120000 ms default
 
+// ---- land confirm (#2657 D1, PIN-1) -------------------------------------------------------------
+// landConfirmArm: on a land-advance exit 3 the refiner reads origin and the follower before it calls
+// the land an error. LAND_ERROR_ARM is landErrorArm's dispatched text. LAND_CONFIRM_RE matches one
+// dispatched confirm, from its exit-3 test through the landErrorArm it falls back to.
+// LAND_CONFIRM_DOC_RE is the same rule on refiner-recovery.md (placeholder branch, backticked sha).
+const LAND_ERROR_ARM = "return { mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' }"
+const LAND_CONFIRM_RE = /if it exits 3 and both `git ls-remote origin refs\/heads\/[^`]+` and `git rev-parse refs\/heads\/[^`]+` print <merge-sha>[^\n]*?status: 'error', segment_note: '<land-advance stderr>' \}/
+const LAND_CONFIRM_DOC_RE = /if it exits 3 and both `git ls-remote origin refs\/heads\/<[a-z-]+>` and `git rev-parse refs\/heads\/<[a-z-]+>` print `<merge-sha>`/g
+const provisionWorktreesSh = readFileSync(join(here, 'provision-worktrees.sh'), 'utf8')
+// landConfirmPrompts(source): the in-flow, environment-proceed and baseline-proceed land prompts,
+// all built over CLS_ARGS (one working branch), so the confirm copies can be compared byte for byte.
+const landConfirmPrompts = async (source = src) => {
+  const prompts = {}
+  const env = await runPhase(CLS_ARGS(), clsImpl({ landResult: envLandResult }), {}, source)
+  prompts.initial = (env.calls.find(c => c.opts.label === 'land:phase-3') || {}).prompt
+  prompts['environment-proceed'] = (env.calls.find(c => c.opts.label === 'land:phase-3:environment-proceed') || {}).prompt
+  const base = await runPhase(CLS_ARGS(), clsImpl({ landResult: () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' }) }), {}, source)
+  prompts['baseline-proceed'] = (base.calls.find(c => c.opts.label === 'land:phase-3:baseline-proceed') || {}).prompt
+  return prompts
+}
+// landConfirmHolds(prompts): each land prompt carries at least three confirms, every landErrorArm in it
+// is a confirm's fallback, and every copy across the three prompts is byte-equal.
+const landConfirmHolds = prompts => {
+  const arms = []
+  for (const p of Object.values(prompts)) {
+    if (typeof p !== 'string') return false
+    const found = p.match(new RegExp(LAND_CONFIRM_RE.source, 'g')) || []
+    if (found.length < 3 || found.length !== p.split(LAND_ERROR_ARM).length - 1) return false
+    arms.push(...found)
+  }
+  return arms.length > 0 && arms.every(a => a === arms[0])
+}
+
 // ---------------------------------------------------------------------------
 // FILE-FOLLOWUPS PAIRED PINS (#1587) — the standing/dispatched coverage split made mechanical for
 // this dispatch class, on the (h2) precedent of the refiner-recovery pair above.
@@ -3867,6 +3900,12 @@ export {
   RELAND_DISC_DIVERGE,
   RELAND_REMOTE_REJECTED,
   RELAND_ADVANCE_TIMEOUT,
+  LAND_ERROR_ARM,
+  LAND_CONFIRM_RE,
+  LAND_CONFIRM_DOC_RE,
+  provisionWorktreesSh,
+  landConfirmPrompts,
+  landConfirmHolds,
   FF_PREFLIGHT,
   FF_DEDUP_CMD,
   FF_DEDUP_RULE,

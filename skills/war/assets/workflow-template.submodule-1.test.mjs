@@ -428,6 +428,7 @@ import {
   provisionSiteCensus,
   PROVISION_SITE_CENSUS,
   provisionFailure,
+  runForm,
 } from './workflow-template.test-harness.mjs'
 
 
@@ -1148,7 +1149,7 @@ test('#2300: canonical fresh-run producer separates same-day same-phase submodul
     tasks: [{ ...PT_ARGS().tasks[0], branch: 'war/x/p1-t1', worktree: '/abs/shared-task', targetRepo: '/abs/submodule' }] })
   const dir = mkdtempSync(join(tmpdir(), 'war-fresh-launch-'))
   try {
-    const stage = id => {
+    const stage = async id => {
       const runDir = join(dir, id)
       mkdirSync(runDir)
       const payload = join(runDir, 'args.json')
@@ -1156,9 +1157,17 @@ test('#2300: canonical fresh-run producer separates same-day same-phase submodul
       const r = spawnSync(process.execPath, [join(here, 'stage-workflow.mjs'), join(here, 'workflow-template.js'),
         runDir, 'wtprov-a', '3', '--args', payload], { encoding: 'utf8' })
       assert.equal(r.status, 0, r.stderr)
-      return readFileSync(r.stdout.trim(), 'utf8').replace(/^export const meta/m, 'const meta')
+      const stagedPath = r.stdout.trim()
+      // The staged copy loads its args from its args sibling through workflow({ scriptPath }) (D38),
+      // and the shared build() binds no workflow, so evaluate the sibling here and bind a workflow
+      // ahead of the staged body that returns it for that one scriptPath.
+      const sibling = stagedPath.replace(/\.js$/, '.args.js')
+      const siblingArgs = await new AsyncFunction(runForm(readFileSync(sibling, 'utf8').replace(/^export const meta/m, 'const meta')))()
+      assert.equal(siblingArgs.runId, id, 'the args sibling returns this launch\'s args')
+      const workflowStub = `const workflow = async ({ scriptPath }) => { if (scriptPath !== ${JSON.stringify(sibling)}) throw new Error('unexpected scriptPath ' + scriptPath); return ${JSON.stringify(siblingArgs)} }\n`
+      return workflowStub + readFileSync(stagedPath, 'utf8').replace(/^export const meta/m, 'const meta')
     }
-    const firstSource = stage(firstId), secondSource = stage(secondId)
+    const firstSource = await stage(firstId), secondSource = await stage(secondId)
     const first = await runPhase(undefined, evidenceImpl, {}, firstSource)
     const replay = await runPhase(undefined, evidenceImpl, {}, firstSource)
     const priorPath = fixtureGatePath(first.calls.find(isMergeTask).prompt)

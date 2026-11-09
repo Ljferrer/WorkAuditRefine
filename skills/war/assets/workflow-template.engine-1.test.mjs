@@ -195,6 +195,12 @@ import {
   RELAND_DISC_DIVERGE,
   RELAND_REMOTE_REJECTED,
   RELAND_ADVANCE_TIMEOUT,
+  LAND_ERROR_ARM,
+  LAND_CONFIRM_RE,
+  LAND_CONFIRM_DOC_RE,
+  provisionWorktreesSh,
+  landConfirmPrompts,
+  landConfirmHolds,
   FF_PREFLIGHT,
   FF_DEDUP_CMD,
   FF_DEDUP_RULE,
@@ -7279,8 +7285,9 @@ test('Task 1.2 — in-flow land prompt carries the rev-list discrimination + exp
   assert.ok(p.includes(RELAND_REMOTE_REJECTED), 'in-flow land prompt names the server-side remote rejection as a retry, never land_stale')
   assert.ok(p.includes(RELAND_ADVANCE_TIMEOUT), 'in-flow land prompt raises the land-advance tool timeout (#2626)')
   assert.ok(p.split('\n').some(l => l.startsWith('     - Every attempt') && l.includes(RELAND_ADVANCE_TIMEOUT)), 'the timeout rides its own every-attempt bullet, not the final-attempt bullet (#2626)')
-  assert.match(p, /\[remote rejected\] push with origin unmoved is a retry, never land_stale: land-advance retries it itself \(3 times\), and if it still exits 3, return \{ mode: 'land-phase', status: 'error'/,
-    'a server-side remote rejection that still exits 3 takes the land error arm')
+  // #2657 (D1): a still-exit-3 takes the land confirm first, then the land error arm.
+  assert.match(p, /\[remote rejected\] push with origin unmoved is a retry, never land_stale: land-advance retries it itself \(3 times\), and if it still exits 3, take the land confirm: if it exits 3 and both `git ls-remote origin refs\/heads\/dev\/wtprov-a`[^\n]*?; else return \{ mode: 'land-phase', status: 'error'/,
+    'a server-side remote rejection that still exits 3 takes the land confirm, then the land error arm')
   assert.ok(p.includes('no new status'), 'the prompt states no new status is introduced by the recovery path')
 })
 
@@ -11425,9 +11432,10 @@ test('land-advance escalate: each land site orders stderr into segment_note, and
   const first = await runPhase(PROVISION_ARGS(), initial)
   const lands = first.calls.filter(c => /^land:phase-3(:|$)/.test(c.opts.label || ''))
   assert.equal(lands.length, 1, 'the note alone never re-dispatches the land')
-  assert.match(armOf(lands[0].prompt), /any other exit from land-advance: return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, 'the initial land orders the stderr into segment_note')
-  const extra = "If that attempt exits anything but 0 or 2, return { mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' }, never land_stale."
-  assert.ok(lands[0].prompt.includes(extra), 'the extra CAS attempt keeps the die out of land_stale')
+  // #2657 (D1): each error arm is the land confirm's fallback.
+  assert.match(armOf(lands[0].prompt), /any other exit from land-advance: if it exits 3 and both [^\n]*?; else return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, 'the initial land orders the stderr into segment_note')
+  const extra = /If that attempt exits anything but 0 or 2, if it exits 3 and both [^\n]*?; else return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}, never land_stale\./
+  assert.match(lands[0].prompt, extra, 'the extra CAS attempt keeps the die out of land_stale')
   assert.equal(first.out.landDecision, 'held:land-failed', 'the note never changes the route')
   const row = (first.out.escalated || []).find(e => e && e.task === 'phase-3-land')
   assert.equal(row && row.detail && row.detail.segment_note, die, 'the escalation detail carries the die text')
@@ -11440,8 +11448,8 @@ test('land-advance escalate: each land site orders stderr into segment_note, and
     const { out, calls } = await runPhase(CLS_ARGS(), impl)
     const reland = calls.find(c => c.opts.label === 'land:phase-3:' + flavor)
     assert.ok(reland, flavor + ': presence guard, the re-land dispatches')
-    assert.match(armOf(reland.prompt), /on any exit but 0 or 2, return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, flavor + ': the re-land orders the stderr into segment_note')
-    assert.ok(reland.prompt.includes(extra), flavor + ': the extra CAS attempt keeps the die out of land_stale')
+    assert.match(armOf(reland.prompt), /on any exit but 0 or 2, if it exits 3 and both [^\n]*?; else return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, flavor + ': the re-land orders the stderr into segment_note')
+    assert.match(reland.prompt, extra, flavor + ': the extra CAS attempt keeps the die out of land_stale')
     assert.equal(out.landDecision, 'held:land-failed', flavor + ': a re-land error holds the phase')
     const held2 = (out.escalated || []).find(e => e && e.task === 'phase-3-land')
     assert.equal(held2 && held2.detail && held2.detail.segment_note, die, flavor + ': the escalation detail carries the die text')
@@ -18843,7 +18851,11 @@ test('2485/ES6 every task merge site spells the one --no-ff merge commit with th
 })
 
 test('2485/ES9 the never-move sentence rides the pin-transfer probe step (2), all four merge step (a) copies and the refiner card step 1, verbatim', async () => {
-  assert.match(NEVER_MOVE_SENTENCE, /never rebase, move or re-merge it, and report it merged/)
+  // D3 (#2662, PIN-3): the sentence says what the engine does, a hold, never a merge recorded from the report.
+  assert.equal(NEVER_MOVE_SENTENCE, 'A task branch whose tip is already an ancestor of the integration tip is merged: never rebase, move or re-merge it; the engine holds it for the Lead and never records a merge from your report.')
+  for (const [name, text] of [['the engine source', src], ['the refiner card', refinerMd]]) {
+    assert.ok(!/re-merge it, and report it merged/i.test(text), name + ' no longer carries the old report-it-merged ending')
+  }
   const prompts = await taskMergeSitePrompts()
   const stepLine = (p, head) => p.split('\n').find(l => l.trimStart().startsWith(head)) || ''
   assert.ok(stepLine(prompts.probe, '(2) REBASE').includes(NEVER_MOVE_SENTENCE), 'the pin-transfer probe step (2)')
@@ -18855,6 +18867,70 @@ test('2485/ES9 the never-move sentence rides the pin-transfer probe step (2), al
   }
   const step1 = refinerMd.split('\n').find(l => l.startsWith('1. `git -C <taskWorktree> fetch`'))
   assert.ok(step1 && step1.includes(NEVER_MOVE_SENTENCE), 'the refiner card merge-task step 1')
+})
+
+// ---- land confirm (#2657 D1, PIN-1): an exit 3 reads origin and the follower before landErrorArm ----
+test('land-confirm (#2657): every land prompt carries landConfirmArm', async () => {
+  const prompts = await landConfirmPrompts()
+  for (const [site, p] of Object.entries(prompts)) assert.ok(typeof p === 'string', site + ': presence guard, the land prompt dispatches')
+  assert.ok(landConfirmHolds(prompts), 'each land prompt routes every land-advance error arm through the byte-equal confirm')
+  assert.match(prompts.initial, /On any other exit from land-advance: if it exits 3 and both/, 'the in-flow any-other-exit route confirms first')
+  for (const site of ['environment-proceed', 'baseline-proceed']) assert.match(prompts[site], /on any exit but 0 or 2, if it exits 3 and both/, site + ': RELAND_CAS confirms first')
+  for (const p of Object.values(prompts)) {
+    assert.match(p, /If that attempt exits anything but 0 or 2, if it exits 3 and both/, 'the extra-attempt route confirms first')
+    assert.match(p, /and if it still exits 3, take the land confirm: if it exits 3 and both/, 'the server-side route confirms first')
+    assert.ok(p.includes("return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }; else " + LAND_ERROR_ARM), 'a confirmed land returns landed, else the error arm')
+  }
+  // The touched-doc guard: refiner-recovery.md carries the rule in the superproject and the 2A land arms.
+  assert.ok((refinerRecoveryMd.match(LAND_CONFIRM_DOC_RE) || []).length >= 2, 'refiner-recovery.md carries the land confirm in both land variants')
+  // The evicted CAS-loop block the card's land step 2 points at (budget-raise-floor.md) routes its any-other-exit bullet through the same confirm.
+  const budgetRaiseFloorMd = readFileSync(join(here, '../references/budget-raise-floor.md'), 'utf8')
+  const casBullet = budgetRaiseFloorMd.split('\n').find(l => l.trimStart().startsWith('- On any other exit → return `status: "error"`')) || ''
+  assert.match(casBullet, /On an exit 3, first take the land confirm in \[refiner-recovery\.md\]\([^)]*refiner-recovery\.md\) \(§ Reland discrimination\)\./, 'budget-raise-floor.md CAS-loop any-other-exit bullet points at the land confirm')
+  // The cross-file read (A33): the exit number the prompt names is the script's PHANTOM LAND exit.
+  assert.match(provisionWorktreesSh, /^readonly EX_FOREIGN=3$/m, 'provision-worktrees.sh binds EX_FOREIGN to 3')
+  assert.match(provisionWorktreesSh, /# PHANTOM LAND: [^\n]*\n(?:\s*#[^\n]*\n|\s*\n)*\s*die "land-advance: [^\n]*" "\$EX_FOREIGN"/, 'the PHANTOM LAND arm dies with EX_FOREIGN')
+})
+
+test('land-confirm (#2657): delete control', async () => {
+  const site = "+ pt`     - On any other exit from land-advance: ` + landConfirmArm"
+  assert.ok(src.includes(site), 'presence guard: the in-flow any-other-exit site carries the confirm')
+  const mutated = src.replace(site, "+ pt`     - On any other exit from land-advance: ` + landErrorArm")
+  assert.ok(!landConfirmHolds(await landConfirmPrompts(mutated)), 'dropping the confirm from one site reds the pin')
+})
+
+test('land-confirm (#2657): a confirmed land saves the reconcile dispatch', async () => {
+  const impl = (p, o) => /^land:phase-3(:|$)/.test(o.label || '')
+    ? (LAND_CONFIRM_RE.test(p) ? { mode: 'land-phase', status: 'landed', working_sha: '3'.repeat(40) } : { mode: 'land-phase', status: 'error' })
+    : defaultImpl(p, o)
+  const { out, calls } = await runPhase(PROVISION_ARGS(), impl)
+  assert.ok(calls.some(c => /^land:phase-3$/.test(c.opts.label || '')), 'presence guard: the land dispatches')
+  assert.equal(out.landDecision, 'landed', 'the confirmed land lands the phase')
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 0, 'no merge-reconcile dispatch runs')
+})
+
+test('land-confirm (#2657): an unconfirmed landed claim', async () => {
+  // PIN-19: a landed claim whose SHA origin does not hold never lands (guardrail: green without the confirm too).
+  const impl = (p, o) => /^land:phase-3(:|$)/.test(o.label || '') ? { mode: 'land-phase', status: 'landed', working_sha: '3'.repeat(40) } : defaultImpl(p, o)
+  const originUnmoved = (p, o, w) => {
+    const proof = NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w)
+    return /^git-confirm:land:/.test(o.label || '') ? { ...proof, remote_sha: '1'.repeat(40) } : proof
+  }
+  const { out, calls } = await runPhase(PROVISION_ARGS(), impl, { 'merge-confirm': originUnmoved })
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-confirm' && /land:phase-3/.test(c.opts.label || '')), 'presence guard: Git confirmation reads the land')
+  assert.notEqual(out.landDecision, 'landed', 'an unconfirmed landed claim never lands')
+  assert.ok(!calls.some(isServitor), 'no wrap-up runs on an unconfirmed land')
+})
+
+// ---- first-push refspec (#2699 D31, PIN-31) -------------------------------------------------------
+test('first-push refspec (#2699): both merge prompts and the card', async () => {
+  const prompts = await taskMergeSitePrompts()
+  for (const site of ['environment-proceed', 'baseline-proceed']) {
+    assert.ok(prompts[site].includes('git push origin HEAD:refs/heads/integration/wtprov-a/phase-3'), site + ': step (c) names the explicit integration refspec')
+    assert.ok(!prompts[site].includes('(one --no-ff merge commit carrying the exact WAR-Task trailer; no hook runs on it), push, return'), site + ': no bare push survives')
+    assert.ok(!/git push -u\b/.test(prompts[site]), site + ': never -u')
+  }
+  assert.ok(refinerMd.includes('HEAD:refs/heads/'), 'the refiner card merge-task step 9 names the refspec')
 })
 
 test('2485/ES8 gate_sha feeds gateHeadSha; the merge commit (integration_sha) feeds lastLandedTip, the successor preMergeTip, landedShaByTask and the handoff tipSha fallback', async () => {
