@@ -458,6 +458,8 @@ import {
   debtSeed,
   SWEEP_DEBT_HEAD,
   withoutSweepDebt,
+  TWIN_TASKS,
+  NON_INFRA_THROW,
 } from './workflow-template.test-harness.mjs'
 
 
@@ -956,10 +958,11 @@ test('Task 1.2 (i) — dead land agent: Land mock returns null → held:land-fai
   const landEsc = out.escalated.filter(e => e.task && e.task.endsWith('-land'))
   assert.equal(landEsc.length, 1, 'exactly one -land escalation pushed (single-push proof)')
   assert.equal(landEsc[0].reason, 'error', 'a null land result escalates with reason error')
-  // Regression context (pre-existing behavior — the wrap-up gate already skips the servitor on a
-  // non-landed result; green even without the arm, so NOT the load-bearing assertion).
-  assert.equal(out.servitorResult, null, 'no servitor result on a dead land')
-  assert.equal(calls.filter(c => seatOf(c.opts) === 'war-servitor').length, 0, 'zero war-servitor dispatches on a dead land')
+  // Regression context (#2702 D34): held:land-failed keeps merged work, so the wrap-up runs once and
+  // names the hold — NOT the load-bearing assertion of this arm.
+  const wraps = calls.filter(c => seatOf(c.opts) === 'war-servitor')
+  assert.equal(wraps.length, 1, 'one war-servitor dispatch on a dead land (a held land with merged work)')
+  assert.ok(wraps[0].prompt.includes('land decision: held:land-failed;'), 'the wrap-up names the hold')
 })
 
 test('Task 1.2 (ii) — unrouted land status: Land mock returns a bogus status → held:land-failed, never landed', async () => {
@@ -11286,7 +11289,7 @@ test('drain-cause (End state 9): a sweep dispatch returning no result stamps; an
 // held:land-failed still produces the file-followups dispatch — merged tasks' follow-up debt exists
 // regardless of the land outcome. No handoff emits on held:land-failed, so the stamped issue
 // numbers ride the top-level return's minorsFiled instead.
-test('filing-on-held (End state 20): a held:land-failed phase still runs the file-followups dispatch — stamped issues ride the top-level minorsFiled (no handoff there)', async () => {
+test('filing-on-held (End state 20): a held:land-failed phase still runs the file-followups dispatch — stamped issues ride the top-level minorsFiled and the handoff', async () => {
   const impl = (prompt, opts) => {
     if (opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 777 }], clusters: [{ ordinals: [1], issue: 777 }] }
     if (seatOf(opts) === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'error' }
@@ -11297,8 +11300,9 @@ test('filing-on-held (End state 20): a held:land-failed phase still runs the fil
   assert.ok(calls.some(c => c.opts.dispatchKind === 'file-followups'), 'the filing dispatch STILL fires on held:land-failed — never silently unrun')
   const row = (out.minorsFiled || []).find(m => m && m.title === 'needs new tests')
   assert.ok(row, 'the follow-up row survives on the top-level return')
-  assert.equal(row.issue, 777, 'the stamped issue number rides minorsFiled (no handoff emits on held:land-failed)')
-  assert.equal(out.handoff, undefined, 'held:land-failed emits NO handoff block — the top-level return is the record')
+  assert.equal(row.issue, 777, 'the stamped issue number rides minorsFiled')
+  // #2702 D34: held:land-failed now emits the handoff, which carries the same stamp
+  assert.ok((out.handoff.followUps || []).some(f => f.issue === 777), 'the handoff followUps carry the stamped issue')
 })
 
 // --- segmented-land (End state 19, Phase 6 Task 1 (a), A6 REVISED) --------------------------
@@ -16748,7 +16752,8 @@ for (const [kind, mutate] of [
     const held = out.escalated.find(e => e.task === 't1' && e.reason === 'audit-blocked')
     assert.ok(held, 'malformed data stays an unresolved audit, never a thrown engine error')
     assert.match(held.blocked, /audit panel incomplete: 0 of \d+ seat results usable \(a dropped seat or an unresolved audit pin\)/, 'the reason stays true when every seat returned')
-    assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 1, 'unusable proof does not invent a retry target')
+    // #2704 D36: a malformed reply is re-dispatched exactly once, never more
+    assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 2, 'unusable proof is re-dispatched once, then the seats drop')
   })
 }
 
@@ -16798,11 +16803,21 @@ for (const [name, corrupt] of [
   ['wrong second parent', p => ({ ...p, parents: [p.parents[0], '3'.repeat(40)] })],
   ['moved source', p => ({ ...p, source_tip: '3'.repeat(40) })],
 ]) test('normal land confirmation refuses ' + name, async () => {
-  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+  // The land reply claims a working_sha distinct from the t1 merge tip ('2' * 40), so the anchor check
+  // below can tell the unproved land claim from the confirmed merge tip.
+  const claimed = '7'.repeat(40)
+  const impl = (p, o) => seatOf(o) === 'war-refiner' && o.phase === 'Land' ? { mode: 'land-phase', status: 'landed', working_sha: claimed } : defaultImpl(p, o)
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), impl, {
     'merge-confirm': (p, o) => { const proof = NEW_SEAT_DEFAULTS['merge-confirm'](p); return o.label === 'git-confirm:land:phase-3' ? corrupt(proof) : proof },
   })
-  assert.notEqual(out.landDecision, 'landed'); assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
-  assert.ok(!calls.some(isServitor))
+  assert.equal(out.landDecision, 'held:land-failed', 'the unproved land holds the phase'); assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
+  // #2702 D34: the held land runs the wrap-up once (memoryLocalRoot is threaded), and the anchor is the
+  // confirmed merge tip on the integration branch, never the refiner-claimed working_sha
+  const servs = calls.filter(isServitor)
+  assert.equal(servs.length, 1, 'the wrap-up runs exactly once on the held land')
+  assert.ok(servs[0].prompt.includes('land decision: held:land-failed;'), 'the wrap-up names the hold')
+  assert.ok(!servs[0].prompt.includes('Landed tip: ' + claimed), 'the unproved land claim never becomes the wrap-up anchor')
+  assert.ok(servs[0].prompt.includes('Landed tip: ' + '2'.repeat(40) + ' on integration/wtprov-a/phase-3 ('), 'the anchor is the confirmed merge tip on the integration branch')
   assert.ok(out.auditLog.some(r => r.verdict === 'git-confirmation:unresolved' && r.site === 'land:phase-3'), 'bad proof is classified, not an accidental exception')
 })
 
@@ -18918,8 +18933,15 @@ test('land-confirm (#2657): an unconfirmed landed claim', async () => {
   }
   const { out, calls } = await runPhase(PROVISION_ARGS(), impl, { 'merge-confirm': originUnmoved })
   assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-confirm' && /land:phase-3/.test(c.opts.label || '')), 'presence guard: Git confirmation reads the land')
-  assert.notEqual(out.landDecision, 'landed', 'an unconfirmed landed claim never lands')
-  assert.ok(!calls.some(isServitor), 'no wrap-up runs on an unconfirmed land')
+  assert.equal(out.landDecision, 'held:land-failed', 'an unconfirmed landed claim never lands')
+  // #2702 D34: the held land runs the wrap-up once (memoryLocalRoot is threaded); its prompt names the
+  // hold, and its anchor is the confirmed merge tip of t2 on the integration branch, never the
+  // refiner-claimed working_sha ('3' * 40)
+  const servs = calls.filter(isServitor)
+  assert.equal(servs.length, 1, 'the wrap-up runs exactly once on the held land')
+  assert.ok(servs[0].prompt.includes('land decision: held:land-failed;'), 'the wrap-up on an unconfirmed land names the hold')
+  assert.ok(!servs[0].prompt.includes('Landed tip: ' + '3'.repeat(40)), 'the unconfirmed land claim never becomes the wrap-up anchor')
+  assert.ok(servs[0].prompt.includes('Landed tip: ' + '2'.repeat(40) + ' on integration/wtprov-a/phase-3 ('), 'the anchor is the confirmed merge tip on the integration branch')
 })
 
 // ---- first-push refspec (#2699 D31, PIN-31) -------------------------------------------------------
@@ -19349,4 +19371,172 @@ test('#2617 the dirty stop comes before the --ace forward-revert in the pin-tran
     assert.ok(rev >= 0, (c && c.opts.label) + ' carries the forward-revert clause (presence guard)')
     assert.ok(stop >= 0 && stop < rev, (c && c.opts.label) + ' puts the dirty stop before the forward-revert')
   }
+})
+
+// ---- pin-proof throw (#2589 D4, PIN-4) ------------------------------------------------------------
+// A tagged dispatch-layer throw that INFRA_DEATH_RE does not match is a failed read attempt at the
+// git-pin and snapshot reads: retried within roundLimit, then the site's existing arm. Never env-died.
+test('pin-proof throw (#2589): git-pin every attempt', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: TWIN_TASKS, run: { roundLimit: 2 } }), defaultImpl, {
+    'pin-confirm': (p, o) => { if (o.label === 'git-pin:t1') throw new Error(NON_INFRA_THROW); return NEW_SEAT_DEFAULTS['pin-confirm'](p) },
+  })
+  assert.equal(calls.filter(c => c.opts.label === 'git-pin:t1').length, 2, 'the throw is retried within roundLimit')
+  assert.notEqual(out.landDecision, 'held:workflow-error', 'one bad pin read never kills the phase')
+  assert.ok(out.auditLog.some(r => r.task === 't1' && r.verdict === 'pin-transfer:unverified'), 't1 holds as pin-transfer:unverified')
+  assert.ok(!out.landed.includes('t1') && out.landed.includes('t2'), 'only t1 holds; the sibling merges')
+  assert.ok(!out.escalated.some(e => e.reason === 'env-died'), 'a non-infra throw is never env-died')
+})
+
+test('pin-proof throw (#2589): pin-snapshot retry', async () => {
+  let n = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+    'pin-snapshot': (p, o) => { if (o.label === 'git-pin-snapshot:t1' && n++ === 0) throw new Error(NON_INFRA_THROW); return NEW_SEAT_DEFAULTS['pin-snapshot'] },
+  })
+  assert.equal(calls.filter(c => c.opts.label === 'git-pin-snapshot:t1').length, 2, 'attempt 2 runs after the throw')
+  assert.ok(out.landed.includes('t1'), 'a good snapshot on attempt 2 lets the task merge')
+  assert.equal(out.landDecision, 'landed')
+})
+
+test('pin-proof throw (#2589): snapshot exhaustion stays HARD', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), defaultImpl, {
+    'merge-snapshot': (p, o) => { if (o.label === 'git-snapshot:t1') throw new Error(NON_INFRA_THROW); return NEW_SEAT_DEFAULTS['merge-snapshot'] },
+  })
+  assert.equal(calls.filter(c => c.opts.label === 'git-snapshot:t1').length, 2, 'every attempt runs')
+  assert.equal(out.landDecision, 'held:workflow-error', 'exhaustion keeps the HARD snapshot throw')
+  assert.ok(out.workflowError.message.includes('Git merge snapshot unavailable before merge:t1'), 'the message keeps the site arm')
+  assert.ok(out.workflowError.message.includes('git-snapshot:t1: ' + NON_INFRA_THROW), 'the message names the site label and the caught reason')
+  assert.ok(!out.escalated.some(e => e.reason === 'env-died'), 'no env-died row')
+  assert.deepEqual(out.dispatchFailures.filter(f => f.label === 'git-snapshot:t1').map(f => f.reason), [NON_INFRA_THROW, NON_INFRA_THROW], 'dispatchFailures lists each attempt')
+})
+
+test('pin-proof git_error (#2589)', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), defaultImpl, {
+    'pin-confirm': { remote_sha: '', git_error: 'fatal: bad object 2222222' },
+  })
+  const row = out.auditLog.find(r => r.task === 't1' && r.verdict === 'pin-transfer:unverified')
+  assert.equal(row && row.git_error, 'fatal: bad object 2222222', 'the auditLog row carries the git_error string')
+  const pin = calls.find(c => c.opts.label === 'git-pin:t1')
+  assert.ok(pin.prompt.includes('on a Git error add git_error (the stderr tail)'), 'the git-pin prompt names the field')
+  assert.deepEqual(pin.opts.schema.properties.git_error, { type: 'string' }, 'the proof schema carries the optional field')
+  assert.ok(!pin.opts.schema.required.includes('git_error'))
+})
+
+test('pin-proof git_error (#2589): a later well-formed proof clears an earlier attempt\'s error', async () => {
+  let n = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), defaultImpl, {
+    'pin-transfer': { status: 'transferred', rebased_tip: 'a'.repeat(40) },
+    'pin-confirm': (p, o) => o.label === 'git-pin:t1' && n++ === 0 ? { remote_sha: '', git_error: 'fatal: bad object 2222222' }
+      : { ...NEW_SEAT_DEFAULTS['pin-confirm'](p), head_sha: '6'.repeat(40) },
+  })
+  assert.equal(calls.filter(c => c.opts.label === 'git-pin:t1').length, 2, 'attempt 2 reads a well-formed proof (presence guard)')
+  const row = out.auditLog.find(r => r.task === 't1' && r.verdict === 'pin-transfer:unverified')
+  assert.ok(row, 'the head mismatch still holds the task as pin-transfer:unverified')
+  assert.ok(!('git_error' in row), 'the row never names a Git error that did not cause the hold')
+})
+
+test('snapshot reply git_error (#2589)', async () => {
+  const bad = { base_sha: '', source_sha: '', remote_sha: '', patch_id: '', content_id: '', git_error: 'fatal: no local ref for the working branch' }
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), defaultImpl, {
+    'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? bad : NEW_SEAT_DEFAULTS['merge-snapshot'],
+  })
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.ok(out.workflowError.message.includes('fatal: no local ref for the working branch'), 'the hold names the reply git_error')
+  const snap = calls.find(c => c.opts.label === 'git-snapshot:t1')
+  assert.ok(snap.prompt.includes('as empty strings plus git_error'), 'the snapshot prompt carries the Git-error answer')
+  assert.deepEqual(snap.opts.schema.properties.git_error, { type: 'string' })
+})
+
+// ---- dispatchFailures (#2645 D13, PIN-13) ---------------------------------------------------------
+test('dispatchFailures (#2645): a dead dispatch and a dropped seat each leave one { label, reason } row', async () => {
+  const tasks = [SINGLE_TASK[0], { ...SINGLE_TASK[0], id: 't2', issue: 102, roster: [{ lens: 'security' }] }]
+  const { out } = await runPhase(PROVISION_ARGS({ tasks, run: { roundLimit: 2 } }), (p, o) => o.label === 'audit:t2:security' ? null : defaultImpl(p, o), {
+    'merge-snapshot': (p, o) => { if (o.label === 'git-snapshot:t1') throw new Error('529 overloaded snapshot'); return NEW_SEAT_DEFAULTS['merge-snapshot'] },
+  })
+  const dead = out.dispatchFailures.filter(f => f.label === 'git-snapshot:t1')
+  assert.equal(dead.length, 2, 'one row per dispatchDied call')
+  assert.match(dead[0].reason, /git-snapshot:t1 dispatch died post-spawn \(env-died\): 529 overloaded snapshot/)
+  const dropped = out.dispatchFailures.filter(f => f.label === 'audit:t2:security')
+  assert.equal(dropped.length, 1, 'one row per dropped audit seat')
+  assert.match(dropped[0].reason, /dropped/)
+})
+
+test('dispatchFailures (#2645): both top-level returns carry the array', async () => {
+  const ok = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl)
+  assert.deepEqual(ok.out.dispatchFailures, [], 'a clean phase returns an empty array')
+  const held = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 1 } }), defaultImpl, {
+    'merge-snapshot': (p, o) => { if (o.label === 'git-snapshot:t1') throw new Error(NON_INFRA_THROW); return NEW_SEAT_DEFAULTS['merge-snapshot'] },
+  })
+  assert.equal(held.out.landDecision, 'held:workflow-error')
+  assert.deepEqual(held.out.dispatchFailures, [{ label: 'git-snapshot:t1', reason: NON_INFRA_THROW }], 'the catch return carries the rows')
+})
+
+// ---- audit-pin retry (#2704 D36, PIN-36) ----------------------------------------------------------
+test('audit-pin retry (#2704): one empty reply then a good one approves', async () => {
+  let n = 0
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+    'audit-pin': p => n++ === 0 ? { head_sha: '', pins: [] } : NEW_SEAT_DEFAULTS['audit-pin'](p),
+  })
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 2, 'the malformed reply is re-dispatched once')
+  assert.ok(out.landed.includes('t1'), 'the task approves and merges')
+  assert.ok(!out.escalated.some(e => e.reason === 'audit-blocked'), 'no audit-blocked')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('audit-pin:t1: malformed reply (head_sha not a full SHA)')), 'one log line names the shape')
+})
+
+test('audit-pin retry (#2704): two empty replies keep audit-blocked', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, { 'audit-pin': { head_sha: '', pins: [] } })
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 2, 'one retry, never more')
+  assert.ok(!out.landed.includes('t1'))
+  assert.ok(out.escalated.some(e => e.task === 't1' && e.reason === 'audit-blocked'), "today's audit-blocked arm")
+})
+
+test('audit-pin retry (#2704): a death on the retry keeps env-died', async () => {
+  let n = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+    'audit-pin': () => { if (n++ === 0) return { head_sha: '', pins: [] }; throw new Error('529 overloaded') },
+  })
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 2, 'the death lands on the retry attempt')
+  assert.ok((out.escalated || []).some(e => e.task === 't1' && e.reason === 'env-died'), 'the retry death keeps the env-died return')
+  assert.ok(!(out.escalated || []).some(e => e.reason === 'audit-blocked'), 'no audit-blocked row')
+})
+
+// ---- held-land wrap-up (#2702 D34, PIN-34) --------------------------------------------------------
+test('held-land wrap-up (#2702): servitor on held:escalation', async () => {
+  const servitor = { phase: 3, target: 'held', learnings: ['held lesson'] }
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: TWIN_TASKS }), (p, o) => {
+    if (seatOf(o) === 'war-worker' && o.label === 'work:t1') return { task_id: 't1', status: 'blocked', blocked_reason: 'needs a Lead ruling' }
+    if (seatOf(o) === 'war-servitor') return servitor
+    return defaultImpl(p, o)
+  })
+  assert.equal(out.landDecision, 'held:escalation', 'the phase stays held')
+  assert.ok(out.landed.includes('t2') && !out.landed.includes('t1'), 'one merged sibling')
+  const wraps = calls.filter(c => c.opts.label === 'wrap-up:phase-3')
+  assert.equal(wraps.length, 1, 'the wrap-up dispatches once')
+  assert.ok(wraps[0].prompt.includes('land decision: held:escalation; working branch dev/wtprov-a'), 'the first line names the hold and the working branch')
+  assert.ok(!wraps[0].prompt.includes('(landed on '), 'never says landed on')
+  assert.match(wraps[0].prompt, /Landed tip: [0-9a-f]{40} on integration\/wtprov-a\/phase-3 \(/, 'a hold anchors the tip on the integration branch')
+  assert.deepEqual(out.servitorResult, servitor, "servitorResult is the mock's return")
+})
+
+test('held-land wrap-up (#2702): handoff on held:land-failed', async () => {
+  const tips = { 'merge:t1': 'a1'.repeat(20), 'merge:t2': 'a2'.repeat(20) }
+  const { out, calls } = await runPhase(PROVISION_ARGS(), (p, o) => {
+    if (seatOf(o) === 'war-refiner' && o.phase === 'Land') return { mode: 'land-phase', status: 'error' }
+    if (tips[o.label]) return { mode: 'merge-task', status: 'merged', integration_sha: tips[o.label] }
+    return defaultImpl(p, o)
+  })
+  assert.equal(out.landDecision, 'held:land-failed')
+  assert.ok(out.handoff, 'held:land-failed emits the handoff block')
+  assert.equal(out.handoff.tipSha, tips['merge:t2'], 'handoff.tipSha is the last merge commit')
+  const wrap = calls.find(c => c.opts.label === 'wrap-up:phase-3')
+  assert.ok(wrap && wrap.prompt.includes('Landed tip: ' + tips['merge:t2'] + ' on integration/wtprov-a/phase-3 ('), 'the wrap-up anchor is the last merge tip on the integration branch')
+})
+
+test('held-land wrap-up (#2702): no servitor on held:workflow-error', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 1 } }), defaultImpl, {
+    'merge-snapshot': (p, o) => { if (o.label === 'git-snapshot:t1') throw new Error(NON_INFRA_THROW); return NEW_SEAT_DEFAULTS['merge-snapshot'] },
+  })
+  assert.equal(out.landDecision, 'held:workflow-error', 'presence guard')
+  assert.ok(!calls.some(isServitor), 'no servitor on held:workflow-error')
+  assert.equal(out.servitorResult, null)
+  assert.equal(out.handoff, undefined)
 })

@@ -187,6 +187,9 @@ only when Git does not confirm it.
 Use the context's repository, source and target branches, including a submodule repository when
 specified. Resolve full commit SHAs and query origin's exact target ref; a failed remote query
 is not an absent ref. The snapshot stores Git identities, not a local-state completion marker.
+On a Git read error, a snapshot returns its required SHA fields as empty strings and a pin proof
+returns `{"remote_sha":""}`; both add `git_error` (the stderr tail). The engine names that string in
+the `pin-transfer:unverified` row and in the `Git merge snapshot unavailable` hold.
 Before pin rebase and task/polish/terminal merges, local target must equal origin target, or a
 fresh integration cut must equal its published origin seed when origin target is absent.
 Use the explicit context seed: `workingBranch` for an ordinary phase, `task.targetBase` inside a

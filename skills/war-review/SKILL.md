@@ -193,9 +193,9 @@ string, its phase, and its task (where task-scoped):
   prepends it when a `demote()` call site cites no `DEMOTE_REASONS` member — a plugin defect at
   that call site, never a run fault; one row per site, with the reason string as evidence.
 - **unfiled follow-ups** — any `handoff.followUps[]` entry with `issue: null` on a handoff-emitting
-  phase (`landed` / `held:escalation`). Source the entries from the mined workflow-return record in
-  the transcripts, else the run ledger's phase `handoff` field when discoverable; unsourceable ⇒ no
-  row, never fabricated (this section's standing honesty rule).
+  phase (`landed` / `held:escalation` / `held:land-failed`; #2702). Source the entries from the
+  mined workflow-return record in the transcripts, else the run ledger's phase `handoff` field when
+  discoverable; unsourceable ⇒ no row, never fabricated (this section's standing honesty rule).
 
 Close with the **verdict line**: **clean** (no signals) or **friction found (N signals)**.
 

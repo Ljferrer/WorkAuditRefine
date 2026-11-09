@@ -99,8 +99,10 @@ guarded file is guard, never obsolescence.
 **reverted commit itself**. Here `a8cbd17` was fully green (1010/1010 JS + 27/27 shell) — so the
 revert had no gate justification of any kind, and re-applying was unambiguous. A revert whose
 target is green is a defect until someone records why. Resolution: `git revert <the-revert>` with
-the rationale in the body (`bd5faa9`), then land manually — the servitor does **not** run on a
-held phase (`servitorResult: null`), so the exactly-once learnings capture falls to the Lead.
+the rationale in the body (`bd5faa9`), then land manually. At that time the servitor did **not** run on a
+held phase (`servitorResult: null`), so the exactly-once learnings capture fell to the Lead. Since
+#2702 the in-flow Wrap-up also runs on `held:escalation` and `held:land-failed` when `memoryLocalRoot`
+was threaded, so read `servitorResult` before a manual capture.
 
 **Standing rule this pair establishes:** a phase-close revert with an auto-generated body is
 never self-justifying. Before accepting one — (1) gate the reverted commit; (2) diff the revert

@@ -652,18 +652,15 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
   }
 })
 
-// (D21, extended — 2026-09-06 engine-and-audit-verdict-integrity Task 1.2, #1597/#1801) The handoff
-// EMIT gate and the follow-up FILING gate are two DISTINCT status sets in workflow-template.js: the
-// handoff block is emitted on `landed` + `held:escalation` only, while the filing dispatch also runs
-// on `held:land-failed`. CONTEXT.md's (now GLOSSARY.md's) **Clean handoff** row used to fold them into one three-member
-// emit claim (`… emitted on `landed`, `held:escalation` and `held:land-failed` for the …`) — false
-// for the emit gate. Both sets are EXTRACTED from the engine, and the emit pair is ADDITIONALLY
-// pinned against the ratified literal `['held:escalation', 'landed']` as a canary, so a gate widening
-// reds this pin by name at the literal (deliberately, never silently) before the doc assert retunes.
-//
-// The OLD-absent key targets the SENTENCE, never the `held:land-failed` token: the token legitimately
-// stays in the row as the filing gate's third member. GLOSSARY.md is hard-wrapped, so the row is
-// whitespace-folded first (a line-anchored grep false-negates on a re-wrap).
+// (D21, extended — 2026-09-06 engine-and-audit-verdict-integrity Task 1.2, #1597/#1801; retuned by
+// #2702 D34) The handoff EMIT gate and the follow-up FILING gate are EXTRACTED from
+// workflow-template.js. Since #2702 the handoff also emits on `held:land-failed`, so both gates name
+// the same three decisions. The emit set is ADDITIONALLY pinned against the literal
+// `['held:escalation', 'held:land-failed', 'landed']` as a canary, so a gate change reds this pin by
+// name at the literal (deliberately, never silently) before the doc assert retunes. GLOSSARY.md's
+// **Clean handoff** row must name exactly the emit set, and the retired pair-only emit clause
+// (`emitted on `landed` and `held:escalation` only`) must be gone. GLOSSARY.md is hard-wrapped, so the
+// row is whitespace-folded first (a line-anchored grep false-negates on a re-wrap).
 const gateStatuses = (src, label, re) => {
   const m = src.match(re)
   assert.ok(m, `could not locate the ${label} gate in workflow-template.js — construct rotted (non-vacuous guard)`)
@@ -671,7 +668,7 @@ const gateStatuses = (src, label, re) => {
   assert.ok(set.length > 0, `the ${label} gate names no landDecision member — extraction rotted`)
   return set
 }
-test('D21 (extended) — GLOSSARY.md **Clean handoff** names the engine emit pair and the filing gate\'s third member as two distinct sets (#1597, #1801)', () => {
+test('D21 (extended) — GLOSSARY.md **Clean handoff** names the engine emit set, which equals the filing gate set (#1597, #1801, #2702)', () => {
   const emitSet = gateStatuses(
     workflowTemplateSrc, 'handoff emit',
     /let handoff = null\nif \(((?:landDecision === '[^']+'(?: \|\| )?)+)\) \{/,
@@ -680,10 +677,9 @@ test('D21 (extended) — GLOSSARY.md **Clean handoff** names the engine emit pai
     workflowTemplateSrc, 'file-followups',
     /if \(\(((?:landDecision === '[^']+'(?: \|\| )?)+)\) && minorsFiled\.length > 0\) \{/,
   )
-  // The engine's own shape: the filing gate is the emit pair plus exactly one more member.
-  assert.deepEqual([...emitSet].sort(), ['held:escalation', 'landed'], 'the handoff emit gate is the pair landed + held:escalation')
-  const third = filingSet.filter((s) => !emitSet.includes(s))
-  assert.deepEqual(third, ['held:land-failed'], 'the filing gate is the emit pair plus held:land-failed alone')
+  // The engine's own shape (#2702 D34): the handoff emits on the filing gate's three decisions.
+  assert.deepEqual([...emitSet].sort(), ['held:escalation', 'held:land-failed', 'landed'], 'the handoff emit gate is landed + held:escalation + held:land-failed')
+  assert.deepEqual([...filingSet].sort(), [...emitSet].sort(), 'the filing gate names the same decisions as the emit gate')
   const handoff = glossaryMd.match(/^\*\*Clean handoff\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(handoff, 'could not locate the `**Clean handoff**` glossary entry in GLOSSARY.md — construct rotted')
   const h = norm(handoff[0])
@@ -692,32 +688,22 @@ test('D21 (extended) — GLOSSARY.md **Clean handoff** names the engine emit pai
   const emit = h.match(/emitted on ([^.]*?) only/)
   assert.ok(emit, 'the **Clean handoff** entry must carry an `emitted on … only` clause naming the emit gate')
   const named = [...emit[1].matchAll(/`([^`]+)`/g)].map((x) => x[1])
-  assert.deepEqual([...named].sort(), [...emitSet].sort(), `the emit clause must name exactly the engine's emit pair (${emitSet.join(', ')}) — got: ${named.join(', ')}`)
-  // Filing clause: names the third member as the filing gate's, distinct from the emit set.
-  assert.match(
-    h,
-    new RegExp(`filing pass[^.]*\`${third[0]}\``),
-    `the **Clean handoff** entry must name \`${third[0]}\` as the filing pass's extra member (#1597)`,
-  )
-  // OLD sentence absent (the three-member emit claim), whitespace-folded, case-insensitive.
-  assert.doesNotMatch(
-    h,
-    /`held:escalation`\s+and\s+`held:land-failed`\s+for\s+the/i,
-    'the OLD three-member emit sentence (`… `held:escalation` and `held:land-failed` for the …`) is still in the **Clean handoff** row — the handoff never emits on held:land-failed (#1801)',
-  )
-  // File-scoped companion: the same OLD sentence must be absent from ALL of GLOSSARY.md, not only
-  // the **Clean handoff** row — a reintroduction elsewhere in the glossary would otherwise stay green.
+  assert.deepEqual([...named].sort(), [...emitSet].sort(), `the emit clause must name exactly the engine's emit set (${emitSet.join(', ')}) — got: ${named.join(', ')}`)
+  // Filing clause: the filing pass is still named, on the same decisions.
+  assert.match(h, /filing pass runs on the same three decisions/, 'the **Clean handoff** entry must name the filing pass on the same three decisions (#1597, #2702)')
+  // OLD clause absent (the retired pair-only emit claim), whitespace-folded, case-insensitive, over
+  // ALL of GLOSSARY.md — a reintroduction outside the row would otherwise stay green.
   assert.doesNotMatch(
     norm(glossaryMd),
-    /`held:escalation`\s+and\s+`held:land-failed`\s+for\s+the/i,
-    'the OLD three-member emit sentence (`… `held:escalation` and `held:land-failed` for the …`) is present somewhere in GLOSSARY.md outside the **Clean handoff** row (#1801)',
+    /emitted\s+on\s+`landed`\s+and\s+`held:escalation`\s+only/i,
+    'the retired pair-only emit clause (`emitted on `landed` and `held:escalation` only`) is still in GLOSSARY.md — the handoff also emits on held:land-failed (#2702)',
   )
 })
 
 // (2026-09-06 Task 1.2, #1801) resume-and-recovery.md's `Segmented land (in-band marker) and
 // filing-on-held` bullet carried an emit-on-held disjunct — "or the `handoff` carries an explicit
-// unfiled-followups block the Lead executes" — that no engine path produces (the handoff never
-// emits on held:land-failed; the stamped issues ride the top-level return's `minorsFiled`). The D21
+// unfiled-followups block the Lead executes" — that no engine path produces (no handoff carries an
+// unfiled-followups block; the stamped issues ride `minorsFiled`). The D21
 // pin's region ENDS at this bullet's header (same-indent terminator), so it cannot see it: this is
 // its own extraction over the 2-space `- **Segmented land` header through the next same-indent
 // sibling (or the list's end).
@@ -735,6 +721,86 @@ test('Segmented-land bullet — filing-on-held names the filing dispatch alone; 
   assert.match(region, /`minorsFiled`/, 'item (2) must say where the stamped issue numbers ride on held:land-failed (the top-level return\'s `minorsFiled`)')
   assert.doesNotMatch(region, /unfiled-followups block/i, 'the OLD `unfiled-followups block` disjunct is still in the Segmented-land bullet — no engine path emits a handoff on held:land-failed (#1801)')
   assert.doesNotMatch(region, /or the `handoff` carries/i, 'the OLD emit-on-held disjunct (`or the `handoff` carries …`) is still in the Segmented-land bullet (#1801)')
+})
+
+// (#2702 D34, task 2.1 late fix 2) The Wrap-up gate (`wrapUpDecision`) and the handoff emit gate are
+// EXTRACTED from workflow-template.js and must agree. Each Lead-facing restatement of either set —
+// SKILL.md's return bullet and Checkpoint learnings bullet, resume-and-recovery.md's Capture-learnings
+// and Segmented-land bullets, design.md's Land-path-agnostic Wrap-up and Intent-threading bullets,
+// and (late fix 4) the two "handoff-emitting phase" readers — SKILL.md's Follow-up filing floor
+// bullet and war-review's unfiled follow-ups bullet — must name every member, and the retired
+// pair-only sentences must be gone from every swept surface.
+// schemas.md is NOT swept here: its `handoff?` comment still reads "landed / held:escalation only" and
+// is locked by PIN-24 of the 2026-11-08 engine-recovery plan (a later plan retunes it).
+const wrapUpDocSurfaces = () => [
+  ['SKILL.md return bullet', skillMd, /^- returns `\{ landed, escalated/, /^- /],
+  ['SKILL.md Checkpoint learnings bullet', skillMd, /^- \*\*Every landed phase captures learnings exactly once\*\*/, /^- /],
+  ['SKILL.md Follow-up filing floor bullet', skillMd, /^- \*\*Follow-up filing floor — gate the DAG advance \(D4, #1331\)\.\*\*/, /^- /],
+  ['war-review SKILL.md unfiled follow-ups bullet', warReviewSkillMd, /^- \*\*unfiled follow-ups\*\*/, /^- |^\S/],
+  ['resume-and-recovery.md Capture-learnings bullet', resumeMd, /^- \*\*Capture learnings on every landed phase \(exactly once\)\.\*\*/, /^- /],
+  ['resume-and-recovery.md Segmented-land bullet', resumeMd, /^ {2}- \*\*Segmented land \(in-band marker\) and filing-on-held\./, /^ {2}- \*\*|^\S/],
+  ['design.md Land-path-agnostic Wrap-up bullet', designRefMd, /^- \*\*Land-path-agnostic Wrap-up\.\*\*/, /^- /],
+  ['design.md Intent threading + handoff bullet', designRefMd, /^- \*\*Intent threading \+ handoff \(ADR 0013\)\.\*\*/, /^- /],
+].map(([label, src, headerRe, endRe]) => {
+  const lines = src.split('\n')
+  const headerIdx = lines.findIndex((l) => headerRe.test(l))
+  assert.ok(headerIdx >= 0, `could not locate the ${label} header — anchor rotted (non-vacuous guard)`)
+  let endIdx = lines.length
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (endRe.test(lines[i])) { endIdx = i; break }
+  }
+  return [label, norm(lines.slice(headerIdx, endIdx).join('\n'))]
+})
+test('2702/D34 — the Wrap-up gate equals the handoff emit gate, and every doc restatement names the full set (#2702)', () => {
+  const emitSet = gateStatuses(
+    workflowTemplateSrc, 'handoff emit',
+    /let handoff = null\nif \(((?:landDecision === '[^']+'(?: \|\| )?)+)\) \{/,
+  )
+  const wrapUpSet = gateStatuses(
+    workflowTemplateSrc, 'wrapUpDecision',
+    /const wrapUpDecision = ((?:landDecision === '[^']+'(?: \|\| )?)+)\n/,
+  )
+  assert.deepEqual([...wrapUpSet].sort(), [...emitSet].sort(), 'the Wrap-up gate names the same decisions as the handoff emit gate (#2702 D34)')
+  assert.ok(wrapUpSet.includes('held:land-failed'), 'the Wrap-up gate must include held:land-failed (the #2702 widening) — the canary this pin exists for')
+  for (const [label, region] of wrapUpDocSurfaces()) {
+    for (const member of emitSet) {
+      assert.ok(region.includes(`\`${member}\``), `${label} must name \`${member}\` — the Wrap-up and handoff gates fire on ${emitSet.join(', ')} (#2702)`)
+    }
+    assert.match(region, /#2702/, `${label} must cite #2702 as the source of the widened set`)
+  }
+  // The SKILL.md return bullet also lists the whole landDecision enum, so a member check over the
+  // bullet is vacuous there: each of its two clauses is extracted and checked on its own.
+  const [, returnBullet] = wrapUpDocSurfaces().find(([l]) => l === 'SKILL.md return bullet')
+  const servitorClause = returnBullet.match(/`servitorResult` is set when the Workflow ran the Wrap-up itself \(([^)]*)\)/)
+  assert.ok(servitorClause, 'the return bullet must carry `servitorResult` is set when the Workflow ran the Wrap-up itself (<decisions>) — clause rotted')
+  const handoffClause = returnBullet.match(/`handoff` \(the machine-readable debt map[^)]*\) is present on ([^(]*)\(/)
+  assert.ok(handoffClause, 'the return bullet must carry `handoff` … is present on <decisions> (…) — clause rotted')
+  for (const [what, clause] of [['servitorResult clause', servitorClause[1]], ['handoff clause', handoffClause[1]]]) {
+    const named = [...clause.matchAll(/`([^`]+)`/g)].map((x) => x[1]).filter((v) => emitSet.includes(v) || /^held:|^landed$/.test(v))
+    assert.deepEqual([...named].sort(), [...emitSet].sort(), `the return bullet's ${what} must name exactly the engine set (${emitSet.join(', ')}) — got: ${named.join(', ')}`)
+  }
+  // The held-land anchor: both Lead-facing wrap-up restatements say the servitor grounds on the last
+  // merge tip on a hold (the engine's landedTipAnchor reads lastLandedTip there).
+  for (const [label, region] of wrapUpDocSurfaces().filter(([l]) => /Capture-learnings|Land-path-agnostic/.test(l))) {
+    assert.match(region, /last merge tip/, `${label} must say the held-land anchor is the last merge tip`)
+  }
+  // Bare-rendering ban: the retired pair-only sentences (the spellings at 4cb017a7, before the sweep),
+  // whitespace-folded, over ALL of each surface.
+  for (const [label, src] of [['SKILL.md', skillMd], ['resume-and-recovery.md', resumeMd], ['design.md', designRefMd], ['war-review SKILL.md', warReviewSkillMd]]) {
+    const folded = norm(src)
+    for (const [re, what] of [
+      [/handoff-emitting phase \(`landed` \/ `held:escalation`\)/i, 'the retired pair-only "handoff-emitting phase (`landed` / `held:escalation`)" reader'],
+      [/No `handoff` block is emitted there/i, 'the retired "No `handoff` block is emitted there" sentence'],
+      [/`landed` \+ `held:escalation` only/i, 'the retired "`landed` + `held:escalation` only" emit gate'],
+      [/`landed`\/`held:escalation` only/i, 'the retired "`landed`/`held:escalation` only" emit gate'],
+      [/only wraps up when it lands the phase itself/i, 'the retired "only wraps up when it lands the phase itself" rule'],
+      [/is null unless the Workflow landed the phase itself/i, 'the retired "is null unless the Workflow landed the phase itself" servitorResult rule'],
+      [/present on `landed` \*\*and\*\* `held:escalation`/i, 'the retired pair-only handoff presence set'],
+      [/the in-flow Wrap-up when the Workflow lands \(`landDecision === 'landed'`\)/i, 'the retired landed-only Checkpoint Wrap-up condition'],
+    ]) {
+      assert.doesNotMatch(folded, re, `${what} is still in ${label} — the Wrap-up and handoff also fire on held:land-failed (#2702)`)
+    }
+  }
 })
 
 // (#2485 Task 5.1 — D22, PIN-26) De-mirror pins: run-manifest.md's field table is the one home of the
