@@ -7875,8 +7875,8 @@ const tipSha = (landResult && landResult.status === 'landed' && typeof landResul
 const landedTipAnchor = tipSha || 'landed tip unrecorded — ground via the gate-audit auditSha entries in your audit-log input'
 
 // ---- WRAP-UP — capture durable learnings (war-servitor, write-scoped to the local memory root) ----
-// Gate (spec §4, decision B; #2702 D34): dispatch when merged work exists — landDecision landed,
-// held:escalation or held:land-failed (the filing block's set) — AND memoryLocalRoot was threaded. On a
+// Gate (spec §4, decision B; #2702 D34): dispatch on landDecision landed, held:escalation or
+// held:land-failed (the filing block's set) — AND memoryLocalRoot was threaded. On a
 // hold the anchor is the last merge tip (tipSha reads lastLandedTip) and the decision stays a hold. An
 // absent memoryLocalRoot (Setup's memory probe reported memory disabled / a legacy args shape) self-skips
 // with a logged line — fail-open, never a crash, never a dispatch at an unanchored target. learningsTarget
@@ -7921,7 +7921,7 @@ if (wrapUpDecision && memoryLocalRoot) {
     envDied('phase-' + ph.id + '-wrap-up', servitorDeath)
   }
 } else if (wrapUpDecision) {
-  log(`Phase ${ph.id} (${landDecision}) has merged work but no memoryLocalRoot was threaded (memory disabled / legacy args) — Wrap-up skipped; no servitor dispatched.`)
+  log(`Phase ${ph.id} (${landDecision}): no memoryLocalRoot was threaded (memory disabled / legacy args) — Wrap-up skipped; no servitor dispatched.`)
 }
 
 // ---- FILE-FOLLOWUPS DISPATCH (D1/D2/D3, #1331) — the Workflow files its own follow-up-routed

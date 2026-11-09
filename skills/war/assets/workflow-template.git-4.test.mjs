@@ -723,6 +723,11 @@ for (const shape of ['subset-mode approval then merge', 'merge-slot mismatch re-
         const paired = src.match(/^\s*r\.seats = \w+\n\s*r\.aceSha = [\w.]+$/gm) || []
         assert.equal(seatSites.length, 4, 'four r.seats sites')
         assert.equal(paired.length, seatSites.length, 'each r.seats site also sets r.aceSha')
+        // Each arm's r.aceSha is the tip that arm judged, not any right-hand side.
+        const pairs = paired.map(p => p.trim().split(/\s*\n\s*/).map(l => l.split(' = ')[1]))
+        assert.deepEqual(pairs.sort(), [
+          ['rbSeats', 'pinProbe.rebased_tip'], ['reS', 'reSha'], ['reSeats', 'aceSha'], ['subSeats', 'subSha'],
+        ], 'each r.aceSha names the tip its own arm judged')
       }
       assert.ok(out.landed.includes('t1'), 'the approved ace work merges')
     } finally { rmSync(dir, { recursive: true, force: true }) }
