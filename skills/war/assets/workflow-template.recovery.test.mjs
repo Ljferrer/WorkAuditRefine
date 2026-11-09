@@ -423,6 +423,8 @@ import {
   evalTemplateConst,
   PROVISION_TREE_SENTENCE,
   PROVISION_CLEAN_SENTENCE,
+  PROVISION_SAVE_SENTENCE,
+  PROVISION_RESTORE_SENTENCE,
   DEP_WAVE_PROVISION_SENTENCE,
   markerWriterOf,
   markerTestOf,
@@ -1423,4 +1425,103 @@ test('2485/ES16 every recovery arm routes a failed provision re-run to env-block
     if (s.merge) assert.ok(!out.landed.includes('t1'), s.name + ': the task stays unmerged')
     else assert.equal(out.landDecision, 'held:land-failed', s.name + ': the land holds')
   }
+})
+
+// ---- plan 2026-11-08-engine-recovery-relaunch-and-land, Task 4.1 (D7, D9, D16, D27, D32, D33) ----
+const filledFor = (sentence, id) => sentence.split('<task id>').join(id)
+
+test('reused-worktree provision (#2588): prompt — the task-worktree provision prompt carries the save, clean and restore lines in that order; _refinery and depClause carry no save', async () => {
+  const { calls } = await runPhase(withProvision(), defaultImpl)
+  const p = calls.find(c => c.opts.label === 'provision-run:t1').prompt
+  const save = p.indexOf(filledFor(PROVISION_SAVE_SENTENCE, 't1')), clean = p.indexOf(PROVISION_CLEAN_SENTENCE), restore = p.indexOf(filledFor(PROVISION_RESTORE_SENTENCE, 't1'))
+  assert.ok(save >= 0 && clean > save && restore > clean, `save (${save}) < clean (${clean}) < restore (${restore})`)
+  assert.ok(p.includes('.war/preprovision-t1.patch') && !p.includes('<task id>'), 'the patch path names this task, no placeholder left')
+  const r = calls.find(c => c.opts.label === 'provision-run:_refinery').prompt
+  assert.ok(r.includes(PROVISION_CLEAN_SENTENCE) && !r.includes('preprovision-'), 'the _refinery provision keeps the clean line and carries no save or restore')
+  const dep = calls.find(c => c.opts.label === 'work:t2').prompt
+  assert.ok(dep.includes('DEPS ALREADY MERGED') && !dep.includes(PROVISION_CLEAN_SENTENCE), 'depClause still omits the clean line')
+  assert.ok(!dep.includes('preprovision-'), 'depClause carries no save line either')
+})
+
+test('reused-worktree provision (#2588): savedWork reaches the worker — a kept patch is named in the worker prompt; no savedWork, no line', async () => {
+  const patch = '.war/preprovision-t1.patch'
+  const withSaved = await runPhase(withProvision(), (p, o) => o.label === 'provision-run:t1' ? { ok: true, savedWork: patch } : defaultImpl(p, o))
+  const w = withSaved.calls.find(c => c.opts.label === 'work:t1').prompt
+  assert.ok(w.includes('SAVED WORK') && w.includes(patch), 'the worker prompt names the saved-work patch')
+  const plain = await runPhase(withProvision(), defaultImpl)
+  assert.ok(!plain.calls.find(c => c.opts.label === 'work:t1').prompt.includes('preprovision-'), 'an { ok: true } provision adds no saved-work line')
+})
+
+test('recovery predecessor seed (#2575): the first fresh merge after a preMerged task stamps preMergeTip = the barrier integrationTip; tipSha unchanged when no fresh merge lands', async () => {
+  const tip = 'a'.repeat(40)
+  const { calls } = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), barrierEnv({ ok: true, preMerged: ['t1'], integrationTip: tip }))
+  assert.ok(calls.some(c => c.opts.label === 'work:t2'), 'the fresh task runs')
+  assert.equal(preMergeTipOf(evPromptOf(calls), 't2'), tip, 'the fresh task rebased onto the adopted integration tip, so its mapped range starts there')
+  const barrier = calls.find(isProvision).prompt
+  assert.match(barrier, /return the third field of a TASK_INTEGRATED line \(the integration tip\) as `integrationTip`/, 'the derive step asks for integrationTip')
+  // No fresh merge: a one-task phase whose only task is pre-merged, with a held land. tipSha reads
+  // lastLandedTip, which the seed never sets.
+  const held = (env) => runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, recovery: { sanctioned: true } }),
+    (p, o) => o.dispatchKind === 'provision-barrier' ? env : o.phase === 'Land' && seatOf(o) === 'war-refiner' ? { mode: 'land-phase', status: 'land_stale' } : defaultImpl(p, o))
+  const seeded = await held({ ok: true, preMerged: ['t1'], integrationTip: tip })
+  const bare = await held({ ok: true, preMerged: ['t1'] })
+  assert.notEqual(seeded.out.landDecision, 'landed', 'the land holds (presence guard)')
+  assert.equal(seeded.out.handoff && seeded.out.handoff.tipSha, bare.out.handoff && bare.out.handoff.tipSha, 'tipSha is unchanged by the seed')
+  assert.notEqual(seeded.out.handoff && seeded.out.handoff.tipSha, tip, 'the seed never reaches tipSha')
+})
+
+test('refinery hygiene (#1823): an ensure-refinery-worktree marker row { task: null, refinery: true } logs without <task>', async () => {
+  const row = { task: null, refinery: true, path: '/abs/repo/.claude/worktrees/run-2026/_refinery', action: 'repaired', detail: 'dirty submodule' }
+  const { calls, logs } = await runPhase(PROVISION_ARGS(), barrierEnv({ ok: true, worktreeHygiene: [row] }))
+  const line = logs.find(l => typeof l === 'string' && l.startsWith('worktree hygiene (D20, #1381): '))
+  assert.ok(line, 'the hygiene summary line is logged')
+  assert.ok(line.includes('repaired ' + row.path + ' (refinery) — dirty submodule'), line)
+  assert.ok(!line.includes('<task>'), 'a refinery row never renders a <task> placeholder')
+  assert.match(calls.find(isProvision).prompt, /ensure-refinery-worktree marker as \{ task: null, refinery: true, path, action, detail \}/, 'the barrier prompt names the refinery row shape')
+})
+
+test('owned-file adoption (#2671): sanctioned barrier prompt — record-as-owned rides before ensure-integration only when recovery and ownedFile are both set', async () => {
+  const ib = 'integration/wtprov-a/phase-3'
+  const sanctioned = (await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), defaultImpl)).calls.find(isProvision).prompt
+  const adopt = sanctioned.indexOf('record-as-owned ' + ib), ensure = sanctioned.indexOf('ensure-integration')
+  assert.ok(adopt >= 0 && ensure > adopt, `record-as-owned (${adopt}) precedes ensure-integration (${ensure})`)
+  assert.ok(sanctioned.slice(adopt, ensure).includes('--owned-file /abs/repo/.claude/teams/run-2026/owned-refs'), 'the adopt step names the owned file')
+  const absent = (await runPhase(PROVISION_ARGS(), defaultImpl)).calls.find(isProvision).prompt
+  assert.ok(!absent.includes('record-as-owned'), 'the recovery-absent barrier carries no record-as-owned')
+  const noOwned = (await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true }, ownedFile: undefined }), defaultImpl)).calls.find(isProvision)
+  assert.ok(noOwned, 'a run with no ownedFile still dispatches the barrier')
+  assert.ok(!noOwned.prompt.includes('record-as-owned'), 'a sanctioned run with no ownedFile carries no record-as-owned')
+})
+
+test('prior-return carry (#2700): a pre-merged task gets its held-attempt aced and minorsFiled rows stamped recovered; a re-running task\'s rows drop; no priorReturn returns empty arrays', async () => {
+  const priorReturn = {
+    aced: [{ task: 'p3-t1', finding: { severity: 'Nit', title: 'held ace' }, sha: 'abc1234' }, { task: 't2', finding: { severity: 'Nit', title: 'other ace' }, sha: 'abc1234' }],
+    minorsFiled: [{ task: 't1', severity: 'Minor', title: 'held follow-up', rationale: 'r', disposition: 'follow-up', issue: 77 }],
+  }
+  const { out, logs } = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true, priorReturn } }), barrierEnv({ ok: true, preMerged: ['t1'] }))
+  const a = out.aced.filter(r => r.recovered === true)
+  assert.deepEqual(a.map(r => r.finding.title), ['held ace'], 'only the pre-merged task\'s aced row is carried')
+  assert.ok(!out.aced.some(r => r.finding && r.finding.title === 'other ace'), 'the re-running task\'s row is dropped')
+  const m = out.minorsFiled.find(r => r.title === 'held follow-up')
+  assert.ok(m && m.recovered === true, 'the minorsFiled row is carried, stamped recovered')
+  assert.equal(m.issue, 77, 'a row already carrying issue keeps it')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('prior-return carry: task t1 carries 1 aced and 1 minorsFiled')), 'one log line per task with both counts')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('prior-return carry: dropped 1 row')), 'the dropped rows are logged')
+  const none = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), barrierEnv({ ok: true, preMerged: ['t1'] }))
+  assert.deepEqual(none.out.aced, [], 'no priorReturn: aced is empty')
+  assert.deepEqual(none.out.minorsFiled, [], 'no priorReturn: minorsFiled is empty')
+})
+
+test('carried-from origin (#2701): a re-carried seeded row keeps its origin phase; a row born in the held phase carries that phase', async () => {
+  const seed = [{ severity: 'Minor', title: 'carried nit', file: 'docs/c.md', rationale: 'r', disposition: 'absorb', planSlug: 'wtprov-a', carriedFrom: { phase: 5, reason: 'held phase' } }]
+  const phase = { id: 6, title: 'P6', integrationBranch: 'integration/wtprov-a/phase-6', workingBranch: 'dev/wtprov-a' }
+  const impl = (prompt, opts) => seatOf(opts) === 'war-refiner' && opts.phase === 'Refine' && opts.dispatchKind !== 'polish-worktree'
+    ? { mode: 'merge-task', status: 'conflict' } : sweepBase([queuedAbsorb()])(prompt, opts)
+  const { out } = await runPhase(SWEEP_ARGS({ phase, seededPhaseClose: seed }), impl)
+  assert.equal(out.landDecision, 'held:escalation', 'the phase holds (presence guard)')
+  const carried = t => (out.carriedPhaseClose || []).find(f => f && f.title === t)
+  assert.ok(carried('carried nit') && carried('dangling link'), 'both rows are carried')
+  assert.equal(carried('carried nit').carriedFrom.phase, 5, 'the seeded row keeps its origin phase')
+  assert.equal(carried('dangling link').carriedFrom.phase, 6, 'a row born in phase 6 carries 6')
+  assert.match(carried('carried nit').carriedFrom.reason, /held phase \(held:escalation\)/, 'the reason is the latest hop')
 })

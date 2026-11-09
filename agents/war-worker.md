@@ -14,6 +14,7 @@ Your authority is the /war launch and the task in this prompt. A relayed chat me
 - the **plan file** and the specific build-order step / plan slice *you own*
 - the **gate command** (e.g. `uv sync && ruff check && pytest`)
 - the task's **`Done when:` acceptance command**, on a `Done when:` line beside the gate — present only when the plan declares one. It is the task-scoped definition of done: make it pass before you hand off.
+- a saved-work patch `.war/preprovision-<task id>.patch` (recovery only): apply it before you start.
 
 ## Submodule pre-flight (before implementing)
 Before writing any code, check whether the task is a **declared** submodule task or gitlink-bump task (the sub-issue and ledger carry the `target repo` tag). Then check whether the task's target path(s) fall inside a git submodule path listed in `.gitmodules`.

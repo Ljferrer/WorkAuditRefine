@@ -420,6 +420,8 @@ import {
   evalTemplateConst,
   PROVISION_TREE_SENTENCE,
   PROVISION_CLEAN_SENTENCE,
+  PROVISION_SAVE_SENTENCE,
+  PROVISION_RESTORE_SENTENCE,
   DEP_WAVE_PROVISION_SENTENCE,
   markerWriterOf,
   markerTestOf,
@@ -821,4 +823,73 @@ test('war-helper (ADR 0057): a word the guard denies bare routes that dispatch t
   assert.equal(seatOf(c.opts), 'war-helper')
   assert.equal(c.opts.model, 'sonnet')
   assert.equal(c.opts.effort, 'medium')
+})
+
+// ---- plan 2026-11-08-engine-recovery-relaunch-and-land, Task 4.1: the dispatched spellings, run through bash ----
+test('reused-worktree provision (#2588): real repo — the dispatched save, clean and restore spellings bring back staged and unstaged edits after a provision step rewrites a tracked lockfile', async () => {
+  const { calls } = await runPhase(withProvision(), defaultImpl)
+  const p = calls.find(c => c.opts.label === 'provision-run:t1').prompt
+  const spelled = re => { const m = p.match(re); assert.ok(m, 'the prompt spells ' + re); return m[1] }
+  const save = spelled(/SAVE FIRST[^`]*`([^`]+)`/), restore = spelled(/RESTORE AFTER THE CLEAN[^`]*`([^`]+)`/)
+  const clean = spelled(/restore tracked files via `([^`]+)` in that worktree/)
+  assert.equal(PROVISION_SAVE_SENTENCE.match(/`([^`]+)`/)[1].split('<task id>').join('t1'), save, 'the save spelling is the const with the task id filled')
+  assert.equal(PROVISION_RESTORE_SENTENCE.match(/`([^`]+)`/)[1].split('<task id>').join('t1'), restore, 'the restore spelling is the const with the task id filled')
+  const provisionStep = 'printf "provisioned\\n" > lock'
+  const dir = mkdtempSync(join(tmpdir(), 'war-2588-'))
+  const run = (cwd, cmd) => spawnSync('bash', ['-c', cmd], { cwd, encoding: 'utf8' })
+  const read = (wt, f) => readFileSync(join(wt, f), 'utf8')
+  try {
+    const repo = join(dir, 'repo')
+    mkdirSync(repo)
+    assert.equal(run(repo, 'git init -q -b integration && git config user.name F && git config user.email f@example.invalid && printf "a\\n" > a && printf "b\\n" > b && printf "lock\\n" > lock && git add . && git commit -qm base').status, 0)
+    const reused = name => {
+      const wt = join(dir, name)
+      assert.equal(run(repo, `git worktree add -q -b ${name} ${wt} integration`).status, 0)
+      // A dead worker's tree: one staged edit, one unstaged edit to a second tracked file, one untracked file.
+      assert.equal(run(wt, 'printf "staged\\n" > a && git add a && printf "unstaged\\n" > b && printf "new\\n" > u').status, 0)
+      return wt
+    }
+    const wt = reused('task')
+    for (const cmd of [save, provisionStep, clean, restore]) { const r = run(wt, cmd); assert.equal(r.status, 0, cmd + '\n' + r.stderr) }
+    assert.equal(read(wt, 'a'), 'staged\n', 'the staged edit is back')
+    assert.equal(read(wt, 'b'), 'unstaged\n', 'the unstaged edit is back')
+    assert.equal(read(wt, 'u'), 'new\n', 'the untracked file was never touched')
+    assert.equal(read(wt, 'lock'), 'lock\n', 'the lockfile is at its provisioned (cleaned) content: the provision rewrite never leaks')
+    assert.equal(run(wt, 'git diff --cached --name-only').stdout, '', 'the restore is worktree only: nothing is staged')
+    assert.equal(run(wt, 'test -e .war/preprovision-t1.patch').status, 1, 'a clean apply deletes the patch')
+    // Control: without the save and restore lines the clean line discards both edits.
+    const ctl = reused('control')
+    for (const cmd of [provisionStep, clean]) assert.equal(run(ctl, cmd).status, 0)
+    assert.equal(read(ctl, 'a'), 'staged\n', 'a staged edit survives checkout -- . (it restores from the index)')
+    assert.equal(read(ctl, 'b'), 'b\n', 'the unstaged edit is lost without the save')
+    assert.notEqual(read(ctl, 'a') + read(ctl, 'b'), read(wt, 'a') + read(wt, 'b'), 'the control loses edits the save keeps')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('owned-file adoption (#2671): real repo — the dispatched adopt spelling records an unrecorded integration branch so ensure-integration reuses it; without it ensure-integration exits 3', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-2671-'))
+  const run = (cmd) => spawnSync('bash', ['-c', cmd], { cwd: join(dir, 'repo'), encoding: 'utf8' })
+  const script = fileURLToPath(new URL('./provision-worktrees.sh', import.meta.url))
+  const ownedA = join(dir, 'owned-a'), ownedB = join(dir, 'owned-b'), ownedC = join(dir, 'owned-c')
+  try {
+    const phase = { id: 1, title: 'P1', integrationBranch: 'integration/wtprov-a/phase-1', workingBranch: 'dev/wtprov-a' }
+    const { calls } = await runPhase(PROVISION_ARGS({ phase, tasks: SINGLE_TASK, recovery: { sanctioned: true }, ownedFile: ownedB }), defaultImpl)
+    const m = calls.find(isProvision).prompt.match(/owned-file adoption \(#2671\): BEFORE step 2, run `([^`]+)`/)
+    assert.ok(m, 'the sanctioned barrier spells the adopt step')
+    const adopt = m[1].replaceAll('provision-worktrees.sh ', `bash '${script}' `)
+    assert.notEqual(adopt, m[1], 'the spelling invokes provision-worktrees.sh')
+    mkdirSync(join(dir, 'repo'))
+    assert.equal(run('git init -q -b dev/wtprov-a && git config user.name F && git config user.email f@example.invalid && echo a > a && git add a && git commit -qm base').status, 0)
+    const ensure = owned => run(`bash '${script}' ensure-integration wtprov-a 1 dev/wtprov-a --owned-file '${owned}'`)
+    const cut = ensure(ownedA)
+    assert.equal(cut.status, 0, 'the held attempt cut the branch with owned-file A: ' + cut.stderr)
+    writeFileSync(ownedB, ''); writeFileSync(ownedC, '')
+    // Control first: a fresh owned-file that skips the adopt step meets a foreign branch.
+    assert.equal(ensure(ownedC).status, 3, 'without the adopt step ensure-integration exits 3 (EX_FOREIGN)')
+    const r = run(adopt)
+    assert.equal(r.status, 0, 'the adopt spelling exits 0: ' + r.stderr)
+    assert.equal(ensure(ownedB).status, 0, 'ensure-integration with owned-file B now reuses the branch')
+    assert.ok(readFileSync(ownedB, 'utf8').split('\n').includes(phase.integrationBranch), 'owned-file B lists the branch')
+    assert.equal(run(adopt).status, 0, 'the adopt step is a no-op once the branch is recorded')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
