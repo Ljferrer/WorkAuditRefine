@@ -50,11 +50,9 @@
 #         X, and S as the blame revs file) of a short-option cluster
 #         (`-pO<file>`), or the next token of a space-form file-valued flag,
 #         else the payload cwd) and add each to the seat's touched set. A
-#         search pattern option and its value (`git grep -e <p>`, `log -S <p>`:
-#         see pat_opt) name no path, so they are not touched when the token
-#         before them is free (see pat_free) and no `--` or
-#         `--end-of-options` came before them. Otherwise they stay paths
-#         (over-touch, #2604). An unquoted `~-` or `~<name>` Bash token
+#         search pattern option and its value (`git grep -e <p>`, `log -S <p>`)
+#         name no path, so they are not touched under the skip rule stated
+#         once above pat_sub (#2604). An unquoted `~-` or `~<name>` Bash token
 #         (`-C` value or operand) is unresolved: the payload carries no
 #         OLDPWD, and a `~<name>` needs getpwnam, so the token goes into the
 #         touched set literal (see tilde). A directory
@@ -96,11 +94,14 @@
 #   hook's start and checked per worktree in the start and compare loops, per
 #   ls-files record in fingerprint, per path in blob_lines and per token on the
 #   Bash arm, where a hit leaves a mark (see seat_mark) and offers no fail-open
-#   question. Each `git
-#   status`, `git ls-files` and `git hash-object` call runs under a watchdog
+#   question. Every git call runs under a watchdog
 #   (see bounded) that kills it when the remaining deadline runs out, so one
-#   slow call cannot carry the hook past the deadline (Task 8.1, ruling A); a
-#   deadline hit in any of them returns 3, the timeout. The status and
+#   slow call cannot carry the hook past the deadline (Task 8.1, ruling A;
+#   PIN-15). Inside fingerprint and the walk helpers a deadline hit returns 3,
+#   the timeout, and the Bash and Grep arms then leave a `deadline passed`
+#   mark. A killed common-dir probe (main_common, at the top and in main_find)
+#   leaves `$MAIN` empty: the not-a-git-tree path, fail-open by design
+#   (residual item 8), with no reason of its own. The status and
 #   ls-files calls run with the `-c core.fsmonitor=false` override (status
 #   with `-c core.untrackedCache=false` too), so no configured fsmonitor
 #   command runs inside a bounded call. Past the deadline the hook stops
@@ -158,6 +159,16 @@
 #   compares equal to its real path. `bash-open.<pid>` exists while a Bash
 #   recording runs, so a hook the host killed leaves it for the verdict arm.
 #   `$MAIN/.claude/war/audit-no-agent-id` is the one mark with no agent key.
+#   No hook event removes a record directory. The argument mode
+#   `audit-tree-fingerprint.sh --prune <name>...` does, from a cwd inside the
+#   repository: it resolves `$MAIN` from the cwd in the same two-step form,
+#   checks every name first (the agent_id shape of safe_aid, and an existing
+#   record directory), then removes each one with `rm -rf` on a path that sits
+#   directly under the record tree and prints `pruned: <path>`.
+#   `--prune --stale` removes every record directory there with no file
+#   modified in the last 24 hours (no audit seat lives that long, A28). A bad
+#   name, a missing directory or no git common dir exits 2 with nothing
+#   removed. The mode runs before the stdin payload is read.
 #
 # PAYLOAD CONTRACT
 #   `agent_id` and `agent_type` ride SubagentStart and SubagentStop (confirmed
@@ -211,13 +222,11 @@ expired() { [ "$SECONDS" -ge "$DEADLINE" ]; }
 
 infra() { echo "WAR: audit tree fingerprint: $1" >&2; exit 2; }
 
-input="$(cat)"
-
 MAIN=""; aid=""; aid_raw=""; cwd="$PWD"
 
 # safe_aid: agent_id keys the state dir: one path segment, no separators or
 # traversal. aid_raw keeps the payload value so the verdict arm can tell a
-# rejected id from an absent one.
+# rejected id from an absent one. `--prune` checks each record name with it.
 safe_aid() {
   aid="$aid_raw"
   case "$aid" in
@@ -225,13 +234,140 @@ safe_aid() {
   esac
 }
 
-# main_find: sets MAIN from git, else from the payload cwd's own `.git` entry,
-# so a git failure on the Bash arm can still reach the seat's state dir. A
-# linked worktree's gitfile names the main checkout. A submodule's gitfile does
-# not, so that walk leaves MAIN empty.
+# bounded <outfile> <infile> <cmd...>: runs <cmd> as a background child with
+# stdin from <infile> and stdout to <outfile>, under a watchdog that kills it
+# (SIGTERM) when the remaining deadline runs out, and waits on it. Every git
+# call in this hook runs through it (bcap captures the output). Returns the
+# child's exit code, or 3 when the deadline passed before the call or the
+# watchdog killed it: wait reports 143 for SIGTERM, and a 143 counts as the
+# watchdog's kill only when the deadline has passed (the sleep is the whole
+# remaining deadline in whole seconds, so SECONDS >= DEADLINE at the kill). A
+# caller may set `_bfl` (a floor in seconds) on the call: the watchdog then
+# gets at least that long, so the call runs even when the deadline is already
+# gone (see main_common). A
+# SIGTERM from elsewhere before the deadline (any process outside the
+# watchdog; a worker-set core.fsmonitor helper never runs here, since status
+# and ls-files carry the fsmonitor override) returns 143, which fingerprint
+# reads as a git error and blob_lines as an `unreadable` blob (a later
+# mismatch), never as the timeout reason the Lead may rule fail-open. The
+# watchdog is a subshell whose own `sleep` is a background child it kills
+# from a TERM trap, so cancelling the watchdog after a fast call leaves no
+# orphan sleep. The sleep
+# length is the whole remaining deadline, so a call that ends in time costs one
+# sleep spawn and one kill. No job control (`set -m`) on bash 3.2: the child
+# pid is the command itself (a simple command backgrounded is forked directly),
+# so the kill reaches git, never a wrapper shell. A grandchild a killed git
+# spawned (a submodule `status`) is not killed, but it
+# writes only to the killed git's pipe, never to the hook's, so the hook never
+# waits on it. The watchdog and its sleep run with stdout AND stderr on
+# /dev/null: a bounded call can sit inside a `$(...)` of the caller (every
+# fingerprint call does), and a
+# sleep left on that pipe (the cancel TERM landing between `sleep &` and
+# `_s=$!`) would hold the substitution open until the deadline. `_s` starts
+# empty so that early TERM kills nothing instead of failing under `set -u`.
+# Stderr of the git child is dropped too: a killed child's exit is read from
+# `wait`, never from bash's job report, which a non-interactive shell does
+# not print.
+bounded() {
+  _bo="$1"; _bi="$2"; shift 2
+  _left=$((DEADLINE - SECONDS))
+  [ "$_left" -ge "${_bfl:-0}" ] || _left="${_bfl:-0}"
+  [ "$_left" -gt 0 ] || return 3
+  "$@" < "$_bi" > "$_bo" 2>/dev/null &
+  _cpid=$!
+  ( _s=""; trap 'kill "$_s" 2>/dev/null; exit 0' TERM; sleep "$_left" & _s=$!; wait "$_s"; kill -TERM "$_cpid" 2>/dev/null ) >/dev/null 2>&1 &
+  _kpid=$!
+  wait "$_cpid" 2>/dev/null; _crc=$?
+  kill -TERM "$_kpid" 2>/dev/null
+  wait "$_kpid" 2>/dev/null
+  [ "$_crc" = 143 ] && expired && return 3
+  return "$_crc"
+}
+
+# bcap <cmd...>: bounded with stdout captured in a temp file: sets _bv to the
+# output (trailing newlines cut, as `$(...)` cuts them) and returns bounded's
+# code, or 1 with _bv empty when no temp file can be made.
+bcap() {
+  _bv=""
+  _bt="$(mktemp 2>/dev/null)" && [ -n "$_bt" ] || return 1
+  bounded "$_bt" /dev/null "$@"; _bcr=$?
+  _bv="$(cat "$_bt" 2>/dev/null)"
+  rm -f "$_bt"
+  return "$_bcr"
+}
+
+# main_common: sets MAIN to the dirname of `git rev-parse --git-common-dir` on
+# the cwd, in the two-step form (see STATE above). A failed probe leaves MAIN
+# empty and returns 1. A killed probe returns 3 and leaves MAIN empty for the
+# rest of the run (no retry): the not-a-git-tree path, fail-open by design
+# (residual item 8). The probe gets a PROBE_FLOOR-second watchdog floor
+# (`_bfl`), so it still runs when the deadline is already gone (an inherited
+# SECONDS, a 0 override) and that run keeps its own timeout reason. It runs
+# at most once per hook run, so the floor stays inside the 60 s between the
+# 540 s deadline and the 600 s hooks.json timeout.
+PROBE_FLOOR=5; _mkill=0
+main_common() {
+  [ "$_mkill" = 1 ] && return 3
+  _bfl=$PROBE_FLOOR bcap git -C "$cwd" rev-parse --path-format=absolute --git-common-dir; _mrc=$?
+  if [ "$_mrc" = 3 ]; then _mkill=1; return 3; fi
+  [ "$_mrc" = 0 ] && [ -n "$_bv" ] || return 1
+  MAIN="$(dirname "$_bv")"
+}
+
+# --prune (argument mode, never a hook event): `--prune <name>...` removes each
+# named record directory under `$MAIN/.claude/war/audit-fingerprints/`, and
+# `--prune --stale` removes every record directory there with no file
+# modified in the last 24 hours (see STATE above). It runs before the stdin
+# payload is read, so the host never reaches it.
+if [ "${1-}" = --prune ]; then
+  shift
+  main_common
+  [ -n "$MAIN" ] || infra "--prune: no git common dir from cwd '$cwd'"
+  _pr="$MAIN/.claude/war/audit-fingerprints"
+  # prune_one <dir>: rm -rf on a real directory that sits directly under the
+  # record tree, else exit 2.
+  prune_one() {
+    case "$1" in "$_pr"/*/*) infra "--prune: '$1' is not directly under $_pr" ;; "$_pr"/?*) ;; *) infra "--prune: '$1' is not under $_pr" ;; esac
+    [ -d "$1" ] && [ ! -L "$1" ] || infra "--prune: '$1' is not a record directory"
+    rm -rf -- "$1" || infra "--prune: could not remove '$1'"
+    printf 'pruned: %s\n' "$1"
+  }
+  if [ "${1-}" = --stale ]; then
+    [ "$#" = 1 ] || infra "--prune --stale takes no name"
+    [ -d "$_pr" ] || exit 0
+    # A tracked file sits in no record dir, so -type f reads only seat files.
+    set +f
+    for _pd in "$_pr"/*; do
+      [ -d "$_pd" ] && [ ! -L "$_pd" ] || continue
+      # A find error keeps the directory: only a clean read proves it stale.
+      _pf="$(find "$_pd" -type f -mmin -1440 2>/dev/null)" || continue
+      [ -n "$_pf" ] && continue
+      prune_one "$_pd"
+    done
+    exit 0
+  fi
+  [ "$#" -gt 0 ] || infra "--prune takes a record name or --stale"
+  # Every name is checked before anything is removed.
+  for _pn in "$@"; do
+    aid_raw="$_pn"; safe_aid
+    [ -n "$aid" ] || infra "--prune: '$_pn' is not a record name"
+    [ -d "$_pr/$aid" ] && [ ! -L "$_pr/$aid" ] || infra "--prune: no record directory '$_pr/$aid'"
+  done
+  for _pn in "$@"; do prune_one "$_pr/$_pn"; done
+  exit 0
+fi
+
+input="$(cat)"
+
+# main_find: sets MAIN from git (main_common), else from the payload cwd's own
+# `.git` entry, so a git failure on the Bash arm can still reach the seat's
+# state dir. A linked worktree's gitfile names the main checkout. A
+# submodule's gitfile does not, so that walk leaves MAIN empty. A killed probe
+# leaves MAIN empty and skips the walk (see main_common).
 main_find() {
-  _mc="$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
-    && [ -n "$_mc" ] && { MAIN="$(dirname "$_mc")"; return 0; }
+  main_common; _mfr=$?
+  [ -n "$MAIN" ] && return 0
+  [ "$_mfr" = 3 ] && return 0
   _md="$(cd -P -- "$cwd" 2>/dev/null && pwd -P)"
   while [ -n "$_md" ]; do
     if [ -d "$_md/.git" ]; then MAIN="$_md"; return 0; fi
@@ -278,6 +414,7 @@ mark_cause() {
   case "$1" in
     'jq is not installed on a Bash call'|'payload is not JSON on a Bash call') return 0 ;;
     'jq failed on a Bash call'|'deadline passed on a Bash call') return 0 ;;
+    'deadline passed on a Grep call') return 0 ;;
   esac
   for _mt in Bash Read Glob Grep; do
     case "$1" in
@@ -347,9 +484,9 @@ cwd="$(get '.cwd')"
 aid_raw="$(get '.agent_id')"
 safe_aid
 
-# $MAIN: two-step form (see STATE above). Empty when the cwd is not a git tree.
-common="$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
-  && [ -n "$common" ] && MAIN="$(dirname "$common")"
+# $MAIN: two-step form (see STATE above). Empty when the cwd is not a git tree
+# or the probe was killed (see main_common).
+[ -n "$MAIN" ] || main_common
 STATE=""
 [ -n "$MAIN" ] && [ -n "$aid" ] && STATE="$MAIN/.claude/war/audit-fingerprints/$aid"
 
@@ -410,50 +547,6 @@ lexical_dir() {
     _lo="$_ln"
   done
   canon "$_lo"
-}
-
-# bounded <outfile> <infile> <cmd...>: runs <cmd> as a background child with
-# stdin from <infile> and stdout to <outfile>, under a watchdog that kills it
-# (SIGTERM) when the remaining deadline runs out, and waits on it. Returns the
-# child's exit code, or 3 when the deadline passed before the call or the
-# watchdog killed it: wait reports 143 for SIGTERM, and a 143 counts as the
-# watchdog's kill only when the deadline has passed (the sleep is the whole
-# remaining deadline in whole seconds, so SECONDS >= DEADLINE at the kill). A
-# SIGTERM from elsewhere before the deadline (any process outside the
-# watchdog; a worker-set core.fsmonitor helper never runs here, since status
-# and ls-files carry the fsmonitor override) returns 143, which fingerprint
-# reads as a git error and blob_lines as an `unreadable` blob (a later
-# mismatch), never as the timeout reason the Lead may rule fail-open. The
-# watchdog is a subshell whose own `sleep` is a background child it kills
-# from a TERM trap, so cancelling the watchdog after a fast call leaves no
-# orphan sleep. The sleep
-# length is the whole remaining deadline, so a call that ends in time costs one
-# sleep spawn and one kill. No job control (`set -m`) on bash 3.2: the child
-# pid is the command itself (a simple command backgrounded is forked directly),
-# so the kill reaches git, never a wrapper shell. A grandchild a killed git
-# spawned (a submodule `status`) is not killed, but it
-# writes only to the killed git's pipe, never to the hook's, so the hook never
-# waits on it. The watchdog and its sleep run with stdout AND stderr on
-# /dev/null: every bounded call sits inside a `$(...)` of the caller, and a
-# sleep left on that pipe (the cancel TERM landing between `sleep &` and
-# `_s=$!`) would hold the substitution open until the deadline. `_s` starts
-# empty so that early TERM kills nothing instead of failing under `set -u`.
-# Stderr of the git child is dropped too: a killed child's exit is read from
-# `wait`, never from bash's job report, which a non-interactive shell does
-# not print.
-bounded() {
-  _bo="$1"; _bi="$2"; shift 2
-  _left=$((DEADLINE - SECONDS))
-  [ "$_left" -gt 0 ] || return 3
-  "$@" < "$_bi" > "$_bo" 2>/dev/null &
-  _cpid=$!
-  ( _s=""; trap 'kill "$_s" 2>/dev/null; exit 0' TERM; sleep "$_left" & _s=$!; wait "$_s"; kill -TERM "$_cpid" 2>/dev/null ) >/dev/null 2>&1 &
-  _kpid=$!
-  wait "$_cpid" 2>/dev/null; _crc=$?
-  kill -TERM "$_kpid" 2>/dev/null
-  wait "$_kpid" 2>/dev/null
-  [ "$_crc" = 143 ] && expired && return 3
-  return "$_crc"
 }
 
 # blob_lines <worktree> (the `status --porcelain=v1 -z -uall` records, then
@@ -566,9 +659,11 @@ blob_lines() {
 # .git/lfs; an eol filter would hide a line-ending-only edit).
 fingerprint() {
   expired && return 3
-  _h="$(git -C "$1" rev-parse HEAD 2>/dev/null)" || return 1
-  [ -n "$_h" ] || return 1
   _z="$(mktemp 2>/dev/null)" && [ -n "$_z" ] || return 1
+  bounded "$_z" /dev/null git -C "$1" rev-parse HEAD; _rc=$?
+  if [ "$_rc" = 3 ]; then rm -f "$_z"; return 3; fi
+  _h=""; [ "$_rc" = 0 ] && _h="$(head -n 1 "$_z" 2>/dev/null)"
+  [ -n "$_h" ] || { rm -f "$_z"; return 1; }
   bounded "$_z" /dev/null git -c core.fsmonitor=false -C "$1" ls-files -v -z; _rc=$?
   if [ "$_rc" = 3 ]; then rm -f "$_z"; return 3; fi
   if [ "$_rc" != 0 ]; then rm -f "$_z"; return 1; fi
@@ -598,13 +693,19 @@ fingerprint() {
 # marked_worktrees_of <repo-dir> -> every worktree of that repository that
 # carries a .war-task marker, one canonical path per line.
 # On a recording arm (LIST_TOOL set) a failed list leaves a mark (see seat_mark).
+# The list runs under bounded with the PROBE_FLOOR floor (a list called after
+# the deadline still runs, so a start arm under a spent deadline names the
+# worktrees it skips). A killed list prints nothing and returns 3; the arm
+# that walked reads the spent deadline and takes its own timeout path.
 LIST_TOOL=""
 marked_worktrees_of() {
-  _wl="$(git -C "$1" worktree list --porcelain 2>/dev/null)" || {
+  _bfl=$PROBE_FLOOR bcap git -C "$1" worktree list --porcelain; _wrc=$?
+  [ "$_wrc" = 3 ] && return 3
+  if [ "$_wrc" != 0 ]; then
     [ -z "$LIST_TOOL" ] || seat_mark "git worktree list failed on a $LIST_TOOL call"
     return 0
-  }
-  printf '%s\n' "$_wl" | while IFS= read -r _line; do
+  fi
+  printf '%s\n' "$_bv" | while IFS= read -r _line; do
     case "$_line" in
       "worktree "*)
         _wt="${_line#worktree }"
@@ -612,6 +713,7 @@ marked_worktrees_of() {
         _c="$(canon "$_wt")" && [ -n "$_c" ] && printf '%s\n' "$_c" ;;
     esac
   done
+  return 0
 }
 
 # task_worktrees -> the marked worktrees of the payload cwd's repository, then
@@ -627,15 +729,24 @@ marked_worktrees_of() {
 # `submodule.<name>.path`, a newline, the path, NUL (the -z form): the
 # default name IS the path, so a space-separated read would split
 # `submodule.sub dir.path sub dir` at the wrong space. A missing .gitmodules
-# is an empty read (stderr dropped), not an error.
+# is an empty read (bounded drops stderr), not an error. The config call runs
+# under bounded into a temp file (the -z records hold NUL) with the list's
+# floor; a kill there or in any list returns 3, and a temp file that cannot
+# be made is a failed list (a mark on a recording arm).
 task_worktrees() {
-  marked_worktrees_of "$cwd"
-  git config -z -f "$MAIN/.gitmodules" --get-regexp '^submodule\..*\.path$' 2>/dev/null \
-  | while IFS= read -r -d '' _rec; do
-      _sp="${_rec#*"$NL"}"
-      [ -n "$_sp" ] && [ -e "$MAIN/$_sp/.git" ] || continue
-      marked_worktrees_of "$MAIN/$_sp"
-    done
+  marked_worktrees_of "$cwd" || return 3
+  _tz="$(mktemp 2>/dev/null)" && [ -n "$_tz" ] || {
+    [ -z "$LIST_TOOL" ] || seat_mark "git worktree list failed on a $LIST_TOOL call"
+    return 1
+  }
+  _bfl=$PROBE_FLOOR bounded "$_tz" /dev/null git config -z -f "$MAIN/.gitmodules" --get-regexp '^submodule\..*\.path$'
+  if [ "$?" = 3 ]; then rm -f "$_tz"; return 3; fi
+  while IFS= read -r -d '' _rec; do
+    _sp="${_rec#*"$NL"}"
+    [ -n "$_sp" ] && [ -e "$MAIN/$_sp/.git" ] || continue
+    marked_worktrees_of "$MAIN/$_sp" || { rm -f "$_tz"; return 3; }
+  done < "$_tz"
+  rm -f "$_tz"
 }
 
 # marker_root_of <canonical dir> -> the .war-task worktree root that holds
@@ -724,13 +835,19 @@ touch_path() {
 
 # base_top: sets _top once per Bash call to the canonical work tree of the
 # running base `_base` (`git rev-parse --show-toplevel`), or empty when the
-# base is outside any work tree (then every operand is outside it too).
+# base is outside any work tree (then every operand is outside it too). The
+# probe runs under bounded: a kill returns 3 and leaves _top empty, so every
+# operand reads as outside (over-walk), and the Bash arm's deadline check
+# then leaves its mark.
 _top=""; _top_set=0
 base_top() {
   [ "$_top_set" = 1 ] && return 0
   _top_set=1
-  _top="$(git -C "$_base" rev-parse --show-toplevel 2>/dev/null)" || _top=""
+  bcap git -C "$_base" rev-parse --show-toplevel; _btr=$?
+  _top=""; [ "$_btr" = 0 ] && _top="$_bv"
+  [ "$_btr" = 3 ] && return 3
   [ -n "$_top" ] && _top="$(canon "$_top")"
+  return 0
 }
 
 # outside_top <path>: returns 0 when <path>, absolute or relative to the
@@ -741,7 +858,9 @@ base_top() {
 # (normalize_path_copy); the path is resolved both ways (the raw path's
 # existing ancestor through canon, the folded path's through lexical_dir)
 # and either resolution outside the top reports outside, so a divergence
-# over a planted link or a missing component fails closed (an over-implied
+# over a planted link or a missing or non-directory component fails closed
+# (`<wt>/f/..` with `f` a file: the kernel stops at `f`, the fold does not;
+# an over-implied
 # --no-index only widens the walk-down). Costs a canon and a lexical_dir
 # subshell.
 outside_top() {
@@ -824,9 +943,14 @@ touch_operand() {
 # the Bash loop touches neither a pattern option nor its value. Checked
 # against git 2.54:
 #   grep        `-e <p>` (grep has no `--regexp`; `-f <file>` reads a file
-#               and stays a path).
+#               and stays a path). `-E` is a no-value letter, and `-A`, `-B`
+#               and `-C` take a line count (`-A 2` or `-A2`): the count names
+#               no path, and the token after it is free (PIN-22, the forms
+#               validate-auditor-git.sh admits).
 #   log, show   the diff options below, and `--grep`, `--author`,
-#               `--committer`, `--grep-reflog` (space or `=` form). log also
+#               `--committer`, `--grep-reflog`, `--decorate-refs`,
+#               `--decorate-refs-exclude` (space or `=` form; the two
+#               `--decorate-refs` options take a ref pattern). log also
 #               takes `-L<r>`.
 #   diff        `-S<p>`, `-G<p>`, `-I<re>`, `--ignore-matching-lines`,
 #               `--word-diff-regex` (space or `=` form), and
@@ -834,18 +958,21 @@ touch_operand() {
 #               takes no value).
 #   blame       `-L<r>` only: blame `-S <file>` reads a revs file.
 # A short pattern option takes the space or the attached form, also at the
-# end of a short cluster (`-pS <p>`, `-sG<p>`). Only a pattern option after a
-# free token (pat_free) and before any `--` or `--end-of-options` is skipped.
-# Any other one stays a path (over-touch). An `-L` value is a line range
+# end of a short cluster (`-pS <p>`, `-sG<p>`). THE SKIP RULE (the one place
+# it is stated; the header and the Bash arm point here): only a pattern option
+# after a free token (pat_free) and before any `--` or `--end-of-options` is
+# skipped, with its value. Any other one stays a path (over-touch). The same
+# rule covers a grep count option and its count. An `-L` value is a line range
 # or a regex: git reads its `:file` part from commits, never from a worktree.
 # pat_sub <subcommand> sets the subcommand's no-value cluster letters (_pk),
 # the no-value letters git reads only as a whole token (_p1: `-r` is free,
-# while `git log -rS x` exits 128), its pattern letters (_pl), and whether the
-# log (_plog) and diff (_pdif) long forms apply.
+# while `git log -rS x` exits 128), its pattern letters (_pl), its count
+# letters (_pcnt), and whether the log (_plog) and diff (_pdif) long forms
+# apply.
 pat_sub() {
-  _pk=""; _p1=""; _pl=""; _plog=0; _pdif=0
+  _pk=""; _p1=""; _pl=""; _pcnt=""; _plog=0; _pdif=0
   case "$1" in
-    grep) _pk=Fnilwc; _pl=e ;;
+    grep) _pk=FnilwcE; _pl=e; _pcnt=ABC ;;
     log) _pk=pusRzawbW; _p1=iEFPrtmcg; _pl=SGIL; _plog=1; _pdif=1 ;;
     show) _pk=pusRzawbW; _p1=iEFPrtmcg; _pl=SGI; _plog=1; _pdif=1 ;;
     diff) _pk=pusRzawbW; _p1=rtmc; _pl=SGI; _pdif=1 ;;
@@ -862,6 +989,8 @@ pk_strip() {
 }
 # pat_opt <token>: sets _pn to 1 when <token> is a pattern option whose value
 # is the NEXT token, to 2 when <token> carries that value itself, else to 0.
+# A grep count option (`-A 2`, `-A2`: a _pcnt letter, alone or with digits
+# only) sets _pn the same way: its count is skipped like a pattern value.
 # A cluster counts only when every letter before the pattern letter is in
 # _pk: any other letter may take the rest of the token as its own value, so
 # the token stays a path (over-touch).
@@ -871,6 +1000,14 @@ pat_opt() {
     case "$1" in
       --grep|--author|--committer|--grep-reflog) _pn=1; return 0 ;;
       --grep=*|--author=*|--committer=*|--grep-reflog=*) _pn=2; return 0 ;;
+      --decorate-refs|--decorate-refs-exclude) _pn=1; return 0 ;;
+      --decorate-refs=*|--decorate-refs-exclude=*) _pn=2; return 0 ;;
+    esac
+  fi
+  if [ -n "$_pcnt" ]; then
+    case "$1" in
+      -[$_pcnt]) _pn=1; return 0 ;;
+      -[$_pcnt]*) case "${1#-?}" in *[!0-9]*) ;; *) _pn=2; return 0 ;; esac ;;
     esac
   fi
   if [ "$_pdif" = 1 ]; then
@@ -901,7 +1038,7 @@ pat_free() {
     --exit-code|--quiet|--check|--fixed-strings|--ignore-case) _pok=1 ;;
     --word-regexp|--line-number|--count|--files-with-matches) _pok=1 ;;
     --decorate|--no-decorate|--all-match|--invert-grep|--regexp-ignore-case) _pok=1 ;;
-    --walk-reflogs|--color-words) _pok=1 ;;
+    --walk-reflogs|--color-words|--abbrev-commit|--no-walk|--date-order) _pok=1 ;;
     --*) ;;
     -?*)
       case "${1#-}" in *[!0-9]*) ;; *) _pok=1; return 0 ;; esac
@@ -920,8 +1057,10 @@ pat_free() {
 # leading `:` from reading as pathspec magic, the `/` makes a `dir/` pattern
 # match), so it is answered by the repository that holds <dir>, and git's
 # leading-directory check makes a dir under an ignored dir ignored too. A dir
-# with a `.git` entry is a repository root: never ignored, and no spawn. Any
-# other non-zero exit is "not ignored", so the walk marks: a dir no work tree
+# with a `.git` entry is a repository root: never ignored, and no spawn. The
+# call runs under bounded: a kill returns 3, and the walk stops (the Grep arm
+# then leaves its deadline mark). Any other non-zero exit is "not ignored", so
+# the walk marks: a dir no work tree
 # holds (git's "not a git repository" exit, where ripgrep enters, D4) and a
 # git error inside a work tree (when unsure, over-touch, PIN-6) alike. Runs
 # with `-c core.fsmonitor=false` (PIN-1); `--no-index` never reads an index.
@@ -930,18 +1069,20 @@ ignored_dir() {
   _gq="${1%/*}"; [ -n "$_gq" ] || _gq=/
   _gn="${1##*/}"
   [ -n "$_gn" ] || return 1
-  git -c core.fsmonitor=false -C "$_gq" check-ignore -q --no-index -- "./$_gn/" >/dev/null 2>&1
+  bounded /dev/null /dev/null git -c core.fsmonitor=false -C "$_gq" check-ignore -q --no-index -- "./$_gn/"
 }
 
 # grep_walk <search root>: for a Grep whose search root R (its `path`, else
 # the payload cwd; a relative R resolves against the cwd) is a directory,
 # touch every marked task worktree W strictly below R that the Grep tool's
 # ripgrep enters (D4, PIN-4). That ripgrep runs with `--hidden` and no
-# `--no-ignore`, so it skips a folder the repository holding it ignores, but
-# never applies an ignore rule to an explicit search root or below it. So:
+# `--no-ignore`, so it enters an explicit search root even when that root is
+# ignored, and it applies ignore rules only to folders strictly below the
+# root. So:
 # when R is at or under an ignored dir (ignored_dir R), every W below R is
 # touched; else W is touched unless a folder strictly below R on the path
-# down to W, W included, is ignored. A no-path Grep from the main checkout
+# down to W is ignored. W itself never counts: it holds a `.git` entry, and
+# ignored_dir never calls such a folder ignored. A no-path Grep from the main checkout
 # meets `.claude` first, which provision-worktrees.sh ensure-exclude
 # excludes, so busy sibling worktrees under the run dir are never touched
 # (no false AUDIT-TAMPER). ripgrep honors more ignore files than git
@@ -951,8 +1092,9 @@ ignored_dir() {
 # Each reading that names a directory is walked once. A reading that names no
 # directory is not walked, and its nearest ancestor never stands in: a missing
 # root reads nothing, and walking its parent would touch sibling worktrees.
-# Each folder's answer is cached for the walk, so the worktrees under one
-# ignored dir cost one check-ignore spawn. The git-pattern rule stands for a
+# Each folder's answer is cached for the walk (`_gno` not ignored, `_gyes`
+# ignored), so the worktrees under one folder cost one check-ignore spawn for
+# it. A watchdog kill in any check stops the walk (return 3). The git-pattern rule stands for a
 # Grep with a `glob` (#2476): a ripgrep `--glob` wins over ignore rules, so a
 # glob that matches an ignored folder's name can read a worktree this walk
 # leaves untouched. That residual is recorded in the fingerprint lesson and in
@@ -969,7 +1111,8 @@ grep_walk() {
 }
 grep_walk_root() {
   _gr="$1"
-  _gall=0; ignored_dir "$_gr" && _gall=1
+  _gall=0; ignored_dir "$_gr"
+  case "$?" in 0) _gall=1 ;; 3) return 3 ;; esac
   _gpre="${_gr%/}"
   task_worktrees | {
     _gyes=""; _gno=""
@@ -982,7 +1125,9 @@ grep_walk_root() {
           case "$_grest" in */*) _grest="${_grest#*/}" ;; *) _grest="" ;; esac
           case "$NL$_gno" in *"$NL$_gf$NL"*) continue ;; esac
           case "$NL$_gyes" in *"$NL$_gf$NL"*) _gskip=1; break ;; esac
-          if ignored_dir "$_gf"; then _gyes="$_gyes$_gf$NL"; _gskip=1; break; fi
+          ignored_dir "$_gf"; _gi=$?
+          [ "$_gi" = 3 ] && exit 3
+          if [ "$_gi" = 0 ]; then _gyes="$_gyes$_gf$NL"; _gskip=1; break; fi
           _gno="$_gno$_gf$NL"
         done
         [ "$_gskip" = 1 ] && continue
@@ -1219,7 +1364,13 @@ case "$event" in
         # worktree on each Glob from the main checkout, and Glob returns
         # names only (a later Read or Grep of a listed file touches its
         # worktree).
-        [ "$tool" = Grep ] && grep_walk "$_p"
+        # A watchdog kill in the walk (a list, a check-ignore) spends the
+        # deadline and stops the walk short, so the Grep leaves a mark the
+        # verdict escalates, as the Bash arm does.
+        if [ "$tool" = Grep ]; then
+          grep_walk "$_p"
+          expired && seat_mark "deadline passed on a Grep call"
+        fi
         # An absolute Glob pattern reaches its own tree whatever `path` says:
         # touch the prefix up to the first glob metacharacter (`*`, `?`, `[`,
         # `{`), the literal directory the pattern walks.
@@ -1289,8 +1440,7 @@ case "$event" in
     # itself file-valued, since the plain arm has that token (a non-path
     # tail resolves to the base), any other token that starts with `-` is
     # a flag and costs no spawn, a search pattern option and its value
-    # (pat_opt, after a free token (pat_free) and before any `--` or
-    # `--end-of-options`) are skipped, and EVERY other token
+    # are skipped (the skip rule stated once above pat_sub), and EVERY other token
     # (`../wtB/f`, `./x/f`, `a/../b/f`, `a/b/f`, `wtB`, `diff`,
     # `HEAD~1`, the value of a space-form `--contents <f>`) resolves
     # against the running base: the payload cwd, moved by each resolved
@@ -1393,6 +1543,14 @@ case "$event" in
         *) [ -n "$_base" ] && touch_operand "$_base/$_t" ;;
       esac
     done
+    # A watchdog kill inside a walk helper (a list, the show-toplevel probe)
+    # spends the deadline, and the kill on the last token has no next-token
+    # check to catch it.
+    if expired; then
+      seat_mark "deadline passed on a Bash call"
+      rm -f "$_open"
+      exit 0
+    fi
     [ "$_found" = 0 ] && touch_path "$cwd"
     rm -f "$_open"
     exit 0 ;;
