@@ -4,6 +4,7 @@ description: "assert-args-complete.mjs's ptSpans tokenizer opens a span on any /
 metadata: 
   node_type: memory
   type: project
+  promoted: dev/2026-08-25-engine-reliability-and-filing-fidelity@phase-3
   keywords: 
     - ptSpans
     - assert-args-complete
@@ -26,7 +27,7 @@ metadata:
     - entry-validation
   created: 2026-08-26
   originSessionId: 46a4dbcd-fa2b-416c-87f8-931f5c3c90b5
-  modified: 2026-08-26T13:46:13.065Z
+  modified: 2026-11-09T00:12:56.692Z
 ---
 
 # A raw-source tokenizer's "excluded by construction" comment claim can be merely incidental
@@ -67,4 +68,10 @@ than re-deriving one.
 **Related:** [[template-defers-runtime-values-to-agent-via-literal-placeholder]] (a sibling
 `workflow-template.js` scanning-surface gotcha).
 
-> archived 2026-09-04: resolved — moved to archive
+> archived 2026-09-03: resolved — moved to archive
+
+> FIXED at phase 1 of `2026-11-08-args-floor-and-launch-preflight`: `ptSpanRanges` in
+> `skills/war/assets/assert-args-complete.mjs` now skips strings, comments and regex literals, and
+> an `EMBEDDED_ARGS` prose fixture pins the field set (End states 5 and 6, gate-audit met at
+> ea7f7931). Found at landed tip 608887813aa5 — verify still present before acting. The body above
+> describes the pre-fix defect.

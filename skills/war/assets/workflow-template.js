@@ -1214,8 +1214,9 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
 //     (ruledAsks, #1879 RULING 2) fields — never a whole-surface JSON.stringify,
 //     whose schema KEY names ("check","why","source":"plan") let a foreign row vacuously satisfy the
 //     own-token floor;
-//   - own-token matching is WORD-BOUNDARY (\b), behind a stoplist of generic tokens — a slug word
-//     like 'and' or 'test' proves nothing, and a substring hit inside a larger word proves nothing;
+//   - own-token matching is ALPHANUMERIC-BOUNDARY (a letter or digit beside the token blocks it, an
+//     underscore does not, #2673), behind a stoplist of generic tokens — a slug word like 'and',
+//     'test' or 'when' proves nothing, and a substring hit inside a larger word proves nothing;
 //   - EXEMPT rows: source:'auto' rows (Workflow/Setup-authored, never a Lead-assembled cross-plan
 //     surface), predecessor citations (the `supersedes` field is the citation channel — excluded
 //     from the scan), and Lead-stamped `planFile` provenance rows naming THIS plan (a planFile
@@ -1247,7 +1248,7 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // any run's intent/backstops regardless of plan — a match on one proves no provenance.
   const PROVENANCE_TOKEN_STOPLIST = new Set(['and', 'the', 'for', 'with', 'from', 'into', 'over', 'not', 'all',
     'war', 'plan', 'plans', 'phase', 'phases', 'task', 'tasks', 'test', 'tests', 'fix', 'fixes', 'docs',
-    'run', 'runs', 'gate', 'gates', 'audit', 'merge', 'land', 'issue', 'issues', 'release', 'follow'])
+    'run', 'runs', 'gate', 'gates', 'audit', 'merge', 'land', 'issue', 'issues', 'release', 'follow', 'when'])
   const ownPlanStem = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').replace(/\.md$/i, '') : null
   let ownTokens = [...new Set([planSlug, ownPlanStem]
     .filter(Boolean)
@@ -1262,7 +1263,7 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     ownTokens = [ownPlanStem.toLowerCase()]
     log('workflow-template: #1413 own-token floor — every slug word is stoplisted or too short; falling back to the plan basename ' + JSON.stringify(ownTokens[0]) + ' as the single anchor token (#1767). The floor still fires.')
   }
-  const tokenRe = t => new RegExp('\\b' + String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i')
+  const tokenRe = t => new RegExp('(?<![A-Za-z0-9])' + String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![A-Za-z0-9])', 'i')
   const ownPlanBase = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').toLowerCase() : null
   const baseOf = p => String(p).replace(/^.*\//, '').toLowerCase()
   // Predecessor-citation strip for a preformatted STRING row (#1751): the citation segment is the
