@@ -820,6 +820,17 @@ test('2702/seed — the Lead servitor skip narrows to landed, and the return lis
     }
   }
   assert.match(region('SKILL.md return bullet'), /carriedPhaseClose, dispatchFailures, handoff\? \}/, 'the SKILL.md return list must name `dispatchFailures` (both engine return sites carry it, #2645)')
+  // Bind the bullet's keys to the engine's main return: the listed keys plus the subset note's keys
+  // must, together, be exactly the keys of that return (handoff counted from its spread).
+  const engineRet = workflowTemplateSrc.match(/^return \{ phase: phaseId, ([^\n]*) \}$/m)
+  assert.ok(engineRet, 'the engine main return line must be found')
+  const engineKeys = new Set(['phase', ...engineRet[1].split(', ').map((k) => k.replace(/^\.\.\.\(handoff.*$/, 'handoff'))])
+  const bullet = region('SKILL.md return bullet')
+  const listed = bullet.match(/^- returns `\{ ([^}]*) \}`/)[1].split(', ').map((k) => k.replace(/\?$/, ''))
+  const subsetNote = bullet.match(/\(a subset: the engine return in `workflow-template\.js` also carries ([^)]*)\)/)
+  assert.ok(subsetNote, 'the SKILL.md return bullet must say its list is a subset and point at the engine return')
+  const noted = [...subsetNote[1].matchAll(/`(\w+)`/g)].map((m) => m[1])
+  assert.deepEqual(new Set([...listed, ...noted]), engineKeys, 'the SKILL.md return bullet keys plus its subset note must equal the engine main return keys')
   assert.match(norm(skillMd), /- \*\*Wraps up\*\* — once the phase lands \(or holds on `held:escalation` \/ `held:land-failed` with `memoryLocalRoot` threaded; #2702\),/)
 })
 
