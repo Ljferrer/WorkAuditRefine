@@ -5,7 +5,10 @@
 # plan 2026-10-26-fingerprint-hook-followups Task 1.1 (fsmonitor and the
 # untracked cache off, assume-unchanged and skip-worktree paths hashed, the
 # ls-files watchdog) and Task 2.1 (the Grep walk-down where ripgrep recurses,
-# the pinned Glob non-walk, `~-` unresolved).
+# the pinned Glob non-walk, `~-` unresolved); plan
+# 2026-11-08-auditor-and-worker-guard-habits Task 1.3 (every git call under
+# the watchdog: the BD rows; the grep count and `-E` forms: GP; the folder
+# cache: GC; the pq check controls: TR; the `--prune` mode: PR).
 #
 # The hook acts only for agent types ending `war-auditor` or
 # `war-evidence-auditor`. SubagentStart records every `.war-task` worktree's
@@ -954,6 +957,57 @@ git -C "$MAIN" worktree remove --force "$MAIN/.claude/war-worktrees/r/wtR"
 git -C "$MAIN" branch -q -D rwalk
 git -C "$MAIN" worktree remove --force "$TMP/plain/mid/wtP"
 git -C "$MAIN" branch -q -D pwalk
+# --- the grep_walk_root folder cache (#2471) ----------------------------------
+# Each folder's check-ignore answer is cached for one walk: `_gno` (not
+# ignored) and `_gyes` (ignored). A git shim counts the check-ignore calls of
+# one Grep run, so a row proves the cached arm ran, not only that the touched
+# set came out right. GC1: two worktrees under one plain folder p: the second
+# one hits `_gno` and is still touched (a `_gno` arm that skipped would leave
+# it out). Calls: the root and p, once each. GC2: w3 under the plain folder p,
+# and w4 and w5 under p/ign, which $MAIN ignores: w3 is touched, w4 and w5 are
+# not. Calls: the root, p and ign, once each, so p's second and third visits
+# hit `_gno` and ign's second visit hits `_gyes`.
+SHIMGC="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimgc)"
+printf '#!/bin/bash\ncase " $* " in *" check-ignore "*) printf x >> "%s" ;; esac\nexec "%s" "$@"\n' "$TMP/cicount" "$(command -v git)" > "$SHIMGC/git"
+chmod +x "$SHIMGC/git"
+printf 'gc2/p/ign/\n' >> "$MAIN/.git/info/exclude"
+mkdir -p "$MAIN/gc1/p" "$MAIN/gc2/p/ign"
+for _g in gc1/p/w1 gc1/p/w2 gc2/p/w3 gc2/p/ign/w4 gc2/p/ign/w5; do
+  git -C "$MAIN" worktree add -q "$MAIN/$_g" -b "${_g##*/}"
+  printf 'marker\n' > "$MAIN/$_g/.war-task"
+done
+GW1="$(cd "$MAIN/gc1/p/w1" && pwd -P)"; GW2="$(cd "$MAIN/gc1/p/w2" && pwd -P)"
+GW3="$(cd "$MAIN/gc2/p/w3" && pwd -P)"
+if git -C "$MAIN" check-ignore -q --no-index -- gc2/p/ign/ && ! git -C "$MAIN" check-ignore -q --no-index -- gc2/p/; then
+  pass "oracle: gc2/p/ign is ignored by pattern and gc2/p is not"
+else
+  fail "oracle vacuous: the GC fixture's ignore rule does not hold"
+fi
+run "$(mk_start "$AUD" gc1)"
+: > "$TMP/cicount"
+_p="$(mk_grep "$AUD" gc1 "$MAIN/gc1")"
+OUT="$(printf '%s' "$_p" | PATH="$SHIMGC:$PATH" bash "$HOOK" 2>/dev/null)"; RC=$?
+_ci="$(wc -c < "$TMP/cicount" | tr -d ' ')"
+if [ "$RC" = 0 ] && touched_has gc1 "$GW1" && touched_has gc1 "$GW2" && [ "$_ci" = 2 ]; then
+  pass "GC1: the second worktree under a shared plain folder hits the _gno cache and is touched"
+else
+  fail "GC1: _gno cache hit wrong (rc=$RC check-ignore calls=$_ci touched=|$(cat "$FP_ROOT/gc1/touched" 2>/dev/null | tr '\n' ' ')|)"
+fi
+run "$(mk_start "$AUD" gc2)"
+: > "$TMP/cicount"
+_p="$(mk_grep "$AUD" gc2 "$MAIN/gc2")"
+OUT="$(printf '%s' "$_p" | PATH="$SHIMGC:$PATH" bash "$HOOK" 2>/dev/null)"; RC=$?
+_ci="$(wc -c < "$TMP/cicount" | tr -d ' ')"
+if [ "$RC" = 0 ] && touched_is gc2 "$GW3" && [ "$_ci" = 3 ]; then
+  pass "GC2: worktrees under a shared ignored folder hit the _gyes cache and stay untouched, beside a touched one under the plain folder"
+else
+  fail "GC2: _gyes cache hit wrong (rc=$RC check-ignore calls=$_ci touched=|$(cat "$FP_ROOT/gc2/touched" 2>/dev/null | tr '\n' ' ')|)"
+fi
+for _g in gc1/p/w1 gc1/p/w2 gc2/p/w3 gc2/p/ign/w4 gc2/p/ign/w5; do
+  git -C "$MAIN" worktree remove --force "$MAIN/$_g"
+  git -C "$MAIN" branch -q -D "${_g##*/}"
+done
+rm -rf "$MAIN/gc1" "$MAIN/gc2" "$SHIMGC" "$TMP/cicount"
 
 # --- content sensitivity: a second edit to an already-dirty path -------------
 # Each path below is dirty before the seat starts and edited once after, so
@@ -1488,7 +1542,9 @@ fi
 # fails before git runs when they carry SHIM_FAIL, or kills itself with
 # SIGTERM before git runs when they carry SHIM_TERM. SHIM_DELAY is the load
 # stand-in (#2615): a status call whose arguments carry it waits 3 s, then
-# goes on to the arms above. The hook must kill the slow call at its deadline
+# goes on to the arms above. SHIM_BLOCK stubs any other git call to block: a
+# call whose arguments carry it sleeps SHIM_NAP before git runs (the BD rows,
+# one per git call PIN-15 put under bounded). The hook must kill the slow call at its deadline
 # (SHIM_D) instead of waiting for it, so each row also bounds its own wall
 # time: a killed call ends near SHIM_D, a call left to run takes at least
 # SHIM_NAP, and SHIM_CAP sits between them. The shim is on PATH for the run
@@ -1506,6 +1562,7 @@ REALGIT="$(command -v git)"
 SHIMG="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimg)"
 cat > "$SHIMG/git" <<SHIM
 #!/bin/bash
+if [ -n "\${SHIM_BLOCK-}" ]; then case "\$*" in *"\$SHIM_BLOCK"*) sleep $SHIM_NAP ;; esac; fi
 case " \$* " in
   *" status "*)
     if [ -n "\${SHIM_DELAY-}" ]; then case "\$*" in *"\$SHIM_DELAY"*) sleep 3 ;; esac; fi
@@ -1523,10 +1580,10 @@ SHIM
 chmod +x "$SHIMG/git"
 # run_shim <payload>: like run, under the shim PATH and the SHIM_D deadline;
 # sets EL to the wall seconds the hook took. SHIM_TAG keeps a parallel run's
-# stderr file apart.
+# stderr file apart. SHIM_CWD, when set, is the hook's own working directory.
 run_shim() {
   _t0=$SECONDS
-  OUT="$(printf '%s' "$1" | PATH="$SHIMG:$PATH" WAR_FINGERPRINT_DEADLINE_SECONDS=$SHIM_D bash "$HOOK" 2>"$TMP/err${SHIM_TAG-}")"; RC=$?
+  OUT="$(cd "${SHIM_CWD:-.}" && printf '%s' "$1" | PATH="$SHIMG:$PATH" WAR_FINGERPRINT_DEADLINE_SECONDS=$SHIM_D bash "$HOOK" 2>"$TMP/err${SHIM_TAG-}")"; RC=$?
   EL=$((SECONDS - _t0))
   ERR="$(cat "$TMP/err${SHIM_TAG-}")"
 }
@@ -1560,6 +1617,33 @@ run "$(mk_read "$AUD" d6e "$TMP/wtA/f")"
 _p6e="$(mk_verdict "$AUD" d6e)"
 _p7="$(mk_start "$AUD" d7)"
 _p8="$(mk_start "$AUD" d8)"
+# The BD rows (PIN-15): each stubs one newly bounded git call to block
+# (SHIM_BLOCK). bd1 to bd5 block a call inside fingerprint or a walk helper,
+# and the hook takes its return-3 path: the timeout reason, or the Bash or
+# Grep arm's `deadline passed` mark. bd6 and bd7 block the common-dir probe
+# (main_common at the top, main_find on the jq-failed Bash path, whose payload
+# carries no cwd), and the hook exits 0 with MAIN empty: no state dir, no
+# record. Every row ends inside SHIM_CAP, so no blocked call ran to its end.
+run "$(mk_start "$AUD" bd1)"
+run "$(mk_read "$AUD" bd1 "$TMP/wtA/f")"
+_pb1="$(mk_verdict "$AUD" bd1)"
+mkdir -p "$TMP/bde" "$MAIN/bdir"
+for _b in bd2 bd3 bd4 bd5; do run "$(mk_start "$AUD" $_b)"; done
+PCWD="$TMP/wtC"
+_pb2="$(mk_bash "$AUD" bd2 "git diff $TMP $TMP/bde")"
+_pb3="$(mk_bash "$AUD" bd3 "git diff $TMP $TMP/bde")"
+PCWD="$MAIN"
+_pb4="$(mk_bash "$AUD" bd4 "git -C $MAIN log -1 --oneline -- bdir")"
+_pb5="$(mk_grep "$AUD" bd5 "$TMP")"
+_pb6="$(mk_read "$AUD" bd6 "$TMP/wtA/f")"
+_pb7="$(jq -nc --arg at "$AUD" '{hook_event_name:"PostToolUse",agent_type:$at,agent_id:"bd7",tool_name:"Bash",tool_input:{command:"git log -1"}}')"
+SHIM_BLOCK="$WTA rev-parse HEAD" shim_bg bd1 "$_pb1"
+SHIM_BLOCK="worktree list --porcelain" shim_bg bd2 "$_pb2"
+SHIM_BLOCK="config -z -f" shim_bg bd3 "$_pb3"
+SHIM_BLOCK="rev-parse --show-toplevel" shim_bg bd4 "$_pb4"
+SHIM_BLOCK="check-ignore" shim_bg bd5 "$_pb5"
+SHIM_BLOCK="--git-common-dir" shim_bg bd6 "$_pb6"
+SHIM_CWD="$MAIN" SHIM_BLOCK="--git-common-dir" shim_bg bd7 "$_pb7"
 SHIM_SLOW="$WTA status" shim_bg d6 "$_p6"
 SHIM_SLOW="$WTA hash-object --no-filters --stdin-paths" shim_bg d6b "$_p6b"
 SHIM_SLOW="$WTA hash-object --no-filters -- " shim_bg d6c "$_p6c"
@@ -1706,14 +1790,59 @@ if [ "$_m" = "${_m%% *} $SHIM_D $WTS" ] && [ "$(cat "$FP_ROOT/d8/timeout-skipped
 else
   fail "git-error skip labelled wrong (marker=|$_m| skipped=|$(cat "$FP_ROOT/d8/timeout-skipped" 2>/dev/null)| rsn=|$rsn| start=|$(cat "$FP_ROOT/d8/start" 2>/dev/null)|)"
 fi
+# BD1: fingerprint's `rev-parse HEAD` blocks; the kill is the timeout reason.
+shim_get bd1
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline ${SHIM_D}s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$EL" -lt "$SHIM_CAP" ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/bd1.json" 2>/dev/null)" = true ]; then
+  pass "BD1: a blocked rev-parse HEAD in fingerprint is killed at the deadline (timeout reason)"
+else
+  fail "BD1: a blocked rev-parse HEAD was not killed at the deadline (rc=$RC el=${EL}s rsn=|$rsn| err=|$ERR|)"
+fi
+# BD2 to BD4: a blocked call inside a Bash-arm walk helper (the worktree list,
+# the .gitmodules read, the show-toplevel probe) is killed, and the Bash arm
+# leaves its deadline mark, which the verdict escalates.
+for _b in bd2:'worktree list' bd3:'.gitmodules read' bd4:'show-toplevel probe'; do
+  _id="${_b%%:*}"; _what="${_b#*:}"; _lbl="BD${_id#bd}"
+  shim_get "$_id"
+  if [ "$RC" = 0 ] && [ "$EL" -lt "$SHIM_CAP" ] && touched_has "$_id" '!deadline passed on a Bash call'; then
+    pass "$_lbl: a blocked $_what on a Bash walk is killed at the deadline and leaves the deadline mark"
+  else
+    fail "$_lbl: a blocked $_what on a Bash walk was not killed or left no mark (rc=$RC el=${EL}s touched=|$(cat "$FP_ROOT/$_id/touched" 2>/dev/null)| err=|$ERR|)"
+  fi
+done
+# BD5: a blocked check-ignore in the Grep walk is killed, and the Grep arm
+# leaves its deadline mark.
+shim_get bd5
+if [ "$RC" = 0 ] && [ "$EL" -lt "$SHIM_CAP" ] && touched_has bd5 '!deadline passed on a Grep call'; then
+  pass "BD5: a blocked check-ignore in the Grep walk is killed at the deadline and leaves the deadline mark"
+else
+  fail "BD5: a blocked check-ignore was not killed or left no mark (rc=$RC el=${EL}s touched=|$(cat "$FP_ROOT/bd5/touched" 2>/dev/null)| err=|$ERR|)"
+fi
+# BD6 and BD7: a blocked common-dir probe leaves MAIN empty, fail-open.
+shim_get bd6
+if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$EL" -lt "$SHIM_CAP" ] && [ ! -e "$FP_ROOT/bd6" ]; then
+  pass "BD6: a blocked top-level common-dir probe exits 0 with MAIN empty (no state, no record)"
+else
+  fail "BD6: a blocked top-level common-dir probe (rc=$RC el=${EL}s out=|$OUT| state=$([ -e "$FP_ROOT/bd6" ] && echo present || echo absent) err=|$ERR|)"
+fi
+shim_get bd7
+case "$ERR" in *"(no place for the mark)"*) p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$EL" -lt "$SHIM_CAP" ] && [ "$p" = 1 ] && [ ! -e "$FP_ROOT/bd7" ]; then
+  pass "BD7: a blocked common-dir probe in main_find exits 0 with MAIN empty (no state, no record)"
+else
+  fail "BD7: a blocked main_find probe (rc=$RC el=${EL}s state=$([ -e "$FP_ROOT/bd7" ] && echo present || echo absent) err=|$ERR|)"
+fi
+rmdir "$TMP/bde" "$MAIN/bdir"
 rm -f "$TMP/wtA/$CRN"
-# A clean worktree spawns one temp file per fingerprint (the ls-files output,
-# then the status output, in the same file), never a second for hash output
-# or for the flagged paths: blob_lines makes its file on its first
-# hash-object call, and a clean worktree makes none. A `mktemp` shim counts
-# the calls the verdict arm makes on a fresh marked worktree (wtF, clean:
-# .war-task is excluded) that one Read touched. The row goes red (count 2)
-# when the file is made on entry again.
+# A clean worktree spawns one temp file per fingerprint (the HEAD sha, the
+# ls-files output, then the status output, in the same file), never a second
+# for hash output or for the flagged paths: blob_lines makes its file on its
+# first hash-object call, and a clean worktree makes none. A `mktemp` shim
+# counts the calls the verdict arm makes on a fresh marked worktree (wtF,
+# clean: .war-task is excluded) that one Read touched: one for the bounded
+# common-dir probe (main_common, PIN-15) and one for the fingerprint. The row
+# goes red (count 3) when the hash-output file is made on entry again.
 REALMKTEMP="$(command -v mktemp)"
 printf '#!/bin/bash\nprintf x >> "%s"\nexec "%s" "$@"\n' "$TMP/mtcount" "$REALMKTEMP" > "$SHIMG/mktemp"
 chmod +x "$SHIMG/mktemp"
@@ -1727,7 +1856,7 @@ _p="$(mk_verdict "$AUD" d9)"
 run_shim "$_p"
 PCWD="$MAIN"
 _mt="$(wc -c < "$TMP/mtcount" | tr -d ' ')"
-if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$_mt" = 1 ]; then pass "a clean worktree's fingerprint makes one temp file (no hash-output file before a hash-object call)"; else fail "clean worktree temp files: mktemp calls=$_mt rc=$RC out=|$OUT| err=|$ERR|"; fi
+if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$_mt" = 2 ]; then pass "a clean worktree's fingerprint makes one temp file (no hash-output file before a hash-object call)"; else fail "clean worktree temp files: mktemp calls=$_mt rc=$RC out=|$OUT| err=|$ERR|"; fi
 git -C "$MAIN" worktree remove --force "$TMP/wtF"
 rm -rf "$SHIMG"
 
@@ -2114,20 +2243,42 @@ _psha="$(git -C "$MAIN" rev-parse HEAD)"
 # exits 0, or 1 with no `error:` or `fatal:` line on stderr (a grep with no
 # match, a diff with changes; a warning is fine). A no-index diff that cannot
 # open a path also exits 1, but it prints `error:`, so it fails here. Every row in this
-# block must name a command git accepts (operator ruling 2026-11-05), except
-# the `-L` token-shape rows. prow <id> <command> runs a start and the Bash
-# payload, and records the command for the git_runs check after the rows.
+# block must name a command git accepts (operator ruling 2026-11-04), except
+# the `-L` token-shape rows. The eval runs under LC_ALL=C, so git's `error:`
+# and `fatal:` prefixes are never translated, and a failed `cd` exits 2, which
+# fails the check. prow <id> <command> runs a start and the Bash payload, and
+# records the command and counts the row for the pq_check after the rows.
 git_runs() {
-  ( cd "$PCWD" && eval "$1" ) >/dev/null 2>"$TMP/gr.err"; _gr=$?
+  ( export LC_ALL=C; cd "$PCWD" || exit 2; eval "$1" ) >/dev/null 2>"$TMP/gr.err"; _gr=$?
   [ "$_gr" = 0 ] && return 0
   [ "$_gr" = 1 ] && ! grep -Eq '^(error|fatal):' "$TMP/gr.err"
 }
 # git_runs itself can fail: git refuses an unknown flag (exit 128), and a
 # no-index diff of a missing path exits 1 with an error.
 if ! git_runs "git -C $MAIN log --no-such-flag" && ! git_runs "git diff --no-index $TMP/no-such-a $TMP/no-such-b"; then pass "control: git_runs fails on a refused command and on a missing path"; else fail "control: git_runs passed a command git refuses"; fi
-_pq_cmds=""
-prow() { run "$(mk_start "$AUD" "$1")"; run "$(mk_bash "$AUD" "$1" "$2")"; _pq_cmds="$_pq_cmds$2
+_pq_cmds=""; _pq_n=0
+prow() { run "$(mk_start "$AUD" "$1")"; run "$(mk_bash "$AUD" "$1" "$2")"; _pq_n=$((_pq_n + 1)); _pq_cmds="$_pq_cmds$2
 "; }
+# pq_check <command list> <row count>: returns 0 only when the list holds at
+# least one command, exactly <row count> of them, and git accepts each one
+# (git_runs). _pq_bad names the refused ones.
+pq_check() {
+  _pq_bad=""; _pq_seen=0
+  while IFS= read -r _c; do
+    [ -n "$_c" ] || continue
+    _pq_seen=$((_pq_seen + 1))
+    git_runs "$_c" || _pq_bad="$_pq_bad[$_c] "
+  done <<EOF_PQ
+$1
+EOF_PQ
+  [ "$_pq_seen" -gt 0 ] && [ "$_pq_seen" = "$2" ] && [ -z "$_pq_bad" ]
+}
+# The checks fail closed (#2620): an empty command list, a list short of the
+# row count, and a failed `cd` each fail, and a command git accepts passes.
+if ! pq_check "" 0; then pass "TR1: pq_check fails on an empty command list"; else fail "TR1: pq_check passed an empty command list"; fi
+if ! pq_check "git -C $MAIN log -1" 2; then pass "TR2: pq_check fails when the list is short of the row count"; else fail "TR2: pq_check passed a short list"; fi
+if ! ( PCWD="$TMP/no-such-dir"; git_runs "true" ); then pass "TR3: git_runs fails on a failed cd"; else fail "TR3: git_runs passed a failed cd"; fi
+if pq_check "git -C $MAIN log -1" 1; then pass "TR4: pq_check passes one command git accepts at a row count of one"; else fail "TR4: pq_check refused a command git accepts (bad=|$_pq_bad|)"; fi
 # Positive control: the same $TMP value walks the task worktrees when it is a
 # path, so the empty touched sets below are not vacuous. From wtC, git diffs
 # the folder $TMP against an empty folder (both outside wtC, so git implies
@@ -2188,7 +2339,17 @@ for _pcmd in \
   "git -C $MAIN diff --color-words=$TMP $_psha $_psha" \
   "git -C $MAIN log --color-words=$TMP $_psha" \
   "git -C $MAIN show --color-words=$TMP $_psha" \
-  "git -C $MAIN log --color-words -S $TMP $_psha"
+  "git -C $MAIN log --color-words -S $TMP $_psha" \
+  "git -C $MAIN log --abbrev-commit -S $TMP $_psha" \
+  "git -C $MAIN log --no-walk -S $TMP $_psha" \
+  "git -C $MAIN log --date-order -S $TMP $_psha" \
+  "git -C $MAIN log --decorate-refs $TMP $_psha" \
+  "git -C $MAIN log --decorate-refs=$TMP $_psha" \
+  "git -C $MAIN log --decorate-refs-exclude $TMP $_psha" \
+  "git -C $MAIN log --decorate-refs-exclude=$TMP $_psha" \
+  "git -C $MAIN grep -E -e $TMP $_psha -- x" \
+  "git -C $MAIN grep -A 2 -e $TMP $_psha -- x" \
+  "git -C $MAIN grep -A2 -e $TMP $_psha -- x"
 do
   _pi=$((_pi + 1))
   run "$(mk_start "$AUD" pp$_pi)"
@@ -2199,11 +2360,9 @@ done
 # An attached pattern is no path either: from wtA, `-S../wtB/f` and the
 # clustered `-sGS../wtD/f` (the -G value is `S../wtD/f`, which the old cluster
 # arm read as the path `../wtD/f`) read wtA only. git refuses -S with -G, so
-# each has its own row.
+# each has its own row (the clustered one is pq15, so the IDs run in order).
 prow pq1 "git -C $TMP/wtA log -S../wtB/f $_psha"
 if touched_is pq1 "$WTA"; then pass "an attached -S pattern touches no sibling worktree"; else fail "an attached -S pattern touched a sibling: |$(cat "$FP_ROOT/pq1/touched" 2>/dev/null)|"; fi
-prow pq15 "git -C $TMP/wtA log -sGS../wtD/f $_psha"
-if touched_is pq15 "$WTA"; then pass "a clustered attached -G pattern touches no sibling worktree"; else fail "a clustered attached -G pattern touched a sibling: |$(cat "$FP_ROOT/pq15/touched" 2>/dev/null)|"; fi
 # The reported symptom: a sibling changes while the seat greps, and the
 # seat's approve stands.
 prow pq2 "git -C $MAIN grep -n -F -e '$TMP' $_psha -- x"
@@ -2245,8 +2404,22 @@ prow pq7 "git -C $MAIN diff --no-index -I -S $TMP/wtB/f $TMP/wtD/f"
 if touched_is pq7 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of -I stays no pattern option"; else fail "a -S after -I hid a path: |$(cat "$FP_ROOT/pq7/touched" 2>/dev/null)|"; fi
 prow pq8 "git -C $MAIN diff --src-prefix -G $TMP/wtB/f $TMP/wtD/f"
 if touched_is pq8 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -G taken as the value of --src-prefix stays no pattern option"; else fail "a -G after --src-prefix hid a path: |$(cat "$FP_ROOT/pq8/touched" 2>/dev/null)|"; fi
+# An attached -e pattern is no path: from wtA, `-e../wtB/f` reads wtA only.
+prow pq9 "git -C $TMP/wtA grep -n -F -e../wtB/f $_psha -- x"
+if touched_is pq9 "$WTA"; then pass "an attached -e pattern touches no sibling worktree"; else fail "an attached -e pattern touched a sibling: |$(cat "$FP_ROOT/pq9/touched" 2>/dev/null)|"; fi
 prow pq10 "git -C $MAIN diff -O -S $TMP/wtB/f $TMP/wtD/f"
 if touched_is pq10 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of -O stays no pattern option"; else fail "a -S after -O hid a path: |$(cat "$FP_ROOT/pq10/touched" 2>/dev/null)|"; fi
+# `--end-of-options` ends option parsing like `--`: in `diff --no-index
+# --end-of-options wtA -S wtB` from $TMP, git compares wtA with the empty
+# folder `-S`, limited to the pathspec wtB. git reads wtA, and the hook also
+# touches wtB (over-touch, the safe side). The `wtA` before `-S` is free, so
+# only the `--end-of-options` rule keeps `-S` from skipping wtB. git floor:
+# a `diff --no-index` that takes a trailing pathspec, which git 2.50 added
+# (an older git refuses the third operand, and the pq_check below goes red);
+# this row is checked against git 2.54.
+mkdir "$TMP/-S"
+prow pq11 "git -C $TMP diff --no-index --end-of-options wtA -S wtB"
+if touched_is pq11 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "a -S after --end-of-options stays a path"; else fail "a -S after --end-of-options hid a path: |$(cat "$FP_ROOT/pq11/touched" 2>/dev/null)|"; fi
 prow pq12 "git -C $MAIN diff -pO -S $TMP/wtB/f $TMP/wtD/f"
 if touched_is pq12 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a -S taken as the value of the cluster -pO stays no pattern option"; else fail "a -S after -pO hid a path: |$(cat "$FP_ROOT/pq12/touched" 2>/dev/null)|"; fi
 # An attached pattern value carries its own value, so the token after it is
@@ -2255,27 +2428,90 @@ prow pq13 "git -C $MAIN diff --no-index --word-diff-regex=x $TMP/wtB/f $TMP/wtD/
 if touched_is pq13 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a path after an attached long pattern value stays a path"; else fail "a path after --word-diff-regex=x was skipped: |$(cat "$FP_ROOT/pq13/touched" 2>/dev/null)|"; fi
 prow pq14 "git -C $MAIN diff --no-index -Sx $TMP/wtB/f $TMP/wtD/f"
 if touched_is pq14 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "a path after an attached short pattern value stays a path"; else fail "a path after -Sx was skipped: |$(cat "$FP_ROOT/pq14/touched" 2>/dev/null)|"; fi
-# `--end-of-options` ends option parsing like `--`: in `diff --no-index
-# --end-of-options wtA -S wtB` from $TMP, git compares wtA with the empty
-# folder `-S`, limited to the pathspec wtB. git reads wtA, and the hook also
-# touches wtB (over-touch, the safe side). The `wtA` before `-S` is free, so
-# only the `--end-of-options` rule keeps `-S` from skipping wtB.
-mkdir "$TMP/-S"
-prow pq11 "git -C $TMP diff --no-index --end-of-options wtA -S wtB"
-if touched_is pq11 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "a -S after --end-of-options stays a path"; else fail "a -S after --end-of-options hid a path: |$(cat "$FP_ROOT/pq11/touched" 2>/dev/null)|"; fi
-# An attached -e pattern is no path: from wtA, `-e../wtB/f` reads wtA only.
-prow pq9 "git -C $TMP/wtA grep -n -F -e../wtB/f $_psha -- x"
-if touched_is pq9 "$WTA"; then pass "an attached -e pattern touches no sibling worktree"; else fail "an attached -e pattern touched a sibling: |$(cat "$FP_ROOT/pq9/touched" 2>/dev/null)|"; fi
-# Every pq command is one git accepts (the git_runs rule above).
-_pq_bad=""
-while IFS= read -r _c; do
-  [ -n "$_c" ] && ! git_runs "$_c" && _pq_bad="$_pq_bad[$_c] "
-done <<EOF_PQ
-$_pq_cmds
-EOF_PQ
-if [ -z "$_pq_bad" ]; then pass "git accepts every pq row command"; else fail "git refuses pq rows: $_pq_bad"; fi
+# The clustered attached -G row (see pq1 above).
+prow pq15 "git -C $TMP/wtA log -sGS../wtD/f $_psha"
+if touched_is pq15 "$WTA"; then pass "a clustered attached -G pattern touches no sibling worktree"; else fail "a clustered attached -G pattern touched a sibling: |$(cat "$FP_ROOT/pq15/touched" 2>/dev/null)|"; fi
+# The grep forms validate-auditor-git.sh admits (PIN-22): `-E` is a no-value
+# letter and `-A/-B/-C <n>` or `-A<n>` a count, so neither makes the `-e` after
+# it a path. From wtA each `-e` value names a sibling worktree file, and the
+# pathspec `f` is the only path: wtA alone is touched. GP1 is the plan's form;
+# GP2 to GP4 each go red when one of the forms is missing from the parser.
+prow gp1 "git -C $TMP/wtA grep -E -A 2 -e ../wtB/f -e ../wtD/f -- f"
+if touched_is gp1 "$WTA"; then pass "GP1: grep -E -A 2 -e tok -e tok2 -- <path> touches only the path"; else fail "GP1: grep -E -A 2 -e .. -e .. touched more than the path: |$(cat "$FP_ROOT/gp1/touched" 2>/dev/null)|"; fi
+prow gp2 "git -C $TMP/wtA grep -A2 -e ../wtB/f -- f"
+if touched_is gp2 "$WTA"; then pass "GP2: an attached -A2 count leaves the -e after it a pattern"; else fail "GP2: -A2 made the -e value a path: |$(cat "$FP_ROOT/gp2/touched" 2>/dev/null)|"; fi
+prow gp3 "git -C $TMP/wtA grep -E -e ../wtB/f -- f"
+if touched_is gp3 "$WTA"; then pass "GP3: -E leaves the -e after it a pattern"; else fail "GP3: -E made the -e value a path: |$(cat "$FP_ROOT/gp3/touched" 2>/dev/null)|"; fi
+prow gp4 "git -C $TMP/wtA grep -B 1 -C3 -e ../wtB/f -e ../wtD/f -- f"
+if touched_is gp4 "$WTA"; then pass "GP4: -B 1 and an attached -C3 leave the -e after them a pattern"; else fail "GP4: a -B or -C count made an -e value a path: |$(cat "$FP_ROOT/gp4/touched" 2>/dev/null)|"; fi
+# Every pq and GP command is one git accepts (the git_runs rule above), and
+# the check reads exactly one command per row (pq_check: #2620).
+if pq_check "$_pq_cmds" "$_pq_n"; then pass "git accepts every pq and GP row command ($_pq_n rows checked)"; else fail "pq rows: $_pq_seen of $_pq_n checked, git refuses: $_pq_bad"; fi
 git -C "$MAIN" worktree remove --force "$MAIN/nest/wtP"
 rm -rf "$MAIN/nest" "$MAIN/-S" "$TMP/-S" "$TMP/pp0e" "$TMP/gr.err"
+
+# --- record cleanup: --prune (PIN-25, #2680) ----------------------------------
+# A scratch main checkout with a record tree. `--prune` is an argument mode:
+# it runs before the stdin payload is read, from a cwd inside the repository.
+# prune <args...>: run the hook from $PRM with an empty stdin; sets RC, OUT, ERR.
+PRM="$TMP/prm"
+git init -q "$PRM"
+PRT="$PRM/.claude/war/audit-fingerprints"
+prune() { OUT="$(cd "$PRM" && bash "$HOOK" "$@" </dev/null 2>"$TMP/err")"; RC=$?; ERR="$(cat "$TMP/err")"; }
+mkrec() { mkdir -p "$PRT/$1" && printf 'x\n' > "$PRT/$1/start" && printf '{}\n' > "$PRT/$1.payload"; }
+mkrec leadprobeA; mkrec leadprobeB
+prune --prune leadprobeA
+case "$OUT" in "pruned: "*"/.claude/war/audit-fingerprints/leadprobeA") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ ! -e "$PRT/leadprobeA" ] && [ -d "$PRT/leadprobeB" ]; then
+  pass "PR1: --prune leadprobeA removes that record directory and leaves leadprobeB"
+else
+  fail "PR1: --prune leadprobeA (rc=$RC out=|$OUT| A=$([ -e "$PRT/leadprobeA" ] && echo present || echo absent) B=$([ -d "$PRT/leadprobeB" ] && echo present || echo absent) err=|$ERR|)"
+fi
+# A name with `/` or `..` exits 2 with nothing removed, even when it names a
+# directory that exists (`../x` and `a/b` are both made here).
+mkrec leadprobeA; mkdir -p "$PRM/.claude/war/x" "$PRT/a/b"
+for _n in ../x a/b; do
+  prune --prune "$_n"
+  if [ "$RC" = 2 ] && [ -z "$OUT" ] && [ -d "$PRT/leadprobeA" ] && [ -d "$PRT/leadprobeB" ] && [ -d "$PRM/.claude/war/x" ] && [ -d "$PRT/a/b" ]; then
+    pass "PR$([ "$_n" = a/b ] && echo 3 || echo 2): --prune $_n exits 2 and removes nothing"
+  else
+    fail "PR$([ "$_n" = a/b ] && echo 3 || echo 2): --prune $_n (rc=$RC out=|$OUT| err=|$ERR|)"
+  fi
+done
+rm -rf "$PRM/.claude/war/x" "$PRT/a"
+# Every name is checked before any removal: a good name beside a bad one,
+# and a missing directory, both exit 2 and leave leadprobeA in place.
+prune --prune leadprobeA ../x
+_r1="$RC"
+prune --prune leadprobeA nosuch
+if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ -d "$PRT/leadprobeA" ]; then
+  pass "PR4: --prune checks every name first (a bad or missing name removes nothing)"
+else
+  fail "PR4: --prune removed before checking every name (rc=$_r1/$RC A=$([ -d "$PRT/leadprobeA" ] && echo present || echo absent))"
+fi
+# --stale removes a record directory whose files are 25 hours old and keeps
+# one touched now (the directory's own mtime is not read).
+mkrec old
+_old="$(date -v-25H +%Y%m%d%H%M 2>/dev/null || date -d '25 hours ago' +%Y%m%d%H%M)"
+touch -t "$_old" "$PRT/old/start"
+mkrec new
+prune --prune --stale
+case "$OUT" in "pruned: "*"/.claude/war/audit-fingerprints/old") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ ! -e "$PRT/old" ] && [ -d "$PRT/new" ] && [ -d "$PRT/leadprobeA" ] && [ -d "$PRT/leadprobeB" ]; then
+  pass "PR5: --prune --stale removes a directory with no file newer than 24 hours and keeps a fresh one"
+else
+  fail "PR5: --prune --stale (rc=$RC out=|$OUT| old=$([ -e "$PRT/old" ] && echo present || echo absent) new=$([ -d "$PRT/new" ] && echo present || echo absent) err=|$ERR|)"
+fi
+# No name, and a cwd in no repository, exit 2.
+prune --prune
+_r1="$RC"
+OUT="$(cd "$TMP" && bash "$HOOK" --prune leadprobeA </dev/null 2>/dev/null)"; RC=$?
+if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ -d "$PRT/leadprobeA" ]; then
+  pass "PR6: --prune with no name, or from outside a repository, exits 2"
+else
+  fail "PR6: --prune usage errors (no name rc=$_r1, no repo rc=$RC)"
+fi
+rm -rf "$PRM"
 
 # --- registration + conventions ---------------------------------------------
 if jq -e . "$HJSON" >/dev/null 2>&1; then pass "hooks.json parses"; else fail "hooks.json does not parse"; fi
