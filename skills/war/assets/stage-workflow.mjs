@@ -96,7 +96,7 @@ export function argsSiblingText(name, args) {
 export const argsLoaderLine = (siblingPath) =>
   `let EMBEDDED_ARGS = null, EMBEDDED_ARGS_ERROR = null; if (!args) try { EMBEDDED_ARGS = await workflow({ scriptPath: ${JSON.stringify(siblingPath)} }) } catch (e) { EMBEDDED_ARGS_ERROR = e }`
 const LOADER_LINE = /^let EMBEDDED_ARGS = null, EMBEDDED_ARGS_ERROR = null; /m
-export const argsFallbackRewrite =(siblingPath) =>
+export const argsFallbackRewrite = (siblingPath) =>
   `: (args || EMBEDDED_ARGS || (() => { throw new Error('stage-workflow: args sibling load failed (' + ${JSON.stringify(siblingPath)} + '): ' + String((EMBEDDED_ARGS_ERROR && EMBEDDED_ARGS_ERROR.message) || EMBEDDED_ARGS_ERROR || 'it returned no args object')) })())`
 
 // Blank out every full-line `//` comment that sits in CODE state — a line whose first non-blank bytes
