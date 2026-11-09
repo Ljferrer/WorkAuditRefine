@@ -2479,7 +2479,8 @@ fi
 mkrec leadprobeA; mkdir -p "$PRM/.claude/war/x" "$PRT/a/b"
 for _n in ../x a/b; do
   prune --prune "$_n"
-  if [ "$RC" = 2 ] && [ -z "$OUT" ] && [ -d "$PRT/leadprobeA" ] && [ -d "$PRT/leadprobeB" ] && [ -d "$PRM/.claude/war/x" ] && [ -d "$PRT/a/b" ]; then
+  case "$ERR" in *"is not a record name"*) e=1 ;; *) e=0 ;; esac
+  if [ "$RC" = 2 ] && [ "$e" = 1 ] && [ -z "$OUT" ] && [ -d "$PRT/leadprobeA" ] && [ -d "$PRT/leadprobeB" ] && [ -d "$PRM/.claude/war/x" ] && [ -d "$PRT/a/b" ]; then
     pass "PR$([ "$_n" = a/b ] && echo 3 || echo 2): --prune $_n exits 2 and removes nothing"
   else
     fail "PR$([ "$_n" = a/b ] && echo 3 || echo 2): --prune $_n (rc=$RC out=|$OUT| err=|$ERR|)"
@@ -2489,12 +2490,14 @@ rm -rf "$PRM/.claude/war/x" "$PRT/a"
 # Every name is checked before any removal: a good name beside a bad one,
 # and a missing directory, both exit 2 and leave leadprobeA in place.
 prune --prune leadprobeA ../x
-_r1="$RC"
+_r1="$RC"; _e1="$ERR"
 prune --prune leadprobeA nosuch
-if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ -d "$PRT/leadprobeA" ]; then
+case "$_e1" in *"is not a record name"*) e=1 ;; *) e=0 ;; esac
+case "$ERR" in *"no record directory"*) ;; *) e=0 ;; esac
+if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ "$e" = 1 ] && [ -d "$PRT/leadprobeA" ]; then
   pass "PR4: --prune checks every name first (a bad or missing name removes nothing)"
 else
-  fail "PR4: --prune removed before checking every name (rc=$_r1/$RC A=$([ -d "$PRT/leadprobeA" ] && echo present || echo absent))"
+  fail "PR4: --prune removed before checking every name (rc=$_r1/$RC A=$([ -d "$PRT/leadprobeA" ] && echo present || echo absent) err=|$_e1|$ERR|)"
 fi
 # --stale removes a record directory whose files are 25 hours old and keeps
 # one touched now (the directory's own mtime is not read).
@@ -2511,25 +2514,45 @@ else
 fi
 # No name, and a cwd in no repository, exit 2.
 prune --prune
-_r1="$RC"
-OUT="$(cd "$TMP" && bash "$HOOK" --prune leadprobeA </dev/null 2>/dev/null)"; RC=$?
-if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ -d "$PRT/leadprobeA" ]; then
+_r1="$RC"; _e1="$ERR"
+OUT="$(cd "$TMP" && bash "$HOOK" --prune leadprobeA </dev/null 2>"$TMP/err")"; RC=$?; ERR="$(cat "$TMP/err")"
+case "$_e1" in *"takes a record name or --stale"*) e=1 ;; *) e=0 ;; esac
+case "$ERR" in *"no git common dir"*) ;; *) e=0 ;; esac
+if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ "$e" = 1 ] && [ -d "$PRT/leadprobeA" ]; then
   pass "PR6: --prune with no name, or from outside a repository, exits 2"
 else
-  fail "PR6: --prune usage errors (no name rc=$_r1, no repo rc=$RC)"
+  fail "PR6: --prune usage errors (no name rc=$_r1, no repo rc=$RC err=|$_e1|$ERR|)"
+fi
+# --stale with a name exits 2 and removes nothing.
+prune --prune --stale leadprobeA
+case "$ERR" in *"takes no name"*) e=1 ;; *) e=0 ;; esac
+if [ "$RC" = 2 ] && [ "$e" = 1 ] && [ -d "$PRT/leadprobeA" ]; then
+  pass "PR8: --prune --stale with a name exits 2 and removes nothing"
+else
+  fail "PR8: --prune --stale leadprobeA (rc=$RC err=|$ERR|)"
+fi
+# A repeated name removes its directory once and exits 0.
+prune --prune leadprobeA leadprobeA
+case "$OUT" in "pruned: "*"/.claude/war/audit-fingerprints/leadprobeA") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ ! -e "$PRT/leadprobeA" ] && [ -d "$PRT/leadprobeB" ]; then
+  pass "PR9: --prune with a repeated name removes it once and exits 0"
+else
+  fail "PR9: --prune leadprobeA leadprobeA (rc=$RC out=|$OUT| err=|$ERR|)"
 fi
 # A symlinked record tree (the tree, or .claude/war above it) exits 2 and
 # leaves the old directory in the link target.
 PRL="$TMP/prl"; mkdir -p "$PRL/olddir"; printf 'x\n' > "$PRL/olddir/f"; touch -t "$_old" "$PRL/olddir/f"
 rm -rf "$PRT"; ln -s "$PRL" "$PRT"
 prune --prune --stale
-_r1="$RC"
+_r1="$RC"; _e1="$ERR"
 rm -f "$PRT"; mv "$PRM/.claude/war" "$PRM/.claude/warreal"; ln -s "$PRM/.claude/warreal" "$PRM/.claude/war"; ln -s "$PRL" "$PRM/.claude/warreal/audit-fingerprints"
 prune --prune --stale
-if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ -d "$PRL/olddir" ]; then
+case "$_e1" in *"is not a real record tree"*) e=1 ;; *) e=0 ;; esac
+case "$ERR" in *"is not a real record tree"*) ;; *) e=0 ;; esac
+if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ "$e" = 1 ] && [ -d "$PRL/olddir" ]; then
   pass "PR7: --prune --stale on a symlinked record tree exits 2 and removes nothing in the link target"
 else
-  fail "PR7: symlinked record tree (tree rc=$_r1, parent rc=$RC olddir=$([ -d "$PRL/olddir" ] && echo present || echo absent) err=|$ERR|)"
+  fail "PR7: symlinked record tree (tree rc=$_r1, parent rc=$RC olddir=$([ -d "$PRL/olddir" ] && echo present || echo absent) err=|$_e1|$ERR|)"
 fi
 rm -rf "$PRL"
 rm -rf "$PRM"
