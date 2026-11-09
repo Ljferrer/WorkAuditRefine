@@ -519,8 +519,12 @@ for (const site of ['task', 'land']) for (const shape of ['minimal', 'nonexisten
       assert.equal(site === 'land' ? out.landDecision === 'landed' : out.landed.includes('t1'), success, 'completion follows actual Git')
       assert.equal(confirmed, 1, 'every normal reply gets fresh Git confirmation')
       assert.equal(recovered, shape === 'valid' ? 0 : shape.includes('whitespace') ? 2 : 1, 'only unconfirmed reports need maintenance')
-      if (!success) assert.ok(!calls.some(isServitor), 'no completed-phase wrap-up after unproved success')
-      else assert.equal(git('--git-dir=' + join(dir, 'origin.git'), 'show', target + ':own.test.js'), 'accepted task')
+      // #2702 D34: a held land may run the wrap-up, but never as a completed (landed) phase
+      if (!success) {
+        const servs = calls.filter(isServitor)
+        assert.equal(servs.length, ['held:escalation', 'held:land-failed'].includes(out.landDecision) ? 1 : 0, 'the wrap-up runs once on a held land and never otherwise')
+        for (const c of servs) assert.ok(c.prompt.includes('land decision: ' + out.landDecision + ';'), 'no completed-phase wrap-up after unproved success')
+      } else assert.equal(git('--git-dir=' + join(dir, 'origin.git'), 'show', target + ':own.test.js'), 'accepted task')
       if (shape === 'false-failure' && site === 'land') assert.equal(git('rev-list', '--count', '--merges', target), '1', 'no duplicate phase commit')
     } finally { rmSync(dir, { recursive: true, force: true }) }
   })

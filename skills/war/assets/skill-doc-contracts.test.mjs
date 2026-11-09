@@ -652,18 +652,15 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
   }
 })
 
-// (D21, extended — 2026-09-06 engine-and-audit-verdict-integrity Task 1.2, #1597/#1801) The handoff
-// EMIT gate and the follow-up FILING gate are two DISTINCT status sets in workflow-template.js: the
-// handoff block is emitted on `landed` + `held:escalation` only, while the filing dispatch also runs
-// on `held:land-failed`. CONTEXT.md's (now GLOSSARY.md's) **Clean handoff** row used to fold them into one three-member
-// emit claim (`… emitted on `landed`, `held:escalation` and `held:land-failed` for the …`) — false
-// for the emit gate. Both sets are EXTRACTED from the engine, and the emit pair is ADDITIONALLY
-// pinned against the ratified literal `['held:escalation', 'landed']` as a canary, so a gate widening
-// reds this pin by name at the literal (deliberately, never silently) before the doc assert retunes.
-//
-// The OLD-absent key targets the SENTENCE, never the `held:land-failed` token: the token legitimately
-// stays in the row as the filing gate's third member. GLOSSARY.md is hard-wrapped, so the row is
-// whitespace-folded first (a line-anchored grep false-negates on a re-wrap).
+// (D21, extended — 2026-09-06 engine-and-audit-verdict-integrity Task 1.2, #1597/#1801; retuned by
+// #2702 D34) The handoff EMIT gate and the follow-up FILING gate are EXTRACTED from
+// workflow-template.js. Since #2702 the handoff also emits on `held:land-failed`, so both gates name
+// the same three decisions. The emit set is ADDITIONALLY pinned against the literal
+// `['held:escalation', 'held:land-failed', 'landed']` as a canary, so a gate change reds this pin by
+// name at the literal (deliberately, never silently) before the doc assert retunes. GLOSSARY.md's
+// **Clean handoff** row must name exactly the emit set, and the retired pair-only emit clause
+// (`emitted on `landed` and `held:escalation` only`) must be gone. GLOSSARY.md is hard-wrapped, so the
+// row is whitespace-folded first (a line-anchored grep false-negates on a re-wrap).
 const gateStatuses = (src, label, re) => {
   const m = src.match(re)
   assert.ok(m, `could not locate the ${label} gate in workflow-template.js — construct rotted (non-vacuous guard)`)
@@ -671,7 +668,7 @@ const gateStatuses = (src, label, re) => {
   assert.ok(set.length > 0, `the ${label} gate names no landDecision member — extraction rotted`)
   return set
 }
-test('D21 (extended) — GLOSSARY.md **Clean handoff** names the engine emit pair and the filing gate\'s third member as two distinct sets (#1597, #1801)', () => {
+test('D21 (extended) — GLOSSARY.md **Clean handoff** names the engine emit set, which equals the filing gate set (#1597, #1801, #2702)', () => {
   const emitSet = gateStatuses(
     workflowTemplateSrc, 'handoff emit',
     /let handoff = null\nif \(((?:landDecision === '[^']+'(?: \|\| )?)+)\) \{/,
@@ -680,10 +677,9 @@ test('D21 (extended) — GLOSSARY.md **Clean handoff** names the engine emit pai
     workflowTemplateSrc, 'file-followups',
     /if \(\(((?:landDecision === '[^']+'(?: \|\| )?)+)\) && minorsFiled\.length > 0\) \{/,
   )
-  // The engine's own shape: the filing gate is the emit pair plus exactly one more member.
-  assert.deepEqual([...emitSet].sort(), ['held:escalation', 'landed'], 'the handoff emit gate is the pair landed + held:escalation')
-  const third = filingSet.filter((s) => !emitSet.includes(s))
-  assert.deepEqual(third, ['held:land-failed'], 'the filing gate is the emit pair plus held:land-failed alone')
+  // The engine's own shape (#2702 D34): the handoff emits on the filing gate's three decisions.
+  assert.deepEqual([...emitSet].sort(), ['held:escalation', 'held:land-failed', 'landed'], 'the handoff emit gate is landed + held:escalation + held:land-failed')
+  assert.deepEqual([...filingSet].sort(), [...emitSet].sort(), 'the filing gate names the same decisions as the emit gate')
   const handoff = glossaryMd.match(/^\*\*Clean handoff\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(handoff, 'could not locate the `**Clean handoff**` glossary entry in GLOSSARY.md — construct rotted')
   const h = norm(handoff[0])
@@ -692,32 +688,22 @@ test('D21 (extended) — GLOSSARY.md **Clean handoff** names the engine emit pai
   const emit = h.match(/emitted on ([^.]*?) only/)
   assert.ok(emit, 'the **Clean handoff** entry must carry an `emitted on … only` clause naming the emit gate')
   const named = [...emit[1].matchAll(/`([^`]+)`/g)].map((x) => x[1])
-  assert.deepEqual([...named].sort(), [...emitSet].sort(), `the emit clause must name exactly the engine's emit pair (${emitSet.join(', ')}) — got: ${named.join(', ')}`)
-  // Filing clause: names the third member as the filing gate's, distinct from the emit set.
-  assert.match(
-    h,
-    new RegExp(`filing pass[^.]*\`${third[0]}\``),
-    `the **Clean handoff** entry must name \`${third[0]}\` as the filing pass's extra member (#1597)`,
-  )
-  // OLD sentence absent (the three-member emit claim), whitespace-folded, case-insensitive.
-  assert.doesNotMatch(
-    h,
-    /`held:escalation`\s+and\s+`held:land-failed`\s+for\s+the/i,
-    'the OLD three-member emit sentence (`… `held:escalation` and `held:land-failed` for the …`) is still in the **Clean handoff** row — the handoff never emits on held:land-failed (#1801)',
-  )
-  // File-scoped companion: the same OLD sentence must be absent from ALL of GLOSSARY.md, not only
-  // the **Clean handoff** row — a reintroduction elsewhere in the glossary would otherwise stay green.
+  assert.deepEqual([...named].sort(), [...emitSet].sort(), `the emit clause must name exactly the engine's emit set (${emitSet.join(', ')}) — got: ${named.join(', ')}`)
+  // Filing clause: the filing pass is still named, on the same decisions.
+  assert.match(h, /filing pass runs on the same three decisions/, 'the **Clean handoff** entry must name the filing pass on the same three decisions (#1597, #2702)')
+  // OLD clause absent (the retired pair-only emit claim), whitespace-folded, case-insensitive, over
+  // ALL of GLOSSARY.md — a reintroduction outside the row would otherwise stay green.
   assert.doesNotMatch(
     norm(glossaryMd),
-    /`held:escalation`\s+and\s+`held:land-failed`\s+for\s+the/i,
-    'the OLD three-member emit sentence (`… `held:escalation` and `held:land-failed` for the …`) is present somewhere in GLOSSARY.md outside the **Clean handoff** row (#1801)',
+    /emitted\s+on\s+`landed`\s+and\s+`held:escalation`\s+only/i,
+    'the retired pair-only emit clause (`emitted on `landed` and `held:escalation` only`) is still in GLOSSARY.md — the handoff also emits on held:land-failed (#2702)',
   )
 })
 
 // (2026-09-06 Task 1.2, #1801) resume-and-recovery.md's `Segmented land (in-band marker) and
 // filing-on-held` bullet carried an emit-on-held disjunct — "or the `handoff` carries an explicit
-// unfiled-followups block the Lead executes" — that no engine path produces (the handoff never
-// emits on held:land-failed; the stamped issues ride the top-level return's `minorsFiled`). The D21
+// unfiled-followups block the Lead executes" — that no engine path produces (no handoff carries an
+// unfiled-followups block; the stamped issues ride `minorsFiled`). The D21
 // pin's region ENDS at this bullet's header (same-indent terminator), so it cannot see it: this is
 // its own extraction over the 2-space `- **Segmented land` header through the next same-indent
 // sibling (or the list's end).

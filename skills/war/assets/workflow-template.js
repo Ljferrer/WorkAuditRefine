@@ -495,6 +495,9 @@ const succeeded = new Set()
 // Hoisted above try{} so the catch block can reference them even when the derivation throw fires
 // before any wave runs (temporal dead zone guard — red-team T1-confirmed).
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
+// dispatchFailures (#2645 D13): one { label, reason } row per dispatchDied call, per caught read-only
+// Git attempt (readSite) and per dropped audit seat, on both top-level returns.
+const dispatchFailures = []
 // refineryProvisioned (#2485 D15): the once-per-phase _refinery provision-run has been dispatched.
 let refineryProvisioned = false
 // Disposition routing (ADR 0013): minorsFiled receives ONLY disposition:'follow-up' findings;
@@ -2561,10 +2564,24 @@ const dispatchDied = (site, err) => {
   const c = infraDeathCause(err)
   if (!c) throw err
   const why = site + ' dispatch died post-spawn (env-died): ' + c
+  dispatchFailures.push({ label: site, reason: why })
   log(why + ' — an environment event, classified at the site; never a content verdict (D21, PIN-25).')
   return { [DISPATCH_DEATH]: why }
 }
 const dispatchSite = (prompt, opts) => dispatchAgent(prompt, opts).catch(err => dispatchDied(opts.label, err))
+// readSite (#2589 D4, PIN-4): dispatchSite for a read-only Git dispatch inside a roundLimit retry loop
+// (verifyPinTransfer, mergeSnapshot). A TAGGED throw that infraDeathCause does not match is a failed
+// attempt: the call resolves to a CAUGHT record (its reason, never a DISPATCH_DEATH record, so no
+// env-died is read from it) and the loop retries; exhaustion keeps the site's existing arm. An
+// untagged throw still rethrows HARD, and an infra death still takes dispatchDied.
+const CAUGHT = Symbol('war-caught-read')
+const readSite = (prompt, opts) => dispatchAgent(prompt, opts).catch(err => {
+  if (!err || err.warDispatchDeath !== true || infraDeathCause(err)) return dispatchDied(opts.label, err)
+  const reason = String(err.message || err)
+  dispatchFailures.push({ label: opts.label, reason })
+  log(opts.label + ': read-only Git dispatch threw (' + reason + '); a failed attempt, retried within roundLimit (#2589).')
+  return { [CAUGHT]: reason }
+})
 // nullDied (late-defects D14/D23, PIN-14/PIN-23, #2555): at the aceBisect subset and re-entry sites a
 // resolved null is labeled env-died, never "worker returned no result". A non-infra throw still
 // rethrows HARD (dispatchDied above). Called before the tip probe moves absorbRounds, so the label
@@ -2579,7 +2596,7 @@ const nullDied = (w, label) => {
 // The snapshots are Git object identities, not local worktree markers or a second state authority.
 const MERGE_SNAPSHOT = { type: 'object', required: ['base_sha', 'source_sha', 'remote_sha', 'patch_id', 'content_id'], properties: {
   base_sha: { type: 'string' }, source_sha: { type: 'string' },
-  remote_sha: { type: ['string', 'null'] }, patch_id: { type: 'string' }, content_id: { type: 'string' }, seed_sha: { type: ['string', 'null'] } } }
+  remote_sha: { type: ['string', 'null'] }, patch_id: { type: 'string' }, content_id: { type: 'string' }, seed_sha: { type: ['string', 'null'] }, git_error: { type: 'string' } } }
 // tree (#2485 D9): the task merge commit's tree and the current source tree, both read from Git, so the
 // predicate refuses an evil merge (a merge commit whose tree is not the rebased task tree).
 const MERGE_TREES = { type: 'object', properties: { target: { type: 'string' }, source: { type: 'string' } } }
@@ -2643,18 +2660,23 @@ const TARGET_LOST = 'no usable snapshot of the target'
 // the pin proof never read (operator rulings 2026-11-01). The task holds before its merge. A bad read that
 // returns to the proof's base merges.
 const TARGET_LATE = 'the target moved after the pin proof'
-// mergeSnapshot throws on a live unusable read, and a dead last attempt returns its death. A task snapshot
+// mergeSnapshot throws on a live unusable read, and a dead last attempt returns its death. A caught
+// non-infra throw is a failed attempt (readSite, #2589); the throw names the last caught reason or the
+// last reply's git_error. A task snapshot
 // returns TARGET_LOST in place of both if it read the target out of sync, or if this run already read a
 // move: a soft env-died would let a sibling land over an out-of-sync target. The task holds and the phase
 // keeps its handoff. A polish, terminal or land snapshot never returns TARGET_LOST: it keeps the throw and
 // the death.
 const mergeSnapshot = async (opts, context) => {
-  let before, outOfSync = false
+  let before, outOfSync = false, lastWhy = null
   const seed = context.seed ?? context.target
+  const label = (context.pin ? 'git-pin-snapshot:' : 'git-snapshot:') + context.task
   for (let attempt = 0; attempt < roundLimit; attempt++) {
-  before = await dispatchSite(
-    pt`GIT MERGE SNAPSHOT (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Before any merge mutation, read the local target and source refs as full commit SHAs (git rev-parse --verify <ref>^{commit}); query origin's exact refs/heads/<target> with git ls-remote. remote_sha is null ONLY on a successful query proving that ref absent, never on a transport/auth error. When the target remote is absent, also query origin's exact refs/heads/${seed ?? '<target>'} and return seed_sha (its full published tip or null); a fresh integration branch is safe only at that published seed, never at local-only history. Return base_sha (local target), source_sha (local source), remote_sha and patch_id (git diff <merge-base target source>..<source> | git patch-id --stable, first field). If the context names revert_range and its approved commit is an ancestor of source HEAD, the expected patch is instead the approved commit's patch (git diff <merge-base target approved>..<approved>): the merge forward-reverts that range to the approved tree. Also return content_id for that same expected diff using the Exact Git diff identity procedure in refiner-recovery.md. No writes, no checkout, no rebase, no merge, no push. Any unresolved Git error: return no usable snapshot, never invented values.`,
-    { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: context.pin ? 'pin-snapshot' : 'merge-snapshot', label: (context.pin ? 'git-pin-snapshot:' : 'git-snapshot:') + context.task, schema: MERGE_SNAPSHOT, ...(attempt ? spawnRefinerRecovery() : spawn('refiner')) })
+  before = await readSite(
+    pt`GIT MERGE SNAPSHOT (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Before any merge mutation, read the local target and source refs as full commit SHAs (git rev-parse --verify <ref>^{commit}); query origin's exact refs/heads/<target> with git ls-remote. remote_sha is null ONLY on a successful query proving that ref absent, never on a transport/auth error. When the target remote is absent, also query origin's exact refs/heads/${seed ?? '<target>'} and return seed_sha (its full published tip or null); a fresh integration branch is safe only at that published seed, never at local-only history. Return base_sha (local target), source_sha (local source), remote_sha and patch_id (git diff <merge-base target source>..<source> | git patch-id --stable, first field). If the context names revert_range and its approved commit is an ancestor of source HEAD, the expected patch is instead the approved commit's patch (git diff <merge-base target approved>..<approved>): the merge forward-reverts that range to the approved tree. Also return content_id for that same expected diff using the Exact Git diff identity procedure in refiner-recovery.md. No writes, no checkout, no rebase, no merge, no push. On any unresolved Git error return base_sha, source_sha, remote_sha, patch_id and content_id as empty strings plus git_error (the stderr tail), never invented values.`,
+    { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: context.pin ? 'pin-snapshot' : 'merge-snapshot', label, schema: MERGE_SNAPSHOT, ...(attempt ? spawnRefinerRecovery() : spawn('refiner')) })
+  // the last caught reason, else the last unusable reply's git_error (#2589 D4/D5), for the HARD message
+  lastWhy = before && before[CAUGHT] ? label + ': ' + before[CAUGHT] : before && typeof before.git_error === 'string' && before.git_error ? label + ': ' + before.git_error : null
   if (before && fullSha(before.base_sha) && fullSha(before.source_sha) && (before.remote_sha === null || fullSha(before.remote_sha)) && typeof before.patch_id === 'string' && fullSha(before.content_id)) {
     if (context.land || (before.remote_sha === null ? before.seed_sha === before.base_sha : before.remote_sha === before.base_sha)) {
       if (!outOfSync || context.kind !== 'task' || context.pin || before.base_sha === pinProofBase) return before
@@ -2673,7 +2695,7 @@ const mergeSnapshot = async (opts, context) => {
   }
   // no mutating dispatch has started
   if (deathOf(before)) return before
-  throw new Error('Git merge snapshot unavailable before ' + opts.label + '; no merge dispatched')
+  throw new Error('Git merge snapshot unavailable before ' + opts.label + '; no merge dispatched' + (lastWhy ? ' (last attempt: ' + lastWhy + ')' : ''))
 }
 // Recompute pin-transfer evidence independently of the refiner that rebased the task.
 // The repository-local base is shared by recovery, task/sweep snapshots and phase land.
@@ -2812,7 +2834,7 @@ const PIN_GIT_PROOF = { type: 'object', required: ['remote_sha'], properties: {
   content_sha: { type: 'string' }, approved_ancestor: { type: 'boolean' }, approved_tree: { type: 'string' }, content_tree: { type: 'string' }, head_tree: { type: 'string' },
   dispatch_base: { type: 'string' }, pre_patch_id: { type: 'string' }, post_patch_id: { type: 'string' }, pre_content_id: { type: 'string' }, post_content_id: { type: 'string' },
   target_ancestor: { type: 'boolean' }, post_empty: { type: 'boolean' }, task_count: { type: 'integer' },
-  pins: { type: 'array', items: { type: ['string', 'null'] } },
+  pins: { type: 'array', items: { type: ['string', 'null'] } }, git_error: { type: 'string' },
   cherry: { type: 'array', items: { type: 'object', properties: { sha: { type: 'string' }, sign: { enum: ['+', '-'] } } } } } }
 // remoteMisread (#2309): a remote_sha the proof cannot mean as the integration ref. The snapshot match
 // reads first, so a target already at the task tip is never malformed. A value that is not null or a
@@ -2830,12 +2852,15 @@ const verifyPinTransfer = async (r, before, probe, context) => {
   const reported = [approved, probe && probe.rebased_tip || null, probe && probe.dispatch_base || null, range ? range.tip : null,
     ...(probe && Array.isArray(probe.already_upstream_commits) ? probe.already_upstream_commits : [])]
   let proof
+  r.pinGitError = null
   for (let attempt = 0; attempt < roundLimit; attempt++) {
-    proof = await dispatchSite(
+    proof = await readSite(
       pt`PIN TRANSFER GIT VERIFICATION (read-only). Context: ${JSON.stringify(context)}. Immutable BEFORE: ${JSON.stringify(before)}. REPORTED PINS: ${JSON.stringify(reported)}
 CLAIMED RESULT: ${JSON.stringify(probe ?? null)}
-Resolve every reported pin separately with git rev-parse --verify --end-of-options <pin>^{commit} only for 7–40 lowercase hex, returning pins in exactly that order (null for missing, malformed, nonexistent or ambiguous values). Never infer identity from reported strings. Read actual task head_sha, integration local_sha and the exact origin refs/heads/<integration branch> remote_sha (the integration branch's own origin ref, NEVER the task branch's pushed tip; null ONLY after a successful query proving absence). If the integration refs stay stable but differ from BEFORE, report the actual local_sha and remote_sha and still return every other field: the engine reads that as a target move. content_sha is BEFORE.source_sha, except when the context names revert_range: then return approved_ancestor (true ONLY when git merge-base --is-ancestor pin[0] BEFORE.source_sha exits 0), and when it is true content_sha is pin[0] (the registered range revert restores the approved content). Read approved_tree from pin[0]^{tree}, content_tree from content_sha^{tree}, and head_tree from head_sha^{tree}; these must be actual Git objects, not echoed identities. Compute dispatch_base = git merge-base BEFORE.base_sha content_sha; pre_patch_id = git diff dispatch_base..content_sha | git patch-id --stable (first field); task_count = git rev-list --count dispatch_base..content_sha; cherry = git cherry BEFORE.base_sha C as [{sign, sha}] with full TASK commit SHAs, where C is BEFORE.cherry_sha when BEFORE names it, else content_sha. Compute post_patch_id from git diff <integration>..<task head> | git patch-id --stable, post_empty from git diff --quiet <integration> <task head> (true ONLY on exit 0), and target_ancestor from git merge-base --is-ancestor <integration> <task head>. Compute pre_content_id for dispatch_base..content_sha and post_content_id for integration..task head using Exact Git diff identity in refiner-recovery.md. Re-read all refs after computing evidence; any movement or Git error returns {"remote_sha":""}, which the engine reads as no proof. Movement here means a change between your two reads, never a stable difference from BEFORE. No writes, checkout, rebase, merge, push or gate.`,
+Resolve every reported pin separately with git rev-parse --verify --end-of-options <pin>^{commit} only for 7–40 lowercase hex, returning pins in exactly that order (null for missing, malformed, nonexistent or ambiguous values). Never infer identity from reported strings. Read actual task head_sha, integration local_sha and the exact origin refs/heads/<integration branch> remote_sha (the integration branch's own origin ref, NEVER the task branch's pushed tip; null ONLY after a successful query proving absence). If the integration refs stay stable but differ from BEFORE, report the actual local_sha and remote_sha and still return every other field: the engine reads that as a target move. content_sha is BEFORE.source_sha, except when the context names revert_range: then return approved_ancestor (true ONLY when git merge-base --is-ancestor pin[0] BEFORE.source_sha exits 0), and when it is true content_sha is pin[0] (the registered range revert restores the approved content). Read approved_tree from pin[0]^{tree}, content_tree from content_sha^{tree}, and head_tree from head_sha^{tree}; these must be actual Git objects, not echoed identities. Compute dispatch_base = git merge-base BEFORE.base_sha content_sha; pre_patch_id = git diff dispatch_base..content_sha | git patch-id --stable (first field); task_count = git rev-list --count dispatch_base..content_sha; cherry = git cherry BEFORE.base_sha C as [{sign, sha}] with full TASK commit SHAs, where C is BEFORE.cherry_sha when BEFORE names it, else content_sha. Compute post_patch_id from git diff <integration>..<task head> | git patch-id --stable, post_empty from git diff --quiet <integration> <task head> (true ONLY on exit 0), and target_ancestor from git merge-base --is-ancestor <integration> <task head>. Compute pre_content_id for dispatch_base..content_sha and post_content_id for integration..task head using Exact Git diff identity in refiner-recovery.md. Re-read all refs after computing evidence; any movement or Git error returns {"remote_sha":""}, which the engine reads as no proof; on a Git error add git_error (the stderr tail). Movement here means a change between your two reads, never a stable difference from BEFORE. No writes, checkout, rebase, merge, push or gate.`,
       { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-confirm', label: 'git-pin:' + r.task.id, schema: PIN_GIT_PROOF, ...(attempt ? spawnRefinerRecovery() : spawn('refiner')) })
+    // a git_error rides the pin-transfer:unverified row (#2589 D5), only while no well-formed proof was read
+    if (proof && typeof proof.git_error === 'string' && proof.git_error) r.pinGitError = proof.git_error
     if (deathOf(proof)) continue
     // Well-formedness first (#2485 D6): every field but the tree clause. A malformed proof retries and,
     // exhausted, still reads pin-transfer:unverified at the merge slot, or the target-moved hold after a
@@ -2846,6 +2871,8 @@ Resolve every reported pin separately with git rev-parse --verify --end-of-optio
         !fullSha(proof.pins[0]) ||
         proof.content_sha !== (range && proof.approved_ancestor === true ? proof.pins[0] : before.source_sha) ||
         typeof proof.pre_patch_id !== 'string' || typeof proof.post_patch_id !== 'string' || remoteMisread(proof, before)) continue
+    // A well-formed proof was read: an earlier attempt's git_error did not cause any later hold.
+    r.pinGitError = null
     // A moved integration target is the Git-reconciliation stop (#2309), read before the tree clause so
     // the D6 reason names a tree-only fact on an unchanged target. One attempt: Git repeats the move.
     if (proof.local_sha !== before.base_sha || !sameRemote(proof.remote_sha, before.remote_sha)) return { [PIN_REASON]: 'target-moved', proof }
@@ -3751,6 +3778,7 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
     let ri = 0
     results = results.map(r => droppedSeat(r) ? retried[ri++] : r)
   }
+  roster.forEach((seat, i) => { if (results[i] == null) dispatchFailures.push({ label: 'audit:' + task.id + ':' + seat.lens + (peers ? ':rebut' : ''), reason: 'audit seat dropped: no result after 2 retry passes' }) })
   const deaths = results.map(deathOf).filter(Boolean)
   const died = deaths.length ? deaths.join('; ') : null
   // Intake normalization (verdict-integrity D2, PIN-6) at the ONE collection site every auditRound
@@ -3763,14 +3791,23 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
   const reported = [pin ?? null, ...seats.map(s => s.audit_sha ?? null)]
   const pinEvidence = { task: task.id, verdict: 'audit-pin:unresolved', findings: seats.flatMap(s => (s.findings || []).map(f => ({ ...f, seat: s.seat, auditSha: s.audit_sha }))), reported, pinMismatch: true }
   auditLog.push(pinEvidence)
-  const resolved = await dispatchSite(
+  // D36 (#2704): a malformed reply is re-dispatched once; a second one takes the dropped-seat arm below.
+  const pinShape = x => !x ? 'no reply' : !fullSha(x.head_sha) ? 'head_sha not a full SHA' : !Array.isArray(x.pins) ? 'pins not an array'
+    : x.pins.length !== reported.length ? 'pins length ' + x.pins.length + ' for ' + reported.length + ' requested'
+    : x.pins.some((sha, i) => sha !== null && (!isSha(reported[i]) || !fullSha(sha) || !sha.startsWith(reported[i]))) ? 'a pin fails the prefix check' : null
+  let resolved
+  for (let attempt = 0; attempt < 2; attempt++) {
+  resolved = await dispatchSite(
     pt`AUDIT PIN RECONCILIATION for WAR task ${task.id}. Read-only Git: resolve branch ${task.branch} with git -C ${shq(task.worktree)} rev-parse --verify ${shq(task.branch)}^0. PIN REQUEST: ${JSON.stringify(reported)}
 For each reported value, resolve it separately with git -C ${shq(task.worktree)} rev-parse --verify --end-of-options <value>^0, ONLY if it is 7–40 lowercase hexadecimal characters. Missing, malformed, ambiguous or nonexistent values resolve to null; never infer identity from prefixes. Return { head_sha: <full branch commit SHA>, pins: [<full resolved SHA or null per requested value, in the same order>] }. Resolve from Git, never echo the reported pin or use the integration merge-base. No edits, checkout, merge, push or rebase. On a branch Git error return { head_sha: '', pins: [] }.`,
     { phase: 'Audit', dispatchKind: 'audit-pin', label: 'audit-pin:' + task.id,
       schema: { type: 'object', required: ['head_sha', 'pins'], properties: { head_sha: { type: 'string' }, pins: { type: 'array', items: { type: ['string', 'null'] } } } }, ...(reconciliation.done ? { agentType: NS + 'war-refiner', ...spawnRefinerRecovery() } : helperOpts(task.worktree, task.branch)) })
   if (deathOf(resolved)) return { seats: [], expected, died: deathOf(resolved) }
-  if (!resolved || !fullSha(resolved.head_sha) || !Array.isArray(resolved.pins) || resolved.pins.length !== reported.length ||
-      resolved.pins.some((sha, i) => sha !== null && (!isSha(reported[i]) || !fullSha(sha) || !sha.startsWith(reported[i])))) return { seats: [], expected, died }
+  const shape = pinShape(resolved)
+  if (!shape) break
+  log('audit-pin:' + task.id + ': malformed reply (' + shape + ')' + (attempt ? '; the seats are dropped.' : '; re-dispatched once (#2704).'))
+  }
+  if (pinShape(resolved)) return { seats: [], expected, died }
   Object.assign(pinEvidence, { verdict: 'audit-pin:resolved', headSha: resolved.head_sha, resolvedPins: resolved.pins, pinMismatch: resolved.pins.some(sha => sha !== resolved.head_sha) })
   if (resolved.pins.some(sha => sha !== resolved.head_sha)) {
     auditLog.push({ task: task.id, verdict: 'pin-mismatch:reconcile', pinMismatch: true, expectedPin: pin,
@@ -5597,7 +5634,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           (pinProof.pins[1] !== pinProof.head_sha || (!pinMoves && pinProbe.dispatch_base != null && pinProof.pins[2] !== pinProof.dispatch_base)))) {
         if (pinMoves) { targetMovedHold('no usable proof of the destination', { probe: pinProbe, after: pinProof }); continue }
         escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'pin transfer has no independent Git proof of the approved content and reported destination', probe: pinProbe } })
-        auditLog.push({ task: r.task.id, verdict: 'pin-transfer:unverified', findings: [], fixRounds: r.task.fixRounds })
+        auditLog.push({ task: r.task.id, verdict: 'pin-transfer:unverified', findings: [], fixRounds: r.task.fixRounds, ...(r.pinGitError ? { git_error: r.pinGitError } : {}) })
         continue
       }
       if (pinMoves || (['transferred', 'mismatch'].includes(probeStatus) && pinProbe.dispatch_base == null)) pinProbe = { ...pinProbe, dispatch_base: pinProof.dispatch_base }
@@ -5734,7 +5771,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             }
           }
           pinTransfers.push(probeRow('mismatch', rbSeats))
+          // #2590 D6: the approving re-audit's tip is the approved tip, never a prior ace tip
           r.seats = rbSeats
+          r.aceSha = pinProof.head_sha
           if (upstreamReaudit) {
             landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProof.head_sha, gate_sha: pinProof.head_sha })
             continue
@@ -7838,15 +7877,18 @@ const tipSha = (landResult && landResult.status === 'landed' && typeof landResul
 const landedTipAnchor = tipSha || 'landed tip unrecorded — ground via the gate-audit auditSha entries in your audit-log input'
 
 // ---- WRAP-UP — capture durable learnings (war-servitor, write-scoped to the local memory root) ----
-// Gate (spec §4, decision B): dispatch only when the phase landed AND memoryLocalRoot was threaded. An
+// Gate (spec §4, decision B; #2702 D34): dispatch on landDecision landed, held:escalation or
+// held:land-failed (the filing block's set) — AND memoryLocalRoot was threaded. On a
+// hold the anchor is the last merge tip (tipSha reads lastLandedTip) and the decision stays a hold. An
 // absent memoryLocalRoot (Setup's memory probe reported memory disabled / a legacy args shape) self-skips
 // with a logged line — fail-open, never a crash, never a dispatch at an unanchored target. learningsTarget
 // is deliberately NOT in this condition anymore: it is the read-path repo root, not a servitor write path.
 let servitorResult = null
-if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
+const wrapUpDecision = landDecision === 'landed' || landDecision === 'held:escalation' || landDecision === 'held:land-failed'
+if (wrapUpDecision && memoryLocalRoot) {
   servitorResult = await dispatchSite(
-    pt`Wrap up learnings for WAR phase ${ph.id} "${ph.title}" (landed on ${ph.workingBranch}).\n`
-    + pt`Landed tip: ${landedTipAnchor} on ${ph.workingBranch} (plan slug: ${planSlug || '<plan-slug>'}). This anchor — NOT your working directory — is what every referent read grounds on; see LANDED-TIP GROUNDING below.\n`
+    pt`Wrap up learnings for WAR phase ${ph.id} "${ph.title}" (land decision: ${landDecision}; working branch ${ph.workingBranch}).\n`
+    + pt`Landed tip: ${landedTipAnchor} on ${landDecision === 'landed' ? ph.workingBranch : ph.integrationBranch} (plan slug: ${planSlug || '<plan-slug>'}). This anchor — NOT your working directory — is what every referent read grounds on; see LANDED-TIP GROUNDING below.\n`
     + pt`Your ONLY writable path (your capability allowlist holds no Bash — Write/Edit only — and the PreToolUse scope hook gates those by agent_type to the local memory root): ${memoryLocalRoot}.\n`
     + pt`Every lesson file — regardless of metadata.type — is written under that local root. type: project marks a lesson PROMOTABLE (the Lead's Gate 2 promotes it into the repo root); NEVER write into any docs/learnings/ directory yourself — repo-root publication is the Lead's job, not yours.\n`
     + pt`Landed tasks: ${landed.join(', ') || 'none'}.\n`
@@ -7871,8 +7913,8 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
     + pt`\n`
     + pt`RETURN: every path in your ServitorResult files_written MUST be an ABSOLUTE path under ${memoryLocalRoot} (the Lead's Gate-2 reconciliation is an absolute-prefix check; a relative or out-of-root path fails the phase loud).`,
     { agentType: NS + 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
-  // Death arm (D21, PIN-25): a dead servitor classifies env-died SOFT naming the site — the landed
-  // phase stays landed (the land decision is already computed); servitorResult reads null, as a dead
+  // Death arm (D21, PIN-25): a dead servitor classifies env-died SOFT naming the site — the land
+  // decision stays as computed (a landed phase stays landed, a hold stays a hold); servitorResult reads null, as a dead
   // dispatch returning nothing already does, and the Lead's wrap-up fallback runs.
   const servitorDeath = deathOf(servitorResult)
   if (servitorDeath) {
@@ -7880,17 +7922,17 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
     // concatenation-built (census-safe)
     envDied('phase-' + ph.id + '-wrap-up', servitorDeath)
   }
-} else if (landResult && landResult.status === 'landed' && !memoryLocalRoot) {
-  log(`Phase ${ph.id} landed but no memoryLocalRoot was threaded (memory disabled / legacy args) — Wrap-up skipped; no servitor dispatched.`)
+} else if (wrapUpDecision) {
+  log(`Phase ${ph.id} (${landDecision}): no memoryLocalRoot was threaded (memory disabled / legacy args) — Wrap-up skipped; no servitor dispatched.`)
 }
 
 // ---- FILE-FOLLOWUPS DISPATCH (D1/D2/D3, #1331) — the Workflow files its own follow-up-routed
 // findings. Consumes minorsFiled ONLY — parked asks[] records are structurally excluded from this
 // consolidation and this filing dispatch (#1550: an unruled ask is NEVER filed; ruled asks file
-// Lead-side at the Checkpoint with filing parity). Fires on BOTH handoff-emitting paths (landed AND
-// held:escalation) AND on held:land-failed (Phase 6 Task 1 (b): a failed land must never silently
-// un-run the filing — merged tasks' follow-up debt exists regardless of the land outcome; no handoff
-// emits there, so the stamped issue numbers ride the top-level return's minorsFiled instead),
+// Lead-side at the Checkpoint with filing parity). Fires on every handoff-emitting path (landed,
+// held:escalation and held:land-failed — Phase 6 Task 1 (b): a failed land must never silently
+// un-run the filing — merged tasks' follow-up debt exists regardless of the land outcome; since #2702
+// D34 the handoff emits on held:land-failed too, and the top-level minorsFiled carries the same stamps),
 // only when minorsFiled is non-empty; placed AFTER the land decision resolves and BEFORE the handoff assembly so the
 // stamped issue numbers reach the assembly's `issue: m.issue ?? null` mapping (the assembly itself
 // is byte-unchanged). Refiner-executed — the Bash-capable seat that already performs gh writes; the
@@ -8083,15 +8125,16 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
 }
 
 // ---- HANDOFF BLOCK (ADR 0013) — the machine-readable debt map the next phase's decompose reads.
-// Emitted on 'landed' AND 'held:escalation' (degraded — an escalated phase still hands off; the next
-// decompose needs the debt map most exactly then). OMITTED on 'held:workflow-error' (infra death —
-// the ledger + issues are the record; there is no trustworthy return to render) and on the other
-// holds (nothing landed to hand off).
+// Emitted on 'landed', 'held:escalation' and 'held:land-failed' (degraded — a held phase with merged
+// work still hands off; the next decompose needs the debt map most exactly then; #2702 D34). OMITTED on
+// 'held:workflow-error' (infra death — the ledger + issues are the record; there is no trustworthy
+// return to render) and on the other holds (nothing landed to hand off).
 let handoff = null
-if (landDecision === 'landed' || landDecision === 'held:escalation') {
+if (landDecision === 'landed' || landDecision === 'held:escalation' || landDecision === 'held:land-failed') {
   // tipSha is HOISTED above the Wrap-up gate (see LANDED-TIP ANCHOR) — the Wrap-up
-  // dispatch threads the same value. This block consumes them unchanged: Wrap-up fires only on
-  // 'landed', a strict subset of this block's emit conditions, so the hoist widens nothing.
+  // dispatch threads the same value. This block consumes them unchanged: Wrap-up fires on this
+  // block's own emit conditions (wrapUpDecision), and every field it reads is hoisted or top-level,
+  // so a held:land-failed phase (tipSha the last merge tip; the block never reads landResult, which landDied leaves null) reads no null field.
   // absorbed: aced provenance grouped by commit sha → [{ sha, findings: [title] }].
   const bySha = {}
   for (const a of aced) (bySha[a.sha] = bySha[a.sha] || []).push(a.finding && a.finding.title)
@@ -8202,13 +8245,13 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
 }
 
 // carriedPhaseClose (D3b) and carriedTasks (PIN-9): TOP-LEVEL at both return sites — [] on a phase that carried nothing.
-return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, pinTransfers, landResult, servitorResult, auditLog, landDecision, carriedPhaseClose, carriedTasks, ...(handoff ? { handoff } : {}) }
+return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, pinTransfers, landResult, servitorResult, auditLog, landDecision, carriedPhaseClose, carriedTasks, dispatchFailures, ...(handoff ? { handoff } : {}) }
 } catch (err) {
   // A dead phase that self-reports. landed/escalated are whatever accumulated before the throw;
   // teardown is NOT run (git state kept for resume/inspection). NO handoff block here (ADR 0013):
   // infra death has no trustworthy return to render — the ledger + issues are the record.
   return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, pinTransfers, landResult: null,
-           servitorResult: null, auditLog,
+           servitorResult: null, auditLog, dispatchFailures,
            landDecision: 'held:workflow-error',
            // D3b: whatever was carried before the throw (the held-phase arm may not have run — see resume-and-recovery.md's re-derivation residual)
            carriedPhaseClose,
