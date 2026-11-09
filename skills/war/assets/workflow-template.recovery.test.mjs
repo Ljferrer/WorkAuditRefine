@@ -486,7 +486,8 @@ test('#990 threaded tip — missing working SHA holds before Wrap-up if Git reco
   const { calls, out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), tipImpl({}, { integration_sha: 'beefcafe12' }), { rawMergeResults: true })
   assert.notEqual(out.landDecision, 'landed')
   assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
-  assert.ok(!calls.some(isServitor), 'no fallback pin substitutes for an unproved land')
+  // #2702 D34: a held land runs the wrap-up on the last merge tip, and names the hold, never a land
+  assert.ok(calls.filter(isServitor).every(c => c.prompt.includes('land decision: ' + out.landDecision + ';')), 'no fallback pin substitutes for an unproved land')
 })
 
 test("Task 1.1 (End state 3) — land 'environment' recovered: the environment-proceed re-land's 'landed' ⇒ landDecision 'landed', the resync log line, and the servitor wrap-up dispatch fires", async () => {

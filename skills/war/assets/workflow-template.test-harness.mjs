@@ -1724,6 +1724,10 @@ const fixNeededImpl = () => {
   }
 }
 const SINGLE_TASK = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }]
+// #2589: two independent tasks (t2 has no deps), and the non-infra dispatch-layer throw text the
+// pin-proof, snapshot and held-land fixtures use (INFRA_DEATH_RE does not match it).
+const TWIN_TASKS = [SINGLE_TASK[0], { ...SINGLE_TASK[0], id: 't2', issue: 102 }]
+const NON_INFRA_THROW = 'StructuredOutput retry cap exceeded'
 // Reaches ONE ace bisection subset dispatch (ace:subset:t1:a2): batch ace → culprit regression (names ka) →
 // the remainder [kb] re-applies as ONE subset. Fresh closure per run (buildSeqImpl queues pop).
 const bisectSubsetImpl = () => buildSeqImpl({
@@ -2174,7 +2178,7 @@ const LITERAL_REGISTRY = [
   ["Holding the land for phase ${ph.id}: ${escal"],
   ["Holding the land for phase ${ph.id}: no task"],
   ["wrap-up:phase-${ph.id}`, schema: SERVITOR_RE"],
-  ["Phase ${ph.id} landed but no memoryLocalRoot"],
+  ["Phase ${ph.id} (${landDecision}) has merged "],
   ["${f.title || ''} ${f.rationale || ''}`)) ? '"],
 ]
 
@@ -2361,7 +2365,7 @@ const BARE_INTERPOLATION_CENSUS = [
   // `pin` local (ev.sha, else the row's own sanitized sha for a gate-audit pseudo-task).
   'ensures', 'ev.round', 'f.file', 'f.severity', 'f.suggested_fix', 'gateHeadSha',
   'ghUser', 'guardEvidence', 'guardSpecificity', 'integratedTip.gate_output',
-  'intent', 'landedTipAnchor', 'lens', 'm.file', 'm.line', 'm.taskId', 'memoryLocalRoot',
+  'intent', 'landDecision', 'landedTipAnchor', 'lens', 'm.file', 'm.line', 'm.taskId', 'memoryLocalRoot',
   'nearMissDiag', 'owned', 'ph.epicIssue', 'ph.id', 'ph.integrationBranch',
   'ph.title', 'ph.workingBranch', 'pin', 'pinEvidence', 'pinStatus', 'pinStatusLine', 'plan.gate',
   'polishBranch', 'polishWorktree', 'provisionSource', 'r.check', 'r.condition',
@@ -4164,4 +4168,6 @@ export {
   debtSeed,
   SWEEP_DEBT_HEAD,
   withoutSweepDebt,
+  TWIN_TASKS,
+  NON_INFRA_THROW,
 }

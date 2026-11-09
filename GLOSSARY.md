@@ -1185,10 +1185,10 @@ The end-state a phase owes the next: a tip whose quality debt is **zero or enume
 — every finding absorbed (commit-cited), filed (issue + why-not-absorbable), noted (report), or parked
 as an ask (question + fork — ruled at the Checkpoint strike-list gate, never filed unruled) — plus a
 machine-readable `handoff` block (`{ tipSha, polish, absorbed, followUps, asks, notes, endState,
-intentPresent, backstops }`) emitted on `landed` and `held:escalation` only (the engine's emit gate)
-for the next phase's decompose. The follow-up filing pass is a distinct, wider gate: it runs on
-`landed`, `held:escalation` and also `held:land-failed` (#1597) — a held land forfeits the land, not
-the filing fidelity; there the stamped issues ride the top-level return's `minorsFiled`.
+intentPresent, backstops }`) emitted on `landed`, `held:escalation` and `held:land-failed` only (the
+engine's emit gate, #2702) for the next phase's decompose. The follow-up filing pass runs on the same
+three decisions (#1597) — a held land forfeits the land, not the filing fidelity; the stamped issues
+ride the handoff and the top-level return's `minorsFiled`.
 _Avoid_: follow-up issues as the default disposal; a handoff block on `held:workflow-error` (infra
 death has no trustworthy return to render).
 
