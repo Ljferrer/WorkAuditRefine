@@ -195,6 +195,12 @@ import {
   RELAND_DISC_DIVERGE,
   RELAND_REMOTE_REJECTED,
   RELAND_ADVANCE_TIMEOUT,
+  LAND_ERROR_ARM,
+  LAND_CONFIRM_RE,
+  LAND_CONFIRM_DOC_RE,
+  provisionWorktreesSh,
+  landConfirmPrompts,
+  landConfirmHolds,
   FF_PREFLIGHT,
   FF_DEDUP_CMD,
   FF_DEDUP_RULE,
@@ -452,6 +458,8 @@ import {
   debtSeed,
   SWEEP_DEBT_HEAD,
   withoutSweepDebt,
+  TWIN_TASKS,
+  NON_INFRA_THROW,
 } from './workflow-template.test-harness.mjs'
 
 
@@ -950,10 +958,11 @@ test('Task 1.2 (i) — dead land agent: Land mock returns null → held:land-fai
   const landEsc = out.escalated.filter(e => e.task && e.task.endsWith('-land'))
   assert.equal(landEsc.length, 1, 'exactly one -land escalation pushed (single-push proof)')
   assert.equal(landEsc[0].reason, 'error', 'a null land result escalates with reason error')
-  // Regression context (pre-existing behavior — the wrap-up gate already skips the servitor on a
-  // non-landed result; green even without the arm, so NOT the load-bearing assertion).
-  assert.equal(out.servitorResult, null, 'no servitor result on a dead land')
-  assert.equal(calls.filter(c => seatOf(c.opts) === 'war-servitor').length, 0, 'zero war-servitor dispatches on a dead land')
+  // Regression context (#2702 D34): held:land-failed keeps merged work, so the wrap-up runs once and
+  // names the hold — NOT the load-bearing assertion of this arm.
+  const wraps = calls.filter(c => seatOf(c.opts) === 'war-servitor')
+  assert.equal(wraps.length, 1, 'one war-servitor dispatch on a dead land (a held land with merged work)')
+  assert.ok(wraps[0].prompt.includes('land decision: held:land-failed;'), 'the wrap-up names the hold')
 })
 
 test('Task 1.2 (ii) — unrouted land status: Land mock returns a bogus status → held:land-failed, never landed', async () => {
@@ -2761,8 +2770,10 @@ test('L3 T2 Test 2 — blocked initial-worker behavior preserved: escalate with 
   const { out: outB } = await runPhase(L3_ARGS(), implNull)
   const escB = (outB.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(escB, 'null initial worker must surface an escalated entry')
-  assert.equal(escB.reason, 'escalate', 'escalation reason must be "escalate" for null worker')
-  assert.equal(escB.blocked, 'worker returned no result', 'null worker escalation must carry the default reason')
+  // #2555 D11: a resolved null at the implementation site is env-died (SOFT), labeled with the site,
+  // never the HARD 'worker returned no result'.
+  assert.equal(escB.reason, 'env-died', 'a null initial worker classifies env-died')
+  assert.equal(escB.blocked, 'work:t1 dispatch resolved null (env-died)', 'the null worker record carries the site-labeled env-died reason')
 })
 
 test('Task 3 — default-off (ace-off-route, D14): run.ace unset ⇒ no ace dispatch; an absorb nit routes phaseClose:true to the sweep (no default roster ⇒ the sweep-skipped drain demotes it), aced empty', async () => {
@@ -7279,8 +7290,9 @@ test('Task 1.2 — in-flow land prompt carries the rev-list discrimination + exp
   assert.ok(p.includes(RELAND_REMOTE_REJECTED), 'in-flow land prompt names the server-side remote rejection as a retry, never land_stale')
   assert.ok(p.includes(RELAND_ADVANCE_TIMEOUT), 'in-flow land prompt raises the land-advance tool timeout (#2626)')
   assert.ok(p.split('\n').some(l => l.startsWith('     - Every attempt') && l.includes(RELAND_ADVANCE_TIMEOUT)), 'the timeout rides its own every-attempt bullet, not the final-attempt bullet (#2626)')
-  assert.match(p, /\[remote rejected\] push with origin unmoved is a retry, never land_stale: land-advance retries it itself \(3 times\), and if it still exits 3, return \{ mode: 'land-phase', status: 'error'/,
-    'a server-side remote rejection that still exits 3 takes the land error arm')
+  // #2657 (D1): a still-exit-3 takes the land confirm first, then the land error arm.
+  assert.match(p, /\[remote rejected\] push with origin unmoved is a retry, never land_stale: land-advance retries it itself \(3 times\), and if it still exits 3, take the land confirm: if it exits 3 and both `git ls-remote origin refs\/heads\/dev\/wtprov-a`[^\n]*?; else return \{ mode: 'land-phase', status: 'error'/,
+    'a server-side remote rejection that still exits 3 takes the land confirm, then the land error arm')
   assert.ok(p.includes('no new status'), 'the prompt states no new status is introduced by the recovery path')
 })
 
@@ -8831,6 +8843,9 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const landP = (calls.find(c => (c.opts.label || '') === 'land:phase-3') || {}).prompt
   assert.ok(landP, 'the initial land prompt dispatched (presence guard, Task 5.1 rows)')
   const workerP = (calls.find(isWorker) || {}).prompt
+  // #2671 D28: the dep-wave worker (work:t2 declares deps) carries depClause's LEASE_DENIED_RULE.
+  const depWorkerP = (calls.find(c => isWorker(c) && c.opts.label === 'work:t2') || {}).prompt
+  assert.ok(depWorkerP && depWorkerP.includes('DEPS ALREADY MERGED'), 'the dep-wave worker prompt dispatched (presence guard, push-denied row)')
   const auditP = (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
   const servitorP = (calls.find(isServitor) || {}).prompt
   // Fix-round doctrine (#2097): the FIX_NEEDED fix prompt is only emitted on a blocking finding — drive
@@ -8958,8 +8973,10 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
                  ['inline gate-audit execution-evidence seat (src)', gateAuditExecSrc],
                  ['inline gate-audit end-state seat (src)', gateAuditEndStateSrc]],
       anchors: [/finding-less/i, /HARD hold/i] },
+    // The standing copy moved byte-identical to worker-servitor-edges.md § Comment hygiene (plan
+    // 2026-11-08-engine-recovery-relaunch-and-land T3.1, ADR 0042); the card keeps the trigger pointer.
     { name: 'comment-lag directive (D9, worker prompt)',
-      surfaces: [['war-worker.md', workerMd], ['worker prompt', workerP]],
+      surfaces: [['worker-servitor-edges.md § Comment hygiene', edgesMd], ['worker prompt', workerP]],
       anchors: [/comment/i, /lag/i, /retired/i] },
     // Task 1.4 (capture grounding): the servitor finding-match clause lives in D3 on the standing card AND
     // in the D3 block of the memClause-built Wrap-up prompt — both must carry it (spec criterion 7).
@@ -9316,8 +9333,13 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'WORKER_WRITE_TOOL_RULE (PIN-9, PIN-10): Edit/Write only, .war/ scratch, stop on a denial — worker card § Write tools + worker prompt',
       surfaces: [['war-worker.md', workerMd], ['worker prompt', workerP]],
       anchors: [/Change file content only with Edit or Write/, /<worktree>\/\.war\//, /[Ii]f Edit or Write is denied/, /Write tools/, /blocked/] },
+    // #2671 D28 (PIN-28): the host-denied lease push stop rule — LEASE_DENIED_RULE in depClause and its
+    // card twin in § Dep-wave rebase + force-with-lease carve-out. `push_denied:` counted 0 on both at base.
+    { name: 'push-denied (#2671, D28): lease-denial stop rule — worker card carve-out section + dep-wave worker prompt',
+      surfaces: [['war-worker.md', workerMd], ['dep-wave worker prompt', depWorkerP]],
+      anchors: [/If the host denies the lease push \(a permission or classifier denial, not a git rejection\), stop/, /blocked_reason starting `push_denied:`/, /never retry the push, never a plain `--force`, never another ref/] },
   ]
-  assert.ok(REGISTRY.length >= 44, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) + the four plan 2026-11-08 T1.6 prompt-prefix rows (AUTHORITY_LINE, TOOL ORDER, HOST_TURN_TOOL_LINE, WORKER_WRITE_TOOL_RULE) ')
+  assert.ok(REGISTRY.length >= 45, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) + the four plan 2026-11-08 T1.6 prompt-prefix rows (AUTHORITY_LINE, TOOL ORDER, HOST_TURN_TOOL_LINE, WORKER_WRITE_TOOL_RULE) ')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -9848,15 +9870,191 @@ test('both-surfaces (criterion 14): the stale-prior-attempt push-handoff sentenc
   // The sentence rides depClause (adjacent to FORCE_WITH_LEASE_RULE), so it is on a deps-bearing worker (work:t2).
   const w2 = calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:t2')
   assert.ok(w2, 'the deps-bearing worker was dispatched (presence guard)')
+  // #2646 D8 narrowed the sentence (SKILL §3 rule 6): the old unconditional run is asserted ABSENT on
+  // both surfaces, and the narrowed sentence present (the `stale-prior-attempt (#2646)` fixture holds
+  // its delete-the-feature proof).
   const FRAG = 'the remote task branch was never merged and shares only an older base is a stale prior attempt'
+  const NARROWED = 'is a stale prior attempt only when `git merge-base --is-ancestor origin/<branch> <pre-rebase HEAD>` exits 1'
   const surfaces = [['war-worker.md', workerMd], ['dispatched dep-clause worker prompt', w2.prompt]]
   for (const [name, text] of surfaces) {
-    assert.ok(text.includes(FRAG), `${name} carries the stale-prior-attempt sentence`)
-    assert.ok(!text.split(FRAG).join('REMOVED').includes(FRAG), `${name}: deleting the sentence reds the anchor (non-vacuous)`)
+    assert.ok(!text.includes(FRAG) && !/older base is a stale prior attempt/i.test(text), `${name} no longer carries the old unconditional stale-prior-attempt run`)
+    assert.ok(text.includes(NARROWED), `${name} carries the narrowed stale-prior-attempt sentence`)
   }
   // FORCE_WITH_LEASE_RULE stays byte-identical (its own byte-compare test is untouched) — the stale sentence is ADJACENT, not a rewrite.
   const RULE = 'You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason.'
   assert.ok(w2.prompt.includes(RULE), 'the force-with-lease rule stays byte-identical adjacent to the new sentence')
+})
+
+// ---- plan 2026-11-08-engine-recovery-relaunch-and-land Task 3.1: worker surfaces ----
+const depWaveWorkerPrompt = async () => {
+  const w2 = (await runPhase(PROVISION_ARGS(), defaultImpl)).calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:t2')
+  assert.ok(w2 && w2.prompt.includes('DEPS ALREADY MERGED'), 'the deps-bearing worker was dispatched with depClause (presence guard)')
+  return w2.prompt
+}
+const constLiteral = name => { const m = src.match(new RegExp('^const ' + name + " = '([^']+)'$", 'm')); assert.ok(m, name + ' is one single-quoted literal'); return m[1] }
+
+test('stale-prior-attempt (#2646): the narrowed sentence (ancestry test + pre-rebase rev-parse read) is on the card and the dep-wave prompt; delete-the-feature per surface', async () => {
+  const RULE = constLiteral('STALE_PRIOR_ATTEMPT_RULE')
+  const ANCHORS = ['git merge-base --is-ancestor origin/<branch> <pre-rebase HEAD>` exits 1',
+    'the SHA you recorded with `git rev-parse HEAD` before the rebase (`ORIG_HEAD` right after it)']
+  for (const a of ANCHORS) assert.ok(RULE.includes(a), 'the engine const carries ' + a)
+  for (const [name, text] of [['war-worker.md', workerMd], ['dispatched dep-wave worker prompt', await depWaveWorkerPrompt()]]) {
+    assert.ok(text.includes(RULE), name + ' carries the narrowed sentence byte-identical to STALE_PRIOR_ATTEMPT_RULE')
+    assert.ok(!/older base is a stale prior attempt/i.test(text), name + ': the old unconditional run is gone')
+    const deleted = text.split(RULE).join('')
+    for (const a of ANCHORS) assert.ok(!deleted.includes(a), name + ': deleting the sentence reds the anchor ' + a + ' (non-vacuous)')
+  }
+})
+
+test('commit-message read (#2494): both surfaces forbid reading a commit message from outside the task worktree', async () => {
+  const RULE = constLiteral('COMMIT_MESSAGE_READ_RULE')
+  assert.match(RULE, /scratchpad or any path outside your own task worktree/)
+  const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl())
+  const workers = calls.filter(c => seatOf(c.opts) === 'war-worker')
+  assert.ok(workers.some(isWorker) && workers.some(c => /^fix:/.test(c.opts.label || '')), 'an implementation and a fix worker dispatched (presence guard)')
+  for (const [name, text] of [['war-worker.md § Write tools', (workerMd.split('## Write tools')[1] || '').split('\n## ')[0]], ...workers.map(c => [c.opts.label + ' prompt', c.prompt])]) {
+    assert.ok(text.includes(RULE), name + ' carries the commit-message read rule')
+    assert.ok(!text.split(RULE).join('').includes('scratchpad or any path outside your own task worktree'), name + ': deleting the sentence reds the anchor (non-vacuous)')
+  }
+  const others = calls.filter(c => seatOf(c.opts) !== 'war-worker')
+  assert.ok(others.length > 0 && others.every(c => !c.prompt.includes(RULE)), 'the rule rides worker prompts only')
+})
+
+test('push-denied (#2671): both surfaces carry the LEASE_DENIED_RULE stop rule with push_denied:, and FORCE_WITH_LEASE_RULE stays byte-identical', async () => {
+  const RULE = constLiteral('LEASE_DENIED_RULE')
+  assert.ok(RULE.includes('blocked_reason starting `push_denied:`'), 'the const names the push_denied: prefix')
+  const depP = await depWaveWorkerPrompt()
+  const LEASE = 'You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason.'
+  assert.equal(constLiteral('FORCE_WITH_LEASE_RULE'), LEASE, 'FORCE_WITH_LEASE_RULE is byte-identical (PIN-26)')
+  assert.ok(depP.includes(LEASE + ' ' + constLiteral('STALE_PRIOR_ATTEMPT_RULE') + ' ' + RULE), 'depClause carries the lease rule, then the stale-prior-attempt sentence, then the lease-denied rule')
+  const section = (workerMd.split('## Dep-wave rebase + force-with-lease carve-out')[1] || '').split('\n## ')[0]
+  assert.ok(section.includes(constLiteral('STALE_PRIOR_ATTEMPT_RULE') + ' ' + RULE), 'the card carve-out section carries the rule right after the stale-prior-attempt sentence')
+  for (const [name, text] of [['war-worker.md carve-out section', section], ['dispatched dep-wave worker prompt', depP]]) {
+    assert.ok(text.includes('push_denied:'), name + ' names the push_denied: prefix')
+    assert.ok(!text.split(RULE).join('').includes('push_denied:'), name + ': deleting the sentence reds the anchor (non-vacuous)')
+  }
+  // No engine read of the prefix (A35): push_denied: appears only inside the const.
+  assert.equal(src.split('\n').filter(l => !/^\s*\/\//.test(l) && l.includes('push_denied')).length, 2, 'only LEASE_DENIED_RULE and the floorFixHead lease line name push_denied (no engine read)')
+})
+
+// #2555 D11: a resolved null at the implementation site.
+const implNullImpl = (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-worker' && opts.phase === 'Work') return null
+  return defaultImpl(prompt, opts)
+}
+const IMPL_NULL_LINE = "      const implNull = nullDied(impl, 'work:' + task.id); if (implNull) return { task, verdict: 'env-died', seats: [], expected: 0, blocked: implNull }\n"
+test('worker-site null (#2555): implementation null is env-died', async () => {
+  const { out, logs } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), implNullImpl)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'env-died')
+  assert.ok(esc, 'the null worker escalates env-died (SOFT), never HARD escalate')
+  assert.equal(esc.blocked, 'work:t1 dispatch resolved null (env-died)', 'the reason names the site label')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('work:t1 dispatch resolved null (env-died)')), 'the null is logged at the site')
+  assert.ok(!(out.escalated || []).some(e => e && e.blocked === 'worker returned no result'), 'never the HARD-sounding generic reason')
+  assert.notEqual(out.landDecision, 'held:escalation', 'a SOFT env-died never holds the phase on a hard escalation')
+})
+test('worker-site null (#2555): control — removing the nullDied route reds the env-died read', async () => {
+  assert.ok(src.includes(IMPL_NULL_LINE), 'the mutation target is the live implementation null route')
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), implNullImpl, {}, src.replace(IMPL_NULL_LINE, ''))
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 'the mutant still escalates the task (presence guard)')
+  assert.equal(esc.reason, 'escalate', 'without the route the null reads HARD escalate')
+  assert.equal(esc.blocked, 'worker returned no result', 'without the route the null reads the generic reason')
+  // The sibling worker sites route through nullDied too (fix round, floor fix, late fix, wave-side ace).
+  for (const site of ["nullDied(fix, 'fix:' + task.id + ':r' + (round + 1))", 'nullDied(floorFix, ', "nullDied(w, 'late-fix:' + lfOriginId + ':r' + lfRound)", "nullDied(ace, aceLabel(r, 'polish'))"]) {
+    assert.ok(src.includes(site), 'the worker site routes a resolved null through nullDied: ' + site)
+  }
+})
+// The fix-round sibling site, run end to end: the fix worker resolves null after a blocking audit.
+const fixNullImpl = () => {
+  const base = fixNeededImpl()
+  return (prompt, opts) => (opts.label === 'fix:t1:r1' ? null : base(prompt, opts))
+}
+const FIX_NULL_LINE = "        const fixNull = nullDied(fix, 'fix:' + task.id + ':r' + (round + 1)); if (fixNull) { verdict = 'env-died'; blocked = fixNull; break }\n"
+test('worker-site null (#2555): fix-round null is env-died, and removing the fixNull route reads escalate', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNullImpl())
+  assert.ok(calls.some(c => c.opts.label === 'fix:t1:r1'), 'the fix round dispatched (presence guard)')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 'the null fix worker escalates the task')
+  assert.equal(esc.reason, 'env-died', 'the fix-round null reads SOFT env-died')
+  assert.equal(esc.blocked, 'fix:t1:r1 dispatch resolved null (env-died)', 'the reason names the fix-round site label')
+  assert.ok(src.includes(FIX_NULL_LINE), 'the mutation target is the live fix-round null route')
+  const mut = (await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNullImpl(), {}, src.replace(FIX_NULL_LINE, ''))).out
+  const mEsc = (mut.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(mEsc, 'the mutant still escalates the task (presence guard)')
+  assert.equal(mEsc.reason, 'escalate', 'without the route the fix-round null reads HARD escalate')
+})
+
+test('INFRA_DEATH_RE (#2328): the bounded auth and DNS phrases classify a tagged throw env-died; decoys and an untagged engine throw stay HARD', async () => {
+  const tagged = msg => (prompt, opts) => {
+    if (seatOf(opts) === 'war-worker' && opts.phase === 'Work') throw new Error(msg)
+    return defaultImpl(prompt, opts)
+  }
+  const escOf = async msg => ((await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), tagged(msg))).out.escalated || []).find(e => e && e.task === 't1')
+  for (const msg of ['Your organization has disabled Claude subscription access for Claude Code. Please contact your administrator.',
+    'Failed to authenticate. API Error: 401 OAuth access token has expired.',
+    'getaddrinfo ENOTFOUND api.anthropic.com']) {
+    const esc = await escOf(msg)
+    assert.ok(esc, 'presence guard: ' + msg)
+    assert.equal(esc.reason, 'env-died', 'a tagged infra throw classifies env-died: ' + msg)
+    assert.equal(esc.blocked, 'worker died: ' + msg, 'the harness cause propagates verbatim')
+  }
+  for (const msg of ['sha 4019abc', 'task t401 failed', 'refactor oauth module title']) {
+    const esc = await escOf(msg)
+    assert.ok(esc, 'presence guard: ' + msg)
+    assert.equal(esc.reason, 'escalate', 'a tagged decoy throw stays HARD: ' + msg)
+  }
+  // Guardrail (green at base by the structural scope): an untagged engine throw embedding a new term
+  // from the task title stays HARD.
+  const term = 'getaddrinfo ENOTFOUND oauth access token'
+  const args = PROVISION_ARGS({ tasks: [{ id: 'tQ', issue: 1, title: term, planSlice: 's', roster: [{ lens: 'correctness' }] }] })
+  const { out } = await runPhase(args, (prompt, opts) => (seatOf(opts) === 'war-worker' && opts.phase === 'Work')
+    ? { task_id: 'tQ', status: 'implemented', head_sha: 'abc0000', tests: {}, files_changed: ['/opt/elsewhere/' + term.replace(/ /g, '-') + '.txt'] }
+    : defaultImpl(prompt, opts))
+  const esc = (out.escalated || []).find(e => e && e.task === 'tQ')
+  assert.ok(esc && /getaddrinfo/i.test(String(esc.blocked)), 'non-vacuity: the HARD message carries a new INFRA_DEATH_RE term')
+  assert.equal(esc.reason, 'escalate', 'an untagged engine throw stays HARD whatever its text')
+})
+
+test('worker head_sha (#2703): schema pattern — WORKER_RESULT.head_sha accepts 40 hex and rejects 39', () => {
+  const lit = src.match(/^const WORKER_RESULT = \{[^]*?blocked_reason: \{ type: 'string' \} \} \}\n/m)
+  assert.ok(lit, 'WORKER_RESULT is locatable in the template source')
+  const WORKER_RESULT = new Function(runForm(lit[0] + '\nreturn WORKER_RESULT'))()
+  const pattern = WORKER_RESULT.properties.head_sha.pattern
+  assert.equal(pattern, '^[0-9a-f]{40}$', 'head_sha carries the 40-hex pattern')
+  assert.ok(new RegExp(pattern).test('a'.repeat(40)), '40 hex is accepted')
+  assert.ok(!new RegExp(pattern).test('a'.repeat(39)), '39 hex is rejected')
+  assert.ok(!WORKER_RESULT.required.includes('head_sha'), 'the field stays optional (a blocked worker with no commit is unaffected)')
+})
+
+test('worker head_sha (#2703): worker-pin-only mismatch repairs without a re-audit', async () => {
+  const tip = 'c'.repeat(40)
+  let panels = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+    if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: tip.slice(0, 39) }
+    if ((o.label || '').startsWith('audit:t1:')) { panels++; return { seat: o.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: tip } }
+    return defaultImpl(p, o)
+  }, { rawTaskAuditPins: true, 'audit-pin': p => ({ head_sha: tip, pins: JSON.parse(p.match(/PIN REQUEST: ([^\n]+)/)[1]).map(s => s === tip ? tip : null) }) })
+  assert.equal(panels, 1, 'exactly one panel dispatch: the seat already judged the Git head')
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 1, 'one Git pin resolution')
+  const repaired = out.auditLog.find(r => r.task === 't1' && r.verdict === 'pin-repaired:worker')
+  assert.ok(repaired && repaired.headSha === tip, 'a pin-repaired:worker row names the Git head')
+  assert.ok(!out.auditLog.some(r => r.verdict === 'pin-mismatch:reconcile'), 'no pin-mismatch:reconcile row')
+  assert.ok(out.landed.includes('t1'), 'the approved verdict stands at the repaired pin and the task lands')
+})
+
+test('merge-slot lease (#2750): floorFixHead names the dispatch-rebase carve-out', async () => {
+  const LINE = 'A merge-slot rebase may have moved your task branch off its pushed remote: that rebase counts as a dispatch-rebase for the force-with-lease carve-out'
+  const run = source => runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), floorRetryImpl(), {}, source)
+  const fix = (await run(src)).calls.find(isAddTestWorker)
+  assert.ok(fix, 'the add-test floor-fix worker dispatched (presence guard)')
+  assert.ok(fix.prompt.includes(LINE) && fix.prompt.includes('push_denied:'), 'the floor-fix prompt names the carve-out and the push_denied: route')
+  const constHit = src.split('\n').filter(l => l.includes(LINE))
+  assert.equal(constHit.length, 1, 'the sentence has one engine home (floorFixHead), shared by the four floor prompts')
+  // Delete-the-feature: without the line the floor-fix prompt says nothing about the lease.
+  const mutant = (await run(src.replace(constHit[0] + '\n', ''))).calls.find(isAddTestWorker)
+  assert.ok(mutant && !mutant.prompt.includes('dispatch-rebase'), 'the mutant floor-fix prompt omits the carve-out (red without the feature)')
+  assert.equal(constLiteral('FORCE_WITH_LEASE_RULE'), 'You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason.', 'FORCE_WITH_LEASE_RULE stays byte-identical (PIN-26)')
 })
 
 test('both-surfaces (criterion/end-state 22): the STALE_REMOTE classify-and-continue carve-out is on agents/war-refiner.md AND the dispatched barrier prompt; delete-the-feature per surface', async () => {
@@ -11279,7 +11477,7 @@ test('drain-cause (End state 9): a sweep dispatch returning no result stamps; an
 // held:land-failed still produces the file-followups dispatch — merged tasks' follow-up debt exists
 // regardless of the land outcome. No handoff emits on held:land-failed, so the stamped issue
 // numbers ride the top-level return's minorsFiled instead.
-test('filing-on-held (End state 20): a held:land-failed phase still runs the file-followups dispatch — stamped issues ride the top-level minorsFiled (no handoff there)', async () => {
+test('filing-on-held (End state 20): a held:land-failed phase still runs the file-followups dispatch — stamped issues ride the top-level minorsFiled and the handoff', async () => {
   const impl = (prompt, opts) => {
     if (opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 777 }], clusters: [{ ordinals: [1], issue: 777 }] }
     if (seatOf(opts) === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'error' }
@@ -11290,8 +11488,9 @@ test('filing-on-held (End state 20): a held:land-failed phase still runs the fil
   assert.ok(calls.some(c => c.opts.dispatchKind === 'file-followups'), 'the filing dispatch STILL fires on held:land-failed — never silently unrun')
   const row = (out.minorsFiled || []).find(m => m && m.title === 'needs new tests')
   assert.ok(row, 'the follow-up row survives on the top-level return')
-  assert.equal(row.issue, 777, 'the stamped issue number rides minorsFiled (no handoff emits on held:land-failed)')
-  assert.equal(out.handoff, undefined, 'held:land-failed emits NO handoff block — the top-level return is the record')
+  assert.equal(row.issue, 777, 'the stamped issue number rides minorsFiled')
+  // #2702 D34: held:land-failed now emits the handoff, which carries the same stamp
+  assert.ok((out.handoff.followUps || []).some(f => f.issue === 777), 'the handoff followUps carry the stamped issue')
 })
 
 // --- segmented-land (End state 19, Phase 6 Task 1 (a), A6 REVISED) --------------------------
@@ -11425,9 +11624,10 @@ test('land-advance escalate: each land site orders stderr into segment_note, and
   const first = await runPhase(PROVISION_ARGS(), initial)
   const lands = first.calls.filter(c => /^land:phase-3(:|$)/.test(c.opts.label || ''))
   assert.equal(lands.length, 1, 'the note alone never re-dispatches the land')
-  assert.match(armOf(lands[0].prompt), /any other exit from land-advance: return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, 'the initial land orders the stderr into segment_note')
-  const extra = "If that attempt exits anything but 0 or 2, return { mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' }, never land_stale."
-  assert.ok(lands[0].prompt.includes(extra), 'the extra CAS attempt keeps the die out of land_stale')
+  // #2657 (D1): each error arm is the land confirm's fallback.
+  assert.match(armOf(lands[0].prompt), /any other exit from land-advance: if it exits 3 and both [^\n]*?; else return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, 'the initial land orders the stderr into segment_note')
+  const extra = /If that attempt exits anything but 0 or 2, if it exits 3 and both [^\n]*?; else return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}, never land_stale\./
+  assert.match(lands[0].prompt, extra, 'the extra CAS attempt keeps the die out of land_stale')
   assert.equal(first.out.landDecision, 'held:land-failed', 'the note never changes the route')
   const row = (first.out.escalated || []).find(e => e && e.task === 'phase-3-land')
   assert.equal(row && row.detail && row.detail.segment_note, die, 'the escalation detail carries the die text')
@@ -11440,8 +11640,8 @@ test('land-advance escalate: each land site orders stderr into segment_note, and
     const { out, calls } = await runPhase(CLS_ARGS(), impl)
     const reland = calls.find(c => c.opts.label === 'land:phase-3:' + flavor)
     assert.ok(reland, flavor + ': presence guard, the re-land dispatches')
-    assert.match(armOf(reland.prompt), /on any exit but 0 or 2, return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, flavor + ': the re-land orders the stderr into segment_note')
-    assert.ok(reland.prompt.includes(extra), flavor + ': the extra CAS attempt keeps the die out of land_stale')
+    assert.match(armOf(reland.prompt), /on any exit but 0 or 2, if it exits 3 and both [^\n]*?; else return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, flavor + ': the re-land orders the stderr into segment_note')
+    assert.match(reland.prompt, extra, flavor + ': the extra CAS attempt keeps the die out of land_stale')
     assert.equal(out.landDecision, 'held:land-failed', flavor + ': a re-land error holds the phase')
     const held2 = (out.escalated || []).find(e => e && e.task === 'phase-3-land')
     assert.equal(held2 && held2.detail && held2.detail.segment_note, die, flavor + ': the escalation detail carries the die text')
@@ -16740,7 +16940,8 @@ for (const [kind, mutate] of [
     const held = out.escalated.find(e => e.task === 't1' && e.reason === 'audit-blocked')
     assert.ok(held, 'malformed data stays an unresolved audit, never a thrown engine error')
     assert.match(held.blocked, /audit panel incomplete: 0 of \d+ seat results usable \(a dropped seat or an unresolved audit pin\)/, 'the reason stays true when every seat returned')
-    assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 1, 'unusable proof does not invent a retry target')
+    // #2704 D36: a malformed reply is re-dispatched exactly once, never more
+    assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 2, 'unusable proof is re-dispatched once, then the seats drop')
   })
 }
 
@@ -16790,11 +16991,21 @@ for (const [name, corrupt] of [
   ['wrong second parent', p => ({ ...p, parents: [p.parents[0], '3'.repeat(40)] })],
   ['moved source', p => ({ ...p, source_tip: '3'.repeat(40) })],
 ]) test('normal land confirmation refuses ' + name, async () => {
-  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+  // The land reply claims a working_sha distinct from the t1 merge tip ('2' * 40), so the anchor check
+  // below can tell the unproved land claim from the confirmed merge tip.
+  const claimed = '7'.repeat(40)
+  const impl = (p, o) => seatOf(o) === 'war-refiner' && o.phase === 'Land' ? { mode: 'land-phase', status: 'landed', working_sha: claimed } : defaultImpl(p, o)
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), impl, {
     'merge-confirm': (p, o) => { const proof = NEW_SEAT_DEFAULTS['merge-confirm'](p); return o.label === 'git-confirm:land:phase-3' ? corrupt(proof) : proof },
   })
-  assert.notEqual(out.landDecision, 'landed'); assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
-  assert.ok(!calls.some(isServitor))
+  assert.equal(out.landDecision, 'held:land-failed', 'the unproved land holds the phase'); assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
+  // #2702 D34: the held land runs the wrap-up once (memoryLocalRoot is threaded), and the anchor is the
+  // confirmed merge tip on the integration branch, never the refiner-claimed working_sha
+  const servs = calls.filter(isServitor)
+  assert.equal(servs.length, 1, 'the wrap-up runs exactly once on the held land')
+  assert.ok(servs[0].prompt.includes('land decision: held:land-failed;'), 'the wrap-up names the hold')
+  assert.ok(!servs[0].prompt.includes('Landed tip: ' + claimed), 'the unproved land claim never becomes the wrap-up anchor')
+  assert.ok(servs[0].prompt.includes('Landed tip: ' + '2'.repeat(40) + ' on integration/wtprov-a/phase-3 ('), 'the anchor is the confirmed merge tip on the integration branch')
   assert.ok(out.auditLog.some(r => r.verdict === 'git-confirmation:unresolved' && r.site === 'land:phase-3'), 'bad proof is classified, not an accidental exception')
 })
 
@@ -18843,7 +19054,11 @@ test('2485/ES6 every task merge site spells the one --no-ff merge commit with th
 })
 
 test('2485/ES9 the never-move sentence rides the pin-transfer probe step (2), all four merge step (a) copies and the refiner card step 1, verbatim', async () => {
-  assert.match(NEVER_MOVE_SENTENCE, /never rebase, move or re-merge it, and report it merged/)
+  // D3 (#2662, PIN-3): the sentence says what the engine does, a hold, never a merge recorded from the report.
+  assert.equal(NEVER_MOVE_SENTENCE, 'A task branch whose tip is already an ancestor of the integration tip is merged: never rebase, move or re-merge it; the engine holds it for the Lead and never records a merge from your report.')
+  for (const [name, text] of [['the engine source', src], ['the refiner card', refinerMd]]) {
+    assert.ok(!/re-merge it, and report it merged/i.test(text), name + ' no longer carries the old report-it-merged ending')
+  }
   const prompts = await taskMergeSitePrompts()
   const stepLine = (p, head) => p.split('\n').find(l => l.trimStart().startsWith(head)) || ''
   assert.ok(stepLine(prompts.probe, '(2) REBASE').includes(NEVER_MOVE_SENTENCE), 'the pin-transfer probe step (2)')
@@ -18855,6 +19070,77 @@ test('2485/ES9 the never-move sentence rides the pin-transfer probe step (2), al
   }
   const step1 = refinerMd.split('\n').find(l => l.startsWith('1. `git -C <taskWorktree> fetch`'))
   assert.ok(step1 && step1.includes(NEVER_MOVE_SENTENCE), 'the refiner card merge-task step 1')
+})
+
+// ---- land confirm (#2657 D1, PIN-1): an exit 3 reads origin and the follower before landErrorArm ----
+test('land-confirm (#2657): every land prompt carries landConfirmArm', async () => {
+  const prompts = await landConfirmPrompts()
+  for (const [site, p] of Object.entries(prompts)) assert.ok(typeof p === 'string', site + ': presence guard, the land prompt dispatches')
+  assert.ok(landConfirmHolds(prompts), 'each land prompt routes every land-advance error arm through the byte-equal confirm')
+  assert.match(prompts.initial, /On any other exit from land-advance: if it exits 3 and both/, 'the in-flow any-other-exit route confirms first')
+  for (const site of ['environment-proceed', 'baseline-proceed']) assert.match(prompts[site], /on any exit but 0 or 2, if it exits 3 and both/, site + ': RELAND_CAS confirms first')
+  for (const p of Object.values(prompts)) {
+    assert.match(p, /If that attempt exits anything but 0 or 2, if it exits 3 and both/, 'the extra-attempt route confirms first')
+    assert.match(p, /and if it still exits 3, take the land confirm: if it exits 3 and both/, 'the server-side route confirms first')
+    assert.ok(p.includes("return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }; else " + LAND_ERROR_ARM), 'a confirmed land returns landed, else the error arm')
+  }
+  // The touched-doc guard: refiner-recovery.md carries the rule in the superproject and the 2A land arms.
+  assert.ok((refinerRecoveryMd.match(LAND_CONFIRM_DOC_RE) || []).length >= 2, 'refiner-recovery.md carries the land confirm in both land variants')
+  // The evicted CAS-loop block the card's land step 2 points at (budget-raise-floor.md) routes its any-other-exit bullet through the same confirm.
+  const budgetRaiseFloorMd = readFileSync(join(here, '../references/budget-raise-floor.md'), 'utf8')
+  const casBullet = budgetRaiseFloorMd.split('\n').find(l => l.trimStart().startsWith('- On any other exit → return `status: "error"`')) || ''
+  assert.match(casBullet, /On an exit 3, first take the land confirm in \[refiner-recovery\.md\]\([^)]*refiner-recovery\.md\) \(§ Reland discrimination\)\./, 'budget-raise-floor.md CAS-loop any-other-exit bullet points at the land confirm')
+  // The cross-file read (A33): the exit number the prompt names is the script's PHANTOM LAND exit.
+  assert.match(provisionWorktreesSh, /^readonly EX_FOREIGN=3$/m, 'provision-worktrees.sh binds EX_FOREIGN to 3')
+  assert.match(provisionWorktreesSh, /# PHANTOM LAND: [^\n]*\n(?:\s*#[^\n]*\n|\s*\n)*\s*die "land-advance: [^\n]*" "\$EX_FOREIGN"/, 'the PHANTOM LAND arm dies with EX_FOREIGN')
+})
+
+test('land-confirm (#2657): delete control', async () => {
+  const site = "+ pt`     - On any other exit from land-advance: ` + landConfirmArm"
+  assert.ok(src.includes(site), 'presence guard: the in-flow any-other-exit site carries the confirm')
+  const mutated = src.replace(site, "+ pt`     - On any other exit from land-advance: ` + landErrorArm")
+  assert.ok(!landConfirmHolds(await landConfirmPrompts(mutated)), 'dropping the confirm from one site reds the pin')
+})
+
+test('land-confirm (#2657): a confirmed land saves the reconcile dispatch', async () => {
+  const impl = (p, o) => /^land:phase-3(:|$)/.test(o.label || '')
+    ? (LAND_CONFIRM_RE.test(p) ? { mode: 'land-phase', status: 'landed', working_sha: '3'.repeat(40) } : { mode: 'land-phase', status: 'error' })
+    : defaultImpl(p, o)
+  const { out, calls } = await runPhase(PROVISION_ARGS(), impl)
+  assert.ok(calls.some(c => /^land:phase-3$/.test(c.opts.label || '')), 'presence guard: the land dispatches')
+  assert.equal(out.landDecision, 'landed', 'the confirmed land lands the phase')
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 0, 'no merge-reconcile dispatch runs')
+})
+
+test('land-confirm (#2657): an unconfirmed landed claim', async () => {
+  // PIN-19: a landed claim whose SHA origin does not hold never lands (guardrail: green without the confirm too).
+  const impl = (p, o) => /^land:phase-3(:|$)/.test(o.label || '') ? { mode: 'land-phase', status: 'landed', working_sha: '3'.repeat(40) } : defaultImpl(p, o)
+  const originUnmoved = (p, o, w) => {
+    const proof = NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w)
+    return /^git-confirm:land:/.test(o.label || '') ? { ...proof, remote_sha: '1'.repeat(40) } : proof
+  }
+  const { out, calls } = await runPhase(PROVISION_ARGS(), impl, { 'merge-confirm': originUnmoved })
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-confirm' && /land:phase-3/.test(c.opts.label || '')), 'presence guard: Git confirmation reads the land')
+  assert.equal(out.landDecision, 'held:land-failed', 'an unconfirmed landed claim never lands')
+  // #2702 D34: the held land runs the wrap-up once (memoryLocalRoot is threaded); its prompt names the
+  // hold, and its anchor is the confirmed merge tip of t2 on the integration branch, never the
+  // refiner-claimed working_sha ('3' * 40)
+  const servs = calls.filter(isServitor)
+  assert.equal(servs.length, 1, 'the wrap-up runs exactly once on the held land')
+  assert.ok(servs[0].prompt.includes('land decision: held:land-failed;'), 'the wrap-up on an unconfirmed land names the hold')
+  assert.ok(!servs[0].prompt.includes('Landed tip: ' + '3'.repeat(40)), 'the unconfirmed land claim never becomes the wrap-up anchor')
+  assert.ok(servs[0].prompt.includes('Landed tip: ' + '2'.repeat(40) + ' on integration/wtprov-a/phase-3 ('), 'the anchor is the confirmed merge tip on the integration branch')
+})
+
+// ---- first-push refspec (#2699 D31, PIN-31) -------------------------------------------------------
+test('first-push refspec (#2699): both merge prompts and the card', async () => {
+  const prompts = await taskMergeSitePrompts()
+  for (const site of ['environment-proceed', 'baseline-proceed']) {
+    assert.ok(prompts[site].includes('git push origin HEAD:refs/heads/integration/wtprov-a/phase-3'), site + ': step (c) names the explicit integration refspec')
+    assert.ok(!prompts[site].includes('(one --no-ff merge commit carrying the exact WAR-Task trailer; no hook runs on it), push, return'), site + ': no bare push survives')
+    assert.ok(!/git push -u\b/.test(prompts[site]), site + ': never -u')
+  }
+  assert.ok(refinerMd.includes('HEAD:refs/heads/'), 'the refiner card merge-task step 9 names the refspec')
 })
 
 test('2485/ES8 gate_sha feeds gateHeadSha; the merge commit (integration_sha) feeds lastLandedTip, the successor preMergeTip, landedShaByTask and the handoff tipSha fallback', async () => {
@@ -19273,4 +19559,172 @@ test('#2617 the dirty stop comes before the --ace forward-revert in the pin-tran
     assert.ok(rev >= 0, (c && c.opts.label) + ' carries the forward-revert clause (presence guard)')
     assert.ok(stop >= 0 && stop < rev, (c && c.opts.label) + ' puts the dirty stop before the forward-revert')
   }
+})
+
+// ---- pin-proof throw (#2589 D4, PIN-4) ------------------------------------------------------------
+// A tagged dispatch-layer throw that INFRA_DEATH_RE does not match is a failed read attempt at the
+// git-pin and snapshot reads: retried within roundLimit, then the site's existing arm. Never env-died.
+test('pin-proof throw (#2589): git-pin every attempt', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: TWIN_TASKS, run: { roundLimit: 2 } }), defaultImpl, {
+    'pin-confirm': (p, o) => { if (o.label === 'git-pin:t1') throw new Error(NON_INFRA_THROW); return NEW_SEAT_DEFAULTS['pin-confirm'](p) },
+  })
+  assert.equal(calls.filter(c => c.opts.label === 'git-pin:t1').length, 2, 'the throw is retried within roundLimit')
+  assert.notEqual(out.landDecision, 'held:workflow-error', 'one bad pin read never kills the phase')
+  assert.ok(out.auditLog.some(r => r.task === 't1' && r.verdict === 'pin-transfer:unverified'), 't1 holds as pin-transfer:unverified')
+  assert.ok(!out.landed.includes('t1') && out.landed.includes('t2'), 'only t1 holds; the sibling merges')
+  assert.ok(!out.escalated.some(e => e.reason === 'env-died'), 'a non-infra throw is never env-died')
+})
+
+test('pin-proof throw (#2589): pin-snapshot retry', async () => {
+  let n = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+    'pin-snapshot': (p, o) => { if (o.label === 'git-pin-snapshot:t1' && n++ === 0) throw new Error(NON_INFRA_THROW); return NEW_SEAT_DEFAULTS['pin-snapshot'] },
+  })
+  assert.equal(calls.filter(c => c.opts.label === 'git-pin-snapshot:t1').length, 2, 'attempt 2 runs after the throw')
+  assert.ok(out.landed.includes('t1'), 'a good snapshot on attempt 2 lets the task merge')
+  assert.equal(out.landDecision, 'landed')
+})
+
+test('pin-proof throw (#2589): snapshot exhaustion stays HARD', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), defaultImpl, {
+    'merge-snapshot': (p, o) => { if (o.label === 'git-snapshot:t1') throw new Error(NON_INFRA_THROW); return NEW_SEAT_DEFAULTS['merge-snapshot'] },
+  })
+  assert.equal(calls.filter(c => c.opts.label === 'git-snapshot:t1').length, 2, 'every attempt runs')
+  assert.equal(out.landDecision, 'held:workflow-error', 'exhaustion keeps the HARD snapshot throw')
+  assert.ok(out.workflowError.message.includes('Git merge snapshot unavailable before merge:t1'), 'the message keeps the site arm')
+  assert.ok(out.workflowError.message.includes('git-snapshot:t1: ' + NON_INFRA_THROW), 'the message names the site label and the caught reason')
+  assert.ok(!out.escalated.some(e => e.reason === 'env-died'), 'no env-died row')
+  assert.deepEqual(out.dispatchFailures.filter(f => f.label === 'git-snapshot:t1').map(f => f.reason), [NON_INFRA_THROW, NON_INFRA_THROW], 'dispatchFailures lists each attempt')
+})
+
+test('pin-proof git_error (#2589)', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), defaultImpl, {
+    'pin-confirm': { remote_sha: '', git_error: 'fatal: bad object 2222222' },
+  })
+  const row = out.auditLog.find(r => r.task === 't1' && r.verdict === 'pin-transfer:unverified')
+  assert.equal(row && row.git_error, 'fatal: bad object 2222222', 'the auditLog row carries the git_error string')
+  const pin = calls.find(c => c.opts.label === 'git-pin:t1')
+  assert.ok(pin.prompt.includes('on a Git error add git_error (the stderr tail)'), 'the git-pin prompt names the field')
+  assert.deepEqual(pin.opts.schema.properties.git_error, { type: 'string' }, 'the proof schema carries the optional field')
+  assert.ok(!pin.opts.schema.required.includes('git_error'))
+})
+
+test('pin-proof git_error (#2589): a later well-formed proof clears an earlier attempt\'s error', async () => {
+  let n = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), defaultImpl, {
+    'pin-transfer': { status: 'transferred', rebased_tip: 'a'.repeat(40) },
+    'pin-confirm': (p, o) => o.label === 'git-pin:t1' && n++ === 0 ? { remote_sha: '', git_error: 'fatal: bad object 2222222' }
+      : { ...NEW_SEAT_DEFAULTS['pin-confirm'](p), head_sha: '6'.repeat(40) },
+  })
+  assert.equal(calls.filter(c => c.opts.label === 'git-pin:t1').length, 2, 'attempt 2 reads a well-formed proof (presence guard)')
+  const row = out.auditLog.find(r => r.task === 't1' && r.verdict === 'pin-transfer:unverified')
+  assert.ok(row, 'the head mismatch still holds the task as pin-transfer:unverified')
+  assert.ok(!('git_error' in row), 'the row never names a Git error that did not cause the hold')
+})
+
+test('snapshot reply git_error (#2589)', async () => {
+  const bad = { base_sha: '', source_sha: '', remote_sha: '', patch_id: '', content_id: '', git_error: 'fatal: no local ref for the working branch' }
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), defaultImpl, {
+    'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? bad : NEW_SEAT_DEFAULTS['merge-snapshot'],
+  })
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.ok(out.workflowError.message.includes('fatal: no local ref for the working branch'), 'the hold names the reply git_error')
+  const snap = calls.find(c => c.opts.label === 'git-snapshot:t1')
+  assert.ok(snap.prompt.includes('as empty strings plus git_error'), 'the snapshot prompt carries the Git-error answer')
+  assert.deepEqual(snap.opts.schema.properties.git_error, { type: 'string' })
+})
+
+// ---- dispatchFailures (#2645 D13, PIN-13) ---------------------------------------------------------
+test('dispatchFailures (#2645): a dead dispatch and a dropped seat each leave one { label, reason } row', async () => {
+  const tasks = [SINGLE_TASK[0], { ...SINGLE_TASK[0], id: 't2', issue: 102, roster: [{ lens: 'security' }] }]
+  const { out } = await runPhase(PROVISION_ARGS({ tasks, run: { roundLimit: 2 } }), (p, o) => o.label === 'audit:t2:security' ? null : defaultImpl(p, o), {
+    'merge-snapshot': (p, o) => { if (o.label === 'git-snapshot:t1') throw new Error('529 overloaded snapshot'); return NEW_SEAT_DEFAULTS['merge-snapshot'] },
+  })
+  const dead = out.dispatchFailures.filter(f => f.label === 'git-snapshot:t1')
+  assert.equal(dead.length, 2, 'one row per dispatchDied call')
+  assert.match(dead[0].reason, /git-snapshot:t1 dispatch died post-spawn \(env-died\): 529 overloaded snapshot/)
+  const dropped = out.dispatchFailures.filter(f => f.label === 'audit:t2:security')
+  assert.equal(dropped.length, 1, 'one row per dropped audit seat')
+  assert.match(dropped[0].reason, /dropped/)
+})
+
+test('dispatchFailures (#2645): both top-level returns carry the array', async () => {
+  const ok = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl)
+  assert.deepEqual(ok.out.dispatchFailures, [], 'a clean phase returns an empty array')
+  const held = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 1 } }), defaultImpl, {
+    'merge-snapshot': (p, o) => { if (o.label === 'git-snapshot:t1') throw new Error(NON_INFRA_THROW); return NEW_SEAT_DEFAULTS['merge-snapshot'] },
+  })
+  assert.equal(held.out.landDecision, 'held:workflow-error')
+  assert.deepEqual(held.out.dispatchFailures, [{ label: 'git-snapshot:t1', reason: NON_INFRA_THROW }], 'the catch return carries the rows')
+})
+
+// ---- audit-pin retry (#2704 D36, PIN-36) ----------------------------------------------------------
+test('audit-pin retry (#2704): one empty reply then a good one approves', async () => {
+  let n = 0
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+    'audit-pin': p => n++ === 0 ? { head_sha: '', pins: [] } : NEW_SEAT_DEFAULTS['audit-pin'](p),
+  })
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 2, 'the malformed reply is re-dispatched once')
+  assert.ok(out.landed.includes('t1'), 'the task approves and merges')
+  assert.ok(!out.escalated.some(e => e.reason === 'audit-blocked'), 'no audit-blocked')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('audit-pin:t1: malformed reply (head_sha not a full SHA)')), 'one log line names the shape')
+})
+
+test('audit-pin retry (#2704): two empty replies keep audit-blocked', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, { 'audit-pin': { head_sha: '', pins: [] } })
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 2, 'one retry, never more')
+  assert.ok(!out.landed.includes('t1'))
+  assert.ok(out.escalated.some(e => e.task === 't1' && e.reason === 'audit-blocked'), "today's audit-blocked arm")
+})
+
+test('audit-pin retry (#2704): a death on the retry keeps env-died', async () => {
+  let n = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+    'audit-pin': () => { if (n++ === 0) return { head_sha: '', pins: [] }; throw new Error('529 overloaded') },
+  })
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 2, 'the death lands on the retry attempt')
+  assert.ok((out.escalated || []).some(e => e.task === 't1' && e.reason === 'env-died'), 'the retry death keeps the env-died return')
+  assert.ok(!(out.escalated || []).some(e => e.reason === 'audit-blocked'), 'no audit-blocked row')
+})
+
+// ---- held-land wrap-up (#2702 D34, PIN-34) --------------------------------------------------------
+test('held-land wrap-up (#2702): servitor on held:escalation', async () => {
+  const servitor = { phase: 3, target: 'held', learnings: ['held lesson'] }
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: TWIN_TASKS }), (p, o) => {
+    if (seatOf(o) === 'war-worker' && o.label === 'work:t1') return { task_id: 't1', status: 'blocked', blocked_reason: 'needs a Lead ruling' }
+    if (seatOf(o) === 'war-servitor') return servitor
+    return defaultImpl(p, o)
+  })
+  assert.equal(out.landDecision, 'held:escalation', 'the phase stays held')
+  assert.ok(out.landed.includes('t2') && !out.landed.includes('t1'), 'one merged sibling')
+  const wraps = calls.filter(c => c.opts.label === 'wrap-up:phase-3')
+  assert.equal(wraps.length, 1, 'the wrap-up dispatches once')
+  assert.ok(wraps[0].prompt.includes('land decision: held:escalation; working branch dev/wtprov-a'), 'the first line names the hold and the working branch')
+  assert.ok(!wraps[0].prompt.includes('(landed on '), 'never says landed on')
+  assert.match(wraps[0].prompt, /Landed tip: [0-9a-f]{40} on integration\/wtprov-a\/phase-3 \(/, 'a hold anchors the tip on the integration branch')
+  assert.deepEqual(out.servitorResult, servitor, "servitorResult is the mock's return")
+})
+
+test('held-land wrap-up (#2702): handoff on held:land-failed', async () => {
+  const tips = { 'merge:t1': 'a1'.repeat(20), 'merge:t2': 'a2'.repeat(20) }
+  const { out, calls } = await runPhase(PROVISION_ARGS(), (p, o) => {
+    if (seatOf(o) === 'war-refiner' && o.phase === 'Land') return { mode: 'land-phase', status: 'error' }
+    if (tips[o.label]) return { mode: 'merge-task', status: 'merged', integration_sha: tips[o.label] }
+    return defaultImpl(p, o)
+  })
+  assert.equal(out.landDecision, 'held:land-failed')
+  assert.ok(out.handoff, 'held:land-failed emits the handoff block')
+  assert.equal(out.handoff.tipSha, tips['merge:t2'], 'handoff.tipSha is the last merge commit')
+  const wrap = calls.find(c => c.opts.label === 'wrap-up:phase-3')
+  assert.ok(wrap && wrap.prompt.includes('Landed tip: ' + tips['merge:t2'] + ' on integration/wtprov-a/phase-3 ('), 'the wrap-up anchor is the last merge tip on the integration branch')
+})
+
+test('held-land wrap-up (#2702): no servitor on held:workflow-error', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 1 } }), defaultImpl, {
+    'merge-snapshot': (p, o) => { if (o.label === 'git-snapshot:t1') throw new Error(NON_INFRA_THROW); return NEW_SEAT_DEFAULTS['merge-snapshot'] },
+  })
+  assert.equal(out.landDecision, 'held:workflow-error', 'presence guard')
+  assert.ok(!calls.some(isServitor), 'no servitor on held:workflow-error')
+  assert.equal(out.servitorResult, null)
+  assert.equal(out.handoff, undefined)
 })

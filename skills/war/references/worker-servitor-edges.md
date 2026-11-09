@@ -1,4 +1,4 @@
-# Worker + servitor edges — submodule/gitlink-bump task mechanics, floor/tooling config mismatch, servitor confinement rationale, archived lessons
+# Worker + servitor edges — submodule/gitlink-bump task mechanics, floor/tooling config mismatch, comment hygiene, harness note, servitor confinement rationale, archived lessons
 
 Verbatim evictions from `agents/war-worker.md` and `agents/war-servitor.md` (prompt-surface
 simplification, Task 5.1; each moved block was byte-identical to its pre-eviction card text
@@ -50,6 +50,18 @@ For a **declared gitlink-bump task** the task's entire diff is advancing a submo
 Trigger: the observed failure is a floor/tooling config mismatch (the card's `## Stop and escalate instead of guessing` config-mismatch paragraph, evicted 2026-11-08 by plan 2026-11-08-auditor-and-worker-guard-habits T1.6, an ADR 0042 headroom eviction).
 
 When the observed failure is a floor/tooling **config mismatch** — e.g. a threaded `floor_diagnostic` naming the active test-pattern set and suggesting `--pattern` / `overrides.testPattern` — the root cause is run configuration, not the plan: return `status: "blocked"` quoting the diagnostic verbatim in `blocked_reason`, **without** the `PLAN-DEFECT:` prefix. Only that literal prefix sets `defectClass: 'plan'`, and only that tag auto-routes the escalation to a `/red-team` plan amendment at the Lead's adjudication step; leaving the prefix off keeps the escalation out of the automatic plan-amendment route — the Lead adjudicates it as a config question in ordinary Lead adjudication, where the quoted diagnostic points the fix at run config.
+
+## Comment hygiene
+
+Trigger: you are about to commit (the card's `## Comment hygiene (before commit)` rule, evicted 2026-11-09 by plan 2026-11-08-engine-recovery-relaunch-and-land T3.1, an ADR 0042 headroom eviction; the dispatched worker prompt still carries the rule).
+
+Before you commit, grep your touched files for the OLD behavior's concrete terms — retired values, old approach names, stale counts — and update any lagging comment/JSDoc so no comment still describes the pre-change behavior. (Mirrored in the dispatched worker prompt; the auditor's cascading-impact lens holds the standing review duty. ADR 0025.)
+
+## Harness note
+
+Trigger: a `[Fact-Forcing Gate]` (GateGuard) blocks a command or edit (the card's `## Harness note`, evicted 2026-11-09 by the same T3.1 eviction).
+
+If a `[Fact-Forcing Gate]` (GateGuard) blocks a command or edit, present the facts it asks for, then retry the identical operation — it passes on retry.
 
 ## Servitor confinement
 

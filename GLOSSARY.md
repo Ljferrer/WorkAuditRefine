@@ -1185,10 +1185,10 @@ The end-state a phase owes the next: a tip whose quality debt is **zero or enume
 — every finding absorbed (commit-cited), filed (issue + why-not-absorbable), noted (report), or parked
 as an ask (question + fork — ruled at the Checkpoint strike-list gate, never filed unruled) — plus a
 machine-readable `handoff` block (`{ tipSha, polish, absorbed, followUps, asks, notes, endState,
-intentPresent, backstops }`) emitted on `landed` and `held:escalation` only (the engine's emit gate)
-for the next phase's decompose. The follow-up filing pass is a distinct, wider gate: it runs on
-`landed`, `held:escalation` and also `held:land-failed` (#1597) — a held land forfeits the land, not
-the filing fidelity; there the stamped issues ride the top-level return's `minorsFiled`.
+intentPresent, backstops }`) emitted on `landed`, `held:escalation` and `held:land-failed` only (the
+engine's emit gate, #2702) for the next phase's decompose. The follow-up filing pass runs on the same
+three decisions (#1597) — a held land forfeits the land, not the filing fidelity; the stamped issues
+ride the handoff and the top-level return's `minorsFiled`.
 _Avoid_: follow-up issues as the default disposal; a handoff block on `held:workflow-error` (infra
 death has no trustworthy return to render).
 
@@ -1509,12 +1509,12 @@ produced by `stage-workflow.mjs` (see [ADR 0037](docs/adr/0037-run-scoped-staged
 **exactly-once**, pre-dispatch substitutions as pure literals — the Workflow sandbox has no shell/fs
 to compute them: always the two `export const meta` anchors (`name`/`description`), and, when
 `--args <file>` is passed, an **optional third** — the template's string-arm args fallback tail,
-rewritten so the staged copy falls back to a prelude carrying the validated phase-args object, which
-lets an assembled payload too large to ride the Workflow tool call travel with the script instead
+rewritten so the staged copy falls back to the args its one-line loader reads from a sibling `.args.js` script, which
+lets a payload too large to ride the Workflow tool call travel beside the script
 (dispatched args, when passed, still win). It fails loud on a missing or duplicated anchor rather
 than forking silently onto the wrong text.
 **Comment strip + size floor (#2099)**: before the substitutions the stager blanks every full-line `//`
-comment in code state and drops the leading indent of every top-level code line (#2613) (line count preserved — an `--args` stage then adds two prelude lines after
+comment in code state and drops the leading indent of every top-level code line (#2613) (line count preserved — an `--args` stage then adds one loader line after
 `meta`; strings, template literals, regexes and trailing comments pass through verbatim, one scanner
 residual recorded in the reference below), because the
 Workflow tool refuses a script over its 524,288-byte `scriptPath` cap and the shipped template alone

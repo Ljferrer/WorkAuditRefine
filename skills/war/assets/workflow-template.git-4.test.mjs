@@ -628,3 +628,108 @@ test('2485/ES17 a foreign task\'s Ace-Charge never counts toward this task\'s se
     assert.equal(highestFor(readCharges(cmd, dir, t2), 't2'), 7, 't2 reads its own merge commit')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// ---- approved ace tip (#2590 D6, PIN-6) -----------------------------------------------------------
+// A real repo: the panel approves A, the correctness seat raises one absorb Nit on x.js, the ace worker
+// commits B (x.js only), the subset re-audit re-runs correctness at B and transfers security. The merge
+// slot's pin proof must read B as the approved tip: pin[0] resolves to B and B's tree is the content
+// tree, so the proof is git-verified. The mismatch shape moves the integration branch first, so the
+// probe's rebase changes the patch and the full panel re-audits the rebased tip (the fourth r.seats
+// site) before the merge.
+for (const shape of ['subset-mode approval then merge', 'merge-slot mismatch re-audit after a prior ace']) {
+  test('approved ace tip (#2590): ' + shape, async () => {
+    const mismatch = shape.startsWith('merge-slot')
+    const dir = mkdtempSync(join(tmpdir(), 'war-ace-tip-'))
+    const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+    const git = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+    const resolve = v => { if (typeof v !== 'string' || !/^[0-9a-f]{7,40}$/.test(v)) return null; const r = run('rev-parse', '--verify', '--end-of-options', v + '^{commit}'); return r.status === 0 ? r.stdout.trim() : null }
+    const remote = () => git('ls-remote', 'origin', 'refs/heads/integration').split(/\s/)[0]
+    const patch = (a, b) => { const r = spawnSync('git', ['patch-id', '--stable'], { input: git('diff', a, b) + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.trim().split(' ')[0] }
+    try {
+      git('init', '-b', 'integration'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+      writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); git('branch', 'working')
+      git('init', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', 'origin', 'integration', 'working')
+      git('checkout', '-b', 'task'); writeFileSync(join(dir, 'a'), 'a'); writeFileSync(join(dir, 'x.js'), 'import y\n'); git('add', 'a', 'x.js'); git('commit', '-m', 'task a')
+      const A = git('rev-parse', 'HEAD')
+      let B = null, R = null
+      const proofs = []
+      const tasks = [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', branch: 'task', worktree: dir, roster: [{ lens: 'correctness' }, { lens: 'security' }] }]
+      const { out } = await runPhase(PROVISION_ARGS({ phase: { id: 3, title: 'P3', integrationBranch: 'integration', workingBranch: 'working' }, tasks, run: { ace: true } }), (p, o) => {
+        if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: A }
+        if (seatOf(o) === 'war-worker') {
+          // the one ace commit: x.js only
+          writeFileSync(join(dir, 'x.js'), '\n'); git('commit', '-qam', 'ace: drop the unused import\n\nAce-Charge: t1:1'); B = git('rev-parse', 'HEAD')
+          return { task_id: 't1', status: 'implemented', head_sha: B, ace_diff_files: ['x.js'], files_changed: ['x.js'], tests: { unit: 1 } }
+        }
+        if (seatOf(o) === 'war-auditor' && /^audit:t1:/.test(o.label || '')) {
+          const lens = o.label.split(':')[2]
+          const sha = (p.match(/AUDIT PIN: the worker reports commit ([0-9a-f]{7,40})/) || [])[1] || (R && p.includes(R) ? R : B && p.includes(B) ? B : A)
+          const findings = sha === A && lens === 'correctness' ? [{ severity: 'Nit', title: 'tidy import', file: 'x.js', rationale: 'unused import', autoFixable: true }] : []
+          return { seat: o.label, lens, verdict: 'approve', findings, confidence: 'high', audit_sha: sha }
+        }
+        return defaultImpl(p, o)
+      }, { rawTaskAuditPins: true,
+        'audit-pin': p => ({ head_sha: git('rev-parse', 'task'), pins: fixturePinRequest(p).map(resolve) }),
+        'tip-probe': p => {
+          const pre = p.match(/PRE=(\S+) \(the pre-dispatch tip\)/)[1], approved = p.match(/APPROVED=(\S+) \(the last approved tip\)/)[1], tip = git('rev-parse', 'task')
+          return { tip_sha: tip, tip_tree: git('rev-parse', tip + '^{tree}'), pre_sha: resolve(pre), pre_tree: git('rev-parse', pre + '^{tree}'), approved_tree: git('rev-parse', approved + '^{tree}'),
+            pre_is_ancestor: true, count: Number(git('rev-list', '--count', pre + '..' + tip)), files: git('diff', '--no-renames', '--name-only', pre, tip).split('\n').filter(Boolean) }
+        },
+        'pin-snapshot': () => {
+          if (mismatch && !R) {
+            // the integration branch moves after the ace, before the merge slot reads it
+            git('checkout', '-q', 'integration'); writeFileSync(join(dir, 'x.js'), 'import y\nimport z\n'); git('add', 'x.js'); git('commit', '-qm', 'sibling'); git('push', '-q', 'origin', 'integration'); git('checkout', '-q', 'task')
+          }
+          const mb = git('merge-base', 'integration', 'task')
+          return { base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote(), patch_id: patch(mb, 'task'), content_id: fixtureContentId(dir, mb, 'task') }
+        },
+        'pin-transfer': () => {
+          const base = git('merge-base', 'integration', 'task'), pre = patch(base, 'task')
+          if (mismatch) {
+            // keep the approved x.js content on a conflict-free replay
+            const r = run('rebase', '-q', 'integration')
+            if (r.status !== 0) { git('checkout', '--theirs', 'x.js'); git('add', 'x.js'); git('-c', 'core.editor=true', 'rebase', '--continue') }
+          }
+          R = git('rev-parse', 'task')
+          return { status: mismatch ? 'mismatch' : 'transferred', rebased_tip: R, dispatch_base: base, pre_rebase_patch_id: pre, post_rebase_patch_id: patch('integration', 'task') }
+        },
+        'pin-confirm': p => {
+          const before = JSON.parse(p.match(/Immutable BEFORE: (.+?)\. REPORTED PINS:/)[1]), pins = JSON.parse(p.match(/REPORTED PINS: ([^\n]+)/)[1]).map(resolve)
+          const ownBase = git('merge-base', before.base_sha, before.source_sha)
+          const proof = { head_sha: git('rev-parse', 'task'), head_tree: git('rev-parse', 'task^{tree}'), local_sha: git('rev-parse', 'integration'), remote_sha: remote(), content_sha: before.source_sha,
+            approved_tree: git('rev-parse', pins[0] + '^{tree}'), content_tree: git('rev-parse', before.source_sha + '^{tree}'), dispatch_base: ownBase, pins,
+            pre_content_id: fixtureContentId(dir, ownBase, before.source_sha), post_content_id: fixtureContentId(dir, 'integration', 'task'), pre_patch_id: patch(ownBase, before.source_sha), post_patch_id: patch('integration', 'task'),
+            target_ancestor: run('merge-base', '--is-ancestor', 'integration', 'task').status === 0, post_empty: run('diff', '--quiet', 'integration', 'task').status === 0,
+            task_count: Number(git('rev-list', '--count', ownBase + '..' + before.source_sha)), cherry: [] }
+          proofs.push(proof)
+          return proof
+        },
+      })
+      assert.ok(isHexSha(B) && B !== A, 'presence guard: the ace commit exists')
+      const ace = out.pinTransfers.find(t => t.kind === 'ace')
+      assert.equal(ace && ace.mode, 'subset', 'one seat re-ran at the ace tip and the other transferred')
+      const verified = out.auditLog.filter(e => e.task === 't1' && e.verdict === 'pin-transfer:git-verified')
+      assert.equal(verified.length, 1, 'the pin proof is git-verified, never tree-mismatch')
+      assert.ok(!out.auditLog.some(e => e.verdict === 'pin-transfer:tree-mismatch'))
+      assert.equal(verified[0].after.pins[0], B, 'pins[0] is the approved ace tip')
+      assert.equal(proofs.length, 1)
+      if (mismatch) {
+        assert.ok(R !== B, 'presence guard: the rebase moved the task tip')
+        const row = out.pinTransfers.find(t => t.kind === 'merge')
+        assert.equal(row && row.mode, 'mismatch', 'the merge slot re-audited the rebased tip')
+        assert.equal(row.reauditedTip, B, 'the re-audit started from the approved ace tip')
+        // Fix rule census (#2590 D6): every r.seats approving arm also sets r.aceSha to the tip it judged.
+        const seatSites = src.match(/^\s*r\.seats = \w+$/gm) || []
+        const paired = src.match(/^\s*r\.seats = \w+\n\s*r\.aceSha = [\w.]+$/gm) || []
+        assert.equal(seatSites.length, 4, 'four r.seats sites')
+        assert.equal(paired.length, seatSites.length, 'each r.seats site also sets r.aceSha')
+        // Each arm's r.aceSha is the tip that arm judged, not any right-hand side.
+        const pairs = paired.map(p => p.trim().split(/\s*\n\s*/).map(l => l.split(' = ')[1]))
+        assert.deepEqual(pairs.sort(), [
+          ['rbSeats', 'pinProof.head_sha'], ['reS', 'reSha'], ['reSeats', 'aceSha'], ['subSeats', 'subSha'],
+        ], 'each r.aceSha names the tip its own arm judged')
+      }
+      assert.ok(out.landed.includes('t1'), 'the approved ace work merges')
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+}

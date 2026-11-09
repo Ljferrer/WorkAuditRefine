@@ -246,3 +246,29 @@ This amendment supersedes decision 3's date-based runId format and same-day recu
 #2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
 (ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
 next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+
+## Amendment (2026-11-09, D38, plan `2026-11-08-engine-recovery-relaunch-and-land` Task 1.2): the args sibling script
+
+Operator ruling 2026-11-09: the staged-template cap is funded by moving the embedded args into a
+sibling args script. Append-only: decision 2's 2026-07-27 amendment still holds in kind (the third
+exactly-once substitution, dispatched args still win), but the args no longer ride the staged copy.
+Under `--args <file>` the stager writes the validated args to `<staged basename minus .js>.args.js`
+beside the staged copy: a meta statement, then `return` of the JSON. The staged copy carries one
+loader line after `meta`. It calls `workflow({ scriptPath })` on the sibling only when no args were
+dispatched, and it stores a load error instead of throwing, so nothing above the engine's top-level
+`try` throws. The rewritten args fallback sits inside that `try` and throws a named error for a
+failed load, so a bad or missing sibling returns `held:workflow-error` (no new enum member, ADR 0005).
+The engine itself never calls `workflow()`, so the one-level nesting limit holds (verified: the plan's
+TRIAL-3, 2026-11-09).
+
+Decision 3 extends to the pair. The sibling gets its own `.sha256` sidecar.
+Write-if-absent and `--force` cover both files together: `--force` refuses when either existing
+file's sidecar does not match, and a reuse of a staged file whose loader names a missing sibling
+exits non-zero naming both `--force` and `--discard-injections`. A sibling with no staged file beside
+it is overwritten by the next fresh stage. The size floor checks each file against `SCRIPT_BYTE_CAP`.
+
+The ruled headroom drop: `stage-workflow.test.mjs` arm (p)'s `ARGS_HEADROOM_BYTES` reserved room for
+the over-size args class inside the staged copy. With the args in the sibling, it now reserves only
+the loader prelude (the loader line and the fallback rewrite). This lowering is part of the D38
+ruling and is no precedent for lowering the reserve while args ride the staged copy. Arbiter: the
+`args sibling (D38):` rows in `stage-workflow.test.mjs`.

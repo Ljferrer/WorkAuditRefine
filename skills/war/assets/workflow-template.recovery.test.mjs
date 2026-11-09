@@ -423,6 +423,8 @@ import {
   evalTemplateConst,
   PROVISION_TREE_SENTENCE,
   PROVISION_CLEAN_SENTENCE,
+  PROVISION_SAVE_SENTENCE,
+  PROVISION_RESTORE_SENTENCE,
   DEP_WAVE_PROVISION_SENTENCE,
   markerWriterOf,
   markerTestOf,
@@ -486,7 +488,18 @@ test('#990 threaded tip — missing working SHA holds before Wrap-up if Git reco
   const { calls, out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), tipImpl({}, { integration_sha: 'beefcafe12' }), { rawMergeResults: true })
   assert.notEqual(out.landDecision, 'landed')
   assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
-  assert.ok(!calls.some(isServitor), 'no fallback pin substitutes for an unproved land')
+  // #2702 D34: the unproved land holds the phase, and the wrap-up runs once (memoryLocalRoot is threaded).
+  assert.equal(out.landDecision, 'held:land-failed', 'the unproved land holds the phase')
+  const servs = calls.filter(isServitor)
+  assert.equal(servs.length, 1, 'the wrap-up runs exactly once on the held land')
+  const [wrap] = servs
+  assert.ok(wrap.prompt.includes('land decision: held:land-failed;'), 'the wrap-up names the hold')
+  // The anchor is the Git-confirmed merge tip of t1 on the integration branch: the land reply carried
+  // no working_sha, so no fallback poses as a landed tip on the working branch, and the merge tip is
+  // never dropped for the placeholder.
+  assert.ok(wrap.prompt.includes('Landed tip: beefcafe12 on integration/wtprov-a/phase-3 ('), 'the held wrap-up anchors on the confirmed merge tip, on the integration branch')
+  assert.ok(!wrap.prompt.includes(' on dev/wtprov-a ('), 'no fallback pin poses as a landed working-branch tip')
+  assert.ok(!TIP_PLACEHOLDER.test(wrap.prompt), 'a confirmed merge tip is never replaced by the placeholder')
 })
 
 test("Task 1.1 (End state 3) — land 'environment' recovered: the environment-proceed re-land's 'landed' ⇒ landDecision 'landed', the resync log line, and the servitor wrap-up dispatch fires", async () => {
@@ -533,13 +546,20 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   assert.ok(refinerRecoveryMd.includes(RELAND_DISC_DIVERGE), 'refiner-recovery.md names the nonzero-right-count divergence branch')
   assert.ok(refinerRecoveryMd.split(RELAND_REMOTE_REJECTED).length - 1 >= 2,
     'refiner-recovery.md names the server-side remote rejection as a retry in BOTH the superproject and submodule-2A land variants (#2626)')
-  assert.ok(refinerMd.includes(RELAND_REMOTE_REJECTED), 'agents/war-refiner.md names the server-side remote rejection as a retry (#2626)')
+  // #2657 (PIN-21): the card's two land-phase exit bullets moved byte-identical into § Reland discrimination;
+  // the card keeps one linked pointer, and the moved Server-side push error bullet carries both #2626 sentences.
+  const serverSideBullet = '- **Server-side push error:** a server-side `[remote rejected]` push with origin unmoved is a retry, never `land_stale`. `land-advance` retries it itself (3 times). Run land-advance as a foreground call with timeout 300000, because spent retries alone wait 70 s. If it still exits 3, take the escalate arm above.'
+  assert.ok(refinerRecoveryMd.split('\n').includes(serverSideBullet), 'refiner-recovery.md carries the moved Server-side push error bullet byte-identical (#2626, #2657)')
+  assert.ok(refinerRecoveryMd.split('\n').includes('- **Land-advance escalate:** on any exit but 0 or 2, return `status: "error"` with the command\'s stderr in `segment_note`, so the Lead reads the die text.'), 'refiner-recovery.md carries the moved Land-advance escalate bullet byte-identical (#2657)')
+  assert.ok(!refinerMd.includes(RELAND_REMOTE_REJECTED) && !refinerMd.includes(RELAND_ADVANCE_TIMEOUT), 'the card no longer carries the moved bullets (#2657)')
+  assert.ok(refinerMd.split('\n').includes('- When land-advance exits non-zero, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) (§ Reland discrimination).'), 'the card keeps the linked land-advance exit pointer (#2657)')
   assert.ok(refinerRecoveryMd.split(RELAND_ADVANCE_TIMEOUT).length - 1 >= 2,
     'refiner-recovery.md raises the land-advance tool timeout in BOTH the superproject and submodule-2A land variants (#2626)')
+  // Every timeout copy is its own every-attempt line, never inside a final-attempt paragraph, except the
+  // moved card bullet, which states the timeout for every attempt in its own bullet.
   const timeoutLines = refinerRecoveryMd.split('\n').filter(l => l.includes(RELAND_ADVANCE_TIMEOUT))
-  assert.ok(timeoutLines.length >= 2 && timeoutLines.every(l => /^(   - )?Every attempt, not only the final one: /.test(l)),
-    'each refiner-recovery.md timeout copy is its own every-attempt line, never inside a final-attempt paragraph (#2626)')
-  assert.ok(refinerMd.includes(RELAND_ADVANCE_TIMEOUT), 'agents/war-refiner.md raises the land-advance tool timeout (#2626)')
+  assert.ok(timeoutLines.filter(l => /^(   - )?Every attempt, not only the final one: /.test(l)).length >= 2 && timeoutLines.every(l => /^(   - )?Every attempt, not only the final one: /.test(l) || l === serverSideBullet),
+    'each refiner-recovery.md timeout copy is its own every-attempt line or the moved bullet, never inside a final-attempt paragraph (#2626)')
   // the discrimination must appear for BOTH the superproject land and the submodule-2A land variant.
   assert.ok((refinerRecoveryMd.match(/git rev-list --left-right --count <merge-sha>\.\.\.origin\//g) || []).length >= 2,
     'the discrimination command is present in BOTH the superproject and submodule-2A land variants')
@@ -551,7 +571,7 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   assert.deepEqual(recoveryTriggers.sort(), [
     'Submodule-as-repo provisioning', 'Uncertain merge reconciliation and § Exact Git diff identity', 'Recovery task provenance',
     'Pin-transfer arms', 'Land-barrier endstate-check steps',
-    'Reland discrimination — superproject land-phase step 3', 'Submodule phase — 2A / § Submodule phase — 2B',
+    'Reland discrimination — superproject land-phase step 3', 'Reland discrimination', 'Submodule phase — 2A / § Submodule phase — 2B',
     'Post-merge evidence opener',
   ].sort())
   assert.match(refinerRecoveryMd, /## Land-barrier endstate-check steps/, 'the evicted endstate-check steps section landed at the destination')
@@ -705,9 +725,32 @@ test('derive-and-skip: zero-commit branch dispatches (#1895/#2006/#2196)', async
   const merged = await runPhase(args, barrierEnv({ ok: true, preMerged: ['t1'] }))
   assert.ok(merged.logs.some(l => /task t1 is pre-merged .*task-integrated.sh/.test(l)))
   assert.ok(!merged.calls.some(c => c.opts.label === 'work:t1'))
-  for (const c of (await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl())).calls.filter(c => isWorker(c) || isFixWorker(c))) {
-    assert.ok(c.prompt.includes('TASK PROVENANCE: put the exact trailer WAR-Task: war/wtprov-a/p3-t1'), 'implementation and fix producers carry the trailer')
+})
+
+// #2659 D14 (PIN-14): the merge commit proves task ownership, so no worker surface asks for a WAR-Task
+// trailer. The two fixtures read the implementation and fix producers and the worker card.
+const provenanceSurfaces = async () => {
+  const workers = (await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl())).calls.filter(c => isWorker(c) || isFixWorker(c))
+  assert.ok(workers.some(isWorker) && workers.some(isFixWorker), 'an implementation and a fix producer dispatched (presence guard)')
+  return [['war-worker.md', workerMd], ...workers.map(c => [c.opts.label + ' prompt', c.prompt])]
+}
+test('task provenance (#2659): OLD-absent — the trailer sentence is on neither the dispatched prompt nor the card', async () => {
+  for (const [name, text] of await provenanceSurfaces()) {
+    assert.ok(!text.includes('put the exact trailer'), name + ' no longer asks for the exact trailer')
+    assert.ok(!/WAR-Task/.test(text), name + ' names no WAR-Task trailer')
   }
+})
+test('task provenance (#2659): NEW-present — the no-empty-commit and git rev-parse HEAD sentences are on both', async () => {
+  for (const [name, text] of await provenanceSurfaces()) {
+    assert.match(text, /Never create an empty commit [^.]*recovery credit/i, name + ' keeps the no-empty-commit sentence')
+    assert.match(text, /head_sha`?, all 40 hex characters, from `?git rev-parse HEAD`? after committing/, name + ' keeps the head_sha read from git rev-parse HEAD (all 40 hex, #2703)')
+  }
+  // Non-vacuity on the engine side: dropping taskProvenanceClause from every worker prompt reds the presence match.
+  const USES = /\+ taskProvenanceClause /g
+  assert.equal((src.match(USES) || []).length, 2, 'the implementation and fix prompts each append taskProvenanceClause (mutation target)')
+  const mut = (await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl(), {}, src.replace(USES, ''))).calls.filter(c => isWorker(c) || isFixWorker(c))
+  assert.ok(mut.some(isWorker) && mut.some(isFixWorker), 'the mutant still dispatches both producers (presence guard)')
+  for (const c of mut) assert.doesNotMatch(c.prompt, /head_sha`?, all 40 hex characters, from `?git rev-parse HEAD`? after committing/, c.opts.label + ': without the clause the head_sha read is gone')
 })
 
 // (c) relaunch fix — STRUCTURAL dispatch-layer scoping (the both-ways proof, other direction): an
@@ -1194,6 +1237,16 @@ for (const initial of ['missing-seat', 'bad-seat', 'missing-worker', 'bad-worker
       if (++lookups > 2) throw new Error('unexpected repeated pin reconciliation')
       return fixtureGitProof(p, tip)
     } })
+    if (initial.endsWith('worker')) {
+      // #2703 D35: only the worker pin misses and the one seat resolved to the Git head, so the pin is
+      // repaired to the head without a second panel; `repaired` (the second panel's reply) never runs.
+      assert.equal(lookups, 1, 'the one panel is verified through Git')
+      assert.equal(audits, 1, 'no second panel: the seat already judged the Git head')
+      assert.ok(out.auditLog.some(r => r.task === 't1' && r.verdict === 'pin-repaired:worker' && r.headSha === tip), 'the repair is logged with the Git head')
+      assert.ok(!out.auditLog.some(r => r.verdict === 'pin-mismatch:reconcile'), 'no reconcile re-audit')
+      assert.ok(out.landed.includes('t1'), 'the repaired pin approves')
+      return
+    }
     assert.equal(lookups, 2, 'each panel verified through Git')
     assert.equal(audits, 2, 'fresh review follows the Git lookup')
     assert.equal(out.landed.includes('t1'), repaired, 'only repaired pin evidence can approve')
@@ -1372,4 +1425,103 @@ test('2485/ES16 every recovery arm routes a failed provision re-run to env-block
     if (s.merge) assert.ok(!out.landed.includes('t1'), s.name + ': the task stays unmerged')
     else assert.equal(out.landDecision, 'held:land-failed', s.name + ': the land holds')
   }
+})
+
+// ---- plan 2026-11-08-engine-recovery-relaunch-and-land, Task 4.1 (D7, D9, D16, D27, D32, D33) ----
+const filledFor = (sentence, id) => sentence.split('<task id>').join(id)
+
+test('reused-worktree provision (#2588): prompt — the task-worktree provision prompt carries the save, clean and restore lines in that order; _refinery and depClause carry no save', async () => {
+  const { calls } = await runPhase(withProvision(), defaultImpl)
+  const p = calls.find(c => c.opts.label === 'provision-run:t1').prompt
+  const save = p.indexOf(filledFor(PROVISION_SAVE_SENTENCE, 't1')), clean = p.indexOf(PROVISION_CLEAN_SENTENCE), restore = p.indexOf(filledFor(PROVISION_RESTORE_SENTENCE, 't1'))
+  assert.ok(save >= 0 && clean > save && restore > clean, `save (${save}) < clean (${clean}) < restore (${restore})`)
+  assert.ok(p.includes('.war/preprovision-t1.patch') && !p.includes('<task id>'), 'the patch path names this task, no placeholder left')
+  const r = calls.find(c => c.opts.label === 'provision-run:_refinery').prompt
+  assert.ok(r.includes(PROVISION_CLEAN_SENTENCE) && !r.includes('preprovision-'), 'the _refinery provision keeps the clean line and carries no save or restore')
+  const dep = calls.find(c => c.opts.label === 'work:t2').prompt
+  assert.ok(dep.includes('DEPS ALREADY MERGED') && !dep.includes(PROVISION_CLEAN_SENTENCE), 'depClause still omits the clean line')
+  assert.ok(!dep.includes('preprovision-'), 'depClause carries no save line either')
+})
+
+test('reused-worktree provision (#2588): savedWork reaches the worker — a kept patch is named in the worker prompt; no savedWork, no line', async () => {
+  const patch = '.war/preprovision-t1.patch'
+  const withSaved = await runPhase(withProvision(), (p, o) => o.label === 'provision-run:t1' ? { ok: true, savedWork: patch } : defaultImpl(p, o))
+  const w = withSaved.calls.find(c => c.opts.label === 'work:t1').prompt
+  assert.ok(w.includes('SAVED WORK') && w.includes(patch), 'the worker prompt names the saved-work patch')
+  const plain = await runPhase(withProvision(), defaultImpl)
+  assert.ok(!plain.calls.find(c => c.opts.label === 'work:t1').prompt.includes('preprovision-'), 'an { ok: true } provision adds no saved-work line')
+})
+
+test('recovery predecessor seed (#2575): the first fresh merge after a preMerged task stamps preMergeTip = the barrier integrationTip; tipSha unchanged when no fresh merge lands', async () => {
+  const tip = 'a'.repeat(40)
+  const { calls } = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), barrierEnv({ ok: true, preMerged: ['t1'], integrationTip: tip }))
+  assert.ok(calls.some(c => c.opts.label === 'work:t2'), 'the fresh task runs')
+  assert.equal(preMergeTipOf(evPromptOf(calls), 't2'), tip, 'the fresh task rebased onto the adopted integration tip, so its mapped range starts there')
+  const barrier = calls.find(isProvision).prompt
+  assert.match(barrier, /return the third field of a TASK_INTEGRATED line \(the integration tip\) as `integrationTip`/, 'the derive step asks for integrationTip')
+  // No fresh merge: a one-task phase whose only task is pre-merged, with a held land. tipSha reads
+  // lastLandedTip, which the seed never sets.
+  const held = (env) => runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, recovery: { sanctioned: true } }),
+    (p, o) => o.dispatchKind === 'provision-barrier' ? env : o.phase === 'Land' && seatOf(o) === 'war-refiner' ? { mode: 'land-phase', status: 'land_stale' } : defaultImpl(p, o))
+  const seeded = await held({ ok: true, preMerged: ['t1'], integrationTip: tip })
+  const bare = await held({ ok: true, preMerged: ['t1'] })
+  assert.notEqual(seeded.out.landDecision, 'landed', 'the land holds (presence guard)')
+  assert.equal(seeded.out.handoff && seeded.out.handoff.tipSha, bare.out.handoff && bare.out.handoff.tipSha, 'tipSha is unchanged by the seed')
+  assert.notEqual(seeded.out.handoff && seeded.out.handoff.tipSha, tip, 'the seed never reaches tipSha')
+})
+
+test('refinery hygiene (#1823): an ensure-refinery-worktree marker row { task: null, refinery: true } logs without <task>', async () => {
+  const row = { task: null, refinery: true, path: '/abs/repo/.claude/worktrees/run-2026/_refinery', action: 'repaired', detail: 'dirty submodule' }
+  const { calls, logs } = await runPhase(PROVISION_ARGS(), barrierEnv({ ok: true, worktreeHygiene: [row] }))
+  const line = logs.find(l => typeof l === 'string' && l.startsWith('worktree hygiene (D20, #1381): '))
+  assert.ok(line, 'the hygiene summary line is logged')
+  assert.ok(line.includes('repaired ' + row.path + ' (refinery) — dirty submodule'), line)
+  assert.ok(!line.includes('<task>'), 'a refinery row never renders a <task> placeholder')
+  assert.match(calls.find(isProvision).prompt, /ensure-refinery-worktree marker as \{ task: null, refinery: true, path, action, detail \}/, 'the barrier prompt names the refinery row shape')
+})
+
+test('owned-file adoption (#2671): sanctioned barrier prompt — record-as-owned rides before ensure-integration only when recovery and ownedFile are both set', async () => {
+  const ib = 'integration/wtprov-a/phase-3'
+  const sanctioned = (await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), defaultImpl)).calls.find(isProvision).prompt
+  const adopt = sanctioned.indexOf('record-as-owned ' + ib), ensure = sanctioned.indexOf('ensure-integration')
+  assert.ok(adopt >= 0 && ensure > adopt, `record-as-owned (${adopt}) precedes ensure-integration (${ensure})`)
+  assert.ok(sanctioned.slice(adopt, ensure).includes('--owned-file /abs/repo/.claude/teams/run-2026/owned-refs'), 'the adopt step names the owned file')
+  const absent = (await runPhase(PROVISION_ARGS(), defaultImpl)).calls.find(isProvision).prompt
+  assert.ok(!absent.includes('record-as-owned'), 'the recovery-absent barrier carries no record-as-owned')
+  const noOwned = (await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true }, ownedFile: undefined }), defaultImpl)).calls.find(isProvision)
+  assert.ok(noOwned, 'a run with no ownedFile still dispatches the barrier')
+  assert.ok(!noOwned.prompt.includes('record-as-owned'), 'a sanctioned run with no ownedFile carries no record-as-owned')
+})
+
+test('prior-return carry (#2700): a pre-merged task gets its held-attempt aced and minorsFiled rows stamped recovered; a re-running task\'s rows drop; no priorReturn returns empty arrays', async () => {
+  const priorReturn = {
+    aced: [{ task: 'p3-t1', finding: { severity: 'Nit', title: 'held ace' }, sha: 'abc1234' }, { task: 't2', finding: { severity: 'Nit', title: 'other ace' }, sha: 'abc1234' }],
+    minorsFiled: [{ task: 't1', severity: 'Minor', title: 'held follow-up', rationale: 'r', disposition: 'follow-up', issue: 77 }],
+  }
+  const { out, logs } = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true, priorReturn } }), barrierEnv({ ok: true, preMerged: ['t1'] }))
+  const a = out.aced.filter(r => r.recovered === true)
+  assert.deepEqual(a.map(r => r.finding.title), ['held ace'], 'only the pre-merged task\'s aced row is carried')
+  assert.ok(!out.aced.some(r => r.finding && r.finding.title === 'other ace'), 'the re-running task\'s row is dropped')
+  const m = out.minorsFiled.find(r => r.title === 'held follow-up')
+  assert.ok(m && m.recovered === true, 'the minorsFiled row is carried, stamped recovered')
+  assert.equal(m.issue, 77, 'a row already carrying issue keeps it')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('prior-return carry: task t1 carries 1 aced and 1 minorsFiled')), 'one log line per task with both counts')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('prior-return carry: dropped 1 row')), 'the dropped rows are logged')
+  const none = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), barrierEnv({ ok: true, preMerged: ['t1'] }))
+  assert.deepEqual(none.out.aced, [], 'no priorReturn: aced is empty')
+  assert.deepEqual(none.out.minorsFiled, [], 'no priorReturn: minorsFiled is empty')
+})
+
+test('carried-from origin (#2701): a re-carried seeded row keeps its origin phase; a row born in the held phase carries that phase', async () => {
+  const seed = [{ severity: 'Minor', title: 'carried nit', file: 'docs/c.md', rationale: 'r', disposition: 'absorb', planSlug: 'wtprov-a', carriedFrom: { phase: 5, reason: 'held phase' } }]
+  const phase = { id: 6, title: 'P6', integrationBranch: 'integration/wtprov-a/phase-6', workingBranch: 'dev/wtprov-a' }
+  const impl = (prompt, opts) => seatOf(opts) === 'war-refiner' && opts.phase === 'Refine' && opts.dispatchKind !== 'polish-worktree'
+    ? { mode: 'merge-task', status: 'conflict' } : sweepBase([queuedAbsorb()])(prompt, opts)
+  const { out } = await runPhase(SWEEP_ARGS({ phase, seededPhaseClose: seed }), impl)
+  assert.equal(out.landDecision, 'held:escalation', 'the phase holds (presence guard)')
+  const carried = t => (out.carriedPhaseClose || []).find(f => f && f.title === t)
+  assert.ok(carried('carried nit') && carried('dangling link'), 'both rows are carried')
+  assert.equal(carried('carried nit').carriedFrom.phase, 5, 'the seeded row keeps its origin phase')
+  assert.equal(carried('dangling link').carriedFrom.phase, 6, 'a row born in phase 6 carries 6')
+  assert.match(carried('carried nit').carriedFrom.reason, /held phase \(held:escalation\)/, 'the reason is the latest hop')
 })
