@@ -656,23 +656,23 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
      land saves the reconcile dispatch (a refiner mock that returns `landed` only when its prompt carries
      the confirm text lands the phase with zero `merge-reconcile` dispatches — red at base, where the
      prompt lacks the text and the `status: 'error'` reply enters reconciliation) · check:
-     `node --test --test-reporter=tap --test-name-pattern='land-confirm \(#2657\): (every land prompt|a confirmed land)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - land-confirm \(#2657\): (every land prompt|a confirmed land)/{n++} END{r=(n>=2&&!b); print r?"PASS-E1":"RED-E1"; exit !r}'`
+     `node --test --test-reporter=tap --test-name-pattern='land-confirm \(#2657\): (every land prompt|a confirmed land)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - land-confirm \(\\#2657\): (every land prompt|a confirmed land)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-E1":"RED-E1"} END{exit !r}'`
      · token: `PASS-E1` · owner T1.1 · red at base: no such test (TRIAL-2 grep read).
   2. `refiner-recovery.md` carries the land-confirm rule and no longer says the retry "exits 0 via Task 1.1"
      · check: `grep -q "ls-remote origin refs/heads" skills/war/references/refiner-recovery.md && ! grep -q "exits 0 via Task 1.1" skills/war/references/refiner-recovery.md && echo PASS-E2`
      · token: `PASS-E2` · owner T1.1 · red at base: counts `0` and `1`.
   3. A refiner `landed` claim whose SHA origin does not hold never lands · check:
-     `node --test --test-reporter=tap --test-name-pattern='land-confirm \(#2657\): an unconfirmed landed claim' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - land-confirm \(#2657\): an unconfirmed landed claim/{n++} END{r=(n>0&&!b); print r?"PASS-E3":"RED-E3"; exit !r}'`
+     `node --test --test-reporter=tap --test-name-pattern='land-confirm \(#2657\): an unconfirmed landed claim' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - land-confirm \(\\#2657\): an unconfirmed landed claim/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E3":"RED-E3"} END{exit !r}'`
      · token: `PASS-E3` · owner T1.1 · red at base: no such test. This is a guardrail fixture (PIN-19):
      it stays green if `landConfirmArm` is deleted, by design; End state 1 is the delete-the-feature check.
   4. The never-move sentence says the engine holds the task, and the old ending is gone from the engine and
      the card · check:
-     `! grep -q "and report it merged" skills/war/assets/workflow-template.js agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='2485/ES9' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - 2485\/ES9/{n++} END{r=(n>0&&!b); print r?"PASS-E4":"RED-E4"; exit !r}'`
+     `! grep -q "and report it merged" skills/war/assets/workflow-template.js agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='2485/ES9' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - 2485\/ES9/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E4":"RED-E4"} END{exit !r}'`
      · token: `PASS-E4` · owner T1.1 · red at base: the old ending is present once in each file.
   5. A sanctioned recovery run from another plugin root or version is refused before launch, a
      non-recovery launch never reads the manifest, and the relaunch doctrine the runbook sends the Lead to
      names the flag · check:
-     `grep -q -- "--prior-manifest" skills/war/references/launch-identity.md && node --test --test-reporter=tap --test-name-pattern='prior-manifest \(#2495\)' skills/war/assets/assert-args-complete.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - prior-manifest \(#2495\)/{n++} END{r=(n>=5&&!b); print r?"PASS-E5":"RED-E5"; exit !r}'`
+     `grep -q -- "--prior-manifest" skills/war/references/launch-identity.md && node --test --test-reporter=tap --test-name-pattern='prior-manifest \(#2495\)' skills/war/assets/assert-args-complete.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - prior-manifest \(\\#2495\)/{n++} END{r=(n>=5&&!b)} END{print r?"PASS-E5":"RED-E5"} END{exit !r}'`
      · token: `PASS-E5` · owner T1.2 · red at base: `prior-manifest` is absent from the doc; no such test.
   6. Three cases, each a non-infra tagged throw (`StructuredOutput retry cap exceeded`): (a) a `git-pin:`
      dispatch that throws on every attempt holds only that task as `pin-transfer:unverified`, a sibling
@@ -681,47 +681,47 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
      HARD today); (c) a `git-snapshot:` dispatch that throws on every attempt ends `held:workflow-error`
      with `workflowError.message` naming the site label and the caught reason, and no `env-died` row ·
      check:
-     `node --test --test-reporter=tap --test-name-pattern='pin-proof throw \(#2589\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - pin-proof throw \(#2589\)/{n++} END{r=(n>=3&&!b); print r?"PASS-E6":"RED-E6"; exit !r}'`
+     `node --test --test-reporter=tap --test-name-pattern='pin-proof throw \(#2589\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - pin-proof throw \(\\#2589\)/{n++} END{r=(n>=3&&!b)} END{print r?"PASS-E6":"RED-E6"} END{exit !r}'`
      · token: `PASS-E6` · owner T2.1 · red at base: no such test; the grill's sandbox showed (a) and (b)
      return `held:workflow-error` at base.
   7. A `git_error` string reaches the `pin-transfer:unverified` auditLog row, the `git-pin:` prompt names
      the field, and `refiner-recovery.md` § Uncertain merge reconciliation names the same field · check:
-     `grep -q "git_error" skills/war/references/refiner-recovery.md && node --test --test-reporter=tap --test-name-pattern='pin-proof git_error \(#2589\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - pin-proof git_error \(#2589\)/{n++} END{r=(n>0&&!b); print r?"PASS-E7":"RED-E7"; exit !r}'`
+     `grep -q "git_error" skills/war/references/refiner-recovery.md && node --test --test-reporter=tap --test-name-pattern='pin-proof git_error \(#2589\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - pin-proof git_error \(\\#2589\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E7":"RED-E7"} END{exit !r}'`
      · token: `PASS-E7` · owner T2.1 · red at base: `git_error` count 0 in the doc; no such test.
   8. A subset-mode approved ace tip, then a merge, verifies against the ace tip · check:
-     `node --test --test-reporter=tap --test-name-pattern='approved ace tip \(#2590\)' skills/war/assets/workflow-template.git-4.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - approved ace tip \(#2590\)/{n++} END{r=(n>0&&!b); print r?"PASS-E8":"RED-E8"; exit !r}'`
+     `node --test --test-reporter=tap --test-name-pattern='approved ace tip \(#2590\)' skills/war/assets/workflow-template.git-4.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - approved ace tip \(\\#2590\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E8":"RED-E8"} END{exit !r}'`
      · token: `PASS-E8` · owner T2.1 · red at base: no such test. The red proof against the phase-base
      engine is a T2.1 duty (the slice says how; the correctness seat reads the `not ok` line quoted in the
      commit body), not a second tag.
   9. Each dead or dropped dispatch shows in `dispatchFailures` with its label and reason · check:
-     `node --test --test-reporter=tap --test-name-pattern='dispatchFailures \(#2645\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - dispatchFailures \(#2645\)/{n++} END{r=(n>0&&!b); print r?"PASS-E9":"RED-E9"; exit !r}'`
+     `node --test --test-reporter=tap --test-name-pattern='dispatchFailures \(#2645\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - dispatchFailures \(\\#2645\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E9":"RED-E9"} END{exit !r}'`
      · token: `PASS-E9` · owner T2.1 · red at base: no such test.
   10. No worker prompt or worker card asks for a `WAR-Task` trailer, and the card still carries the kept
       no-empty-commit and `git rev-parse HEAD` sentences (so deleting step 5 outright is not a pass) ·
       check:
-      `! grep -q "WAR-Task" agents/war-worker.md && grep -q "Never create an empty commit" agents/war-worker.md && grep -q "git rev-parse HEAD" agents/war-worker.md && node --test --test-reporter=tap --test-name-pattern='task provenance \(#2659\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - task provenance \(#2659\)/{n++} END{r=(n>=2&&!b); print r?"PASS-E10":"RED-E10"; exit !r}'`
+      `! grep -q "WAR-Task" agents/war-worker.md && grep -q "Never create an empty commit" agents/war-worker.md && grep -q "git rev-parse HEAD" agents/war-worker.md && node --test --test-reporter=tap --test-name-pattern='task provenance \(#2659\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - task provenance \(\\#2659\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-E10":"RED-E10"} END{exit !r}'`
       · token: `PASS-E10` · owner T3.1 · red at base: `WAR-Task` is on the card once; no such test. The
       recovery fixtures are two: OLD-absent on both surfaces, NEW-present on both surfaces.
   11. The worker prompt and card forbid reading a commit message from outside the task worktree · check:
-      `node --test --test-reporter=tap --test-name-pattern='commit-message read \(#2494\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - commit-message read \(#2494\)/{n++} END{r=(n>0&&!b); print r?"PASS-E11":"RED-E11"; exit !r}'`
+      `node --test --test-reporter=tap --test-name-pattern='commit-message read \(#2494\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - commit-message read \(\\#2494\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E11":"RED-E11"} END{exit !r}'`
       · token: `PASS-E11` · owner T3.1 · red at base: no such test.
   12. A recovery worker whose remote task tip is an ancestor of its pre-rebase HEAD is not told it is a stale
       prior attempt: the narrowed sentence (with the ancestry test and the `rev-parse HEAD` before-rebase
       read) is on both surfaces, and the old unconditional run "shares only an older base is a stale prior
       attempt" is on neither · check:
-      `grep -q "merge-base --is-ancestor origin/" agents/war-worker.md && ! grep -qF "shares only an older base is a stale prior attempt" agents/war-worker.md skills/war/assets/workflow-template.js && node --test --test-reporter=tap --test-name-pattern='stale-prior-attempt \(#2646\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - stale-prior-attempt \(#2646\)/{n++} END{r=(n>0&&!b); print r?"PASS-E12":"RED-E12"; exit !r}'`
+      `grep -q "merge-base --is-ancestor origin/" agents/war-worker.md && ! grep -qF "shares only an older base is a stale prior attempt" agents/war-worker.md skills/war/assets/workflow-template.js && node --test --test-reporter=tap --test-name-pattern='stale-prior-attempt \(#2646\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - stale-prior-attempt \(\\#2646\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E12":"RED-E12"} END{exit !r}'`
       · token: `PASS-E12` · owner T3.1 · red at base: the ancestry phrase is absent from the card and the
       old run is present once on each surface.
   13. A resolved-null implementation worker records verdict `env-died`, and a control that removes the
       `nullDied` route goes red · check:
-      `node --test --test-reporter=tap --test-name-pattern='worker-site null \(#2555\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - worker-site null \(#2555\)/{n++} END{r=(n>=2&&!b); print r?"PASS-E13":"RED-E13"; exit !r}'`
+      `node --test --test-reporter=tap --test-name-pattern='worker-site null \(#2555\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - worker-site null \(\\#2555\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-E13":"RED-E13"} END{exit !r}'`
       · token: `PASS-E13` (the fixture and its control) · owner T3.1 · red at base: no such test.
   14. A tagged dispatch-layer throw carrying either verbatim #2328 string or `getaddrinfo ENOTFOUND`
       classifies `env-died`; a tagged throw reading `sha 4019abc`, `task t401 failed` or `refactor oauth
       module title` stays HARD (the decoys that a bare `401` or `oauth` term would launder); an untagged
       engine throw embedding a term in a task title stays HARD (green at base by the structural scope — a
       guardrail case, kept) · check:
-      `node --test --test-reporter=tap --test-name-pattern='INFRA_DEATH_RE \(#2328\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - INFRA_DEATH_RE \(#2328\)/{n++} END{r=(n>0&&!b); print r?"PASS-E14":"RED-E14"; exit !r}'`
+      `node --test --test-reporter=tap --test-name-pattern='INFRA_DEATH_RE \(#2328\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - INFRA_DEATH_RE \(\\#2328\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E14":"RED-E14"} END{exit !r}'`
       · token: `PASS-E14` · owner T3.1 · red at base: no such test.
   15. A dirty reused task worktree has its diff saved to `.war/preprovision-<id>.patch` and restored after
       the clean line; `depClause` still omits the clean line; a provision reply with `savedWork` puts that
@@ -729,22 +729,22 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
       the saved-work patch; and the dispatched save/clean/restore spelling, extracted from the prompt and
       run through bash in a real repo whose reused worktree holds staged and unstaged edits while a
       provision step rewrites a tracked file, brings every edit back with exit 0 · check:
-      `grep -q "preprovision-" agents/war-worker.md && node --test --test-reporter=tap --test-name-pattern='reused-worktree provision \(#2588\)' skills/war/assets/workflow-template.recovery.test.mjs skills/war/assets/workflow-template.git-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - reused-worktree provision \(#2588\)/{n++} END{r=(n>=3&&!b); print r?"PASS-E15":"RED-E15"; exit !r}'`
+      `grep -q "preprovision-" agents/war-worker.md && node --test --test-reporter=tap --test-name-pattern='reused-worktree provision \(#2588\)' skills/war/assets/workflow-template.recovery.test.mjs skills/war/assets/workflow-template.git-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - reused-worktree provision \(\\#2588\)/{n++} END{r=(n>=3&&!b)} END{print r?"PASS-E15":"RED-E15"} END{exit !r}'`
       · token: `PASS-E15` · owner T4.1 · red at base: `preprovision-` is absent from the card; no such
       tests. Fixtures: the recovery prompt-text case, the recovery `savedWork` plumbing case, the git-1
       real-repo case.
   16. A sanctioned recovery's first fresh merge after preMerged tasks stamps `preMergeTip` equal to the
       barrier `integrationTip`, and `tipSha` is unchanged when no fresh merge lands · check:
-      `node --test --test-reporter=tap --test-name-pattern='recovery predecessor seed \(#2575\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - recovery predecessor seed \(#2575\)/{n++} END{r=(n>0&&!b); print r?"PASS-E16":"RED-E16"; exit !r}'`
+      `node --test --test-reporter=tap --test-name-pattern='recovery predecessor seed \(#2575\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - recovery predecessor seed \(\\#2575\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E16":"RED-E16"} END{exit !r}'`
       · token: `PASS-E16` · owner T4.1 · red at base: no such test.
   17. An `ensure-refinery-worktree` hygiene marker is captured as `{ task: null, refinery: true }` and logs
       without `<task>` · check:
-      `grep -q "refinery: true" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='refinery hygiene \(#1823\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - refinery hygiene \(#1823\)/{n++} END{r=(n>0&&!b); print r?"PASS-E17":"RED-E17"; exit !r}'`
+      `grep -q "refinery: true" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='refinery hygiene \(#1823\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - refinery hygiene \(\\#1823\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E17":"RED-E17"} END{exit !r}'`
       · token: `PASS-E17` · owner T4.1 · red at base: `refinery: true` is absent from the card.
   18. The relaunch runbook names `--fill-defaults`, `status --short`, the `transcriptDir` check, the
       cache-miss stop, the 0-agent entry death and the `preprovision-` patch the provision prompt leaves ·
       check:
-      `F=skills/war/references/resume-and-recovery.md; grep -q -e "--fill-defaults" "$F" && grep -q "transcriptDir" "$F" && grep -q "status --short" "$F" && grep -q "cache miss" "$F" && grep -q "0-agent" "$F" && grep -q "preprovision-" "$F" && echo PASS-E18`
+      `F=skills/war/references/resume-and-recovery.md; grep -qi -e "--fill-defaults" "$F" && grep -qi "transcriptDir" "$F" && grep -qi "status --short" "$F" && grep -qi "cache miss" "$F" && grep -qi "0-agent" "$F" && grep -qi "preprovision-" "$F" && echo PASS-E18`
       · token: `PASS-E18` · owner T4.2 · red at base: `fill-defaults`, `transcriptDir` and `preprovision-`
       are absent.
   19. All four release slots name one version, the next free patch above the integration base · HARD at audit_sha
@@ -761,67 +761,67 @@ need `--test-reporter=tap` (verified: TRIAL-1 at 365f3da2).
       refiner card names the step, and the dispatched spelling run through bash in a real repo whose
       owned-file lacks the branch lets `ensure-integration` exit 0 while a control without the step exits
       3 · check:
-      `grep -q "record-as-owned" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='owned-file adoption \(#2671\)' skills/war/assets/workflow-template.recovery.test.mjs skills/war/assets/workflow-template.git-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - owned-file adoption \(#2671\)/{n++} END{r=(n>=2&&!b); print r?"PASS-E21":"RED-E21"; exit !r}'`
+      `grep -q "record-as-owned" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='owned-file adoption \(#2671\)' skills/war/assets/workflow-template.recovery.test.mjs skills/war/assets/workflow-template.git-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - owned-file adoption \(\\#2671\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-E21":"RED-E21"} END{exit !r}'`
       · token: `PASS-E21` · owner T4.1 · red at base: `record-as-owned` is absent from the card; no such
       test.
   22. The dep-wave worker prompt and the worker card carry the `push_denied:` stop rule, and
       `FORCE_WITH_LEASE_RULE` is byte-identical · check:
-      `grep -q "push_denied" agents/war-worker.md && node --test --test-reporter=tap --test-name-pattern='push-denied \(#2671\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - push-denied \(#2671\)/{n++} END{r=(n>0&&!b); print r?"PASS-E22":"RED-E22"; exit !r}'`
+      `grep -q "push_denied" agents/war-worker.md && node --test --test-reporter=tap --test-name-pattern='push-denied \(#2671\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - push-denied \(\\#2671\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E22":"RED-E22"} END{exit !r}'`
       · token: `PASS-E22` · owner T3.1 · red at base: `push_denied` is on no worker surface; no such test.
   23. The runbook carries the `push_denied:` hand-push recipe (the `--force-with-lease=<branch>:<remote
       tip>` form) and the Manifest catch-up first act, and `run-manifest.md` carries the hand-off catch-up
       and keeps the three phrases the doc-truth plan pins · check:
-      `F=skills/war/references/resume-and-recovery.md; M=skills/war/references/run-manifest.md; grep -q "push_denied" "$F" && grep -q "force-with-lease=" "$F" && grep -q "Manifest catch-up" "$F" && grep -q "Hand-off catch-up" "$M" && grep -q "Dispatch counts are summed across attempts" "$M" && echo PASS-E23`
+      `F=skills/war/references/resume-and-recovery.md; M=skills/war/references/run-manifest.md; grep -qi "push_denied" "$F" && grep -qi "force-with-lease=" "$F" && grep -qi "Manifest catch-up" "$F" && grep -qi "Hand-off catch-up" "$M" && grep -qi "Dispatch counts are summed across attempts" "$M" && echo PASS-E23`
       · token: `PASS-E23` · owner T4.2 · red at base: `push_denied`, `force-with-lease=`, `Manifest
       catch-up` and `Hand-off catch-up` count 0; the frozen-phrase grep is green at base by design (the
       present half that keeps the doc-truth pins valid).
   24. The relaunch runbook names the diverged-local-copy repoint before a relaunch: a reused task branch whose
       local tip diverged from origin with an equal patch-id is repointed to the origin tip so the relaunch
       pushes without a lease · check:
-      `F=skills/war/references/resume-and-recovery.md; grep -q "patch-id" "$F" && grep -q "repoint" "$F" && echo PASS-E24`
+      `F=skills/war/references/resume-and-recovery.md; grep -qi "patch-id" "$F" && grep -qi "repoint" "$F" && echo PASS-E24`
       · token: `PASS-E24` · owner T4.2 · red at base: `patch-id` and `repoint` count 0 in the runbook (survey
       fold 2026-11-08).
   25. A `git-snapshot:` dispatch whose every attempt returns a reply with no usable snapshot and a `git_error`
       string ends `held:workflow-error` with that string in `workflowError.message`, so a working branch with
       no local ref is named in the hold · check:
-      `node --test --test-reporter=tap --test-name-pattern='snapshot reply git_error \(#2589\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - snapshot reply git_error \(#2589\)/{n++} END{r=(n>0&&!b); print r?"PASS-E25":"RED-E25"; exit !r}'`
+      `node --test --test-reporter=tap --test-name-pattern='snapshot reply git_error \(#2589\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - snapshot reply git_error \(\\#2589\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E25":"RED-E25"} END{exit !r}'`
       · token: `PASS-E25` · owner T2.1 · red at base: no such test (survey fold 2026-11-08).
   26. Both merge-task prompts (the green-gate arm and the baseline-proceed arm) name the integration push as
       `git push origin HEAD:refs/heads/<integration branch>`, and the refiner card's merge-task step carries
       the same form · check:
-      `grep -q "HEAD:refs/heads" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='first-push refspec \(#2699\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - first-push refspec \(#2699\)/{n++} END{r=(n>0&&!b); print r?"PASS-E26":"RED-E26"; exit !r}'`
+      `grep -q "HEAD:refs/heads" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='first-push refspec \(#2699\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - first-push refspec \(\\#2699\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E26":"RED-E26"} END{exit !r}'`
       · token: `PASS-E26` · owner T1.1 · red at base: `HEAD:refs/heads` is absent from the card; no such
       test.
   27. A sanctioned recovery whose `args.recovery.priorReturn` carries the held attempt's `aced` and
       `minorsFiled` rows returns those rows for its pre-merged tasks, stamped `recovered: true`, and none for
       a task that is not pre-merged; a run without `priorReturn` returns today's empty arrays · check:
-      `node --test --test-reporter=tap --test-name-pattern='prior-return carry \(#2700\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - prior-return carry \(#2700\)/{n++} END{r=(n>0&&!b); print r?"PASS-E27":"RED-E27"; exit !r}'`
+      `node --test --test-reporter=tap --test-name-pattern='prior-return carry \(#2700\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - prior-return carry \(\\#2700\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E27":"RED-E27"} END{exit !r}'`
       · token: `PASS-E27` · owner T4.1 · red at base: no such test; the preMerged loop writes no `aced` row.
   28. A seeded phase-close row carried again by a held phase keeps its origin `carriedFrom.phase`, and a row
       born in the held phase carries that phase's id · check:
-      `node --test --test-reporter=tap --test-name-pattern='carried-from origin \(#2701\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - carried-from origin \(#2701\)/{n++} END{r=(n>0&&!b); print r?"PASS-E28":"RED-E28"; exit !r}'`
+      `node --test --test-reporter=tap --test-name-pattern='carried-from origin \(#2701\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - carried-from origin \(\\#2701\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-E28":"RED-E28"} END{exit !r}'`
       · token: `PASS-E28` · owner T4.1 · red at base: no such test; `carryPhaseClose` stamps `phaseId`.
   29. A phase held on `held:escalation` with a merged sibling and a threaded `memoryLocalRoot` dispatches
       `wrap-up:phase-<id>` once and stays held; a `held:land-failed` phase emits a handoff whose `tipSha` is
       the last merge commit; a `held:workflow-error` phase dispatches no servitor (guardrail); and the
       servitor card says it runs on a held land · check:
-      `grep -q "held land" agents/war-servitor.md && node --test --test-reporter=tap --test-name-pattern='held-land wrap-up \(#2702\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - held-land wrap-up \(#2702\)/{n++} END{r=(n>=2&&!b); print r?"PASS-E29":"RED-E29"; exit !r}'`
+      `grep -q "held land" agents/war-servitor.md && node --test --test-reporter=tap --test-name-pattern='held-land wrap-up \(#2702\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - held-land wrap-up \(\\#2702\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-E29":"RED-E29"} END{exit !r}'`
       · token: `PASS-E29` · owner T2.1 · red at base: `held land` is absent from the card; no such test; the
       Wrap-up gate reads `landResult.status === 'landed'`.
   30. `WORKER_RESULT.head_sha` carries the 40-hex pattern, and a worker pin that resolves null while every
       seat `audit_sha` resolves to the Git head is repaired without a second panel (one audit dispatch, an
       auditLog row `pin-repaired:worker`, no `pin-mismatch:reconcile` row) · check:
-      `node --test --test-reporter=tap --test-name-pattern='worker head_sha \(#2703\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - worker head_sha \(#2703\)/{n++} END{r=(n>=2&&!b); print r?"PASS-E30":"RED-E30"; exit !r}'`
+      `node --test --test-reporter=tap --test-name-pattern='worker head_sha \(#2703\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - worker head_sha \(\\#2703\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-E30":"RED-E30"} END{exit !r}'`
       · token: `PASS-E30` · owner T3.1 · red at base: no such test; the schema has no pattern and the
       mismatch arm re-runs the panel.
   31. An `audit-pin:` helper reply of `{ head_sha: '', pins: [] }` on the first attempt and a full
       resolution on the second lets the task approve with no `audit-blocked`; two such replies keep
       today's `audit-blocked` (control) · check:
-      `node --test --test-reporter=tap --test-name-pattern='audit-pin retry \(#2704\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - audit-pin retry \(#2704\)/{n++} END{r=(n>=2&&!b); print r?"PASS-E31":"RED-E31"; exit !r}'`
+      `node --test --test-reporter=tap --test-name-pattern='audit-pin retry \(#2704\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - audit-pin retry \(\\#2704\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-E31":"RED-E31"} END{exit !r}'`
       · token: `PASS-E31` · owner T2.1 · red at base: no such test; the first empty reply blocks the task.
   32. The runbook's Resume pre-flight names the machine-local run state and the hand-carry recipe, and its
       Recovery relaunch step names the `priorReturn` threading · check:
-      `F=skills/war/references/resume-and-recovery.md; grep -q "machine-local" "$F" && grep -q "priorReturn" "$F" && echo PASS-E32`
+      `F=skills/war/references/resume-and-recovery.md; grep -qi "machine-local" "$F" && grep -qi "priorReturn" "$F" && echo PASS-E32`
       · token: `PASS-E32` · owner T4.2 · red at base: `machine-local` and `priorReturn` count 0 in the
       runbook.
 
@@ -882,7 +882,7 @@ tasks share no file and no link, so they run in one wave.
   `git push origin HEAD:refs/heads/<integration branch>` and the card carries `HEAD:refs/heads/`; prove it red
   against the phase-base engine before the change. Measure the stripped engine size per commit (constraint
   12) and record it in the commit body.
-- Done when: `! grep -q "and report it merged" skills/war/assets/workflow-template.js agents/war-refiner.md && grep -q "ls-remote origin refs/heads" skills/war/references/refiner-recovery.md && ! grep -q "exits 0 via Task 1.1" skills/war/references/refiner-recovery.md && grep -q "HEAD:refs/heads" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='land-confirm \(#2657\)|2485/ES9|first-push refspec \(#2699\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (land-confirm \(#2657\)|2485\/ES9|first-push refspec \(#2699\))/{n++} END{r=(n>=6&&!b); print r?"PASS-T1.1":"RED-T1.1"; exit !r}'` · token: `PASS-T1.1` (ES9, the land-prompt pin, its delete control, the saved-reconcile fixture, the unconfirmed-claim fixture and the first-push fixture)
+- Done when: `! grep -q "and report it merged" skills/war/assets/workflow-template.js agents/war-refiner.md && grep -q "ls-remote origin refs/heads" skills/war/references/refiner-recovery.md && ! grep -q "exits 0 via Task 1.1" skills/war/references/refiner-recovery.md && grep -q "HEAD:refs/heads" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='land-confirm \(#2657\)|2485/ES9|first-push refspec \(#2699\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (land-confirm \(#2657\)|2485\/ES9|first-push refspec \(#2699\))/{n++} END{r=(n>=6&&!b)} END{print r?"PASS-T1.1":"RED-T1.1"} END{exit !r}'` · token: `PASS-T1.1` (ES9, the land-prompt pin, its delete control, the saved-reconcile fixture, the unconfirmed-claim fixture and the first-push fixture)
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -907,7 +907,7 @@ tasks share no file and no link, so they run in one wave.
   preflight with `--prior-manifest <prior run's manifest path>` so the plugin-identity floor runs, and
   point at the script's header exit contract for the codes (touched-doc rule: de-mirror, no exit code
   restated). That sentence is the Lead-side wiring; the SKILL.md preflight line is unchanged.
-- Done when: `grep -q -- "--prior-manifest" skills/war/references/launch-identity.md && node --test --test-reporter=tap --test-name-pattern='prior-manifest \(#2495\)' skills/war/assets/assert-args-complete.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - prior-manifest \(#2495\)/{n++} END{r=(n>=5&&!b); print r?"PASS-T1.2":"RED-T1.2"; exit !r}'` · token: `PASS-T1.2`
+- Done when: `grep -q -- "--prior-manifest" skills/war/references/launch-identity.md && node --test --test-reporter=tap --test-name-pattern='prior-manifest \(#2495\)' skills/war/assets/assert-args-complete.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - prior-manifest \(\\#2495\)/{n++} END{r=(n>=5&&!b)} END{print r?"PASS-T1.2":"RED-T1.2"} END{exit !r}'` · token: `PASS-T1.2`
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -983,7 +983,7 @@ tasks share no file and no link, so they run in one wave.
   fixture shape; `handoff.tipSha` equals the last merge commit), `held-land wrap-up (#2702): no servitor on
   held:workflow-error` (guardrail). Prove each red against the phase-base engine before the change. Measure
   the stripped engine size per commit (constraint 12) and record it in the commit body.
-- Done when: `grep -q "git_error" skills/war/references/refiner-recovery.md && grep -q "held land" agents/war-servitor.md && node --test --test-reporter=tap --test-name-pattern='approved ace tip \(#2590\)' skills/war/assets/workflow-template.git-4.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - approved ace tip \(#2590\)/{n++} END{r=(n>0&&!b); print r?"PASS-T2.1a":"RED-T2.1a"; exit !r}' && node --test --test-reporter=tap --test-name-pattern='pin-proof (throw|git_error) \(#2589\)|dispatchFailures \(#2645\)|audit-pin retry \(#2704\)|held-land wrap-up \(#2702\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (pin-proof (throw|git_error) \(#2589\)|dispatchFailures \(#2645\)|audit-pin retry \(#2704\)|held-land wrap-up \(#2702\))/{n++} END{r=(n>=10&&!b); print r?"PASS-T2.1b":"RED-T2.1b"; exit !r}'` · token: `PASS-T2.1a` then `PASS-T2.1b` (the five earlier engine-1 fixtures, the two audit-pin fixtures and the three held-land fixtures)
+- Done when: `grep -q "git_error" skills/war/references/refiner-recovery.md && grep -q "held land" agents/war-servitor.md && node --test --test-reporter=tap --test-name-pattern='approved ace tip \(#2590\)' skills/war/assets/workflow-template.git-4.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - approved ace tip \(\\#2590\)/{n++} END{r=(n>0&&!b)} END{print r?"PASS-T2.1a":"RED-T2.1a"} END{exit !r}' && node --test --test-reporter=tap --test-name-pattern='pin-proof (throw|git_error) \(#2589\)|snapshot reply git_error \(#2589\)|dispatchFailures \(#2645\)|audit-pin retry \(#2704\)|held-land wrap-up \(#2702\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (pin-proof (throw|git_error) \(\\#2589\)|snapshot reply git_error \(\\#2589\)|dispatchFailures \(\\#2645\)|audit-pin retry \(\\#2704\)|held-land wrap-up \(\\#2702\))/{n++} END{r=(n>=11&&!b)} END{print r?"PASS-T2.1b":"RED-T2.1b"} END{exit !r}'` · token: `PASS-T2.1a` then `PASS-T2.1b` (the five earlier engine-1 fixtures, the End state 25 snapshot fixture, the two audit-pin fixtures and the three held-land fixtures)
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -1058,7 +1058,7 @@ tasks share no file and no link, so they run in one wave.
   the head; exactly one panel dispatch, verdict approve, a `pin-repaired:worker` row, no
   `pin-mismatch:reconcile` row — red at base: two panels and a reconcile row). Measure the stripped engine
   size per commit (constraint 12) and record it in the commit body.
-- Done when: `! grep -q "WAR-Task" agents/war-worker.md && grep -q "merge-base --is-ancestor origin/" agents/war-worker.md && ! grep -qF "shares only an older base is a stale prior attempt" agents/war-worker.md skills/war/assets/workflow-template.js && node --test --test-reporter=tap --test-name-pattern='task provenance \(#2659\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - task provenance \(#2659\)/{n++} END{r=(n>=2&&!b); print r?"PASS-T3.1a":"RED-T3.1a"; exit !r}' && node --test --test-reporter=tap --test-name-pattern='stale-prior-attempt \(#2646\)|commit-message read \(#2494\)|worker-site null \(#2555\)|INFRA_DEATH_RE \(#2328\)|push-denied \(#2671\)|worker head_sha \(#2703\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (stale-prior-attempt \(#2646\)|commit-message read \(#2494\)|worker-site null \(#2555\)|INFRA_DEATH_RE \(#2328\)|push-denied \(#2671\)|worker head_sha \(#2703\))/{n++} END{r=(n>=8&&!b); print r?"PASS-T3.1b":"RED-T3.1b"; exit !r}'` · token: `PASS-T3.1a` then `PASS-T3.1b`
+- Done when: `! grep -q "WAR-Task" agents/war-worker.md && grep -q "merge-base --is-ancestor origin/" agents/war-worker.md && ! grep -qF "shares only an older base is a stale prior attempt" agents/war-worker.md skills/war/assets/workflow-template.js && node --test --test-reporter=tap --test-name-pattern='task provenance \(#2659\)' skills/war/assets/workflow-template.recovery.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - task provenance \(\\#2659\)/{n++} END{r=(n>=2&&!b)} END{print r?"PASS-T3.1a":"RED-T3.1a"} END{exit !r}' && node --test --test-reporter=tap --test-name-pattern='stale-prior-attempt \(#2646\)|commit-message read \(#2494\)|worker-site null \(#2555\)|INFRA_DEATH_RE \(#2328\)|push-denied \(#2671\)|worker head_sha \(#2703\)' skills/war/assets/workflow-template.engine-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (stale-prior-attempt \(\\#2646\)|commit-message read \(\\#2494\)|worker-site null \(\\#2555\)|INFRA_DEATH_RE \(\\#2328\)|push-denied \(\\#2671\)|worker head_sha \(\\#2703\))/{n++} END{r=(n>=8&&!b)} END{print r?"PASS-T3.1b":"RED-T3.1b"} END{exit !r}'` · token: `PASS-T3.1a` then `PASS-T3.1b`
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -1138,7 +1138,7 @@ tasks share no file and no link, so they run in one wave.
   carries 6). Prove both red against the phase-base engine before the change. Measure the stripped engine
   size per commit (constraint 12) and record it in the commit body; D32's growth (about 320 B) is the largest
   single addition in this plan, so fund it in the same commit.
-- Done when: `grep -q "preprovision-" agents/war-worker.md && grep -q "refinery: true" agents/war-refiner.md && grep -q "record-as-owned" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='reused-worktree provision \(#2588\)|recovery predecessor seed \(#2575\)|refinery hygiene \(#1823\)|owned-file adoption \(#2671\)|prior-return carry \(#2700\)|carried-from origin \(#2701\)' skills/war/assets/workflow-template.recovery.test.mjs skills/war/assets/workflow-template.git-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (reused-worktree provision \(#2588\)|recovery predecessor seed \(#2575\)|refinery hygiene \(#1823\)|owned-file adoption \(#2671\)|prior-return carry \(#2700\)|carried-from origin \(#2701\))/{n++} END{r=(n>=9&&!b); print r?"PASS-T4.1":"RED-T4.1"; exit !r}'` · token: `PASS-T4.1` (three provision fixtures, the seed fixture, the hygiene fixture, the two adoption fixtures, the prior-return fixture, the carried-from fixture)
+- Done when: `grep -q "preprovision-" agents/war-worker.md && grep -q "refinery: true" agents/war-refiner.md && grep -q "record-as-owned" agents/war-refiner.md && node --test --test-reporter=tap --test-name-pattern='reused-worktree provision \(#2588\)|recovery predecessor seed \(#2575\)|refinery hygiene \(#1823\)|owned-file adoption \(#2671\)|prior-return carry \(#2700\)|carried-from origin \(#2701\)' skills/war/assets/workflow-template.recovery.test.mjs skills/war/assets/workflow-template.git-1.test.mjs | awk '/^not ok/{b=1} /^ok [0-9]+ - (reused-worktree provision \(\\#2588\)|recovery predecessor seed \(\\#2575\)|refinery hygiene \(\\#1823\)|owned-file adoption \(\\#2671\)|prior-return carry \(\\#2700\)|carried-from origin \(\\#2701\))/{n++} END{r=(n>=9&&!b)} END{print r?"PASS-T4.1":"RED-T4.1"} END{exit !r}'` · token: `PASS-T4.1` (three provision fixtures, the seed fixture, the hygiene fixture, the two adoption fixtures, the prior-return fixture, the carried-from fixture)
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -1196,7 +1196,7 @@ tasks share no file and no link, so they run in one wave.
   `resumeFromRunId` (its `transcriptDir` is gone there by construction, line (c)) — threading
   `seededPhaseClose`, `seededTasks`, `priorReturn` and `ownedFile` from the copied files, and runs Manifest
   catch-up from the copied manifest. Short lines; pointers, not restatements.
-- Done when: `F=skills/war/references/resume-and-recovery.md; M=skills/war/references/run-manifest.md; grep -q -e "--fill-defaults" "$F" && grep -q "transcriptDir" "$F" && grep -q "status --short" "$F" && grep -q "cache miss" "$F" && grep -q "0-agent" "$F" && grep -q "preprovision-" "$F" && grep -q "push_denied" "$F" && grep -q "force-with-lease=" "$F" && grep -q "Manifest catch-up" "$F" && grep -q "machine-local" "$F" && grep -q "priorReturn" "$F" && grep -q "Hand-off catch-up" "$M" && grep -q "Dispatch counts are summed across attempts" "$M" && echo PASS-T4.2` · token: `PASS-T4.2` (doc-only task; the gate's `doc-cli-consistency.test.mjs` under `skills/_shared/` also scans this file)
+- Done when: `F=skills/war/references/resume-and-recovery.md; M=skills/war/references/run-manifest.md; grep -qi -e "--fill-defaults" "$F" && grep -qi "transcriptDir" "$F" && grep -qi "status --short" "$F" && grep -qi "cache miss" "$F" && grep -qi "0-agent" "$F" && grep -qi "preprovision-" "$F" && grep -qi "push_denied" "$F" && grep -qi "force-with-lease=" "$F" && grep -qi "Manifest catch-up" "$F" && grep -qi "machine-local" "$F" && grep -qi "priorReturn" "$F" && grep -qi "Hand-off catch-up" "$M" && grep -qi "Dispatch counts are summed across attempts" "$M" && echo PASS-T4.2` · token: `PASS-T4.2` (doc-only task; the gate's `doc-cli-consistency.test.mjs` under `skills/_shared/` also scans this file)
 - requiresTest: false
 - requiresPackaging: false
 - deps: []
@@ -1219,7 +1219,7 @@ tasks share no file and no link, so they run in one wave.
   the `push_denied:` stop rule, the manifest catch-up, the first-push refspec, the prior-return carry, the
   carried-from origin, the held-land wrap-up, the 40-hex `head_sha`, the audit-pin retry and the
   machine-local state carry line, and counts nothing it does not enumerate.
-- Done when: `node --test --test-reporter=tap skills/war/assets/version-slots.test.mjs | awk '/^not ok/{b=1} /^ok /{n++} END{r=(n>0&&!b); print r?"PASS-T5.1":"RED-T5.1"; exit !r}'` · token: `PASS-T5.1`
+- Done when: `node --test --test-reporter=tap skills/war/assets/version-slots.test.mjs | awk '/^not ok/{b=1} /^ok /{n++} END{r=(n>0&&!b)} END{print r?"PASS-T5.1":"RED-T5.1"} END{exit !r}'` · token: `PASS-T5.1`
 - requiresTest: false
 - requiresPackaging: false
 - deps: []
