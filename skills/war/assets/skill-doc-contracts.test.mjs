@@ -734,10 +734,10 @@ test('Segmented-land bullet — filing-on-held names the filing dispatch alone; 
 // is locked by PIN-24 of the 2026-11-08 engine-recovery plan (a later plan retunes it).
 const wrapUpDocSurfaces = () => [
   ['SKILL.md return bullet', skillMd, /^- returns `\{ landed, escalated/, /^- /],
-  ['SKILL.md Checkpoint learnings bullet', skillMd, /^- \*\*Every landed phase captures learnings exactly once\*\*/, /^- /],
+  ['SKILL.md Checkpoint learnings bullet', skillMd, /^- \*\*Every landed phase captures learnings once, plus one resolution-fed pass after a held phase lands\*\*/, /^- /],
   ['SKILL.md Follow-up filing floor bullet', skillMd, /^- \*\*Follow-up filing floor — gate the DAG advance \(D4, #1331\)\.\*\*/, /^- /],
   ['war-review SKILL.md unfiled follow-ups bullet', warReviewSkillMd, /^- \*\*unfiled follow-ups\*\*/, /^- |^\S/],
-  ['resume-and-recovery.md Capture-learnings bullet', resumeMd, /^- \*\*Capture learnings on every landed phase \(exactly once\)\.\*\*/, /^- /],
+  ['resume-and-recovery.md Capture-learnings bullet', resumeMd, /^- \*\*Capture learnings on every landed phase \(once, plus one resolution pass on a held land\)\.\*\*/, /^- /],
   ['resume-and-recovery.md Segmented-land bullet', resumeMd, /^ {2}- \*\*Segmented land \(in-band marker\) and filing-on-held\./, /^ {2}- \*\*|^\S/],
   ['design.md Land-path-agnostic Wrap-up bullet', designRefMd, /^- \*\*Land-path-agnostic Wrap-up\.\*\*/, /^- /],
   ['design.md Intent threading + handoff bullet', designRefMd, /^- \*\*Intent threading \+ handoff \(ADR 0013\)\.\*\*/, /^- /],
