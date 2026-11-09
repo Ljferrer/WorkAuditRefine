@@ -129,3 +129,30 @@ name on its `MEMORY_TOOL=` line; every other surface points at that literal and 
 
 The posture is unchanged: the capability allowlist stays the primary confinement, and the hook is
 the MCP arm of the same `agent_type`-keyed, suffix-anchored structural guard.
+
+## Addendum (2026-11-08): Windows path form and clearer worker denials
+
+Plan `docs/plans/2026-11-08-auditor-and-worker-guard-habits.md` (Task 1.2) admits Windows-form
+spellings of already-allowed paths and adds `..` denials; it removes no deny. On a POSIX host a `\`
+is a filename byte, so the scope hook's worker and servitor arms and the memory query `local`
+fence deny a raw value that holds a `\` and does not start with a drive `X:`.
+
+- **`norm_path`.** One shell function, byte-equal in `validate-worktree-scope.sh`,
+  `validate-servitor-provenance.sh` and `validate-evidence-auditor-mcp.sh`, turns every `\` into
+  `/` and a leading drive `X:` into `/x` (lower case). It runs on the path and on `$HOME` before
+  the `..` reject, before the servitor `$HOME` glob and its fallback, before the provenance
+  classifier, and before the memory query `local` fence and the REA output-path `..` check
+  (PIN-13, PIN-20). A Windows-form servitor path now matches its memory root, and a backslash
+  `..` segment is now denied. Normalizing first can only add a `..` denial, never remove one. The
+  unanchored memory glob still lives only in the two sanctioned places.
+  `hooks/guard-conventions.test.sh` row `NP1` fails when the three copies differ.
+- **Worker scratch place.** The worker deny names `<worktree>/.war/` as the place for scratch
+  files (PIN-10). `write_marker` in `skills/war/assets/provision-worktrees.sh` adds `.war/` to the
+  shared common-dir `info/exclude`, so a scratch file there is never staged.
+- **MCP deny texts.** The REA-allowlist deny for `war-worker` says worker MCP is limited to the
+  memory query tool and the REA allowlist, and that a plan or todo tool is not needed (PIN-14).
+  The `war-evidence-auditor` text is unchanged. In the four seat arms a host turn tool
+  (`mcp__ccd_turn__*`) gets its own deny text: the tool is not needed, and a seat ends its turn
+  by returning its JSON (PIN-23). The tool stays denied; the pass-through arm is unchanged.
+- **Bash write advisory.** `warn-bash-write-scope.sh` stays advisory (always exit 0). It no
+  longer reads `/dev/null` as a write target, and its warning names `WORKER_WRITE_TOOL_RULE`.

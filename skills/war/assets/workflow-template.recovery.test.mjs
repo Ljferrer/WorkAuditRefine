@@ -552,8 +552,14 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
     'Submodule-as-repo provisioning', 'Uncertain merge reconciliation and § Exact Git diff identity', 'Recovery task provenance',
     'Pin-transfer arms', 'Land-barrier endstate-check steps',
     'Reland discrimination — superproject land-phase step 3', 'Submodule phase — 2A / § Submodule phase — 2B',
+    'Post-merge evidence opener',
   ].sort())
   assert.match(refinerRecoveryMd, /## Land-barrier endstate-check steps/, 'the evicted endstate-check steps section landed at the destination')
+  // Plan 2026-11-08-auditor-and-worker-guard-habits T1.6 (PIN-17): the evidence dispatch opener moved
+  // byte-identical; the card keeps its pointer and the read-only rule.
+  assert.match(refinerRecoveryMd, /## Post-merge evidence opener\n[^]*It is a \*\*read-only proof computation\*\*/, 'the evicted evidence opener landed at the destination')
+  assert.ok(!refinerMd.includes('read-only proof computation') && refinerMd.includes('The run is read-only: never merge, push, rebase or edit.'),
+    'the card keeps the read-only rule beside its pointer and none of the moved opener')
   // #2156 a4 headroom eviction (ADR 0042, PIN-3): the card's MergeResult merge-task-only parenthetical
   // (617 B) moved byte-identical under its own `##` heading; the card keeps a bare-path trigger pointer
   // (never a `](…)` link — the named markdown-trigger set above stays separate) and none of the moved body.
