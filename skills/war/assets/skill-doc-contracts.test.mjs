@@ -803,6 +803,26 @@ test('2702/D34 — the Wrap-up gate equals the handoff emit gate, and every doc 
   }
 })
 
+// (#2702 phase-3 seed, ruled ask fork 2) A hold-time Wrap-up never sees the operator's resolution, so
+// the Lead skip narrows: skip only when the in-flow Wrap-up ran on `landed`; after a manual or recovery
+// land of a held phase the Lead runs one more resolution-fed pass even when `servitorResult` is set.
+// Also pins the return list's `dispatchFailures` key and the widened Wraps-up bullet opener.
+test('2702/seed — the Lead servitor skip narrows to landed, and the return list names dispatchFailures (#2702)', () => {
+  const surfaces = wrapUpDocSurfaces()
+  const region = (l) => surfaces.find(([label]) => label === l)[1]
+  assert.match(region('SKILL.md Checkpoint learnings bullet'), /Skip the Lead pass only when the in-flow Wrap-up ran on `landDecision` `landed`\. After a manual land or a recovery land of a held phase, run one more `war-servitor` pass fed the resolution, even when `servitorResult` is set\./)
+  assert.match(region('resume-and-recovery.md Capture-learnings bullet'), /Skip the Lead pass only when the in-flow Wrap-up ran on `landDecision` `landed`\. After a manual land or a recovery land of a held phase, run one more `war-servitor` pass fed the resolution, even when `servitorResult` is set/)
+  assert.match(region('design.md Land-path-agnostic Wrap-up bullet'), /skip the Lead pass only when the in-flow Wrap-up ran on `landed`; after a manual or recovery land of a held phase the Lead runs one more resolution-fed pass, even when `servitorResult` is set/)
+  for (const [label, src] of [['SKILL.md', skillMd], ['resume-and-recovery.md', resumeMd], ['design.md', designRefMd]]) {
+    const folded = norm(src)
+    for (const re of [/Skip if `servitorResult` is already set/i, /Run it only if `servitorResult` is absent/i, /run only when `servitorResult` is absent/i, /spawns the servitor itself only when `servitorResult` is null/i]) {
+      assert.doesNotMatch(folded, re, `${label} still carries the retired unconditional skip ${re} — a held phase's resolution would never be captured`)
+    }
+  }
+  assert.match(region('SKILL.md return bullet'), /carriedPhaseClose, dispatchFailures, handoff\? \}/, 'the SKILL.md return list must name `dispatchFailures` (both engine return sites carry it, #2645)')
+  assert.match(norm(skillMd), /- \*\*Wraps up\*\* — once the phase lands \(or holds on `held:escalation` \/ `held:land-failed` with `memoryLocalRoot` threaded; #2702\),/)
+})
+
 // (#2485 Task 5.1 — D22, PIN-26) De-mirror pins: run-manifest.md's field table is the one home of the
 // manifest's top-level fields (schemas.md and the card's init-stamp sentence point at it, never
 // restate it), and schemas.md points at the engine declarations for the merge confirmation and
