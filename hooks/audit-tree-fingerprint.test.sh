@@ -1467,6 +1467,39 @@ if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/d4.json"
 else
   fail "later-worktree start timeout reason wrong (rc=$RC rsn=|$rsn| rec=$(cat "$TAMPER_ROOT/d4.json" 2>/dev/null))"
 fi
+# DS1 and DS2: a spent deadline before a submodule list (task_worktrees).
+# DS1, a recording arm: a Grep rooted at $MAIN (it holds .git, so the root
+# check spawns nothing) walks past the deadline. A logging git shim, apart
+# from the hook, shows the .gitmodules read ran, so the walk reached the
+# submodule loop, and no `worktree list` ran in `sub dir`. The Grep arm
+# leaves its deadline mark. (The Bash arm checks the deadline before each
+# token, so it never reaches a walk at deadline 0.) DS2, the start arm: the
+# submodule list still runs, so `timeout-skipped` names wtS.
+DSG="$TMP/dsg"; mkdir -p "$DSG"
+cat > "$DSG/git" <<DSHIM
+#!/bin/bash
+printf '%s\n' "\$*" >> "$DSG/log"
+exec "$(command -v git)" "\$@"
+DSHIM
+chmod +x "$DSG/git"
+run "$(mk_start "$AUD" ds1)"
+_p="$(mk_grep "$AUD" ds1 "$MAIN")"
+OUT="$(printf '%s' "$_p" | PATH="$DSG:$PATH" WAR_FINGERPRINT_DEADLINE_SECONDS=0 bash "$HOOK" 2>"$TMP/err")"; RC=$?; ERR="$(cat "$TMP/err")"
+if [ "$RC" = 0 ] && grep -Fq -- 'config -z -f' "$DSG/log" && ! grep -Fq -- 'sub dir worktree list' "$DSG/log" && touched_has ds1 '!deadline passed on a Grep call'; then
+  pass "DS1: a Grep walk past the deadline runs no submodule list and leaves the deadline mark"
+else
+  fail "DS1: a Grep walk past the deadline (rc=$RC log=|$(cat "$DSG/log" 2>/dev/null)| touched=|$(cat "$FP_ROOT/ds1/touched" 2>/dev/null)| err=|$ERR|)"
+fi
+rm -rf "$DSG"
+_p="$(mk_start "$AUD" ds2)"
+export WAR_FINGERPRINT_DEADLINE_SECONDS=0
+run "$_p"
+unset WAR_FINGERPRINT_DEADLINE_SECONDS
+if [ "$RC" = 0 ] && grep -Fxq -- "$WTS" "$FP_ROOT/ds2/timeout-skipped" 2>/dev/null; then
+  pass "DS2: a start arm past the deadline still lists the submodule worktree as skipped"
+else
+  fail "DS2: start-arm skipped list lacks wtS (rc=$RC skipped=|$(cat "$FP_ROOT/ds2/timeout-skipped" 2>/dev/null)| err=|$ERR|)"
+fi
 # A tamper record from a non-timeout cause carries timeout: false, so the Lead
 # question in resume-and-recovery.md never fires on a plain mismatch.
 if [ "$(jq -r '.timeout' "$TAMPER_ROOT/a1.json" 2>/dev/null)" = false ]; then
@@ -1620,7 +1653,7 @@ _p6e="$(mk_verdict "$AUD" d6e)"
 _p7="$(mk_start "$AUD" d7)"
 _p8="$(mk_start "$AUD" d8)"
 # The BD rows (PIN-15): each stubs one newly bounded git call to block
-# (SHIM_BLOCK). bd1 to bd5 block a call inside fingerprint or a walk helper,
+# (SHIM_BLOCK). bd1 to bd5b block a call inside fingerprint or a walk helper,
 # and the hook takes its return-3 path: the timeout reason, or the Bash or
 # Grep arm's `deadline passed` mark. bd6 and bd7 block the common-dir probe
 # (main_common at the top, main_find on the jq-failed Bash path, whose payload
@@ -1637,6 +1670,19 @@ _pb3="$(mk_bash "$AUD" bd3 "git diff $TMP $TMP/bde")"
 PCWD="$MAIN"
 _pb4="$(mk_bash "$AUD" bd4 "git -C $MAIN log -1 --oneline -- bdir")"
 _pb5="$(mk_grep "$AUD" bd5 "$TMP")"
+# bd5b: a Grep rooted at a repository top ($BDR holds .git, so ignored_dir
+# answers the root without a spawn). The first check-ignore is the inner
+# folder $BDR/in on the path down to the marked worktree $BDR/in/wtR.
+BDR="$TMP/bdr"
+git init -q "$BDR" && git -C "$BDR" commit -q --allow-empty -m i
+git -C "$BDR" worktree add -q "$BDR/in/wtR" -b r
+printf '.war-task\n' >> "$BDR/.git/info/exclude"
+printf 'marker\n' > "$BDR/in/wtR/.war-task"
+WTR="$(cd "$BDR/in/wtR" && pwd -P)"
+PCWD="$BDR"
+run "$(mk_start "$AUD" bd5b)"
+_pb5b="$(mk_grep "$AUD" bd5b "$BDR")"
+PCWD="$MAIN"
 _pb6="$(mk_read "$AUD" bd6 "$TMP/wtA/f")"
 _pb7="$(jq -nc --arg at "$AUD" '{hook_event_name:"PostToolUse",agent_type:$at,agent_id:"bd7",tool_name:"Bash",tool_input:{command:"git log -1"}}')"
 SHIM_BLOCK="$WTA rev-parse HEAD" shim_bg bd1 "$_pb1"
@@ -1644,6 +1690,7 @@ SHIM_BLOCK="worktree list --porcelain" shim_bg bd2 "$_pb2"
 SHIM_BLOCK="config -z -f" shim_bg bd3 "$_pb3"
 SHIM_BLOCK="rev-parse --show-toplevel" shim_bg bd4 "$_pb4"
 SHIM_BLOCK="check-ignore" shim_bg bd5 "$_pb5"
+SHIM_BLOCK="check-ignore" shim_bg bd5b "$_pb5b"
 SHIM_BLOCK="--git-common-dir" shim_bg bd6 "$_pb6"
 SHIM_CWD="$MAIN" SHIM_BLOCK="--git-common-dir" shim_bg bd7 "$_pb7"
 SHIM_SLOW="$WTA status" shim_bg d6 "$_p6"
@@ -1828,6 +1875,18 @@ if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (deadline passed o
 else
   fail "BD5v: the Grep deadline mark's verdict reason is |$(reason_of)|"
 fi
+# BD5b: the blocked check-ignore is the inner folder's (the root holds .git).
+# The walk stops there, so wtR below it is not touched, and the Grep arm
+# leaves its deadline mark.
+shim_get bd5b
+BDF="$BDR/.claude/war/audit-fingerprints/bd5b/touched"
+if [ "$RC" = 0 ] && [ "$EL" -lt "$SHIM_CAP" ] && grep -Fxq -- '!deadline passed on a Grep call' "$BDF" 2>/dev/null && ! grep -Fxq -- "$WTR" "$BDF" 2>/dev/null; then
+  pass "BD5b: a blocked inner-folder check-ignore stops the Grep walk and leaves the deadline mark"
+else
+  fail "BD5b: a blocked inner-folder check-ignore (rc=$RC el=${EL}s touched=|$(cat "$BDF" 2>/dev/null)| err=|$ERR|)"
+fi
+git -C "$BDR" worktree remove --force "$BDR/in/wtR"
+rm -rf "$BDR"
 # BD6 and BD7: a blocked common-dir probe leaves MAIN empty, fail-open.
 shim_get bd6
 if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$EL" -lt "$SHIM_CAP" ] && [ ! -e "$FP_ROOT/bd6" ]; then
@@ -2523,6 +2582,27 @@ if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ "$e" = 1 ] && [ -d "$PRT/leadprobeA" ]; 
 else
   fail "PR6: --prune usage errors (no name rc=$_r1, no repo rc=$RC err=|$_e1|$ERR|)"
 fi
+# A symlinked record tree (the tree, or .claude/war above it) exits 2 and
+# leaves the old directory in place. In the second arm only .claude/war is a
+# link: the tree under its target is a real directory, so only the physical
+# path compare refuses it. The live records wait in $TMP/prk and come back
+# after the row.
+PRL="$TMP/prl"; mkdir -p "$PRL/olddir"; printf 'x\n' > "$PRL/olddir/f"; touch -t "$_old" "$PRL/olddir/f"
+mv "$PRT" "$TMP/prk"; ln -s "$PRL" "$PRT"
+prune --prune --stale
+_r1="$RC"; _e1="$ERR"
+rm -f "$PRT"; mv "$PRM/.claude/war" "$PRM/.claude/warreal"; ln -s "$PRM/.claude/warreal" "$PRM/.claude/war"
+PRW="$PRM/.claude/warreal/audit-fingerprints"; mkdir -p "$PRW/olddir"; printf 'x\n' > "$PRW/olddir/f"; touch -t "$_old" "$PRW/olddir/f"
+prune --prune --stale
+case "$_e1" in *"is not a real record tree"*) e=1 ;; *) e=0 ;; esac
+case "$ERR" in *"is not a real record tree"*) ;; *) e=0 ;; esac
+if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ "$e" = 1 ] && [ -d "$PRL/olddir" ] && [ -d "$PRW/olddir" ]; then
+  pass "PR7: --prune --stale on a symlinked record tree exits 2 and removes nothing in the link target"
+else
+  fail "PR7: symlinked record tree (tree rc=$_r1, parent rc=$RC olddir=$([ -d "$PRL/olddir" ] && echo present || echo absent) parent olddir=$([ -d "$PRW/olddir" ] && echo present || echo absent) err=|$_e1|$ERR|)"
+fi
+rm -f "$PRM/.claude/war"; mv "$PRM/.claude/warreal" "$PRM/.claude/war"; rm -rf "$PRT"; mv "$TMP/prk" "$PRT"
+rm -rf "$PRL"
 # --stale with a name exits 2 and removes nothing.
 prune --prune --stale leadprobeA
 case "$ERR" in *"takes no name"*) e=1 ;; *) e=0 ;; esac
@@ -2539,22 +2619,6 @@ if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ ! -e "$PRT/leadprobeA" ] && [ -d "$PRT/lea
 else
   fail "PR9: --prune leadprobeA leadprobeA (rc=$RC out=|$OUT| err=|$ERR|)"
 fi
-# A symlinked record tree (the tree, or .claude/war above it) exits 2 and
-# leaves the old directory in the link target.
-PRL="$TMP/prl"; mkdir -p "$PRL/olddir"; printf 'x\n' > "$PRL/olddir/f"; touch -t "$_old" "$PRL/olddir/f"
-rm -rf "$PRT"; ln -s "$PRL" "$PRT"
-prune --prune --stale
-_r1="$RC"; _e1="$ERR"
-rm -f "$PRT"; mv "$PRM/.claude/war" "$PRM/.claude/warreal"; ln -s "$PRM/.claude/warreal" "$PRM/.claude/war"; ln -s "$PRL" "$PRM/.claude/warreal/audit-fingerprints"
-prune --prune --stale
-case "$_e1" in *"is not a real record tree"*) e=1 ;; *) e=0 ;; esac
-case "$ERR" in *"is not a real record tree"*) ;; *) e=0 ;; esac
-if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ "$e" = 1 ] && [ -d "$PRL/olddir" ]; then
-  pass "PR7: --prune --stale on a symlinked record tree exits 2 and removes nothing in the link target"
-else
-  fail "PR7: symlinked record tree (tree rc=$_r1, parent rc=$RC olddir=$([ -d "$PRL/olddir" ] && echo present || echo absent) err=|$_e1|$ERR|)"
-fi
-rm -rf "$PRL"
 rm -rf "$PRM"
 
 # --- registration + conventions ---------------------------------------------

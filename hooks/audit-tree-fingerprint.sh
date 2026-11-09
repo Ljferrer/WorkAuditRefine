@@ -740,7 +740,12 @@ marked_worktrees_of() {
 # is an empty read (bounded drops stderr), not an error. The config call runs
 # under bounded into a temp file (the -z records hold NUL) with the list's
 # floor; a kill there or in any list returns 3, and a temp file that cannot
-# be made is a failed list (a mark on a recording arm).
+# be made is a failed list (a mark on a recording arm). On a recording arm a
+# spent deadline before a submodule list also returns 3: that arm marks the
+# spent deadline anyway, and slow lists that each finish under the floor
+# cannot add one floor per submodule past the deadline. The start arm
+# (LIST_TOOL empty) still lists every submodule, so its `timeout-skipped`
+# names each worktree it skips.
 task_worktrees() {
   marked_worktrees_of "$cwd" || return 3
   _tz="$(mktemp 2>/dev/null)" && [ -n "$_tz" ] || {
@@ -752,6 +757,7 @@ task_worktrees() {
   while IFS= read -r -d '' _rec; do
     _sp="${_rec#*"$NL"}"
     [ -n "$_sp" ] && [ -e "$MAIN/$_sp/.git" ] || continue
+    [ -n "$LIST_TOOL" ] && expired && { rm -f "$_tz"; return 3; }
     marked_worktrees_of "$MAIN/$_sp" || { rm -f "$_tz"; return 3; }
   done < "$_tz"
   rm -f "$_tz"
