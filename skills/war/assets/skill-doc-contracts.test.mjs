@@ -830,9 +830,14 @@ test('2702/seed — the Lead servitor skip narrows to landed, and the return lis
   assert.match(region('SKILL.md Checkpoint learnings bullet'), /Skip the Lead pass only when the in-flow Wrap-up ran on `landDecision` `landed`\. After a manual land or a recovery land of a held phase, run one more `war-servitor` pass fed the resolution, even when `servitorResult` is set\./)
   assert.match(region('resume-and-recovery.md Capture-learnings bullet'), /Skip the Lead pass only when the in-flow Wrap-up ran on `landDecision` `landed`\. After a manual land or a recovery land of a held phase, run one more `war-servitor` pass fed the resolution, even when `servitorResult` is set/)
   assert.match(region('design.md Land-path-agnostic Wrap-up bullet'), /skip the Lead pass only when the in-flow Wrap-up ran on `landed`; after a manual or recovery land of a held phase the Lead runs one more resolution-fed pass, even when `servitorResult` is set/)
-  for (const [label, src] of [['SKILL.md', skillMd], ['resume-and-recovery.md', resumeMd], ['design.md', designRefMd]]) {
+  // The architect tour's Wrap-up step (anchored on the engine's `let servitorResult = null`) narrates
+  // the same rule; it is the fourth surface (Late-Fix 5.1:2 sibling sweep).
+  const tourStep = tour.steps.find((s) => s.pattern === '^let servitorResult = null')
+  assert.ok(tourStep, 'could not find the tour step anchored on `let servitorResult = null` — the anchor construct rotted')
+  assert.match(tourStep.description, /skips its own `war-servitor` pass only when the in-flow Wrap-up ran on `landed`; after a manual or recovery land of a held phase it runs one more resolution-fed pass, even when `servitorResult` is set/)
+  for (const [label, src] of [['SKILL.md', skillMd], ['resume-and-recovery.md', resumeMd], ['design.md', designRefMd], ['tour Wrap-up step', tourStep.description]]) {
     const folded = norm(src)
-    for (const re of [/Skip if `servitorResult` is already set/i, /Run it only if `servitorResult` is absent/i, /run only when `servitorResult` is absent/i, /spawns the servitor itself only when `servitorResult` is null/i]) {
+    for (const re of [/Skip if `servitorResult` is already set/i, /Run it only if `servitorResult` is absent/i, /run only when `servitorResult` is absent/i, /spawns the servitor itself only when `servitorResult` is null/i, /guarded by `servitorResult` being absent/i, /never double-capture/i, /exactly once \*per landed phase\*/i]) {
       assert.doesNotMatch(folded, re, `${label} still carries the retired unconditional skip ${re} — a held phase's resolution would never be captured`)
     }
   }
