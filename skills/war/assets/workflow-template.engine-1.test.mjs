@@ -10716,6 +10716,18 @@ test('provenance floor: a slug word inside an underscore identifier counts as pr
   assert.equal(sub.out.landDecision, 'held:workflow-error', 'a slug word inside a larger alphanumeric word still refuses')
 })
 
+test('provenance floor doc: the schemas.md row states the alphanumeric-boundary own-token match (#2673)', () => {
+  // The Args provenance floor row restates the own-token rule. It must name the boundary the
+  // template's tokenRe uses, so a Lead never infers that REMAP_FALLBACK proves nothing.
+  assert.match(src, /const tokenRe = t => new RegExp\('\(\?<!\[A-Za-z0-9\]\)'/, 'the template tokenRe uses alphanumeric lookarounds')
+  const schemasMd = readFileSync(join(here, '../references/schemas.md'), 'utf8')
+  const row = schemasMd.split('\n').find(l => l.startsWith('**Args provenance floor'))
+  assert.ok(row, 'schemas.md carries the Args provenance floor row')
+  assert.ok(!/word-boundary/.test(row), 'the row no longer says word-boundary matching')
+  assert.match(row, /\*\*alphanumeric-boundary\*\* matching \([^)]*an underscore does not[^)]*#2673\)/,
+    'the row names alphanumeric-boundary matching and says an underscore does not block the token')
+})
+
 // D10 (#1749): exemption is from the OWN-TOKEN floor only. The source:'auto' flag rides the same
 // Lead-assembled args channel a foreign blob rides, so an exempt row's text is still scanned for a
 // foreign docs/plans identifier — the pre-D10 exemption was a refusal bypass for foreign auto rows.
