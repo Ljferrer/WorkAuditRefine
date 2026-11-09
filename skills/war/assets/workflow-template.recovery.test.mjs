@@ -742,8 +742,13 @@ test('task provenance (#2659): NEW-present — the no-empty-commit and git rev-p
   for (const [name, text] of await provenanceSurfaces()) {
     assert.match(text, /Never create an empty commit [^.]*recovery credit/i, name + ' keeps the no-empty-commit sentence')
     assert.match(text, /head_sha`?, all 40 hex characters, from `?git rev-parse HEAD`? after committing/, name + ' keeps the head_sha read from git rev-parse HEAD (all 40 hex, #2703)')
-    assert.ok(!text.replace(/git rev-parse HEAD`? after committing/g, '').match(/head_sha`?, all 40 hex characters, from `?git rev-parse HEAD`? after committing/), name + ': deleting the read reds the anchor (non-vacuous)')
   }
+  // Non-vacuity on the engine side: dropping taskProvenanceClause from every worker prompt reds the presence match.
+  const USES = /\+ taskProvenanceClause /g
+  assert.equal((src.match(USES) || []).length, 2, 'the implementation and fix prompts each append taskProvenanceClause (mutation target)')
+  const mut = (await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl(), {}, src.replace(USES, '+ '))).calls.filter(c => isWorker(c) || isFixWorker(c))
+  assert.ok(mut.some(isWorker) && mut.some(isFixWorker), 'the mutant still dispatches both producers (presence guard)')
+  for (const c of mut) assert.doesNotMatch(c.prompt, /head_sha`?, all 40 hex characters, from `?git rev-parse HEAD`? after committing/, c.opts.label + ': without the clause the head_sha read is gone')
 })
 
 // (c) relaunch fix — STRUCTURAL dispatch-layer scoping (the both-ways proof, other direction): an

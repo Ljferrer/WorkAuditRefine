@@ -9965,6 +9965,25 @@ test('worker-site null (#2555): control — removing the nullDied route reds the
     assert.ok(src.includes(site), 'the worker site routes a resolved null through nullDied: ' + site)
   }
 })
+// The fix-round sibling site, run end to end: the fix worker resolves null after a blocking audit.
+const fixNullImpl = () => {
+  const base = fixNeededImpl()
+  return (prompt, opts) => (opts.label === 'fix:t1:r1' ? null : base(prompt, opts))
+}
+const FIX_NULL_LINE = "        const fixNull = nullDied(fix, 'fix:' + task.id + ':r' + (round + 1)); if (fixNull) { verdict = 'env-died'; blocked = fixNull; break }\n"
+test('worker-site null (#2555): fix-round null is env-died, and removing the fixNull route reads escalate', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNullImpl())
+  assert.ok(calls.some(c => c.opts.label === 'fix:t1:r1'), 'the fix round dispatched (presence guard)')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 'the null fix worker escalates the task')
+  assert.equal(esc.reason, 'env-died', 'the fix-round null reads SOFT env-died')
+  assert.equal(esc.blocked, 'fix:t1:r1 dispatch resolved null (env-died)', 'the reason names the fix-round site label')
+  assert.ok(src.includes(FIX_NULL_LINE), 'the mutation target is the live fix-round null route')
+  const mut = (await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNullImpl(), {}, src.replace(FIX_NULL_LINE, ''))).out
+  const mEsc = (mut.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(mEsc, 'the mutant still escalates the task (presence guard)')
+  assert.equal(mEsc.reason, 'escalate', 'without the route the fix-round null reads HARD escalate')
+})
 
 test('INFRA_DEATH_RE (#2328): the bounded auth and DNS phrases classify a tagged throw env-died; decoys and an untagged engine throw stay HARD', async () => {
   const tagged = msg => (prompt, opts) => {
