@@ -2359,6 +2359,9 @@ const makeDispatch = (agent, maxParallel) => new Function('agent', 'maxParallel'
 // pairs are prompt PROSE (agent-resolved placeholders) and are dropped by the tokenizer — e.g. the
 // release-baseline rule's `\${integrationBranch}...\${task.branch}` mirror text is not a live site.
 const BARE_INTERPOLATION_CENSUS = [
+  // CITATION_MIN_LENGTH (#2224, D7): a module const, construction-guaranteed — the DISPOSITION
+  // WIDENINGS (3) citation sentence must carry the interpolation, never a bare number (the `citation` row).
+  'CITATION_MIN_LENGTH',
   'PLAN_DEFECT_SENTINEL', 'PREFLIGHT', 'SCRIPT', 'artifactLine', 'authArtifactLine', 'authCriteria',
   'baseDesc', 'batchSha', 'block', 'depSha', 'depth', 'doneWhenLog', 'e.preMergeTip', 'e.taskId',
   // ev.sha left this census (in-band-absorb-default 4.1 polish): the pinned-sha slot renders the

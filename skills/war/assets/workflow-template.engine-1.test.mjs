@@ -5707,7 +5707,8 @@ test('intake normalization: auditor-supplied `merged` never corroborates — a f
   assert.deepEqual(mergedRowsOf({ merged: [null, 'junk', { title: 'ok' }] }), [{ title: 'ok' }], 'an engine-written merged: [null, junk, row] filters to the object rows — a bare x.seat deref never sees null')
   assert.deepEqual(mergedRowsOf({ merged: [null] }), [], 'an all-null engine list reads as empty (the additive handoff key is omitted)')
   assert.deepEqual(mergedRowsOf({}), [], 'an absent container reads as empty')
-  assert.ok(src.includes('...(mergedRowsOf(m).length ? { merged: mergedRowsOf(m).map(x => ({ seat: x.seat ?? '), 'the handoff followUps projection derefs x.seat only through mergedRowsOf')
+  // D26 (#2684): the projection's merged-row renderer (mergedOf) reads only rows mergedRowsOf returns.
+  assert.ok(src.includes('...(mergedRowsOf(m).length ? { merged: mergedRowsOf(m).map(mergedOf) }') && src.includes('...mergedRowsOf(m).map(mergedOf))'), 'the handoff followUps projection derefs x.seat only through mergedRowsOf')
   assert.ok(src.includes('hit.merged = mergedRowsOf(hit)'), 'the consolidation write point normalizes through mergedRowsOf')
 })
 
@@ -6010,7 +6011,10 @@ test('clusters manifest asserts (fail-open): a partition violation, a duplicate 
   // share one issue number — stamping semantics unchanged) — no violation line.
   const d = await run({ filed: [{ n: 1, issue: 7 }, { n: 2, issue: 7 }], clusters: [{ ordinals: [1, 2], issue: 7 }] })
   assert.equal(viol(d.logs).length, 0, 'a conforming manifest logs no violation')
-  assert.deepEqual(d.out.handoff.followUps.map(f => f.issue), [7, 7], 'both rows share the cluster\'s one issue number')
+  assert.deepEqual(d.out.minorsFiled.map(f => f.issue), [7, 7], 'both rows share the cluster\'s one issue number')
+  // D26 (#2684): the handoff prints the shared issue once; the second row rides its merged[] list.
+  assert.deepEqual(d.out.handoff.followUps.map(f => f.issue), [7], 'the handoff prints the shared issue once')
+  assert.equal((d.out.handoff.followUps[0].merged || []).length, 1, 'the second row rides the entry\'s merged[] list')
   // (e) distinct issues filed > post-collapse rows: an out-of-range n row skips stamping but its
   // issue number still counts into distinctIssues — the filing floor (issues ≤ rows) must fire.
   const e = await run({ filed: [{ n: 1, issue: 1 }, { n: 2, issue: 2 }, { n: 99, issue: 3 }], clusters: [{ ordinals: [1], issue: 1 }, { ordinals: [2], issue: 2 }] })
@@ -6089,9 +6093,10 @@ test('collapse-fidelity (End state 7): a cross-task cross-seat collapse carries 
   assert.deepEqual(out.minorsFiled[0].seats,
     ['audit:t1:correctness (task t1)', 'audit:t2:correctness (task t2)'],
     'seats[] carries seat+task for BOTH tasks on a cross-task collapse')
-  // merged[] fidelity: the merged-away row's title and rationale survive on the representative.
+  // merged[] fidelity: the merged-away row's title and rationale survive on the representative, with
+  // its own line (foldedFixOf: a fix-now seed reads the folded row's line; this row carries no fix).
   assert.deepEqual(out.minorsFiled[0].merged,
-    [{ seat: 'audit:t2:correctness (task t2)', title: 'comment misses the arm', rationale: 'same stale block' }],
+    [{ seat: 'audit:t2:correctness (task t2)', title: 'comment misses the arm', rationale: 'same stale block', line: 105 }],
     'the merged-away row\'s title and rationale ride the survivor\'s merged[] sub-list')
   const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
   // (1) the filing PROMPT renders the merged-away title+rationale on the candidate row…
@@ -8939,6 +8944,24 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   assert.ok(trailerForms.length >= 2, 'assert-budget-raise-cited.sh carries the human-readable Budget-Raise trailer form in BOTH prose homes (header usage comment + stderr guidance — the budget-raise row extraction sources)')
   assert.strictEqual(new Set(trailerForms).size, 1, 'every human-readable trailer-form occurrence in assert-budget-raise-cited.sh is byte-identical (header-comment vs stderr-guidance drift)')
   const trailerFormRe = new RegExp(trailerForms[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  // Plan 2026-11-08-engine-findings-ace-and-late-fix T1.1 rows (D5, D7, D23). The citation sentence is
+  // compared after a whitespace squeeze, because the reference hard-wraps it.
+  const squeeze = t => t.replace(/\s+/g, ' ')
+  const widenSrc = sliceSrc('pt`\\nDISPOSITION WIDENINGS:', '\n')
+  const citeMin = Number((src.match(/const CITATION_MIN_LENGTH = (\d+)/) || [])[1])
+  assert.ok(citeMin > 0, 'CITATION_MIN_LENGTH is extractable from the engine')
+  const withReport = (impl, notes) => (prompt, opts) => {
+    const res = impl(prompt, opts)
+    return (seatOf(opts) === 'war-worker' && opts.phase === 'Work') ? { ...res, notes } : res
+  }
+  const REPORT_NOTES = 'Deferred: the call site in skills/war/assets/x.js'
+  const reportAuditP = ((await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), withReport(defaultImpl, REPORT_NOTES))).calls
+    .find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
+  const reportGateP = (gateAuditCalls((await runPhase(ES_ROW_ARGS(), withReport(gateAuditImpl, REPORT_NOTES))).calls)[0] || {}).prompt
+  const parkedAsk = { severity: 'Minor', title: 'alias policy', file: 'a.js', rationale: 'r', disposition: 'ask', ask: { question: 'keep the alias or drop it?', fork: ['keep', 'drop'] } }
+  const parkedAuditP = ((await runPhase(ACE_ARGS(), buildSeqImpl({ 'audit:t1:correctness': [bApprove([parkedAsk, nit({ title: 'ka', file: 'skills/ka.js' })]), bApprove()] }, aceBase()))).calls
+    .filter(c => isAuditor(c) && /^audit:t1:/.test(c.opts.label || '')).pop() || {}).prompt
+  assert.ok(reportAuditP && reportGateP && parkedAuditP, 'the worker-report roster and gate-audit prompts and the parked-ask re-audit prompt dispatched (presence guard)')
 
   const REGISTRY = [
     { name: 'servitor memory discipline (mutation-guard + recurrence-flow + absolute files_written)',
@@ -9338,8 +9361,30 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'push-denied (#2671, D28): lease-denial stop rule — worker card carve-out section + dep-wave worker prompt',
       surfaces: [['war-worker.md', workerMd], ['dep-wave worker prompt', depWorkerP]],
       anchors: [/If the host denies the lease push \(a permission or classifier denial, not a git rejection\), stop/, /blocked_reason starting `push_denied:`/, /never retry the push, never a plain `--force`, never another ref/] },
+    // D7 (#2224): the citation floor, three surfaces. The value and the interpolation are asserted
+    // after the loop (the doc surfaces state the extracted number; the source slice interpolates it).
+    { name: 'citation (D7, #2224): citation.row is the row or one unique contiguous run of it — auditor card + disposition-eligibility.md item 3 + DISPOSITION WIDENINGS (3) source slice',
+      surfaces: [['war-auditor.md (squeezed)', squeeze(auditorMd)], ['disposition-eligibility.md (squeezed)', squeeze(eligibilityMd)], ['DISPOSITION WIDENINGS source slice', widenSrc]],
+      // `\\?` admits the source literal's escaped backticks
+      anchors: [/\\?`citation\.row\\?` must be the threaded row's own text, or one contiguous run of it of at least/,/characters that no other threaded row contains — never a row id, a paraphrase, or a row with your own words added; a refused row rides as a plain absorb and the ask stays parked\./] },
+    // D5 (#2373 item 3): parked asks reach a re-audit seat, and both surfaces say to copy the question.
+    { name: 'parked-ask (D5): a re-audit seat copies a parked ask.question verbatim — auditor card + auditPrompt()',
+      surfaces: [['war-auditor.md', auditorMd], ['re-audit auditPrompt()', parkedAuditP]],
+      anchors: [/PARKED ASKS/, /copy its `ask\.question` verbatim/] },
+    // D23 (#2667): the WORKER REPORT block is a claim to check, never proof.
+    { name: 'worker-report (D23, #2667): the WORKER REPORT block is never proof of a code change — auditor card + auditPrompt() + the per-task gate-audit prompt',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', reportAuditP], ['per-task gate-audit prompt', reportGateP]],
+      anchors: [/WORKER REPORT/, /never proof/] },
   ]
-  assert.ok(REGISTRY.length >= 45, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) + the four plan 2026-11-08 T1.6 prompt-prefix rows (AUTHORITY_LINE, TOOL ORDER, HOST_TURN_TOOL_LINE, WORKER_WRITE_TOOL_RULE) ')
+  // citation row, value half: the doc surfaces state the engine's number; the source interpolates it.
+  for (const [n, t] of [['war-auditor.md', auditorMd], ['disposition-eligibility.md', eligibilityMd]]) {
+    assert.ok(squeeze(t).includes('of at least ' + citeMin + ' characters that no other threaded row contains'), n + ' states CITATION_MIN_LENGTH (' + citeMin + ')')
+  }
+  assert.ok(widenSrc.includes('of at least ${CITATION_MIN_LENGTH} characters that no other threaded row contains'), 'the DISPOSITION WIDENINGS source interpolates CITATION_MIN_LENGTH')
+  assert.ok(!/\b24\b/.test(widenSrc), 'the DISPOSITION WIDENINGS source never carries a bare 24')
+  assert.ok(auditP.includes('of at least ' + citeMin + ' characters that no other threaded row contains'), 'the dispatched prompt renders the value')
+  assert.ok(reportAuditP.includes(REPORT_NOTES) && reportGateP.includes(REPORT_NOTES), 'both worker-report prompts quote the notes')
+  assert.ok(REGISTRY.length >= 48,'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) + the four plan 2026-11-08 T1.6 prompt-prefix rows (AUTHORITY_LINE, TOOL ORDER, HOST_TURN_TOOL_LINE, WORKER_WRITE_TOOL_RULE) + the push-denied row (#2671) + the three plan 2026-11-08-engine-findings T1.1 rows (citation, parked-ask, worker-report) — 48 rows, no slack')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -12378,11 +12423,12 @@ test('ask-content-key (registry re-key, D8 both directions on the FINDING tuple)
   assert.notEqual(h.remintKey(ask({ file: 'skills/a.js' })), h.remintKey(ask({ file: 'skills/b.js' })),
     'fixture control: the FINDING tuple distinguishes the same pair by file')
   // Engine pins: every FINDING registry stamp reads remintKey; parkAsk keeps askContentKey.
-  assert.ok(src.includes('filedKeys.add(remintKey(f))'), 'filedKeys keys on remintKey')
+  // D25: every stamp passes its row too (the near re-mint side list), so the pins carry `, f`.
+  assert.ok(src.includes('filedKeys.add(remintKey(f), f)'), 'filedKeys keys on remintKey')
   const demoteBody = src.slice(src.indexOf('const demote = '), src.indexOf('const aceEligible'))
-  assert.ok(demoteBody.includes('const k = remintKey(f)') && demoteBody.includes('revertedKeys.add(k)') && demoteBody.includes('filedKeys.add(k)'),
+  assert.ok(demoteBody.includes('const k = remintKey(f)') && demoteBody.includes('revertedKeys.add(k, f)') && demoteBody.includes('filedKeys.add(k, f)'),
     'revertedKeys keys on remintKey (demote derives k = remintKey(f) once; both registry stamps read it)')
-  assert.ok(src.includes('acedKeys.add(remintKey(f))'), 'acedKeys keys on remintKey')
+  assert.ok(src.includes('acedKeys.add(remintKey(f), f)'), 'acedKeys keys on remintKey')
   assert.ok(!src.includes('filedKeys.add(askContentKey'), 'no FINDING registry still keys on the ask tuple')
   const parkBody = src.slice(src.indexOf('const parkAsk'), src.indexOf('const parkAsk') + 400)
   assert.ok(parkBody.includes('askContentKey(f)'), 'parkAsk keeps the question-derived askContentKey')
@@ -12410,7 +12456,7 @@ test('reaudit-sweep (queued registry): a finding already queued for the sweep or
   h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...g }] }])
   assert.equal(r.reentryQueue.length, 1, 'a re-mint of the queued re-entry finding never double-queues')
   // Engine pin: the round-1 approve arm's direct phaseCloseQueue push stamps queuedKeys too.
-  assert.ok(src.includes('queuedKeys.add(key); phaseCloseQueue.push(f); return \'queued\''),
+  assert.ok(src.includes('queuedKeys.add(key, f); phaseCloseQueue.push(f); return \'queued\''),
     'the round-1 approve arm stamps queuedKeys at its direct sweep push')
   // Engine pin: the drain deletes drained keys BEFORE the re-check (a drained finding is no
   // longer queued — its own stamp must never refuse its own dispatch).
@@ -15158,7 +15204,8 @@ test('fix-round fence: each ruled build names the files another owner holds', as
     ['Ignore for now: none\nRefs #1', null],
     ['Ignore for now: nonexistent.md - a stale link', 'Ignore for now: nonexistent.md - a stale link'],
     ['Ignore for now: none of the queued files, but docs/z.md has a defect', 'Ignore for now: none of the queued files, but docs/z.md has a defect'],
-    ['Ignore for now:\n- docs/z.md - stale\n- docs/w.md - stale\n\nRefs #1', 'Ignore for now: - docs/z.md - stale - docs/w.md - stale'],
+    // D27 (#2685): a bulleted list leaves one note per bullet; this row reads the first.
+    ['Ignore for now:\n- docs/z.md - stale\n- docs/w.md - stale\n\nRefs #1', 'docs/z.md - stale'],
     ['Ignore for now: docs/z.md - a stale\n  claim\n\nRefs #1', 'Ignore for now: docs/z.md - a stale claim'],
   ]) {
     const { out: o } = await runPhase(SWEEP_ARGS(), terminalImpl({ sweepWorker: worker(text) }), {}, src)
@@ -15654,8 +15701,8 @@ test('ruled-ask intake (#1875): a ruled ask stamps queuedKeys — a re-audit re-
     'the re-raising seat was merged onto the queued ruled row (corroborateSurvivor searched phaseCloseQueue)')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'flip the retention default'), 'the re-mint never files a second record')
   // Engine pin: the push site stamps beside the push, and it sits past the registry declarations.
-  const push = src.indexOf('queuedKeys.add(remintKey(row)); phaseCloseQueue.push(row)')
-  assert.ok(push !== -1 && push > src.indexOf('const queuedKeys = new Set()'), 'the ruledAsks push stamps queuedKeys after the registry is declared')
+  const push = src.indexOf('queuedKeys.add(remintKey(row), row); phaseCloseQueue.push(row)')
+  assert.ok(push !== -1 && push > src.indexOf('const queuedKeys = keyRegistry()'),'the ruledAsks push stamps queuedKeys after the registry is declared')
 })
 
 test('ruled-ask intake: coordinate-less record names the coordinate', async () => {
@@ -19727,4 +19774,287 @@ test('held-land wrap-up (#2702): no servitor on held:workflow-error', async () =
   assert.ok(!calls.some(isServitor), 'no servitor on held:workflow-error')
   assert.equal(out.servitorResult, null)
   assert.equal(out.handoff, undefined)
+})
+
+// ---------------------------------------------------------------------------
+// Plan 2026-11-08-engine-findings-ace-and-late-fix, Task 1.1 (PIN-1..PIN-7, PIN-24, PIN-26..PIN-28).
+// ---------------------------------------------------------------------------
+
+// The no-fix sentinel list, as the plan's D1 names it (an independent oracle beside the engine const).
+const D1_SENTINELS = ['None needed.', 'none', 'N/A', 'na', 'No fix needed.', '—', '-', '  None.  ']
+const noFixSlice = () => sliceSrc('const blankText = ', '\nconst contentTextOf')
+
+test('no-fix sentinel: intake floor keeps the note', () => {
+  const h = registrySlice()
+  const diff = new Set(['docs/a.md'])
+  for (const fix of D1_SENTINELS) {
+    const f = { severity: 'Nit', task: 't1', title: 'already fine', file: 'docs/a.md', rationale: 'informational', disposition: 'note', suggested_fix: fix }
+    assert.equal(h.intakeFloor(f, h.dispositionOf(f, diff), diff), 'note', 'a seat note whose fix is ' + JSON.stringify(fix) + ' stays a note')
+    const omitted = { severity: 'Nit', task: 't1', title: 'already fine', file: 'docs/a.md', rationale: 'r', suggested_fix: fix }
+    assert.equal(h.dispositionOf(omitted, diff), 'note', 'an omitted disposition with a sentinel fix keeps the severity default, never absorb')
+  }
+  // control: a real fix in the diff still reroutes (the arm is alive)
+  const real = { severity: 'Nit', task: 't1', title: 'stale comment', file: 'docs/a.md', rationale: 'r', disposition: 'note', suggested_fix: 'reword the comment' }
+  assert.equal(h.intakeFloor(real, h.dispositionOf(real, diff), diff), 'absorb', 'control: a note with a real fix in the diff is applied')
+  // the behavior arm reads the same field: a sentinel behavior note parks as an ask (PIN-2 direction)
+  const beh = { severity: 'Minor', task: 't1', title: 'wrong rule', file: 'docs/a.md', rationale: 'r', disposition: 'note', findingClass: 'behavior', suggested_fix: 'None needed.' }
+  assert.equal(h.intakeFloor(beh, h.dispositionOf(beh, diff), diff), 'ask', 'a sentinel behavior note parks as an ask')
+  // parkFixless (#2624): the polish and terminal arms read a sentinel fix as fix-less, so the row parks
+  const parked = []
+  const parkFixless = new Function('log', 'parkAsk', runForm(noFixSlice() + '\nconst parkFixless = ' + windowOf(src, 'const parkFixless = ', '\n}\n') + '\n}\nreturn parkFixless'))(() => {}, f => parked.push(f))
+  assert.equal(parkFixless({ severity: 'Minor', title: 'b', file: 'docs/a.md', suggested_fix: 'None needed.' }, 'terminal pass'), true, 'parkFixless parks a sentinel-fix behavior row')
+  assert.equal(parked.length, 1, 'the row reached parkAsk')
+  assert.equal(parkFixless({ severity: 'Minor', title: 'c', file: 'docs/a.md', suggested_fix: 'guard the arm' }, 'terminal pass'), false, 'control: a real fix on a named file is not parked')
+})
+
+test('no-fix sentinel: gate-audit floor keeps the note', async () => {
+  const sentinel = gaAbsorb({ title: 'ga none needed', disposition: 'note', file: 'docs/ga.md', suggested_fix: 'None needed.' })
+  const real = gaAbsorb({ title: 'ga real fix', disposition: 'note', file: 'docs/ga.md', suggested_fix: 'reword line 3' })
+  const evidence = { perTask: [], phase_diff_files: ['docs/ga.md'] }
+  const { out, logs } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [sentinel, real], evidence }))
+  assert.ok((out.notes || []).some(n => n && n.title === 'ga none needed'), 'the sentinel note stays a note at the gate-audit floor pass')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('gate-audit floor pass REROUTED') && l.includes('ga none needed')), 'the sentinel note is never rerouted')
+  assert.ok(!(out.notes || []).some(n => n && n.title === 'ga real fix'), 'control: the note with a real fix in the phase diff is applied, never a note')
+})
+
+test('no-fix sentinel: gateHardOf reads a sentinel Major fix-less', () => {
+  const gateHardOf = new Function(runForm(noFixSlice() + '\nconst gateHardOf = ' + windowOf(src, 'const gateHardOf = ', '\n') + '\nreturn gateHardOf'))()
+  for (const fix of D1_SENTINELS) {
+    assert.equal(gateHardOf({ verdict: 'request_changes', findings: [{ severity: 'Major', title: 'm', suggested_fix: fix }] }), true, 'a Major whose fix is ' + JSON.stringify(fix) + ' is fix-less, so it holds')
+  }
+  assert.equal(gateHardOf({ verdict: 'request_changes', findings: [{ severity: 'Major', title: 'm', suggested_fix: 'guard the null arm' }] }), false, 'control: a real fix joins the late-fix queue')
+  // the split-panel fixless filter reads the same predicate
+  assert.ok(src.includes('const fixless = survivors.filter(f => noFixText(f.suggested_fix))'), 'the split-panel fixless filter reads noFixText')
+})
+
+test('intake demotion: one note per content key, rounds counted', async () => {
+  const h = registrySlice()
+  const empty = () => ({ severity: 'Nit', title: '', rationale: '' })
+  for (let i = 0; i < 3; i++) h.normalizeSeat({ seat: 'audit:t1:correctness', verdict: 'approve', findings: [empty()] }, 't1')
+  const demoted = h.notes.filter(n => n.demoteReason === 'intake:empty-content')
+  assert.equal(demoted.length, 1, 'three raises of one empty-content finding leave one note')
+  assert.equal(demoted[0].rounds, 3, 'the note counts the rounds')
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('rounds: 3')), 'each re-raise is logged')
+  // a different seat or severity is a different key
+  h.normalizeSeat({ seat: 'audit:t1:security', verdict: 'approve', findings: [empty()] }, 't1')
+  h.normalizeSeat({ seat: 'audit:t1:correctness', verdict: 'approve', findings: [{ severity: 'Minor', title: '', rationale: '' }] }, 't1')
+  assert.equal(h.notes.filter(n => n.demoteReason === 'intake:empty-content').length, 3, 'another seat and another severity each keep their own note')
+  // live: three rounds raise the same empty-content Nit; handoff.notes renders it once with rounds: 3
+  const blocker = t => ({ severity: 'Major', title: t, file: 'a.js', rationale: 'r', suggested_fix: 'guard the value' })
+  const seq = buildSeqImpl({ 'audit:t1:correctness': [
+    { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [empty(), blocker('first')] },
+    { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [empty(), blocker('second')] },
+    { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'approve', confidence: 'high', findings: [empty()] }] }, handoffImpl(null))
+  const { out } = await runPhase(HANDOFF_ARGS(), seq)
+  assert.equal(out.landDecision, 'landed', 'presence guard: the phase landed')
+  const rows = (out.handoff.notes || []).filter(n => n.title === '(untitled: empty-content finding demoted at intake)')
+  assert.equal(rows.length, 1, 'handoff.notes renders the note once')
+  assert.equal(rows[0].rounds, 3, 'with rounds: 3')
+  assert.ok(!(out.handoff.notes || []).some(n => n.title !== rows[0].title && 'rounds' in n), 'a one-round note carries no rounds key')
+})
+
+test('file-followups consolidation: merged-away drainCause survives', async () => {
+  // t1 files a follow-up on docs/x.md:10; t2 queues an absorb on docs/x.md:12 that a dead sweep drains
+  // (drainCause). The cross-task collapse keeps t1's row, so the drain cause must ride it.
+  const fu = { severity: 'Minor', title: 'stale anchor', file: 'docs/x.md', line: 10, rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified' }
+  const ab = nit({ title: 'dangling link', file: 'docs/x.md', line: 12, disposition: 'absorb', phaseClose: true })
+  const base = sweepBase([fu])
+  const impl = (prompt, opts) => {
+    const label = opts.label || ''
+    if (label === 'polish:phase-3') throw new Error('529 Overloaded')
+    if (seatOf(opts) === 'war-auditor' && label.includes(':t2:') && !label.startsWith('gate-audit:'))
+      return { seat: label, lens: 'correctness', verdict: 'approve', findings: [ab], confidence: 'high' }
+    return base(prompt, opts)
+  }
+  const tasks = [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }] }]
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ tasks }), impl)
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('file-followups consolidation:')), 'presence guard: the two rows collapsed')
+  const row = (out.minorsFiled || []).find(m => m && m.title === 'stale anchor')
+  assert.ok(row && (row.merged || []).some(x => x.title === 'dangling link'), 'presence guard: the drain row merged into the follow-up')
+  assert.ok(row.drainCause && row.drainCause.dispatch === 'polish:phase-3', 'the survivor carries the merged-away drainCause')
+  assert.match(filingPromptOf(calls), /title: "stale anchor"[^\n]*· drain cause: polish:phase-3 died/, 'the drain cause reaches the filing row')
+  const fuRow = (out.handoff.followUps || []).find(r => /stale anchor/.test(r.reason || ''))
+  assert.ok(fuRow && fuRow.drainCause && fuRow.drainCause.dispatch === 'polish:phase-3', 'handoff.followUps[].drainCause carries it')
+})
+
+test('coordinate-less pre-check: a text-less record is never named', async () => {
+  // A `{}` record is coordinate-less but carries no text, so it cannot be what failed the own-token
+  // scan; the string row beside it is. The refusal is the generic own-token message.
+  const { out, calls } = await runPhase(PROVISION_ARGS({ ruledAsks: [{}, 'ship the foreign change'] }), defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'presence guard: the token-less surface refuses at entry')
+  assert.match(out.workflowError.message, /args\.ruledAsks contains none of the run's own plan-slug tokens/, 'the refusal is the generic own-token message')
+  assert.doesNotMatch(out.workflowError.message, /record "\(untitled\)" is missing required planSlug coordinate/, 'the text-less record is never named as the cause')
+  assert.equal(calls.length, 0, 'zero agents spawned')
+  // control: a coordinate-less record WITH text is still named
+  const named = await runPhase(PROVISION_ARGS({ ruledAsks: [{}, { findingTitle: 'legacy ruling', ruling: 'do it', suggested_fix: 'one line', phase: '3' }] }), defaultImpl)
+  assert.match(named.out.workflowError.message, /record "legacy ruling" is missing required planSlug coordinate/, 'control: a coordinate-less record with text is named')
+})
+
+test('re-audit prompt threads parked asks', async () => {
+  const question = 'keep the alias or drop it?'
+  const askF = { severity: 'Minor', title: 'alias policy', file: 'a.js', rationale: 'r', disposition: 'ask', ask: { question, fork: ['keep the alias', 'drop the alias'] } }
+  // round 1 approves with the ask and one absorb; the ace commit's re-audit is the re-audit seat
+  const seq = buildSeqImpl({ 'audit:t1:correctness': [bApprove([askF, nit({ title: 'ka', file: 'skills/ka.js' })]), bApprove()] }, aceBase())
+  const { out, calls } = await runPhase(ACE_ARGS(), seq)
+  const seatPs = calls.filter(c => isAuditor(c) && /^audit:t1:/.test(c.opts.label || '')).map(c => c.prompt)
+  assert.ok(seatPs.length >= 2, 'presence guard: a re-audit ran')
+  assert.ok(!seatPs[0].includes('PARKED ASKS'), 'the first audit has no parked ask to thread')
+  assert.ok((out.asks || []).some(a => a && a.question === question), 'presence guard: the ask parked')
+  const re = seatPs[seatPs.length - 1]
+  assert.ok(re.includes('PARKED ASKS'), 'the re-audit prompt lists the parked asks')
+  assert.ok(re.includes('- question: ' + question + ' | fork: keep the alias / drop the alias'), 'the question and its fork render verbatim')
+  assert.ok(re.includes('if you raise the same question, copy its `ask.question` verbatim'), 'the seat is told to copy the question verbatim')
+})
+
+test('audit prompt threads the worker report', async () => {
+  const NOTES = 'Critical path:\n1. the guard holds\nIgnore for now:\n- the deferred call site in skills/war/assets/x.js:120'
+  const withNotes = (impl, notes) => (prompt, opts) => {
+    const res = impl(prompt, opts)
+    return (seatOf(opts) === 'war-worker' && opts.phase === 'Work' && notes !== undefined) ? { ...res, notes } : res
+  }
+  const twoSeat = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'security' }] }] })
+  const roster = p => p.calls.filter(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:') && (c.opts.label || '').startsWith('audit:t1:')).map(c => c.prompt)
+  const run = await runPhase(twoSeat, withNotes(defaultImpl, NOTES))
+  const seatPs = roster(run)
+  assert.equal(seatPs.length, 2, 'presence guard: both roster seats convened')
+  for (const p of seatPs) {
+    assert.ok(p.includes(NOTES), 'every roster seat prompt quotes the worker notes whole')
+    assert.ok(p.includes("WORKER REPORT (the worker's own account of what it did and deferred — a claim to check at `audit_sha`, never proof of a code change)"), 'the block is headed as a claim, never proof')
+  }
+  // the per-task post-merge gate-audit seat carries the same block, beside the claimed-ids line
+  const gaRun = await runPhase(ES_ROW_ARGS(), withNotes(gateAuditImpl, NOTES))
+  const gaP = (gateAuditCalls(gaRun.calls)[0] || {}).prompt || ''
+  assert.ok(gaP.includes('POST-MERGE GATE-AUDIT'), 'presence guard: the per-task gate-audit seat convened')
+  assert.ok(gaP.includes(NOTES) && gaP.includes('never proof of a code change'), 'the per-task gate-audit prompt quotes the report')
+  // a 5,000-character report is cut at 4,000 with the marker
+  const long = 'x'.repeat(3999) + 'Y' + 'z'.repeat(1000)
+  const cut = roster(await runPhase(twoSeat, withNotes(defaultImpl, long)))[0]
+  assert.ok(cut.includes('x'.repeat(3999) + 'Y\n[truncated]\n--- end worker report ---'), 'the report is cut at 4,000 characters with the [truncated] marker')
+  assert.ok(!cut.includes('Yz'), 'nothing past the cap reaches the prompt')
+  // an absent or empty notes field emits no block, and the prompt stays byte-identical
+  const bare = roster(await runPhase(twoSeat, withNotes(defaultImpl, undefined)))
+  const blank = roster(await runPhase(twoSeat, withNotes(defaultImpl, '   ')))
+  assert.ok(!bare[0].includes('WORKER REPORT'), 'an absent notes field emits no block')
+  assert.deepEqual(blank, bare, 'a blank notes value leaves the prompts byte-identical to a notes-less run')
+})
+
+test('re-mint identity: a reworded title on the same file and line window is a re-mint', () => {
+  const h = registrySlice()
+  const first = { severity: 'Minor', task: 't1', title: 'stale enum comment', file: 'docs/a.md', line: 10, rationale: 'lags the arm', disposition: 'follow-up', barrier: 'barrier:underspecified', seat: 'audit:t1:correctness', sha: 'a1' }
+  h.fileFollowUp(first)
+  // arm 1: a reworded title two lines away on the same file, a later round, corroborates
+  const reword = { severity: 'Minor', task: 't1', title: 'comment misses the new arm', file: './docs/a.md', line: 12, rationale: 'same block', seat: 'audit:t1:security', sha: 'b2' }
+  const why = h.remintBlock(reword)
+  assert.ok(why && why.includes('near re-mint of "stale enum comment"'), 'the reworded title is a near re-mint of the filed record')
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.startsWith('near re-mint of "stale enum comment"')), 'the near hit is logged')
+  const hit = h.corroborateSurvivor(reword)
+  assert.equal(hit, first, 'corroborateSurvivor merges onto the filed record')
+  assert.ok((first.merged || []).some(x => x.title === 'comment misses the new arm'), 'the reworded title survives on merged[]')
+  assert.ok(first.seats.includes('audit:t1:security (task t1)'), 'the re-raiser joins the seats list')
+  h.routeReauditMinors({ task: { id: 't1' } }, [{ seat: 'audit:t1:docs', audit_sha: 'c3', findings: [{ severity: 'Minor', title: 'enum comment is stale', file: 'docs/a.md', line: 9, rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified' }] }])
+  assert.equal(h.minorsFiled.length, 1, 'a re-audit re-raise in the window never files a second record')
+  // arm 2: a reworded title 3 lines outside the window on another file is a fresh record
+  const far = { severity: 'Minor', task: 't1', title: 'comment misses the new arm', file: 'docs/b.md', line: 10 + 10 + 3, rationale: 'r', seat: 'audit:t1:security', sha: 'b2' }
+  assert.equal(h.remintBlock(far), null, 'another file outside the window is a fresh record')
+  assert.equal(h.remintBlock({ ...far, file: 'docs/a.md' }), null, 'the same file 3 lines outside the window is a fresh record too')
+  // the lineless arm: titles equal after stop words
+  h.fileFollowUp({ severity: 'Minor', task: 't1', title: 'The stale link in the guide', file: 'docs/c.md', rationale: 'r', seat: 's1', sha: 'a1' })
+  assert.ok(h.remintBlock({ severity: 'Minor', task: 't1', title: 'stale link guide', file: 'docs/c.md', seat: 's2', sha: 'b2' }), 'lineless titles equal after stop words are a re-mint')
+  assert.equal(h.remintBlock({ severity: 'Minor', task: 't1', title: 'broken table guide', file: 'docs/c.md', seat: 's2', sha: 'b2' }), null, 'a different lineless title is a fresh record')
+  // one seat's two findings in one return are never a re-mint of each other
+  assert.equal(h.remintBlock({ severity: 'Minor', task: 't1', title: 'second defect', file: 'docs/a.md', line: 11, seat: 'audit:t1:correctness', sha: 'a1' }), null, 'the same seat at the same sha is not a re-mint')
+})
+
+test('handoff followUps: two rows filed to one issue print it once', async () => {
+  // cls: [first row's findingClass, second row's findingClass]; same: both seats raise one file + line,
+  // so the pre-filing collapse folds the second row before the per-issue grouping runs.
+  const impl = (filing, cls = [], same = false) => (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
+      const f = (opts.label || '').endsWith(':correctness')
+        ? { severity: 'Minor', title: 'stale enum comment', rationale: 'lags the arm', file: 'src/a.js', line: 100, disposition: 'follow-up', barrier: 'barrier:underspecified', ...(cls[0] ? { findingClass: cls[0] } : {}) }
+        : { severity: 'Minor', title: 'missing guard', rationale: 'same root cause', file: same ? 'src/a.js' : 'src/b.js', line: same ? 100 : 7, disposition: 'follow-up', barrier: 'barrier:underspecified', ...(cls[1] ? { findingClass: cls[1] } : {}) }
+      return { seat: opts.label, lens: 'x', verdict: 'approve', findings: [f], confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return filing
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }, { lens: 'cascading-impact' }] }] })
+  const { out, logs } = await runPhase(args, impl({ filed: [{ n: 1, issue: 42 }, { n: 2, issue: 42 }], clusters: [{ ordinals: [1, 2], issue: 42 }] }))
+  assert.equal(out.minorsFiled.length, 2, 'presence guard: two distinct rows (different files) were filed')
+  assert.deepEqual(out.minorsFiled.map(m => m.issue), [42, 42], 'presence guard: both rows carry the one issue')
+  assert.equal(out.handoff.followUps.length, 1, 'the handoff prints the issue once')
+  assert.equal(out.handoff.followUps[0].issue, 42)
+  assert.deepEqual((out.handoff.followUps[0].merged || []).map(x => x.title), ['missing guard'], 'the second row rides merged[]')
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('handoff followUps:')), 'the grouping is logged')
+  // rows with issue null stay one entry each
+  const unfiled = await runPhase(args, impl(null))
+  assert.equal(unfiled.out.handoff.followUps.length, 2, 'unfiled rows stay one entry each')
+  // ADR 0058 floor: the Lead reads handoff.followUps for a `behavior` row, so a grouped row keeps its class.
+  // The oracle is the floor's own read, written here from the SKILL.md sentence: an entry or a merged[] row.
+  const floorHalts = h => h.followUps.some(e => e.findingClass === 'behavior' || (e.merged || []).some(x => x.findingClass === 'behavior'))
+  const filing = { filed: [{ n: 1, issue: 42 }, { n: 2, issue: 42 }], clusters: [{ ordinals: [1, 2], issue: 42 }] }
+  assert.equal(floorHalts(out.handoff), false, 'classless rows never halt the floor')
+  assert.ok(!('findingClass' in out.handoff.followUps[0]) && !('findingClass' in out.handoff.followUps[0].merged[0]), 'a classless row prints no findingClass key')
+  const second = (await runPhase(args, impl(filing, ['cosmetic', 'behavior']))).out
+  assert.deepEqual(second.minorsFiled.map(m => m.findingClass), ['cosmetic', 'behavior'], 'presence guard: both rows were filed with their class')
+  assert.equal(second.handoff.followUps.length, 1, 'presence guard: the behavior row is grouped behind the cosmetic row')
+  assert.equal(second.handoff.followUps[0].findingClass, 'cosmetic', 'the entry carries the first row\'s class')
+  assert.deepEqual(second.handoff.followUps[0].merged.map(x => x.findingClass), ['behavior'], 'a behavior second row keeps findingClass on merged[]')
+  assert.equal(floorHalts(second.handoff), true, 'the floor read still sees the grouped behavior row')
+  const firstB = (await runPhase(args, impl(filing, ['behavior', 'cosmetic']))).out
+  assert.equal(firstB.handoff.followUps[0].findingClass, 'behavior', 'a behavior first row keeps findingClass on the entry')
+  assert.deepEqual(firstB.handoff.followUps[0].merged.map(x => x.findingClass), ['cosmetic'])
+  const cosmetic = (await runPhase(args, impl(filing, ['cosmetic', 'cosmetic']))).out
+  assert.equal(floorHalts(cosmetic.handoff), false, 'two cosmetic rows never halt the floor')
+  // the pre-filing collapse folds a same-site behavior row into its representative: the class rides merged[]
+  const folded = (await runPhase(args, impl({ filed: [{ n: 1, issue: 42 }], clusters: [{ ordinals: [1], issue: 42 }] }, ['cosmetic', 'behavior'], true))).out
+  assert.equal(folded.minorsFiled.length, 1, 'presence guard: the collapse left one row')
+  assert.deepEqual(folded.minorsFiled[0].merged.map(x => x.findingClass), ['behavior'], 'the collapse keeps the folded row\'s class on minorsFiled merged[]')
+  assert.equal(floorHalts(folded.handoff), true, 'the floor read sees the collapse-folded behavior row')
+  // fix-now seeds the folded row from its own fix and line (late-defects.md § The behavior follow-up floor).
+  // foldImpl: the correctness seat raises the representative; the other seat raises the row the collapse folds.
+  const foldImpl = (rep, fold) => (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
+      const base = { severity: 'Minor', rationale: 'r', file: 'src/a.js', disposition: 'follow-up', barrier: 'barrier:underspecified' }
+      return { seat: opts.label, lens: 'x', verdict: 'approve', findings: [(opts.label || '').endsWith(':correctness') ? { ...base, title: 'stale enum comment', ...rep } : { ...base, title: 'missing guard', findingClass: 'behavior', ...fold }], confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 42 }], clusters: [{ ordinals: [1], issue: 42 }] }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const own = (await runPhase(args, foldImpl({ line: 100, suggested_fix: 'reword the comment' }, { line: 102, suggested_fix: 'add the null guard' }))).out
+  assert.equal(own.minorsFiled.length, 1, 'presence guard: the collapse left one row')
+  assert.equal(own.minorsFiled[0].suggested_fix, 'reword the comment', 'presence guard: the representative keeps its own fix')
+  assert.equal(own.minorsFiled[0].line, 100, 'presence guard: the representative keeps its own line')
+  assert.equal(own.minorsFiled[0].merged[0].suggested_fix, 'add the null guard', 'the folded row keeps its own fix on merged[]')
+  assert.equal(own.minorsFiled[0].merged[0].line, 102, 'the folded row keeps its own line on merged[]')
+  // the folded row carries no fix: no key, so the seed never inherits the representative's fix by a default
+  const bare = (await runPhase(args, foldImpl({ line: 100, suggested_fix: 'reword the comment' }, { line: 100, suggested_fix: '  ' }))).out
+  assert.equal(bare.minorsFiled[0].merged.length, 1, 'presence guard: the fix-less row folded')
+  assert.ok(!('suggested_fix' in bare.minorsFiled[0].merged[0]), 'a blank fix prints no suggested_fix key')
+  assert.equal(bare.minorsFiled[0].merged[0].line, 100)
+  // both rows lineless with one normalized title: the title fallback folds, and no line key prints
+  const lineless = (await runPhase(args, foldImpl({ title: 'Missing guard' }, { suggested_fix: 'add the null guard' }))).out
+  assert.equal(lineless.minorsFiled[0].merged.length, 1, 'presence guard: the lineless row folded')
+  assert.ok(!('line' in lineless.minorsFiled[0].merged[0]), 'a lineless folded row prints no line key')
+  assert.equal(lineless.minorsFiled[0].merged[0].suggested_fix, 'add the null guard')
+  // unfiled rows: each entry keeps its own class
+  const unfiledB = (await runPhase(args, impl(null, ['cosmetic', 'behavior']))).out
+  assert.deepEqual(unfiledB.handoff.followUps.map(e => e.findingClass), ['cosmetic', 'behavior'], 'ungrouped entries keep their own class')
+})
+
+test('ignore list: one note per bullet', async () => {
+  const worker = notes => ({ task_id: 'p3-polish', status: 'implemented', head_sha: 'b01a5a00', tests: { unit: 1 }, notes })
+  const three = 'Ignore for now:\n- docs/z.md - a stale claim\n  that wraps\n* docs/w.md - a dead link\n1. docs/v.md - a typo\n\nRefs #1'
+  const { out } = await runPhase(SWEEP_ARGS(), terminalImpl({ sweepWorker: worker(three) }), {}, src)
+  const rows = (out.notes || []).filter(n => /^phase-close sweep left for a ruling/.test(n.title))
+  assert.deepEqual(rows.map(n => n.title), ['phase-close sweep left for a ruling: docs/z.md - a stale claim that wraps',
+    'phase-close sweep left for a ruling: docs/w.md - a dead link', 'phase-close sweep left for a ruling: docs/v.md - a typo'], 'three bullets leave three notes, a wrapped line joining its bullet')
+  assert.ok(rows.every(n => n.site === 'phase-close sweep' && n.rounds === 1), 'each note carries site and rounds: 1')
+  const proj = (out.handoff.notes || []).filter(n => /^phase-close sweep left for a ruling/.test(n.title))
+  assert.ok(proj.length === 3 && proj.every(n => n.site === 'phase-close sweep' && !('rounds' in n)), 'handoff.notes carries site, and no rounds at 1')
+  const one = await runPhase(SWEEP_ARGS(), terminalImpl({ sweepWorker: worker('Ignore for now: docs/z.md - a stale claim') }), {}, src)
+  assert.equal((one.out.notes || []).filter(n => /^phase-close sweep left for a ruling/.test(n.title)).length, 1, 'an unbulleted block leaves one note')
 })
