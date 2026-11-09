@@ -156,3 +156,6 @@ fence deny a raw value that holds a `\` and does not start with a drive `X:`.
   by returning its JSON (PIN-23). The tool stays denied; the pass-through arm is unchanged.
 - **Bash write advisory.** `warn-bash-write-scope.sh` stays advisory (always exit 0). It no
   longer reads `/dev/null` as a write target, and its warning names `WORKER_WRITE_TOOL_RULE`.
+
+[ADR 0060](0060-enforce-each-rule-at-the-highest-level-that-can-express-it.md) ranks the enforcement
+levels, and names the refiner and worker Bash-write fail-open arms here as exceptions to close (#2787).

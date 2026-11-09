@@ -39,3 +39,6 @@ denies.
 
 One run cannot separate the context saving from the model saving. Compare the token use of these
 two dispatches with the #2497 baseline as one combined change.
+
+[ADR 0060](0060-enforce-each-rule-at-the-highest-level-that-can-express-it.md) ranks the enforcement
+levels this card relies on, and plans the move of the snapshot, confirm, pin and tip-probe relays here.

@@ -86,3 +86,44 @@ next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSA
 
 The `CONTEXT.md` budget row moved to `GLOSSARY.md` unchanged (hard 131,072 B, advisory
 111,616 B), and `CONTEXT.md` takes a new 2,048 B hard budget. No budget rose.
+
+## Amendment (2026-11-09): a budget forces a justification, and least start licenses a raise
+
+Operator rulings of 2026-11-09 on #2782. They bind every later session.
+
+**Ruling 1: a byte budget exists to force judicious token spend. It does not exist to forbid
+growth.** A change that spends more bytes on a budgeted surface and makes each dispatch load less
+context is a valid reason to raise that budget. This widens D5's raise rule, which admitted only
+tier-1 doctrine that must stay inline. A raise now cites this ADR and one of two reasons in the
+commit body:
+
+- *Tier-1 doctrine* (D5, unchanged): the text must stay inline, and the body says why it can be
+  neither evicted nor compressed.
+- *Net context saving* (new): the added bytes cut the context a dispatch loads. The body states
+  the bytes added and the measured or estimated tokens saved per dispatch.
+
+The measured example: `ToolSearch` on the `tools:` line of `agents/war-evidence-auditor.md` costs
+12 B and cuts first-turn context from 341,316 to 26,296 tokens. A `tools:` line on
+`agents/war-refiner.md` costs 43 B and cuts 21,159 tokens
+([ADR 0060](0060-enforce-each-rule-at-the-highest-level-that-can-express-it.md) holds the table).
+
+**Ruling 2: prompts are managed by least start.** This is the Interpreted Context Methodology
+(ICM) with progressive disclosure: each subagent starts with only what its dispatch needs, and
+the prompt tells it where to find a conditional rule when it meets the condition. D4's pointer
+shape, `when <trigger>, read references/<file>`, now covers dispatched prompts and agent cards as
+well as docs. The Workflow sandbox reads no files, but the agent it spawns does, so a dispatched
+prompt can carry a pointer. With prompts managed this way, budgets may be raised liberally, each
+raise with its cited reason.
+
+What does not change: dedup and eviction come first, eviction is a byte-identical move (D3), a
+raise without a cited reason is refused by `assert-budget-raise-cited.sh`, and lowering a budget
+is a normal PR.
+
+Byte budgets measure the card body and the template literals. They do not measure the tool
+surface or the plan data a prompt carries, and the 2026-11-09 investigation found the largest
+per-dispatch costs there. A byte line is a proxy. Tokens per dispatch are the target.
+
+## Decision log
+
+- 2026-11-05 · the glossary moved to `GLOSSARY.md` and took the `CONTEXT.md` budget row unchanged; `CONTEXT.md` took a new 2,048 B hard budget · issue #2636
+- 2026-11-09 · D5's raise rule widened: a net context saving is a valid cited reason to raise a budget; D4's pointer shape extended to dispatched prompts and agent cards (least start) · issues #2782, #2783, #2784 · failed because: the old rule admitted only tier-1 doctrine as a reason, so it blocked a 12 B `tools:` edit that saves about 315,000 tokens per dispatch
