@@ -103,9 +103,11 @@ recorded in the Decision log below.
 
 - Every card gains a `tools:` line, and a test binds that. `war-refiner` and `war-worker` are the
   two cards without one at `ed183b08`.
-- The worker's line names the REA tools and `ToolSearch`. A worker on an evidence task loads the
-  REA schemas it needs, and every other worker pays for the names only. No second worker card is
-  needed.
+- The worker's line names `ToolSearch` and the server-level name `mcp__rea`. A worker on an
+  evidence task loads the REA schemas it needs, and every other worker pays for the names only
+  (30,502 tokens measured). No second worker card is needed. A server-level name is in order for
+  a worker, which may write. An auditor card names each tool, never a server. The worker arm of
+  `validate-evidence-auditor-mcp.sh` stays the fence on which REA tools a worker may call.
 - `war-evidence-auditor` gains `ToolSearch` on its line. Its start falls from about 341K tokens
   to about 26K.
 - The small Git relays (`git-snapshot`, `git-confirm`, `git-pin`, `git-pin-snapshot`,
