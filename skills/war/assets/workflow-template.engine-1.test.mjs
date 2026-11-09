@@ -19410,6 +19410,19 @@ test('pin-proof git_error (#2589)', async () => {
   assert.ok(!pin.opts.schema.required.includes('git_error'))
 })
 
+test('pin-proof git_error (#2589): a later well-formed proof clears an earlier attempt\'s error', async () => {
+  let n = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), defaultImpl, {
+    'pin-transfer': { status: 'transferred', rebased_tip: 'a'.repeat(40) },
+    'pin-confirm': (p, o) => o.label === 'git-pin:t1' && n++ === 0 ? { remote_sha: '', git_error: 'fatal: bad object 2222222' }
+      : { ...NEW_SEAT_DEFAULTS['pin-confirm'](p), head_sha: '6'.repeat(40) },
+  })
+  assert.equal(calls.filter(c => c.opts.label === 'git-pin:t1').length, 2, 'attempt 2 reads a well-formed proof (presence guard)')
+  const row = out.auditLog.find(r => r.task === 't1' && r.verdict === 'pin-transfer:unverified')
+  assert.ok(row, 'the head mismatch still holds the task as pin-transfer:unverified')
+  assert.ok(!('git_error' in row), 'the row never names a Git error that did not cause the hold')
+})
+
 test('snapshot reply git_error (#2589)', async () => {
   const bad = { base_sha: '', source_sha: '', remote_sha: '', patch_id: '', content_id: '', git_error: 'fatal: no local ref for the working branch' }
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), defaultImpl, {
