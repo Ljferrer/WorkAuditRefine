@@ -699,11 +699,11 @@ The handoff End-state status for a claimed condition no seat attests — attesta
 channel (every gate-audit-family seat returns one `endStateAttestations` row per claimed condition:
 the condition verbatim, status `met` | `unmet` | `unverified`, evidence), so silence maps to
 `unverified`, never `met`. A missing, unreadable, or stale artifact (its stamped tip SHA mismatching
-the confirmed tip) also attests `unverified`, and so do the two record-only artifact states the
-land-barrier endstate-check dispatch stamps: `intake_lint:` (the check literal failed the intake lint,
-so the row was never executed) and `cmd_bytes_mismatch:` (the written `.cmd` failed the byte-for-byte
-verify, so the row was not executed as declared). Such an artifact is present, readable and
-tip-matched, yet its condition was never evaluated, so it is never `unmet` (#1781). Whole-pass absence
+the confirmed tip) also attests `unverified`, as does a `tip_mismatch:` artifact (HEAD was not the
+expected tip, D28) and the two record-only states the endstate-check dispatch stamps:
+`intake_lint:` (the literal failed the intake lint; never executed) and `cmd_bytes_mismatch:` (the
+`.cmd` failed the byte verify; not executed as declared). A record-only artifact is present,
+readable and tip-matched, yet its condition was never evaluated, so it is never `unmet` (#1781). Whole-pass absence
 stays all-`deferred`; findings stay defect-only (attestation rides the rows, never a finding).
 _Avoid_: reading silence as `met` (the failure mode the status exists to close); conflating it with
 `deferred` (the whole-pass-absent status) or `unmet` (an attested, evidenced failure); attesting an

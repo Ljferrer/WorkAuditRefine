@@ -2179,7 +2179,6 @@ const LITERAL_REGISTRY = [
   ["Holding the land for phase ${ph.id}: no task"],
   ["wrap-up:phase-${ph.id}`, schema: SERVITOR_RE"],
   ["Phase ${ph.id} (${landDecision}): no memoryL"],
-  ["${f.title || ''} ${f.rationale || ''}`)) ? '"],
 ]
 
 const untaggedHeadMultiset = (text) => {
@@ -2435,7 +2434,12 @@ const BARE_INTERPOLATION_CENSUS = [
   // are construction-guaranteed strings; `shape` is backgroundGateRule's param, a pt-built literal at
   // every call site; `e.gateLogPath` carries an explicit || conventional-path fallback at evItems;
   // `opts.label` is a segment continuation header's site label — every call site passes one.
-  'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'GATE_LOG_UNTHREADED', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
+  // (GATE_LOG_UNTHREADED left the census at D10: gateArtifactLine reads it behind a refused-path ternary.)
+  'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
+  // Plan 2026-11-08-engine-findings T2.1: PHASE_WIDE_MARK and STALE_TIP_PHRASE are plain-string module
+  // consts; expectedTip renders only behind its own truthy ternary; refused renders only behind a
+  // typeof-string ternary in gateArtifactLine; id is a recoveredIds entry, a task id the preMerged arm pushed.
+  'PHASE_WIDE_MARK', 'STALE_TIP_PHRASE', 'expectedTip', 'refused', 'id',
   // FIX_GATE_RULE (#2617 part 2): a plain-string module const, construction-guaranteed.
   'FIX_GATE_RULE',
   // gateArtifactLine: kind is a literal at both callers; path is guarded by gateLogPathOf.
@@ -2530,7 +2534,10 @@ const quietGate = (base) => (prompt, opts) => {
 // carries the body.
 // Parallel repository gate: completed suites emit out of order. Require the final completion marker
 // before treating an absent mapped path as HARD; all pre-existing checklist duties are retained.
-const GATE_AUDIT_CHECKLIST_SHA256 = 'e1ff1f342a87d3c49c2c3d91f7c1b72ad69896fe096964e22c9eded678cfc9f2'
+// Re-pinned (plan 2026-11-08-engine-findings-ace-and-late-fix T2.1): four bullets appended for the
+// execution-evidence seat (D30 phase-wide, D28 confirmed tip, D32 gate scope, D31 environment note);
+// the card gains no byte, and every earlier bullet stays byte-identical.
+const GATE_AUDIT_CHECKLIST_SHA256 = '3cdf022165b234bdc8dd2ef28245119c9bde77853c618fb94fed1209af62262d'
 
 // A citation-resolved finding: the seat matched the parked ask's NAMED trade-off to a threaded
 // standing adjudication row and returns disposition:'absorb' + citation (A2 — panel judgment),
@@ -3513,7 +3520,11 @@ const READER_CENSUS = [
   ['pinOrSentinel', /'\(integration_sha unrecorded\/malformed\)'/, 1],
   ['gate_sha Git binding (gitBoundGateSha)', /const gated = result && result\.gate_sha, second = proof|const \{ gate_sha: dropped, \.\.\.rest \} = result$/, 2],
   ['landMerged: predTip from lastLandedTip', /const predTip = lastLandedTip \?\? recoveryPredSeed$/, 1],
-  ['landMerged: gateHeadSha from gate_sha, preMergeTip', /gateHeadSha: pinOrSentinel\(mr\.gate_sha\), gateLogPath: mr\.gate_log_path, preMergeTip: predTip/, 1],
+  ['landMerged: gateHeadSha from gate_sha, preMergeTip', /gateHeadSha: pinOrSentinel\(mr\.gate_sha\), gateLogPath: mr\.gate_log_path, gateLogRefused: mr\.gate_log_refused, preMergeTip: predTip/, 1],
+  // Plan 2026-11-08-engine-findings T2.1 (D28): the expected tip the endstate-check dispatch and the
+  // CONFIRMED TIP line name — the last merge commit (lastLandedTip), else null. Its fixture is
+  // 'endstate-check: the dispatch names the expected tip and the runner compares'.
+  ['expectedTip from lastLandedTip (D28)', /^const expectedTip = isSha\(lastLandedTip\) \? lastLandedTip : null$/, 1],
   ['landMerged: lastLandedTip and landedShaByTask from integration_sha', /if \(isSha\(mr\.integration_sha\)\) \{ lastLandedTip = mr\.integration_sha; landedShaByTask\.set\(task\.id, mr\.integration_sha\) \}/, 1],
   ['already_upstream landMerged (pinProof.head_sha)', /landMerged\(r\.task, \{ mode: 'merge-task', status: 'merged', integration_sha: pinProof\.head_sha, gate_sha: pinProof\.head_sha \}\)/, 2],
   ['first-merge and floor-retry populate sentences', /pt`Populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at/, 2],
