@@ -19966,12 +19966,14 @@ test('re-mint identity: a reworded title on the same file and line window is a r
 })
 
 test('handoff followUps: two rows filed to one issue print it once', async () => {
-  const impl = filing => (prompt, opts) => {
+  // cls: [first row's findingClass, second row's findingClass]; same: both seats raise one file + line,
+  // so the pre-filing collapse folds the second row before the per-issue grouping runs.
+  const impl = (filing, cls = [], same = false) => (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
       const f = (opts.label || '').endsWith(':correctness')
-        ? { severity: 'Minor', title: 'stale enum comment', rationale: 'lags the arm', file: 'src/a.js', line: 100, disposition: 'follow-up', barrier: 'barrier:underspecified' }
-        : { severity: 'Minor', title: 'missing guard', rationale: 'same root cause', file: 'src/b.js', line: 7, disposition: 'follow-up', barrier: 'barrier:underspecified' }
+        ? { severity: 'Minor', title: 'stale enum comment', rationale: 'lags the arm', file: 'src/a.js', line: 100, disposition: 'follow-up', barrier: 'barrier:underspecified', ...(cls[0] ? { findingClass: cls[0] } : {}) }
+        : { severity: 'Minor', title: 'missing guard', rationale: 'same root cause', file: same ? 'src/a.js' : 'src/b.js', line: same ? 100 : 7, disposition: 'follow-up', barrier: 'barrier:underspecified', ...(cls[1] ? { findingClass: cls[1] } : {}) }
       return { seat: opts.label, lens: 'x', verdict: 'approve', findings: [f], confidence: 'high' }
     }
     if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return filing
@@ -19988,6 +19990,31 @@ test('handoff followUps: two rows filed to one issue print it once', async () =>
   // rows with issue null stay one entry each
   const unfiled = await runPhase(args, impl(null))
   assert.equal(unfiled.out.handoff.followUps.length, 2, 'unfiled rows stay one entry each')
+  // ADR 0058 floor: the Lead reads handoff.followUps for a `behavior` row, so a grouped row keeps its class.
+  // The oracle is the floor's own read, written here from the SKILL.md sentence: an entry or a merged[] row.
+  const floorHalts = h => h.followUps.some(e => e.findingClass === 'behavior' || (e.merged || []).some(x => x.findingClass === 'behavior'))
+  const filing = { filed: [{ n: 1, issue: 42 }, { n: 2, issue: 42 }], clusters: [{ ordinals: [1, 2], issue: 42 }] }
+  assert.equal(floorHalts(out.handoff), false, 'classless rows never halt the floor')
+  assert.ok(!('findingClass' in out.handoff.followUps[0]) && !('findingClass' in out.handoff.followUps[0].merged[0]), 'a classless row prints no findingClass key')
+  const second = (await runPhase(args, impl(filing, ['cosmetic', 'behavior']))).out
+  assert.deepEqual(second.minorsFiled.map(m => m.findingClass), ['cosmetic', 'behavior'], 'presence guard: both rows were filed with their class')
+  assert.equal(second.handoff.followUps.length, 1, 'presence guard: the behavior row is grouped behind the cosmetic row')
+  assert.equal(second.handoff.followUps[0].findingClass, 'cosmetic', 'the entry carries the first row\'s class')
+  assert.deepEqual(second.handoff.followUps[0].merged.map(x => x.findingClass), ['behavior'], 'a behavior second row keeps findingClass on merged[]')
+  assert.equal(floorHalts(second.handoff), true, 'the floor read still sees the grouped behavior row')
+  const firstB = (await runPhase(args, impl(filing, ['behavior', 'cosmetic']))).out
+  assert.equal(firstB.handoff.followUps[0].findingClass, 'behavior', 'a behavior first row keeps findingClass on the entry')
+  assert.deepEqual(firstB.handoff.followUps[0].merged.map(x => x.findingClass), ['cosmetic'])
+  const cosmetic = (await runPhase(args, impl(filing, ['cosmetic', 'cosmetic']))).out
+  assert.equal(floorHalts(cosmetic.handoff), false, 'two cosmetic rows never halt the floor')
+  // the pre-filing collapse folds a same-site behavior row into its representative: the class rides merged[]
+  const folded = (await runPhase(args, impl({ filed: [{ n: 1, issue: 42 }], clusters: [{ ordinals: [1], issue: 42 }] }, ['cosmetic', 'behavior'], true))).out
+  assert.equal(folded.minorsFiled.length, 1, 'presence guard: the collapse left one row')
+  assert.deepEqual(folded.minorsFiled[0].merged.map(x => x.findingClass), ['behavior'], 'the collapse keeps the folded row\'s class on minorsFiled merged[]')
+  assert.equal(floorHalts(folded.handoff), true, 'the floor read sees the collapse-folded behavior row')
+  // unfiled rows: each entry keeps its own class
+  const unfiledB = (await runPhase(args, impl(null, ['cosmetic', 'behavior']))).out
+  assert.deepEqual(unfiledB.handoff.followUps.map(e => e.findingClass), ['cosmetic', 'behavior'], 'ungrouped entries keep their own class')
 })
 
 test('ignore list: one note per bullet', async () => {

@@ -8182,6 +8182,11 @@ if (wrapUpDecision && memoryLocalRoot) {
 // element shape at every read: array-normalize the container, drop non-object elements. Hoisted
 // above BOTH consumer blocks (the filing block's braces close before the handoff assembly opens).
 const mergedRowsOf = m => (Array.isArray(m.merged) ? m.merged : []).filter(x => x && typeof x === 'object')
+// findingClassOf (ADR 0058 floor, D26 fix round): the `findingClass` key of a filed row or a merged[] row, as a
+// spreadable object — present only for a FINDING_CLASSES member. The pre-filing collapse and the handoff
+// followUps projection both spread it, so a `behavior` row folded under another row keeps its class on
+// the surface the Checkpoint floor reads.
+const findingClassOf = x => FINDING_CLASSES.includes(x && x.findingClass) ? { findingClass: x.findingClass } : {}
 // drainCauseOf (verdict-integrity D13, PIN-17, #1799): the shape guard for stampDrainCause's field on a
 // filed row — { dispatch, why } with a string dispatch, else null. Read by the filing-prompt row and
 // the handoff followUps projection (both sit outside any local try — a malformed field must never
@@ -8235,7 +8240,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       const fdc = drainCauseOf(f)
       const both = fdc && drainCauseOf(hit)
       if (fdc && !both) hit.drainCause = fdc
-      hit.merged.push({ seat: seatRefOf(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)', ...(both ? { drainCause: fdc } : {}) })
+      hit.merged.push({ seat: seatRefOf(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)', ...findingClassOf(f), ...(both ? { drainCause: fdc } : {}) })
     } else collapsed.push(f)
   }
   if (collapsed.length < minorsFiled.length) {
@@ -8418,17 +8423,19 @@ if (landDecision === 'landed' || landDecision === 'held:escalation' || landDecis
     // merged (D8, Phase 5 Task 1): a consolidated row's merged-away titles+rationales ride the
     // handoff entry too (ADDITIVE key, present only on rows the collapse merged into) — the debt
     // map carries full fidelity, nothing merges away silently. Read through mergedRowsOf (element
-    // shape guard): this projection maps EVERY minorsFiled row and sits outside any local try — a
+    // shape guard): this projection reads EVERY minorsFiled row and sits outside any local try — a
     // malformed `merged: [null]` deref here would convert a LANDED phase into
     // held:workflow-error and destroy this very handoff.
     // drainCause (verdict-integrity D13, #1799): ADDITIVE key, present only on a row a phase-close
     // dispatch death drained (stampDrainCause) — { dispatch, why } through drainCauseOf's shape guard.
     // One entry per filed issue (D26, #2684): rows that share one numeric `issue` print once — the first
     // row in minorsFiled order is the entry and each other row rides its merged[] list (seat, title,
-    // rationale, and its drainCause per D3). Rows with issue null stay one entry each. The Checkpoint
-    // floor reads minorsFiled, not this projection, so its row count is unchanged.
+    // rationale, and its drainCause per D3). Rows with issue null stay one entry each. So this list is
+    // NOT index-aligned with minorsFiled. The Checkpoint floor's behavior leg (ADR 0058, skills/war/SKILL.md
+    // § Checkpoint) reads this projection: each entry and each merged[] row carries its own findingClass
+    // (findingClassOf), so a `behavior` row grouped behind another row still halts the advance.
     followUps: (() => {
-      const mergedOf = x => ({ seat: x.seat ?? '(seat unrecorded)', title: x.title ?? '(untitled finding)', rationale: x.rationale ?? '(no rationale recorded)', ...(drainCauseOf(x) ? { drainCause: drainCauseOf(x) } : {}) })
+      const mergedOf = x => ({ seat: x.seat ?? '(seat unrecorded)', title: x.title ?? '(untitled finding)', rationale: x.rationale ?? '(no rationale recorded)', ...findingClassOf(x), ...(drainCauseOf(x) ? { drainCause: drainCauseOf(x) } : {}) })
       const out = []
       const byIssue = new Map()
       for (const m of minorsFiled) {
@@ -8436,11 +8443,12 @@ if (landDecision === 'landed' || landDecision === 'held:escalation' || landDecis
         const first = typeof m.issue === 'number' ? byIssue.get(m.issue) : null
         if (first) {
           first.merged = first.merged || []
-          first.merged.push({ seat: seatRefOf(m), title: m.title ?? '(untitled finding)', rationale: m.rationale ?? '(no rationale recorded)', ...(dc ? { drainCause: dc } : {}) }, ...mergedRowsOf(m).map(mergedOf))
+          first.merged.push({ seat: seatRefOf(m), title: m.title ?? '(untitled finding)', rationale: m.rationale ?? '(no rationale recorded)', ...findingClassOf(m), ...(dc ? { drainCause: dc } : {}) }, ...mergedRowsOf(m).map(mergedOf))
           if (dc && !first.drainCause) first.drainCause = dc
           continue
         }
         const e = { issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)',
+          ...findingClassOf(m),
           ...(mergedRowsOf(m).length ? { merged: mergedRowsOf(m).map(mergedOf) } : {}),
           ...(dc ? { drainCause: dc } : {}) }
         if (typeof m.issue === 'number') byIssue.set(m.issue, e)
