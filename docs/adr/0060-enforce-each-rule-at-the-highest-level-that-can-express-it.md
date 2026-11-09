@@ -88,12 +88,13 @@ true, and a stale guard rule is cheaper to revise than a card is to maintain.
 
 ### Named exceptions
 
-Three seats rely on level 6 for writes to shared state on the day this ADR is accepted.
+Four seats rely on level 6 on the day this ADR is accepted. Three of them write to shared state.
 
 | Seat | Prompt-only surface | Standing? |
 |---|---|---|
 | `war-refiner` | Every tool call. `validate-worktree-scope.sh` fails open for it (ADR 0002), with `refinery-surface.test.sh` as a level 5 backstop. | No. Issue #2787 tracks the design work. |
 | `war-worker` | Bash writes. `warn-bash-write-scope.sh` only warns. Write and Edit are hook-enforced. | No. Issue #2787 tracks the design work. |
+| The setup-scout | Every tool call. `agents/war-setup-scout.md` is not on the `agents` list in `plugin.json`, so `/war-room` runs it as a general agent and its `tools: Read, Grep, Glob` line does nothing. | No. The doc-truth plan (Task 3.7) registers the card. |
 | The Lead (the main session) | Every tool call. `skills/war/SKILL.md` is its only control inside WAR. | Yes. The operator supervises the Lead. |
 
 No new seat, dispatch kind or guard arm may add to this table without an operator ruling
@@ -122,4 +123,4 @@ recorded in the Decision log below.
 
 ## Decision log
 
-- 2026-11-09 · ADR authored in the living form; ranks the six enforcement levels, states the law, extends least start from context to tools and permission, and names three prompt-only exceptions · issues #2782, #2783, #2784
+- 2026-11-09 · ADR authored in the living form; ranks the six enforcement levels, states the law, extends least start from context to tools and permission, and names four prompt-only exceptions · issues #2782, #2783, #2784
