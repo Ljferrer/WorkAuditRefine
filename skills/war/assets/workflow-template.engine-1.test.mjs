@@ -18883,6 +18883,10 @@ test('land-confirm (#2657): every land prompt carries landConfirmArm', async () 
   }
   // The touched-doc guard: refiner-recovery.md carries the rule in the superproject and the 2A land arms.
   assert.ok((refinerRecoveryMd.match(LAND_CONFIRM_DOC_RE) || []).length >= 2, 'refiner-recovery.md carries the land confirm in both land variants')
+  // The evicted CAS-loop block the card's land step 2 points at (budget-raise-floor.md) routes its any-other-exit bullet through the same confirm.
+  const budgetRaiseFloorMd = readFileSync(join(here, '../references/budget-raise-floor.md'), 'utf8')
+  const casBullet = budgetRaiseFloorMd.split('\n').find(l => l.trimStart().startsWith('- On any other exit → return `status: "error"`')) || ''
+  assert.match(casBullet, /On an exit 3, first take the land confirm in \[refiner-recovery\.md\]\([^)]*refiner-recovery\.md\) \(§ Reland discrimination\)\./, 'budget-raise-floor.md CAS-loop any-other-exit bullet points at the land confirm')
   // The cross-file read (A33): the exit number the prompt names is the script's PHANTOM LAND exit.
   assert.match(provisionWorktreesSh, /^readonly EX_FOREIGN=3$/m, 'provision-worktrees.sh binds EX_FOREIGN to 3')
   assert.match(provisionWorktreesSh, /# PHANTOM LAND: [^\n]*\n(?:\s*#[^\n]*\n|\s*\n)*\s*die "land-advance: [^\n]*" "\$EX_FOREIGN"/, 'the PHANTOM LAND arm dies with EX_FOREIGN')
