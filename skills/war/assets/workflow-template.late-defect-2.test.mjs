@@ -222,9 +222,10 @@ test('late-defect: gate-audit evidence seat — the late-fix re-audit evidence s
 })
 
 test('late-defect: gate-audit no origin — a fixable End-state blocker on a phase where nothing merged keeps the gate-evidence hold, and no late-fix worker runs', async () => {
-  const base = lateFixImpl()
-  const impl = (p, o) => labelOf({ opts: o }) === 'work:t1' ? { task_id: 't1', status: 'blocked', blocked_reason: 'forced block for test' } : base(p, o)
-  const run = code => runPhase(PROVISION_ARGS({ phase: ES_PHASE, tasks: [LATE_TASK({ requiresTest: false })] }), impl, {}, code)
+  // A zero-task claims-bearing launch: nothing merged and no origin task. (A phase whose tasks ran and
+  // none merged no longer spawns the end-state-only seat at all — D8, #2532.)
+  const impl = lateFixImpl()
+  const run = code => runPhase(PROVISION_ARGS({ phase: ES_PHASE, tasks: [] }), impl, {}, code)
   const { out, calls, logs } = await run()
   assert.ok(calls.some(c => labelOf(c) === 'gate-audit:phase-3:end-state'), 'presence guard: the end-state-only seat ran')
   assert.deepEqual(gateHolds(out).map(e => e.task), ['phase-3-end-state'], 'one gate-evidence hold on the end-state pseudo task')
@@ -249,7 +250,8 @@ test('late-defect: gate-audit end-state handoff — a fixed End-state blocker la
   const fixed = await runPhase(PROVISION_ARGS({ phase: ES_PHASE, tasks }), esImpl([GA_MAJOR({ plan_ref: cond })]))
   assert.equal(fixed.out.landDecision, 'landed')
   assert.deepEqual(lateWorkers(fixed.calls).map(labelOf), ['late-fix:t1:r1'], 'presence guard: the late fix ran')
-  assert.deepEqual(fixed.out.handoff.endState, [{ condition: cond, status: 'unverified', note: 'fixed by the late-fix pass (p3-latefix-1) after the gate-audit; not re-attested' }])
+  // attestedAt (D28): this seat names no audit_sha and the row has no check artifact, so it is null.
+  assert.deepEqual(fixed.out.handoff.endState, [{ condition: cond, status: 'unverified', note: 'fixed by the late-fix pass (p3-latefix-1) after the gate-audit; not re-attested', attestedAt: null }])
   assert.ok(schemasMd.includes('`fixed by the late-fix pass (<id>) after the gate-audit; not re-attested`'), 'schemas.md restates the note the engine emits')
   // Mirror: a spent late fix never merged, so the blocker stays unmet on the held phase.
   const spent = await runPhase(PROVISION_ARGS({ phase: ES_PHASE, tasks, run: { roundLimit: 2 } }), esImpl([GA_MAJOR({ plan_ref: cond })], { rejects: 99 }))

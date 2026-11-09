@@ -1129,7 +1129,10 @@ test('#2300: explicit submodule worktree cannot reuse a previous launch gate log
   })
   const consumers = second.calls.filter(c => /^gate-audit:|^evidence:|^endstate-check:/.test(c.opts.label || ''))
   assert.ok(consumers.length)
-  assert.ok(consumers.every(c => !c.prompt.includes(priorPath)), 'old launch evidence is never forwarded')
+  // D10 (#2329 item 4): the refused path is named, JSON-quoted, in the one `refused:` statement only.
+  const unrefused = p => p.replace(/GATE LOG ARTIFACT: refused: [^\n]*?\(no captured artifact\); SOFT cannot-confirm\./g, '')
+  assert.ok(consumers.every(c => !unrefused(c.prompt).includes(priorPath)), 'old launch evidence is never forwarded outside the refused statement')
+  assert.ok(consumers.some(c => c.prompt.includes('refused: ' + JSON.stringify(priorPath))), 'the stale path is named as refused')
   assert.ok(consumers.some(c => c.prompt.includes('no captured artifact')), 'stale capture is reported absent')
 })
 
@@ -1177,6 +1180,9 @@ test('#2300: canonical fresh-run producer separates same-day same-phase submodul
       return isMergeTask({ opts: o }) ? { ...r, gate_log_path: priorPath } : r
     }, {}, secondSource)
     const consumers = second.calls.filter(c => /^gate-audit:|^evidence:|^endstate-check:/.test(c.opts.label || ''))
-    assert.ok(consumers.length && consumers.every(c => !c.prompt.includes(priorPath)), 'a fresh same-phase attempt rejects the prior gate artifact')
+    // D10: the refused path is named only inside the one `refused:` statement, never as evidence.
+    const unrefused = p => p.replace(/GATE LOG ARTIFACT: refused: [^\n]*?\(no captured artifact\); SOFT cannot-confirm\./g, '')
+    assert.ok(consumers.length && consumers.every(c => !unrefused(c.prompt).includes(priorPath)), 'a fresh same-phase attempt rejects the prior gate artifact')
+    assert.ok(consumers.some(c => c.prompt.includes('refused: ' + JSON.stringify(priorPath))), 'and names it as refused')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })

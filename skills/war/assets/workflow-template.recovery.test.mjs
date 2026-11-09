@@ -1281,7 +1281,11 @@ for (const bad of ['outside', 'traversal', 'newline', 'wrong-task', 'stale-attem
       } else {
         const consumers = calls.filter(c => /^gate-audit:|^evidence:|^endstate-check:/.test(c.opts.label || ''))
         assert.ok(consumers.length)
-        assert.ok(consumers.every(c => typeof rejected !== 'string' || !c.prompt.includes(rejected)), 'no downstream reader receives the invalid path')
+        // D10 (#2329 item 4): a refused path is NAMED, JSON-quoted, inside the one `refused:` statement and
+        // nowhere else — never as a read target. Strip that statement and the path must be absent.
+        const unrefused = p => p.replace(/GATE LOG ARTIFACT: refused: [^\n]*?\(no captured artifact\); SOFT cannot-confirm\./g, '')
+        assert.ok(consumers.every(c => typeof rejected !== 'string' || !unrefused(c.prompt).includes(rejected)), 'no downstream reader receives the invalid path outside the refused statement')
+        assert.ok(consumers.every(c => typeof rejected !== 'string' || !c.prompt.includes('read the FULL captured') || !c.prompt.includes('log at ' + rejected)), 'the invalid path is never a read target')
         const gate = consumers.filter(c => /^gate-audit:/.test(c.opts.label || '')).find(c => site === 'evidence' ? /integrated-tip$/.test(c.opts.label) : /:t1:/.test(c.opts.label))
         assert.ok(gate?.prompt.includes('no captured artifact'), 'bad evidence is explicitly unthreaded')
       }
