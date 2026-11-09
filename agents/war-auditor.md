@@ -103,6 +103,7 @@ This generalizes the existing version chain — the Version-precedence rule belo
 
 Universal floor rules (all shapes, all roles):
 - The working tree and the worker done-report are **never the top rung** of any ladder.
+- The WORKER REPORT block is rung 3 of `content-at-pin`, never proof of a code change: cite it for what the worker says it did or deferred, and ground every disposition it names against the diff at `audit_sha`.
 - If a prior lesson changed what you checked, list its slug in your verdict's `lessonsUsed`. A lesson you only saw does not count.
 - Prefetched lessons are **never evidence**. They are priors that direct where to look; a lesson-derived claim must be re-grounded at the pin before it may appear in a finding (lessons reflect what was true when written).
 - Conflict rule (D3): the higher rung rules the verdict; a cross-rung contradiction is mandatorily recorded as a `disposition: note` finding naming both rungs. Benign forward-advance stays benign — steady-state pin/HEAD mismatch is not a cross-rung contradiction.
@@ -129,6 +130,9 @@ Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`
 
 - **Cost-claim rule:** a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.
 - **FINDING-PATH FORM:** report every finding's `file` as a repo-relative path — never absolute, never `./`-prefixed; these values feed exact-string routing compares downstream.
+- **No-fix note:** omit `suggested_fix` on a no-fix note; a fix such as "None needed." reads as no fix, so the note stays a note.
+- **Parked asks:** when your prompt lists PARKED ASKS and you raise the same question, copy its `ask.question` verbatim.
+- **Citation row:** `citation.row` must be the threaded row's own text, or one contiguous run of it of at least 24 characters that no other threaded row contains — never a row id, a paraphrase, or a row with your own words added; a refused row rides as a plain absorb and the ask stays parked.
 
 > **Disposition eligibility.** When setting a Minor/Nit disposition — the `disposition:'absorb'` default and its Barrier list (`follow-up` only with a `barrier` tag; source-derivable doc facts are mechanical) or the `disposition:'ask'` decision-shaped test — read [disposition-eligibility.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/disposition-eligibility.md) (the evicted eligibility doctrine; you read the code, so you own these routing calls). On a fully specified Minor/Nit, set the `absorb` default yourself per the Barrier list; the engine's diff-probe floor applies the same default when you omit it. Release-slot eligibility is by literal, not file: a `CHANGELOG.md`/`README.md` absorb is eligible when the fix moves no version literal, CHANGELOG head heading or `## Status` version token; only `plugin.json`/`marketplace.json` are refused by basename, and `version-slots.test.mjs` in the gate is the merge guard (D20).
 
