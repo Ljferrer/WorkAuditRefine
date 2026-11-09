@@ -4187,7 +4187,7 @@ test('unverified-triggers — the GLOSSARY.md **`unverified`** entry names exact
     assert.ok(stamps.includes(f), `the endstate build must stamp \`${f}:\` on every artifact — the frame anchor rotted`)
   }
   const canonical = stamps.filter((t) => !FRAME.includes(t)).sort()
-  assert.equal(canonical.length, 2, 'the endstate build must stamp exactly its two record-only artifact states (D16: intake_lint, cmd_bytes_mismatch)')
+  assert.equal(canonical.length, 3, 'the endstate build must stamp exactly its three unverified artifact states (D16: intake_lint, cmd_bytes_mismatch; D28: tip_mismatch)')
   const entry = glossaryMd.match(/^\*\*`unverified`\*\* \(End-state status\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(entry, 'could not locate the **`unverified`** (End-state status) glossary entry in GLOSSARY.md — the extraction construct rotted')
   const e = norm(entry[0])
