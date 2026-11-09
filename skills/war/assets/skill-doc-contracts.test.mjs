@@ -706,7 +706,8 @@ test('D21 (extended) — GLOSSARY.md **Clean handoff** names the engine emit set
   assert.ok(skillHandoff, 'could not locate the SKILL.md `handoff` … is present on … omitted on clause — construct rotted')
   const skillNamed = [...skillHandoff[1].matchAll(/`([^`]+)`/g)].map((x) => x[1])
   assert.deepEqual([...skillNamed].sort(), [...emitSet].sort(), `the SKILL.md handoff clause must name exactly the engine's emit set (${emitSet.join(', ')}) — got: ${skillNamed.join(', ')}`)
-  // The retired wording that outlived the #2702 engine change must stay gone.
+  // The retired wording that outlived the #2702 engine change must stay gone. These bans repeat
+  // the 2702/D34 test's bare-rendering ban loop (kept here because the plan slice names them).
   for (const [label, src, re] of [
     ['SKILL.md', skillMd, /`servitorResult` is null unless the Workflow landed the phase itself/i],
     ['SKILL.md', skillMd, /present on `landed` \*\*and\*\* `held:escalation`/i],
