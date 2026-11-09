@@ -486,10 +486,18 @@ test('#990 threaded tip — missing working SHA holds before Wrap-up if Git reco
   const { calls, out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), tipImpl({}, { integration_sha: 'beefcafe12' }), { rawMergeResults: true })
   assert.notEqual(out.landDecision, 'landed')
   assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
-  // #2702 D34: a held land runs the wrap-up on the last merge tip, and names the hold, never a land
+  // #2702 D34: the unproved land holds the phase, and the wrap-up runs once (memoryLocalRoot is threaded).
+  assert.equal(out.landDecision, 'held:land-failed', 'the unproved land holds the phase')
   const servs = calls.filter(isServitor)
-  assert.equal(servs.length, ['held:escalation', 'held:land-failed'].includes(out.landDecision) ? 1 : 0, 'the wrap-up runs once on a held land and never otherwise')
-  assert.ok(servs.every(c => c.prompt.includes('land decision: ' + out.landDecision + ';')), 'no fallback pin substitutes for an unproved land')
+  assert.equal(servs.length, 1, 'the wrap-up runs exactly once on the held land')
+  const [wrap] = servs
+  assert.ok(wrap.prompt.includes('land decision: held:land-failed;'), 'the wrap-up names the hold')
+  // The anchor is the Git-confirmed merge tip of t1 on the integration branch: the land reply carried
+  // no working_sha, so no fallback poses as a landed tip on the working branch, and the merge tip is
+  // never dropped for the placeholder.
+  assert.ok(wrap.prompt.includes('Landed tip: beefcafe12 on integration/wtprov-a/phase-3 ('), 'the held wrap-up anchors on the confirmed merge tip, on the integration branch')
+  assert.ok(!wrap.prompt.includes(' on dev/wtprov-a ('), 'no fallback pin poses as a landed working-branch tip')
+  assert.ok(!TIP_PLACEHOLDER.test(wrap.prompt), 'a confirmed merge tip is never replaced by the placeholder')
 })
 
 test("Task 1.1 (End state 3) — land 'environment' recovered: the environment-proceed re-land's 'landed' ⇒ landDecision 'landed', the resync log line, and the servitor wrap-up dispatch fires", async () => {

@@ -16803,14 +16803,21 @@ for (const [name, corrupt] of [
   ['wrong second parent', p => ({ ...p, parents: [p.parents[0], '3'.repeat(40)] })],
   ['moved source', p => ({ ...p, source_tip: '3'.repeat(40) })],
 ]) test('normal land confirmation refuses ' + name, async () => {
-  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+  // The land reply claims a working_sha distinct from the t1 merge tip ('2' * 40), so the anchor check
+  // below can tell the unproved land claim from the confirmed merge tip.
+  const claimed = '7'.repeat(40)
+  const impl = (p, o) => seatOf(o) === 'war-refiner' && o.phase === 'Land' ? { mode: 'land-phase', status: 'landed', working_sha: claimed } : defaultImpl(p, o)
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), impl, {
     'merge-confirm': (p, o) => { const proof = NEW_SEAT_DEFAULTS['merge-confirm'](p); return o.label === 'git-confirm:land:phase-3' ? corrupt(proof) : proof },
   })
-  assert.notEqual(out.landDecision, 'landed'); assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
-  // #2702 D34: a held land still runs the wrap-up, and its prompt names the hold
+  assert.equal(out.landDecision, 'held:land-failed', 'the unproved land holds the phase'); assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
+  // #2702 D34: the held land runs the wrap-up once (memoryLocalRoot is threaded), and the anchor is the
+  // confirmed merge tip on the integration branch, never the refiner-claimed working_sha
   const servs = calls.filter(isServitor)
-  assert.equal(servs.length, ['held:escalation', 'held:land-failed'].includes(out.landDecision) ? 1 : 0, 'the wrap-up runs once on a held land and never otherwise')
-  for (const c of servs) assert.ok(c.prompt.includes('land decision: ' + out.landDecision + ';'))
+  assert.equal(servs.length, 1, 'the wrap-up runs exactly once on the held land')
+  assert.ok(servs[0].prompt.includes('land decision: held:land-failed;'), 'the wrap-up names the hold')
+  assert.ok(!servs[0].prompt.includes('Landed tip: ' + claimed), 'the unproved land claim never becomes the wrap-up anchor')
+  assert.ok(servs[0].prompt.includes('Landed tip: ' + '2'.repeat(40) + ' on integration/wtprov-a/phase-3 ('), 'the anchor is the confirmed merge tip on the integration branch')
   assert.ok(out.auditLog.some(r => r.verdict === 'git-confirmation:unresolved' && r.site === 'land:phase-3'), 'bad proof is classified, not an accidental exception')
 })
 
@@ -18926,11 +18933,15 @@ test('land-confirm (#2657): an unconfirmed landed claim', async () => {
   }
   const { out, calls } = await runPhase(PROVISION_ARGS(), impl, { 'merge-confirm': originUnmoved })
   assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-confirm' && /land:phase-3/.test(c.opts.label || '')), 'presence guard: Git confirmation reads the land')
-  assert.notEqual(out.landDecision, 'landed', 'an unconfirmed landed claim never lands')
-  // #2702 D34: a held land still runs the wrap-up, and its prompt names the hold, never a landed phase
+  assert.equal(out.landDecision, 'held:land-failed', 'an unconfirmed landed claim never lands')
+  // #2702 D34: the held land runs the wrap-up once (memoryLocalRoot is threaded); its prompt names the
+  // hold, and its anchor is the confirmed merge tip of t2 on the integration branch, never the
+  // refiner-claimed working_sha ('3' * 40)
   const servs = calls.filter(isServitor)
-  assert.equal(servs.length, ['held:escalation', 'held:land-failed'].includes(out.landDecision) ? 1 : 0, 'the wrap-up runs once on a held land and never otherwise')
-  for (const c of servs) assert.ok(c.prompt.includes('land decision: ' + out.landDecision + ';'), 'the wrap-up on an unconfirmed land names the hold')
+  assert.equal(servs.length, 1, 'the wrap-up runs exactly once on the held land')
+  assert.ok(servs[0].prompt.includes('land decision: held:land-failed;'), 'the wrap-up on an unconfirmed land names the hold')
+  assert.ok(!servs[0].prompt.includes('Landed tip: ' + '3'.repeat(40)), 'the unconfirmed land claim never becomes the wrap-up anchor')
+  assert.ok(servs[0].prompt.includes('Landed tip: ' + '2'.repeat(40) + ' on integration/wtprov-a/phase-3 ('), 'the anchor is the confirmed merge tip on the integration branch')
 })
 
 // ---- first-push refspec (#2699 D31, PIN-31) -------------------------------------------------------

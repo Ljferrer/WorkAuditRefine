@@ -519,11 +519,23 @@ for (const site of ['task', 'land']) for (const shape of ['minimal', 'nonexisten
       assert.equal(site === 'land' ? out.landDecision === 'landed' : out.landed.includes('t1'), success, 'completion follows actual Git')
       assert.equal(confirmed, 1, 'every normal reply gets fresh Git confirmation')
       assert.equal(recovered, shape === 'valid' ? 0 : shape.includes('whitespace') ? 2 : 1, 'only unconfirmed reports need maintenance')
-      // #2702 D34: a held land may run the wrap-up, but never as a completed (landed) phase
+      // #2702 D34: the hold is fixed by the fixture, never read back from the run. A whitespace mutation
+      // exhausts roundLimit in reconciliation and throws HARD (held:workflow-error); an unproved land
+      // holds on held:land-failed; an unproved task merge leaves nothing merged (held:nothing-merged).
+      // Only held:land-failed is in the Wrap-up gate here (memoryLocalRoot is threaded), and on it the
+      // anchor is the confirmed t1 merge tip ('2' * 40) on the integration branch, never the SHA the
+      // land reply claimed.
       if (!success) {
+        const hold = shape.includes('whitespace') ? 'held:workflow-error' : site === 'land' ? 'held:land-failed' : 'held:nothing-merged'
+        assert.equal(out.landDecision, hold, 'the unproved ' + site + ' ' + shape + ' holds the phase')
         const servs = calls.filter(isServitor)
-        assert.equal(servs.length, ['held:escalation', 'held:land-failed'].includes(out.landDecision) ? 1 : 0, 'the wrap-up runs once on a held land and never otherwise')
-        for (const c of servs) assert.ok(c.prompt.includes('land decision: ' + out.landDecision + ';'), 'no completed-phase wrap-up after unproved success')
+        assert.equal(servs.length, hold === 'held:land-failed' ? 1 : 0, 'the wrap-up runs exactly once on held:land-failed and never on held:nothing-merged or held:workflow-error')
+        if (hold === 'held:land-failed') {
+          const wrap = servs[0].prompt
+          assert.ok(wrap.includes('land decision: held:land-failed;'), 'no completed-phase wrap-up after unproved success')
+          if (typeof reported.working_sha === 'string') assert.ok(!wrap.includes('Landed tip: ' + reported.working_sha), 'the refiner-claimed ' + shape + ' SHA never becomes the wrap-up anchor')
+          assert.ok(wrap.includes('Landed tip: ' + '2'.repeat(40) + ' on integration/wtprov-a/phase-3 ('), 'the held land anchors on the confirmed merge tip, on the integration branch')
+        }
       } else assert.equal(git('--git-dir=' + join(dir, 'origin.git'), 'show', target + ':own.test.js'), 'accepted task')
       if (shape === 'false-failure' && site === 'land') assert.equal(git('rev-list', '--count', '--merges', target), '1', 'no duplicate phase commit')
     } finally { rmSync(dir, { recursive: true, force: true }) }
