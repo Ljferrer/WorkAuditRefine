@@ -1,4 +1,4 @@
-# Engine comment and duplication tidy — fix false comments and fold small copies in workflow-template.js
+# Engine comment and duplication tidy — fix false comments, fold small copies, and send each audit clause only to the seats that run it, in workflow-template.js
 
 Converted by the `/war-machine` drafter from `docs/specs/2026-11-08-engine-comment-and-duplication-tidy-design.md`
 (Part 1 is its decision digest; every spec ledger row is carried forward or retired with a stated reason).
@@ -6,6 +6,8 @@ Campaign position: sixth of nine. It stacks on `docs/plans/2026-11-08-model-rout
 and comes before `docs/plans/2026-11-08-doc-truth-drift-and-adr-hygiene.md`.
 Issues claimed (19): #2140, #2145, #2146, #2180, #2198, #2199, #2200, #2202, #2203, #2223, #2227, #2240,
 #2246, #2271, #2313, #2316, #2317, #2552, #2553. All 19 were open on 2026-11-08.
+Partial claim (2026-11-09, operator ruling): the clause-gating slice of #2783 (PIN-19, PIN-20). #2783 stays
+open at land: its trigger-pointer refactor waits for a plan after the campaign.
 
 **Evidence consumed** — one row per linked evidence artifact:
 - `docs/specs/2026-11-08-engine-comment-and-duplication-tidy-design.md` §1–§10 at `365f3da2` · read
@@ -18,6 +20,7 @@ Issues claimed (19): #2140, #2145, #2146, #2180, #2198, #2199, #2200, #2202, #22
 - issue #2313 artifacts: pinned sha `cc4e3842`, `skills/war/assets/workflow-template.js` · read
 - issues #2316, #2317 artifacts: pinned sha `d3f131bd`, `skills/war/assets/workflow-template.js` and `skills/war/references/backward-chain-worker.md` · read
 - issues #2552, #2553 · no `## Evidence artifacts` section · vacuously satisfied (bodies read in full)
+- issue #2783 artifacts (and its parent #2782): `skills/war/assets/workflow-template.js` (`auditPrompt`, `isReleaseTask`) · read at `ed183b08`; `skills/war/assets/prompt-surface-budgets.test.mjs` (the literal-share row) · run at `ed183b08` (163,504 B); `skills/war/assets/workflow-template.engine-1.test.mjs` (REGISTRY) · read at `ed183b08`; `docs/learnings/a-dispatch-context-key-that-names-an-action-must-ride-only-the-dispatches-that-run-it.md` · read; `docs/adr/0042-prompt-surface-budgets.md` · read with its 2026-11-09 amendment; the 104 dispatched prompts of Workflow run `wf_ff28b4e5-738` · read on the operator's machine on 2026-11-09
 - `docs/plans/2026-11-08-args-floor-and-launch-preflight.md` T1.1, PIN-12, A20 and OD-1 · read by the finalize seat on 2026-11-08 (the `FLOOR_BINDINGS` export, the `provenance mirror: the shipped slice is self-contained` test, and the ruling that this plan's T1.1 adds the binding line)
 - DocTrail WorkAuditRefine/reports/2026-11-06-discarded-polish-refs · read `patches/2026-09-03-in-band-absorb-default__p2-polish.patch` (the 14-item finding list of the phase-2 close sweep, items 6, 7, 8 and 10) by the evidence fold seat on 2026-11-08
 - DocTrail WorkAuditRefine/reports/2026-11-06-session-worktree-leftovers · read `war-fable-opus-audit-loops-0592b7/files/.claude/teams/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/ledger.json` (phase 3 `notes_lead` Gate-2 promotion line) by the evidence fold seat on 2026-11-08, WAR 0.21.12
@@ -43,6 +46,7 @@ instead. Those reads are authoring measurements, not trial rows.
 - End states 1–12 ← T1.1 (bottleneck: T1.1, because every Phase 2 comment must describe Phase 1's final code).
 - End states 15–19 ← T2.1 ← (phase edge) T1.1 landed.
 - End states 13, 14 and 20 are guardrail End states with no single owning task; every task serves them.
+- End states 23 and 24 ← T1.1 (the clause gating and its per-lens prompt rows, 2026-11-09).
 - End state 21 ← T3.1 (release). End state 22 ← backstop row 1.
 - The Region C chain (provenance floor), the #2317 chain (worker surfaces) and the #2552 chain (segment wrapper) share no link. They join at one file, `workflow-template.js`, so they fold into one task.
 
@@ -138,12 +142,31 @@ and `BARE_INTERPOLATION_CENSUS` lists `e.gateLogPath` with a comment clause (ver
   log around `segmentLoop` (verified: issue #2552 (2026-10-31)). Tests pin `segmented-gate budget exhausted`
   and `segmented-land budget exhausted` (verified: `workflow-template.engine-1.test.mjs` at `35aa4144`).
 
+**Audit clauses on seats that never run them (#2783, added 2026-11-09).** `auditPrompt(task, lens, …)` appends
+every rule clause to every seat. Two of them name their own condition and still ride every dispatch
+(verified: the 104 dispatched prompts of run `wf_ff28b4e5-738`, read 2026-11-09; `auditPrompt` at `ed183b08`):
+- `CASCADING-IMPACT DOC CASCADE (when your lens is cascading-impact, ADR 0025)` is about 840 B. In that run it
+  rode all 30 audit dispatches, and 9 of them had the cascading-impact lens.
+- `RELEASE-BASELINE RULE` ("judge a release/version-bump diff …") is about 335 B. It rode all 30, and the
+  phase had no release task. `isReleaseTask` already tells the engine which task is one.
+
+This is the clause form of the lesson
+`a-dispatch-context-key-that-names-an-action-must-ride-only-the-dispatches-that-run-it`. The saving is small
+per dispatch (about 1.2 KB of a 44 KB to 58 KB audit prompt). The slice is here because it is the same tidy
+class as the rest of Phase 1, and it adds the per-lens prompt rows a later, larger gating pass needs. The
+larger costs found on 2026-11-09 are not in this plan: the `COMMANDER'S INTENT` block (25.7K characters on
+each of 43 audit, work and fix dispatches) and the rare-arm prose such as `classificationClause` (5.1K to 7.9K
+characters on each merge and land). Both stay on #2783. `adjudicationClause` is not gated here: it already
+renders `''` when the plan has no adjudication, and a ruling can bind any task.
+
 ## Pivotal constraints
 
 1. Every item lands after the engine behavior plans, so each comment describes final code. Each construct is
    re-read by name at the rebased tip before it is edited (spec §2 constraint 1; the chain order is A12).
 2. Comment-only items change no behavior and no dispatched prompt byte. Code items (#2145, #2199, #2202,
-   #2203, #2552) keep every log string and prompt byte a test pins.
+   #2203, #2552) keep every log string and prompt byte a test pins. The one planned behavior change
+   (operator ruling 2026-11-09, #2783): the two audit clauses of PIN-19 and PIN-20 leave the seats that
+   never run them. Their text does not change, and every seat that runs a clause still receives it.
 3. Both-surfaces rule: a dispatched worker or refiner prompt change lands with its `agents/*.md` card in the
    same commit (#2317 worker; #2180 refiner, whose card needs no edit).
 4. `workflow-template.js` has one owner per phase. Same file means same task.
@@ -167,6 +190,11 @@ and `BARE_INTERPOLATION_CENSUS` lists `e.gateLogPath` with a comment clause (ver
    `FLOOR_BINDINGS` in the same commit as the hoist (the one edit this plan makes to that file). Contention
    note: the args-floor plan lands first, so this plan's T1.1 edits that file at the rebased tip and
    changes nothing else in it.
+10. Operator ruling 2026-11-09 (#2782, #2783; ADR 0042 Amendment 2026-11-09; ADR 0060): each seat starts
+    with the least context its dispatch needs, so a clause rides only the dispatches that run it. A tidy may
+    change which seats receive a clause when a per-lens prompt test proves that each moved clause still
+    reaches every seat that runs it. The clause text moves or stays byte-identical; it is never reworded
+    (ADR 0042 D3).
 
 ## Resolved design tree
 
@@ -190,6 +218,9 @@ and `BARE_INTERPOLATION_CENSUS` lists `e.gateLogPath` with a comment clause (ver
 | D16 | Card bytes | `agents/war-worker.md` and `agents/war-refiner.md` do not grow; no budget raise (PIN-16) | (verified: `wc -c` at 35aa4144) | PIN-16→guardrail |
 | D17 | Release | Trailing release phase in the directive form (PIN-17) | spec §4 Phase 3 | PIN-17→slice (T3.1) |
 | D18 | Live evidence dispatch | A real refiner run of the column-free evidence dispatch is read at the next land (PIN-18) | drafter [assumed: fixtures stub the refiner — if wrong: drop the row] | PIN-18→backstop |
+| D19 | Cascade clause (#2783) | `auditPrompt` appends the `CASCADING-IMPACT DOC CASCADE` clause only when `lens` is `cascading-impact`; the clause text and its REGISTRY anchor tokens stay in the source byte for byte; the standing card keeps its lens bullet, recorded as a single-layer choice (PIN-19) | operator ruling 2026-11-09 (#2783 slice) | PIN-19→slice (T1.1) |
+| D20 | Release-baseline clause (#2783) | `auditPrompt` appends the `RELEASE-BASELINE RULE` clause only when `isReleaseTask(task)` holds; the clause text stays byte for byte, and the card mirror stays (PIN-20) | operator ruling 2026-11-09 (#2783 slice) · AI-declared for the predicate [assumed: declared `Files:` is the right signal — if wrong: the clause also rides a task whose diff-probe names a release-slot file] | PIN-20→slice (T1.1) |
+| D21 | Per-lens proof | four prompt rows prove both directions for each clause: present on the seat that runs it, absent on a seat that does not; each absent row runs on a fixture that also renders the present case, so it can fail (PIN-21) | operator ruling 2026-11-09 ("each moved clause still reaches every seat that runs it, proven by a per-lens prompt test") | PIN-21→guardrail |
 
 ## Assumptions ledger
 
@@ -215,6 +246,9 @@ and `BARE_INTERPOLATION_CENSUS` lists `e.gateLogPath` with a comment clause (ver
 | A18 | Node 24's test runner prints its summary as `ℹ fail 0` | TRIAL-1 observed `ℹ fail 0` | a check token never matches | every check here matches the substring `fail 0` |
 | A20 | With `--test-isolation=none`, a `--test-name-pattern` that matches no test prints `tests 0` / `pass 0`; the default isolation counts the file itself as one passing test | (verified: `node --test --test-name-pattern='zzqqnomatch' workflow-template.engine-1.test.mjs` prints `pass 1` and the same run with `--test-isolation=none` prints `pass 0` at `35aa4144`; `#2182` under `--test-isolation=none` prints `pass 6`) | End states 3 and 10 pass with no fixture | both checks run with `--test-isolation=none` |
 | A19 | The predecessor's prompt-size census pins fix-prompt classes, not the work or evidence prompts | `docs/plans/2026-11-08-model-routing-and-prompt-byte-budgets.md` Task 2.1 lists fix-prompt classes | a shrunk prompt reds an exact census figure | the worker updates the figure in T1.1 only if the census file names it, and records it |
+| A21 | No seat other than the cascading-impact lens acts on the cascade clause | the clause opens "when your lens is cascading-impact"; the gate-audit seat reaches the rule through the standing card only (the comment above the clause at `ed183b08`) | a correctness seat that used the cascade checks stops finding doc drift | End state 23's present row; the card's lens bullet still reaches every seat |
+| A22 | `isReleaseTask(task)` is true for every task whose diff an auditor must judge as a release bump | it reads the task's declared `Files:` against the release-slot basenames; a release bump is its own trailing phase (CLAUDE.md § Code-boundary decomposition) | a task that bumps a version without declaring a slot file loses the rule in its prompt (the card still states it) | End state 24; D20's `if wrong` arm |
+| A23 | No test outside `workflow-template.engine-1.test.mjs` pins either clause in a rendered prompt | `grep -c` over `skills/war/assets/*.test.mjs` at `ed183b08` finds the two names only in that file | a row in another test part reds | T1.1 runs every `workflow-template.*.test.mjs` part in both forms; a red row outside the allowed files exits `PLAN-DEFECT` with the row named |
 
 ## Non-goals / deferred
 
@@ -223,6 +257,10 @@ and `BARE_INTERPOLATION_CENSUS` lists `e.gateLogPath` with a comment clause (ver
 - The refiner card's note-arm line (A17) stays with doc-truth-drift-and-adr-hygiene.
 - Shell-floor comment nits (#1836) stay with shell-floors-tests-and-lint.
 - No issue in the group is declined.
+- #2783's trigger-pointer refactor, the `COMMANDER'S INTENT` block size and the rare-arm clauses
+  (`classificationClause`, `aceRevertClause`) stay on #2783 for a plan after the campaign (2026-11-09).
+- Clauses whose condition the engine cannot read (`BYTE-CAP RULE`, `COMMITTED-TREE GROUNDING`) stay on
+  every seat.
 
 ## New domain terms · Recommended ADRs
 
@@ -231,10 +269,12 @@ None. D9's helper is an internal name. No ADR [assumed: see A13].
 ## Commander's Intent
 
 - **Purpose:** every comment in the engine says what the code does, and each small rule the engine
-  copies lives in one place, so the next reader is not misled and the copies cannot drift.
+  copies lives in one place, so the next reader is not misled and the copies cannot drift. An audit seat
+  also stops paying for a clause that names another seat's lens or another task's class.
 - **Method:** land the code and prompt items first (Phase 1), then fix the comments on code that has stopped
   moving (Phase 2), then release. Keep every pinned log string and prompt byte. Re-read each construct by
-  name at the rebased tip. Route the three items the ace ladder once reverted as task work.
+  name at the rebased tip. Route the three items the ace ladder once reverted as task work. Gate the two audit clauses in the same
+  Phase 1 task, with rows that prove each clause still reaches the seats that run it.
 - **Mechanism latitude:** the segment helper's name and parameter shape; the outcome const's name in
   `parkAsk`; the boolean's name in place of `scanText`; how `ownPlanBase` gets its guarded input; how
   `SUPERSEDES_LITERAL` enters `adjRow` (the concatenated form `" (" + SUPERSEDES_LITERAL + pt`${r.supersedes})``
@@ -243,8 +283,9 @@ None. D9's helper is an internal name. No ADR [assumed: see A13].
   mechanisms while the End states and binding guardrails hold is not a plan deviation and warrants no issue.
 - **Binding guardrails:**
   - Phase 2 changes comments only in `workflow-template.js` (PIN-14).
-  - Every test-pinned log string and prompt byte stays, except the dropped `gateLogPath` column and rule 1's
-    wording (PIN-15 ‡).
+  - Every test-pinned log string and prompt byte stays, except the dropped `gateLogPath` column, rule 1's
+    wording (PIN-15 ‡) and the two gated audit clauses on the seats that never run them (PIN-19, PIN-20).
+  - Each gated clause still reaches every seat that runs it, and its text is byte-identical (PIN-21).
   - `agents/war-worker.md` does not grow, `agents/war-refiner.md` is not edited, and no budget is raised (PIN-16).
   - The literal `DEPS ALREADY MERGED: this task declares deps` never appears in the rules block.
   - Test edits stay in `workflow-template.engine-1.test.mjs`, `backward-chain.test.mjs` and, for the
@@ -317,6 +358,13 @@ None. D9's helper is an internal name. No ADR [assumed: see A13].
       `resolveGate` in `war-config.mjs`).
   21. The four version slots agree · check: `node --test skills/war/assets/version-slots.test.mjs` prints `fail 0`.
   22. A live evidence dispatch without the column still returns its contract · backstop: row 1.
+  23. The cascade clause rides the cascading-impact seat and no other (PIN-19, PIN-21) · check:
+      `node --test --test-reporter=tap --test-isolation=none skills/war/assets/workflow-template.engine-1.test.mjs 2>&1 | grep -cE '^ *ok [0-9]+ - audit clause gating — the cascade clause (rides the cascading-impact seat|is absent from every other lens)$'`
+      prints `2` · red at base: no such row exists.
+  24. The release-baseline clause rides a release task's seats and no other task's (PIN-20, PIN-21) · check:
+      `node --test --test-reporter=tap --test-isolation=none skills/war/assets/workflow-template.engine-1.test.mjs 2>&1 | grep -cE '^ *ok [0-9]+ - audit clause gating — the release-baseline clause (rides a release task|is absent from a non-release task)$'`
+      prints `2`, and `grep -c 'RELEASE-BASELINE RULE: judge a release/version-bump diff' skills/war/assets/workflow-template.js`
+      prints `1` (the text is still in the source) · red at base: no such row exists.
 
 ## Build order (for /war)
 
@@ -326,9 +374,9 @@ final code.
 
 ## Phase 1 — Code dedup and prompt-surface items
 
-### Task 1.1: Fold the copies, drop the dead column, align the worker trigger
+### Task 1.1: Fold the copies, drop the dead column, align the worker trigger, gate two audit clauses
 - Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.engine-1.test.mjs`, `skills/war/assets/workflow-template.test-harness.mjs`, `skills/war/references/backward-chain-worker.md`, `agents/war-worker.md`, `skills/war/assets/backward-chain.test.mjs`, `skills/war/assets/assert-args-complete.mjs`
-- Plan slice: Serves End states 1–14. Re-read every construct by name at the rebased tip first; record any
+- Plan slice: Serves End states 1–14, 23 and 24. Re-read every construct by name at the rebased tip first; record any
   item a sibling plan already fixed as already-fixed in `notes` (A14). These are task work, never absorbs (A15).
   - (PIN-2, #2180) Drop `gateLogPath` from `evItems`, the `For EACH merged task below (...)` header and the row
     builder. Leave the per-task seat's `gateArtifactLine` read of `mergedTasksForGateAudit` alone. Re-aim the
@@ -392,6 +440,16 @@ final code.
     as it is.
   - (PIN-10, #2145) Hoist the collision outcome clause in `parkAsk` to a const; the `log()` concatenates values
     only. The logged text stays byte-identical.
+  - (PIN-19, #2783) In `auditPrompt`, append the `CASCADING-IMPACT DOC CASCADE` clause only when `lens` is
+    `cascading-impact`. Keep the clause text, its comment and every REGISTRY anchor token byte for byte. Fix
+    the comment above it so that it names the gate. Leave `agents/war-auditor.md` alone: its lens bullet is the
+    standing copy, and the commit body records the single-layer choice.
+  - (PIN-20, #2783) Append the `RELEASE-BASELINE RULE` clause only when `isReleaseTask(task)` holds. Keep the
+    clause text and its card mirror byte for byte.
+  - (PIN-21) Add the four rows End states 23 and 24 name. Each `absent` row renders the `present` case in the
+    same fixture first, so the row can fail. Prove each row red by removing its gate. Sweep every existing row
+    that asserts either clause on a rendered audit prompt, and re-aim its fixture to a seat or task that still
+    carries the clause (a row that only reads the source text needs no change).
   - Run the template tests twice: plain, and with `WAR_TEMPLATE_STRIPPED=1`.
 - Done when: `node --test skills/war/assets/workflow-template.engine-1.test.mjs skills/war/assets/workflow-template.submodule-1.test.mjs skills/war/assets/backward-chain.test.mjs skills/war/assets/prompt-surface-budgets.test.mjs` prints `fail 0`, and `WAR_TEMPLATE_STRIPPED=1 node --test 'skills/war/assets/workflow-template.*.test.mjs'` prints `fail 0`, and `grep -c 'scanText' skills/war/assets/workflow-template.js` prints `0`, and `out=$(node --test --test-reporter=tap --test-name-pattern='^provenance mirror' skills/war/assets/assert-args-complete.test.mjs) && printf '%s\n' "$out" | grep -qE '^ *ok [0-9]+ - provenance mirror: the shipped slice is self-contained' && echo PASS-SELF-CONTAINED` prints `PASS-SELF-CONTAINED` (the args-floor plan's T1.1 test; it exists at this plan's rebased tip because that plan lands earlier in the chain)
 - requiresTest: true
@@ -458,7 +516,7 @@ final code.
   run of this plan through plain `/war` resolves the next free patch from the four slots itself. Replace the
   README `## Status` blurb in place and keep it a byte twin of the new CHANGELOG lead entry. The entry names
   the dropped evidence column, the shared supersedes literal and plan-id source, the worker trigger, the
-  segment helper and the comment fixes, and counts nothing it does not enumerate.
+  segment helper, the two gated audit clauses and the comment fixes, and counts nothing it does not enumerate.
 - Done when: `node --test skills/war/assets/version-slots.test.mjs` prints `fail 0`
 - requiresTest: false
 - requiresPackaging: false
@@ -486,6 +544,12 @@ final code.
   by grep in the checkout at `365f3da2`.
 - The drafter is write-scoped to this file, so the fork-trials usage comment on #2436 is left for the Lead.
 - No issue was unreachable.
+- Amended 2026-11-09 (operator rulings on #2782 and #2783, in a planning session): the plan claims the
+  clause-gating slice of #2783 (PIN-19 to PIN-21, D19 to D21, A21 to A23, End states 23 and 24, Constraint 10).
+  The operator ruled that this behavior change belongs in the tidy, and that the title and intent widen to
+  admit it. #2783 is a partial claim and stays open. Rejected for this plan: gating `adjudicationClause`
+  (already conditional, and a ruling can bind any task); turning `classificationClause` into a trigger pointer
+  (the pointer refactor is #2783's later plan).
 - Revise pass (grill answers; each decided here, for `/red-team` to ratify):
   - P11 (blocker) → End states 3 and 10 run with `--test-isolation=none` (A20): the default isolation counts the
     file itself as one passing test, so the old check passed with no fixture.
