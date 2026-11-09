@@ -478,7 +478,8 @@ expect_deny "G5: git fetch → denied (not in read allowlist)" \
   "$(auditor_cmd "git fetch")"
 
 # G6: git grep — admitted in ONE policed form only: `-F` (or `--fixed-strings`) or `-E`, plus
-# one or more `-e <token>` (ADR 0029 Amendment 2026-11-08, group GF). This row was the mechanical record of three grep-verb rejections (ADR 0029's
+# one or more `-e <token>` (ADR 0029 Amendment 2026-11-08, group GF).
+# This row was the mechanical record of three grep-verb rejections (ADR 0029's
 # rejected-and-deferred option, the 2026-07-22 spec's D3, the 2026-07-26 spec's D2). The
 # 2026-10-22 ruling (plan 2026-10-20-rea-artifact-evidence D21, ADR 0029's Amendment
 # 2026-10-22) reverses the "still no" for this fixed-string form only: on Claude Code 2.1.304
