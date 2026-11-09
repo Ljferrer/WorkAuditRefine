@@ -506,14 +506,16 @@ expect "trailing-junk :war-worker-helper falls to fail-open default arm" \
 # ---------------------------------------------------------------------------
 # WP: Windows path form (plan 2026-11-08 PIN-13, PIN-20). norm_path turns `\`
 # into `/` and a leading `X:` into `/x` on the path and on $HOME before the
-# `..` reject and the servitor globs. Each row is red without norm_path.
+# `..` reject and the servitor globs. WP1 and WP4 are red without norm_path.
+# WP8 and WP9 are red if norm_path moves below the `..` reject.
 # ---------------------------------------------------------------------------
 WIN_SERV='C:\Users\wp\.claude\projects\p\memory\x.md'
 expect "WP1: war-servitor Windows-form memory path with HOME=/c/Users/wp allowed" \
   0 "$(run_home "/c/Users/wp" "$(mk 'war-servitor' "$WIN_SERV")")"
-# Without norm_path the backslash `..` hides inside one segment, the worker's
-# ancestor walk reaches task-1/.war-task, and the write is allowed.
-expect "WP2: war-worker backslash '..' path denied (normalized before the .. reject)" \
+# posix_backslash_deny also denies this POSIX path (a raw `\` with no drive
+# `X:`), so WP2 and WP3 do not pin norm_path ahead of the `..` reject. WP8 is
+# the order oracle: a drive-form path skips posix_backslash_deny.
+expect "WP2: war-worker backslash '..' path denied (posix_backslash_deny also catches it)" \
   2 "$(run "$(mk 'war-worker' "$WT/wt/task-1/sub\\..\\..\\..\\plain\\x.txt")")"
 expect "WP3: war-servitor backslash '..' escape from the memory root denied" \
   2 "$(run_home "$SERV_HOME" "$(mk 'war-servitor' "$SERV_HOME/.claude/projects/p/memory/..\\..\\..\\..\\etc\\x.md")")"
@@ -528,6 +530,21 @@ expect "WP6: war-worker backslash after the marked dir denied" \
   2 "$(run "$(mk 'war-worker' "$WT/wt/task-1\\x.txt")")"
 expect "WP7: war-servitor POSIX path with a backslash memory segment denied" \
   2 "$(run_home "$SERV_HOME" "$(mk 'war-servitor' "$SERV_HOME/.claude/projects\\p\\memory\\x.md")")"
+# WP8: order oracle for norm_path before the `..` reject. The drive-form path
+# skips posix_backslash_deny. If norm_path ran after the `..` case, the raw path
+# would hold no `/..`, and the `$home` glob's `*` spans `/`, so it would pass.
+WIN_DOTDOT='C:\Users\wp\.claude\projects\p\memory\..\..\..\..\etc\x.md'
+expect "WP8: war-servitor drive-form backslash '..' escape denied (norm_path before the .. reject)" \
+  2 "$(run_home "/c/Users/wp" "$(mk 'war-servitor' "$WIN_DOTDOT")")"
+wp8_err="$(run_home_err "/c/Users/wp" "$(mk 'war-servitor' "$WIN_DOTDOT")")"
+n=$((n + 1))
+case "$wp8_err" in
+  *"'..' traversal segment"*)
+    printf 'ok %d - WP9: drive-form backslash .. deny names the traversal rule\n' "$n" ;;
+  *)
+    printf 'FAIL %d - WP9: drive-form backslash .. deny omits the traversal rule (got: %s)\n' "$n" "$wp8_err"
+    fails=$((fails + 1)) ;;
+esac
 
 # ---------------------------------------------------------------------------
 # WS: the worker deny names the scratch place (PIN-10). A Lead-scratchpad-shaped
