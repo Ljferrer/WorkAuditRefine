@@ -15,6 +15,7 @@ metadata:
     - follower ref
     - cmd_land_advance
     - EX_FOREIGN
+    - landConfirmArm
   provenance: code-verified
   slug: a-land-advance-rerun-after-a-lost-exit-code-reads-as-a-phantom-land-exit-3
   phase: 2026-11-04-late-defects-fixed-in-run/phase-7
@@ -25,7 +26,7 @@ metadata:
     - cas
   created: 2026-11-05
   originSessionId: f18978de-02f5-4ccd-9681-eb7dbaa3087b
-  modified: 2026-11-09T00:00:00.000Z
+  modified: 2026-11-09T13:22:08.641Z
 ---
 
 # A land-advance rerun after a lost exit code reads as a phantom land (exit 3)
@@ -57,6 +58,6 @@ The D4 retry prose in `skills/war/references/refiner-recovery.md` used to say th
 That held for its own case (a push that landed while the client saw an error, so the follower lags).
 It did not cover a lost exit code after a full success. Plan 2026-11-08 D2 (#2657) rewrote the clause, see the top note.
 
-Locate cue: verify still present before acting. Found the phantom and already-landed arms in `cmd_land_advance` (`skills/war/assets/provision-worktrees.sh`) at landed tip `280aaa82`, read through the run's `_refinery` worktree.
+Locate cue: verify still present before acting. Found the phantom and already-landed arms in `cmd_land_advance` (`skills/war/assets/provision-worktrees.sh`) at landed tip `280aaa82`, read through the run's `_refinery` worktree. Re-verified `landConfirmArm` in `skills/war/assets/workflow-template.js` and the Land confirm paragraph in `skills/war/references/refiner-recovery.md` at landed tip f8ea3b11 (plan 2026-11-08 phase 1). This local copy was synced to the repo copy that late-fix 7aed5190 wrote.
 
-Related: [[land-local-follower-ref-can-lag-sync-before-next-phase]], [[land-advance-push-first-cas-rejected-token]], [[reland-loop-contender-less-transient-vs-real-divergence]].
+Related: [[land-local-follower-ref-can-lag-sync-before-next-phase]], [[land-advance-push-first-cas-rejected-token]], [[reland-loop-contender-less-transient-vs-real-divergence]], [[an-in-run-repo-lesson-edit-leaves-the-same-slug-local-copy-stale]].

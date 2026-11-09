@@ -2,6 +2,7 @@
 name: never-move-report-it-merged-sentence-resolves-to-a-hold-not-a-recorded-merge
 description: "RESOLVED (#2662, D3): NEVER_MOVE_MERGED now says the engine holds the task; the old 'report it merged' ending always resolved to a hold"
 metadata:
+  promoted: dev/2026-10-28-blocked-ace-and-merge-provenance@phase-2
   node_type: memory
   type: project
   keywords:
@@ -23,7 +24,7 @@ metadata:
     - plan-faithfulness
   created: 2026-10-29
   originSessionId: 3f00b529-667c-446f-a615-e0d3485ae35a
-  modified: 2026-10-29T19:14:58.945Z
+  modified: 2026-11-09T13:21:57.412Z
 ---
 
 # The never-move "report it merged" sentence ends in a hold, not a recorded merge
@@ -46,6 +47,6 @@ The escalation note of the `empty-unmatched` arm describes the already-upstream 
 The main path for an already-merged task is the `task-integrated.sh` resume proof (plan Task 3.1), not this arm.
 Do not "fix" the hold by landing on the probe's report.
 
-Related: [[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]].
+Related: [[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]], [[an-in-run-repo-lesson-edit-leaves-the-same-slug-local-copy-stale]].
 
-Locate-cue: verify still present before acting. Found `NEVER_MOVE_MERGED`, `neverMoveStep` and the probe step (2) `empty-unmatched` clause in `skills/war/assets/workflow-template.js` at landed tip 9bcc4fa6 (phase 2). Source: correctness, cascading-impact and plan-faithfulness note findings, no ruling needed.
+Locate-cue: verify still present before acting. Found `NEVER_MOVE_MERGED`, `neverMoveStep` and the probe step (2) `empty-unmatched` clause in `skills/war/assets/workflow-template.js` at landed tip 9bcc4fa6 (phase 2). Re-verified the new D3 sentence in `NEVER_MOVE_MERGED` at landed tip f8ea3b11 (plan 2026-11-08 phase 1), read through the run's `_refinery` worktree. This local copy was synced to the repo copy that late-fix 89a9e678 wrote.
