@@ -281,6 +281,13 @@ import {
   semBlock,
   dispatchBlock,
   makeDispatch,
+  AUTHORITY_LINE,
+  TOOL_ORDER_LINE,
+  HOST_TURN_TOOL_LINE,
+  WORKER_WRITE_TOOL_RULE,
+  unprefixed,
+  workerPrefixRuns,
+  WORKER_SITE_LABELS,
   BARE_INTERPOLATION_CENSUS,
   ptSpanRanges,
   STOPLIST_ARGS,
@@ -4182,7 +4189,7 @@ test('dep-wave visibility (criterion 4): rebase-first clause is PREPENDED iff de
   // The clause is keyed by its opening sentence, not the bare token: the backward-chain worker rules
   // (BACKWARD_CHAIN_WORKER_RULES, rule 1) name `DEPS ALREADY MERGED` as prose on EVERY work prompt.
   assert.ok(!w1.prompt.includes('DEPS ALREADY MERGED: this task declares deps'), 'a dep-less task carries NO rebase-first clause (frozen phase base stands)')
-  assert.ok(w2.prompt.startsWith('DEPS ALREADY MERGED'), 'the deps-bearing task PREPENDS the clause')
+  assert.ok(unprefixed(w2.prompt).startsWith('DEPS ALREADY MERGED'), 'the deps-bearing task PREPENDS the clause (first after the AUTHORITY_LINE prefix dispatch() adds)')
   assert.ok(w2.prompt.includes('DEPS ALREADY MERGED: this task declares deps'), 'the clause-form literal the negatives key on is the clause\'s own opening')
   assert.ok(w2.prompt.includes('git -C /abs/repo/.claude/worktrees/run-2026/p3-t2 rebase integration/wtprov-a/phase-3'),
     'the clause names the concrete rebase-first command')
@@ -5944,7 +5951,6 @@ test('intake normalization: FINDING-PATH FORM is ONE shared const consumed by au
   // through `adjudicationClause` (asserted by name below; the literal lives outside all four slices).
   const PER_TASK_SEAT_ONLY = {
     'READ-ONLY GIT GUARD CONTRACT': 'the gate-audit family prompts name their read-only git verbs inline (rev-parse / Read in the _refinery worktree)',
-    'SEARCH-TOOLING RULE': 'a diff-search duty for the per-task lens review',
     'LATITUDE RULE': 'plan-faithfulness judgment is a per-task lens duty; the family judges End states via endStateBlock',
     'BYTE-CAP RULE': 'an eviction verdict judges a worker diff, so it stays on the per-task lens review',
     'ESCALATE-BOUNDARY CONTRACT': 'the family prompts carry their own NEVER-escalate-for-unconfirmable-tip rule inline',
@@ -8600,9 +8606,17 @@ test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RU
   // Only the work dispatch may sit outside a FIX_GATE_SITES range.
   const workerDispatches = [...censusSrc.matchAll(/agentType: NS \+ 'war-worker'/g)]
   assert.equal(workerDispatches.length, 9, 'nine war-worker dispatch sites (work, seven fix builds and the late-fix pass)')
-  // Any spelling: a dispatch that names the agent another way still names 'war-worker' once.
-  assert.equal([...censusSrc.matchAll(/war-worker/g)].length, 9,
-    'every war-worker mention in non-comment source is one of the nine matched dispatch sites')
+  // Any spelling: a dispatch that names the agent another way still names 'war-worker' once. The one
+  // carve-out is dispatch()'s prompt prefix block (plan 2026-11-08 T1.6): its agent-type key
+  // (NS + 'war-worker') and WORKER_WRITE_TOOL_RULE's card pointer (agents/war-worker.md) are its two
+  // mentions, pinned exactly so a dispatch spelled inside the block still reds.
+  const prefixStart = censusSrc.indexOf('const AUTHORITY_LINE = '), prefixEnd = censusSrc.indexOf('async function dispatch(prompt, opts)')
+  assert.ok(prefixStart > 0 && prefixEnd > prefixStart, 'the dispatch() prompt prefix block is locatable')
+  const workerMentions = [...censusSrc.matchAll(/war-worker/g)]
+  assert.equal(workerMentions.filter(m => m.index >= prefixStart && m.index < prefixEnd).length, 2,
+    'the prompt prefix block names war-worker twice: its agent-type key and the rule\'s card pointer')
+  assert.equal(workerMentions.filter(m => m.index < prefixStart || m.index >= prefixEnd).length, 9,
+    'every other war-worker mention in non-comment source is one of the nine matched dispatch sites')
   const outside = workerDispatches.filter(m => !ranges.some(r => m.index >= r.start && m.index < r.end))
   assert.equal(outside.length, 1, 'only the primary work dispatch sits outside a fix-gate site range')
   assert.match(censusSrc.slice(outside[0].index, outside[0].index + 120), /label: `work:/, 'the one outside dispatch is the work: dispatch')
@@ -9108,8 +9122,10 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // AUDIT_VERDICT if/then conditional; enforcement arm recorded at that literal and by the intake-
     // contract test above), the by-construction discriminator (a blocking finding with a concrete
     // in-file suggested_fix needing no new plan decision is request_changes, however severe), and the
-    // search-tooling rule (Grep/Glob tools first, with no Grep tool the narrow git grep -F -e <token>
-    // form, shell grep always denied — the guard refuses unquoted glob/alternation metacharacters). Anchor precondition (Context 11, re-measured at this task's
+    // search-tooling rule (Grep/Glob tools first, with no Grep tool the git grep -F -e <token> form,
+    // shell grep always denied — the guard refuses unquoted glob/alternation metacharacters). Plan
+    // 2026-11-08 T1.6 folded the dispatched SEARCH-TOOLING RULE line into the READ-ONLY GIT GUARD
+    // CONTRACT line, which now carries the `metacharacter` anchor on auditPrompt(). Anchor precondition (Context 11, re-measured at this task's
     // base): `required when`, `however severe`, and `metacharacter` each count 0 on BOTH surfaces, so
     // a per-surface revert of any of the three sentences reds this row; `by construction`
     // (pre-existing in an unrelated workflow-template.js comment) and bare `escalate_reason` (1 hit
@@ -9279,8 +9295,29 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'two-sided escalate boundary (D18, PIN-22, #1664): decision-forked ⇒ escalate + escalate_reason, mechanical with budget ⇒ request_changes never escalate — standing card + auditPrompt()',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/The boundary is two-sided/, /decision-forked blocking finding/, /mechanical blocking finding while fix budget remains ⇒ `request_changes`, never `escalate`/, /reads `escalate_reason` into the phase's escalation record/] },
+    // Plan 2026-11-08-auditor-and-worker-guard-habits T1.6: the four dispatch() prefix constants, each
+    // bound to its card(s). The constant's own text is the oracle (read from the template source by the
+    // harness), so a reword on either surface reds the row. PIN-11: AUTHORITY_LINE on the worker,
+    // auditor and refiner cards and on every captured prompt (one per seat family here).
+    { name: 'AUTHORITY_LINE (PIN-11): the authority sentence on the worker, auditor and refiner cards and every dispatched prompt',
+      surfaces: [['war-worker.md', workerMd], ['war-auditor.md', auditorMd], ['war-refiner.md', refinerMd],
+                 ['worker prompt', workerP], ['auditPrompt()', auditP], ['merge-task dispatch prompt', mergeP], ['servitor Wrap-up prompt', servitorP]],
+      anchors: [new RegExp(AUTHORITY_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))] },
+    // PIN-6: TOOL ORDER on both auditor cards and the audit-family prompt.
+    { name: 'TOOL ORDER (PIN-6): Read/Grep/Glob first, Bash for one bare read-only git command — both auditor cards + auditPrompt()',
+      surfaces: [['war-auditor.md', auditorMd], ['war-evidence-auditor.md', evidenceCardMd], ['auditPrompt()', auditP]],
+      anchors: [new RegExp(TOOL_ORDER_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))] },
+    // PIN-23: the host turn tool sentence, same surfaces as TOOL ORDER.
+    { name: 'HOST_TURN_TOOL_LINE (PIN-23): a host turn tool is denied and not needed — both auditor cards + auditPrompt()',
+      surfaces: [['war-auditor.md', auditorMd], ['war-evidence-auditor.md', evidenceCardMd], ['auditPrompt()', auditP]],
+      anchors: [new RegExp(HOST_TURN_TOOL_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))] },
+    // PIN-9/PIN-10: the dispatched WORKER_WRITE_TOOL_RULE is the short form that names the card section;
+    // the card's § Write tools carries the full rule. The anchors are the tokens both carry.
+    { name: 'WORKER_WRITE_TOOL_RULE (PIN-9, PIN-10): Edit/Write only, .war/ scratch, stop on a denial — worker card § Write tools + worker prompt',
+      surfaces: [['war-worker.md', workerMd], ['worker prompt', workerP]],
+      anchors: [/Change file content only with Edit or Write/, /<worktree>\/\.war\//, /[Ii]f Edit or Write is denied/, /Write tools/, /blocked/] },
   ]
-  assert.ok(REGISTRY.length >= 40, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) ')
+  assert.ok(REGISTRY.length >= 44, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) + the four plan 2026-11-08 T1.6 prompt-prefix rows (AUTHORITY_LINE, TOOL ORDER, HOST_TURN_TOOL_LINE, WORKER_WRITE_TOOL_RULE) ')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -9454,6 +9491,80 @@ test('D6 — grep flag enumeration: every optional flag in the hook\'s canonical
         `${sName}: the hook admits grep flag "${tok}" but the mirror does not enumerate it (token-boundary matched) — the mirrors follow the hook's grep deny string`)
     }
   }
+  // Plan 2026-11-08-auditor-and-worker-guard-habits T1.6 (PIN-3): the same deny string's selector clause
+  // ("-F (or --fixed-strings) or -E, never both"), its pattern clause ("one or more -e <token>") and its
+  // context-count clause ("context counts ... as their own tokens") reach both mirrors too, so a
+  // hook-side widening or narrowing of the selector or the counts reds a mirror that did not follow.
+  const selector = (denyStmt.match(/only: (.*?), never both/) || [])[1]
+  const pattern = (denyStmt.match(/one or more (-e) <token>/) || [])[1]
+  const counts = (denyStmt.match(/context counts (.*?) as their own tokens/) || [])[1]
+  assert.ok(selector && pattern && counts, `hook grep deny string's selector, pattern or context-count clause not locatable — ${REPOINT}`)
+  const formToks = [...new Set([...`${selector} ${pattern} ${counts}`.matchAll(/--?[A-Za-z][\w-]*/g)].map(m => m[0]))]
+  for (const want of ['-F', '--fixed-strings', '-E', '-e', '-A', '-B', '-C']) {
+    assert.ok(formToks.includes(want), `the hook's grep form clauses parse to ${want} (non-vacuity; parsed ${formToks.join(' ')}) — ${REPOINT}`)
+  }
+  for (const tok of formToks) {
+    for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
+      assert.match(sText, flagTokenRe(tok),
+        `${sName}: the hook admits grep form token "${tok}" but the mirror does not name it (token-boundary matched) — the mirrors follow the hook's grep deny string`)
+    }
+  }
+})
+
+// Plan 2026-11-08-auditor-and-worker-guard-habits T1.6 (End states 11, 13, 14). dispatch() adds the prompt
+// prefix once, keyed on opts.agentType: AUTHORITY_LINE + '\n' opens every prompt, an audit-family seat's
+// builder text then opens with TOOL ORDER: (and the host turn tool sentence), and a war-worker prompt
+// ends with WORKER_WRITE_TOOL_RULE. The three tests below read the constants from the template source;
+// workerPrefixRuns and WORKER_SITE_LABELS live in the harness.
+
+test('WORKER_WRITE_TOOL_RULE — every war-worker dispatch site, found by scanning the source, sends a prompt that carries the rule (PIN-9, PIN-10, End state 11)', async () => {
+  assert.ok(WORKER_WRITE_TOOL_RULE && WORKER_WRITE_TOOL_RULE.startsWith('Change file content only with Edit or Write'),
+    'WORKER_WRITE_TOOL_RULE resolves in the template source and opens with the card rule')
+  const sites = [...src.matchAll(/agentType: NS \+ 'war-worker', phase: '[A-Za-z]+', (label: [^\n]*)/g)]
+  assert.equal(sites.length, [...src.matchAll(/agentType: NS \+ 'war-worker'/g)].length,
+    'every war-worker agentType site carries the phase-then-label shape this scan reads')
+  assert.ok(sites.length >= 9, `the scan finds at least nine war-worker dispatch sites (nine at 35aa4144); found ${sites.length}`)
+  const calls = (await workerPrefixRuns()).flatMap(r => r.calls).filter(c => seatOf(c.opts) === 'war-worker')
+  for (const s of sites) {
+    const rows = WORKER_SITE_LABELS.filter(([siteRe]) => siteRe.test(s[1]))
+    assert.equal(rows.length, 1, `war-worker site "${s[1].slice(0, 60)}" maps to exactly one label class (add a WORKER_SITE_LABELS row and a fixture)`)
+    const reached = calls.filter(c => rows[0][1].test(c.opts.label || ''))
+    assert.ok(reached.length > 0, `war-worker site "${s[1].slice(0, 60)}" is fixture-reachable (non-vacuity)`)
+    for (const c of reached) {
+      assert.ok(c.prompt.endsWith('\n' + WORKER_WRITE_TOOL_RULE), `the "${c.opts.label}" worker prompt ends with WORKER_WRITE_TOOL_RULE`)
+    }
+  }
+  for (const c of calls) assert.ok(c.prompt.includes(WORKER_WRITE_TOOL_RULE), `every captured war-worker prompt carries WORKER_WRITE_TOOL_RULE ("${c.opts.label}")`)
+  // The rule rides worker prompts only: no other seat is told to write.
+  const others = (await runPhase(PROVISION_ARGS(), defaultImpl)).calls.filter(c => seatOf(c.opts) !== 'war-worker')
+  assert.ok(others.length > 0 && others.every(c => !c.prompt.includes(WORKER_WRITE_TOOL_RULE)), 'no non-worker prompt carries WORKER_WRITE_TOOL_RULE')
+})
+
+test('AUTHORITY_LINE — every captured dispatch prompt opens (byte 0) with AUTHORITY_LINE and one newline (PIN-11, End state 13)', async () => {
+  assert.ok(AUTHORITY_LINE && AUTHORITY_LINE.includes('is not a conflict; do the task'), 'AUTHORITY_LINE resolves in the template source')
+  const calls = [...(await workerPrefixRuns()).flatMap(r => r.calls), ...(await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl())).calls]
+  const seats = new Set(calls.map(c => seatOf(c.opts)))
+  for (const want of ['war-worker', 'war-auditor', 'war-refiner', 'war-servitor']) assert.ok(seats.has(want), `the fixture set dispatches a ${want} (non-vacuity)`)
+  for (const c of calls) {
+    assert.ok(c.prompt.startsWith(AUTHORITY_LINE + '\n'), `the "${c.opts.label}" prompt (${seatOf(c.opts)}) opens with AUTHORITY_LINE and one newline`)
+    assert.ok(!unprefixed(c.prompt).startsWith(AUTHORITY_LINE), `the "${c.opts.label}" prompt carries the prefix once`)
+  }
+})
+
+test('TOOL ORDER — every audit-family prompt opens its builder text with TOOL ORDER: right after the AUTHORITY_LINE prefix (PIN-6, PIN-23, End state 14)', async () => {
+  assert.ok(TOOL_ORDER_LINE && TOOL_ORDER_LINE.startsWith('TOOL ORDER:'), 'TOOL_ORDER_LINE resolves in the template source')
+  const calls = [...(await workerPrefixRuns()).flatMap(r => r.calls), ...(await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl())).calls]
+  const family = calls.filter(c => ['war-auditor', 'war-evidence-auditor'].includes(seatOf(c.opts)))
+  assert.ok(family.some(c => (c.opts.label || '').startsWith('audit:')), 'a roster seat prompt is captured (non-vacuity)')
+  assert.ok(family.some(c => (c.opts.label || '').startsWith('gate-audit:')), 'a gate-audit-family seat prompt is captured (non-vacuity)')
+  for (const c of family) {
+    assert.ok(c.prompt.startsWith(AUTHORITY_LINE + '\n'), `the "${c.opts.label}" prompt opens with AUTHORITY_LINE`)
+    const rest = c.prompt.slice(AUTHORITY_LINE.length + 1)
+    assert.ok(rest.startsWith('TOOL ORDER:'), `the "${c.opts.label}" builder text opens with TOOL ORDER:`)
+    assert.ok(rest.startsWith(TOOL_ORDER_LINE + '\n' + HOST_TURN_TOOL_LINE + '\n'), `the "${c.opts.label}" prompt carries the host turn tool sentence right after TOOL ORDER`)
+  }
+  const nonFamily = calls.filter(c => !['war-auditor', 'war-evidence-auditor'].includes(seatOf(c.opts)))
+  assert.ok(nonFamily.length > 0 && nonFamily.every(c => !c.prompt.includes('TOOL ORDER:')), 'no worker, refiner, helper or servitor prompt carries TOOL ORDER:')
 })
 
 // ---------------------------------------------------------------------------
@@ -9798,14 +9909,16 @@ test('Task 5.1 — worker/servitor card evictions: destination carries the moved
     'preserving the Container/Contents distinction',                // worker §Gitlink-bump commit step
     'This allowlist is the **primary confinement**',                // worker §Servitor confinement
     'never move a lesson between hot and `archive/`',               // servitor §Archived lessons
+    'the Lead adjudicates it as a config question',                 // worker §Floor/tooling config mismatch (plan 2026-11-08 T1.6)
   ]) assert.ok(edges.includes(frag), `worker-servitor-edges.md carries the moved fragment: ${frag}`)
+  assert.ok(!workerMd.includes('the Lead adjudicates it as a config question'), 'the config-mismatch paragraph left the worker card (moved, never copied)')
   // Trigger pointers route each card to the destination — the ratified plugin-root-anchored
   // family shape (ADR 0047, agent-card-pointer-skeleton-plugin-root-anchored): a
   // ](${CLAUDE_PLUGIN_ROOT}/skills/war/references/<file>) target resolving against the plugin
   // install root regardless of the dispatched seat's cwd, never `../`-prefixed. Adjudication
   // O(1) still stands: a pointer is best-effort enrichment, decisive rules stay inline.
-  assert.equal((workerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/worker-servitor-edges\.md\)/g) || []).length, 3,
-    'war-worker.md carries all three plugin-root-anchored trigger pointers to worker-servitor-edges.md')
+  assert.equal((workerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/worker-servitor-edges\.md\)/g) || []).length, 4,
+    'war-worker.md carries all four plugin-root-anchored trigger pointers to worker-servitor-edges.md (the fourth is the plan 2026-11-08 T1.6 config-mismatch pointer)')
   assert.match(servitorMd, /\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/worker-servitor-edges\.md\)/,
     'war-servitor.md carries a plugin-root-anchored trigger pointer to worker-servitor-edges.md')
   // Shape-generic absence: NO references/ pointer on either card may be
@@ -11201,7 +11314,7 @@ test('segmented-land (End state 19): the in-band land_segment marker round-trips
   const lands = calls.filter(c => /^land:phase-3(:|$)/.test(c.opts.label || ''))
   assert.equal(lands.length, 2, 'exactly one re-dispatch: initial land + one continuation')
   assert.equal(lands[1].opts.label, 'land:phase-3:segment-2', 'the continuation is labelled with its segment ordinal')
-  assert.ok(lands[1].prompt.startsWith('SEGMENTED-LAND CONTINUATION'), 'the continuation prompt leads with the continuation header')
+  assert.ok(unprefixed(lands[1].prompt).startsWith('SEGMENTED-LAND CONTINUATION'), 'the continuation prompt leads with the continuation header')
   assert.ok(lands[1].prompt.includes('idempotent'), 'the continuation states the idempotence contract (safe full re-run)')
   assert.ok(lands[1].prompt.includes('land-advance'), 'the FULL land prompt rides the continuation (run to completion, not a partial resume)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented land') && l.includes('gate mid-run at step 2')), 'the segment_note is log()ged on the re-dispatch')
@@ -11266,7 +11379,7 @@ test('segmented-land: re-land sites — the environment-proceed and baseline-pro
     assert.equal(relands[0].opts.label, 'land:phase-3:' + flavor, flavor + ': the first re-land carries the bare site label')
     assert.equal(relands[1].opts.label, 'land:phase-3:' + flavor + ':segment-2', flavor + ': the continuation is labelled with its site and segment ordinal')
     assert.ok(relands[0].prompt.includes('SEGMENTED LAND (tool-timeout survival)'), flavor + ': the re-land prompt carries the segmented-land clause')
-    assert.ok(relands[1].prompt.startsWith('SEGMENTED-LAND CONTINUATION'), flavor + ': the continuation leads with the continuation header')
+    assert.ok(unprefixed(relands[1].prompt).startsWith('SEGMENTED-LAND CONTINUATION'), flavor + ': the continuation leads with the continuation header')
     assert.ok(relands[1].prompt.includes(header), flavor + ': the FULL re-land prompt rides the continuation')
     assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented land') && l.includes('gate mid-run on the re-land')), flavor + ': the segment_note is logged')
     assert.equal(out.landDecision, 'landed', flavor + ': the completed continuation lands the phase')
@@ -12427,9 +12540,9 @@ test('#2326 — the ace gate prompt carries the capture, the background rule and
   assert.match(one.prompt, /poll that log with foreground calls in this same turn/, 'the ace gate check polls in the same turn (#2617)')
   assert.match(one.prompt, /only if the job dies before it writes exit_code:/, 'the ace gate check returns the pair only if the job dies (#2617)')
   assert.match(one.prompt, /READ-ONLY[^\n]*git-excluded gate log/, 'the read-only opener admits the gate log, so a literal seat can follow the capture clause')
-  assert.ok(two.prompt.startsWith('SEGMENTED-GATE CONTINUATION (ace-gate:t1:a1)'), 'the continuation leads with its header')
+  assert.ok(unprefixed(two.prompt).startsWith('SEGMENTED-GATE CONTINUATION (ace-gate:t1:a1)'), 'the continuation leads with its header')
   assert.ok(two.prompt.includes('Prior gate_log_path: ' + path + '.'), 'the continuation carries the admitted log path')
-  assert.ok(two.prompt.includes(one.prompt), 'the FULL check prompt rides the continuation')
+  assert.ok(two.prompt.includes(unprefixed(one.prompt)), 'the FULL check prompt rides the continuation')
   assert.ok(two.prompt.includes('its exit_code is the gate result: do not rerun the gate'), 'the continuation reads the finished log, so a long gate finishes inside the bound')
 })
 
@@ -14345,7 +14458,7 @@ test('terminal-pass — the pass convenes with run.ace off (run.ace gates the pe
   assert.ok(!calls.some(isAce), 'no per-task ace under run.ace off (presence guard)')
   assert.equal(terminalCalls(calls).length, 1, 'the terminal pass dispatches regardless of run.ace')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('run.ace off — the pass convenes regardless')), 'logged')
-  assert.match(src, /absorbRounds: 0,\s*\/\/ the terminal pass's telemetry counter/, 'the polish pseudo-task seeds absorbRounds: 0 at construction')
+  assert.match(src, /\/\/ the terminal pass's telemetry counter[^\n]*\n\s*absorbRounds: 0,/, 'the polish pseudo-task seeds absorbRounds: 0 at construction')
 })
 
 test('terminal-pass — a terminal-born absorb on a release-slot file is REFUSED and logged (demote:release-slot), never committed; an emptied terminal queue skips with a log', async () => {
@@ -15389,7 +15502,7 @@ test('segmented-gate: merge-task incomplete re-dispatches — status:error + gat
   assert.equal(merges.length, 2, 'exactly one re-dispatch: initial merge-task + one continuation')
   assert.equal(merges[0].opts.label, 'merge:t1', 'the first dispatch carries the bare site label')
   assert.equal(merges[1].opts.label, 'merge:t1:segment-2', 'the continuation is labelled with its segment ordinal')
-  assert.ok(merges[1].prompt.startsWith('SEGMENTED-GATE CONTINUATION'), 'the continuation leads with the continuation header')
+  assert.ok(unprefixed(merges[1].prompt).startsWith('SEGMENTED-GATE CONTINUATION'), 'the continuation leads with the continuation header')
   assert.ok(merges[1].prompt.includes('idempotent'), 'the continuation states the idempotence contract')
   assert.ok(merges[1].prompt.includes('assert-no-submodule-mutation.sh'), 'the FULL merge prompt rides the continuation (run to completion, not a partial resume)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented gate') && l.includes('gate backgrounded at step 2')), 'the segment_note is log()ged on the re-dispatch')
@@ -15446,7 +15559,7 @@ test('segmented-gate: re-merge sites — the environment-proceed and baseline-pr
     assert.equal(remerges.length, 2, flavor + ': the re-merge dispatches once, then exactly one continuation')
     assert.equal(remerges[1].opts.label, 'merge:t1:' + flavor + ':segment-2', flavor + ': the continuation is labelled with its site and segment ordinal')
     assert.ok(remerges[0].prompt.includes('BACKGROUNDED GATE (tool-timeout survival)'), flavor + ': the re-merge prompt carries the clause')
-    assert.ok(remerges[1].prompt.startsWith('SEGMENTED-GATE CONTINUATION'), flavor + ': the continuation leads with the continuation header')
+    assert.ok(unprefixed(remerges[1].prompt).startsWith('SEGMENTED-GATE CONTINUATION'), flavor + ': the continuation leads with the continuation header')
     assert.ok(remerges[1].prompt.includes(header), flavor + ': the FULL re-merge prompt rides the continuation')
     assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented gate') && l.includes('gate backgrounded on the re-merge')), flavor + ': the segment_note is logged')
     assert.ok((out.landed || []).includes('t1'), flavor + ': the completed continuation merges the task')
@@ -15467,7 +15580,7 @@ test('segmented-gate: the phase-close sweep merge re-dispatches an incomplete re
   const merges = calls.filter(c => site.test(c.opts.label || ''))
   assert.deepEqual(merges.map(c => c.opts.label), ['merge:p3-polish', 'merge:p3-polish:segment-2'], 'one continuation follows the incomplete reply')
   assert.ok(merges[0].prompt.includes('BACKGROUNDED GATE (tool-timeout survival)'), 'the sweep merge prompt carries the backgrounded-gate clause')
-  assert.ok(merges[1].prompt.startsWith('SEGMENTED-GATE CONTINUATION') && merges[1].prompt.includes('Merge WAR polish branch'), 'the continuation carries the full sweep merge prompt')
+  assert.ok(unprefixed(merges[1].prompt).startsWith('SEGMENTED-GATE CONTINUATION') && merges[1].prompt.includes('Merge WAR polish branch'), 'the continuation carries the full sweep merge prompt')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented gate') && l.includes('sweep gate backgrounded')), 'the segment note is logged')
   assert.equal(out.handoff.polish, 'merged', 'the continuation merges the sweep')
   const persist = (prompt, opts) => site.test(opts.label || '') ? incomplete : sweepBase([queuedAbsorb()])(prompt, opts)
@@ -15491,7 +15604,7 @@ test('segmented-gate: the terminal-pass merge re-dispatches an incomplete reply 
   const merges = calls.filter(c => site.test(c.opts.label || ''))
   assert.deepEqual(merges.map(c => c.opts.label), ['merge:p3-terminal', 'merge:p3-terminal:segment-2'], 'one continuation follows the incomplete reply')
   assert.ok(merges[0].prompt.includes('BACKGROUNDED GATE (tool-timeout survival)'), 'the terminal merge prompt carries the backgrounded-gate clause')
-  assert.ok(merges[1].prompt.startsWith('SEGMENTED-GATE CONTINUATION') && merges[1].prompt.includes('now carrying the terminal-pass commit'), 'the continuation carries the full terminal merge prompt')
+  assert.ok(unprefixed(merges[1].prompt).startsWith('SEGMENTED-GATE CONTINUATION') && merges[1].prompt.includes('now carrying the terminal-pass commit'), 'the continuation carries the full terminal merge prompt')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented gate') && l.includes('terminal gate backgrounded')), 'the segment note is logged')
   assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb' && a.sha === '7e4a1a10'), 'the continuation merges, so the absorb is aced at the terminal sha')
   const persistBase = terminalImpl()

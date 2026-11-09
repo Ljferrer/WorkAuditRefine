@@ -1,10 +1,10 @@
-# Refiner recovery — submodule-as-repo provisioning, reland discrimination, submodule land arms, gate-classification base re-run, diff probe, merge-task two-worktree split, land-barrier endstate-check steps, MergeResult merge-task-only fields
+# Refiner recovery — submodule-as-repo provisioning, reland discrimination, submodule land arms, gate-classification base re-run, diff probe, merge-task two-worktree split, land-barrier endstate-check steps, post-merge evidence opener, MergeResult merge-task-only fields
 
 Verbatim evictions from `agents/war-refiner.md` (prompt-surface simplification, Task 4.1, plus
 the § Base re-run + re-attach block from references-pointer-integrity Task 1.2 — an ADR 0042
 budget eviction; plus the § Diff probe body, the § merge-task two-worktree split paragraph and
 the `### Submodule phase` 2A/2B routing tail from engine-and-audit-verdict-integrity Task 1.1, #2115, and
-the § Land-barrier endstate-check steps and the § MergeResult merge-task-only fields parenthetical from its Task 5.1, #2156 — ADR 0042 headroom evictions; each moved block was byte-identical to its pre-eviction card text at eviction
+the § Land-barrier endstate-check steps and the § MergeResult merge-task-only fields parenthetical from its Task 5.1, #2156, and the § Post-merge evidence opener from plan 2026-11-08-auditor-and-worker-guard-habits T1.6 — ADR 0042 headroom evictions; each moved block was byte-identical to its pre-eviction card text at eviction
 time). Positional words inside the moved blocks ("below", "above") refer to their original card
 positions — "All merge-task and land-phase steps below" means the card's own
 merge-task/land-phase sections, and the reland-discrimination block sat as step 3 of the card's
@@ -115,6 +115,12 @@ Trigger: an `endstate-check` dispatch, per enumerated condition row (the card's 
 1. The prompt threads the row's check literal in a **fenced block** whose fence length exceeds every backtick run inside the literal — content backticks are **never** the fence. Write the bytes between the fences **byte-verbatim** to `<_refinery>/.war/endstate-<phaseId>-<n>.cmd` — copy bytes, never re-quote/re-escape (a single-quoted `${...}` run survives exactly) — then verify the written bytes equal the fenced literal: on mismatch record a `cmd_bytes_mismatch` line in the artifact and do **not** execute any corrected variant (the row fails loudly via its artifact). Execute it **from the file** (file-threaded — never interpolated into another script; the done-when floor's hygiene), under a timeout. A row the dispatch intake-linted **unsupported** is record-only: its artifact records the `intake_lint` verdict, never a half-run.
 2. Tee the FULL stdout+stderr of the **entire** command line — a compound/pipeline/multi-command check runs end-to-end, every command's output captured — to the sibling artifact `<_refinery>/.war/endstate-<phaseId>-<n>.log`, stamped: the **first** line is `tip_sha: <git -C <_refinery> rev-parse HEAD>`, then the captured output, then a final `exit_code: <code>` line. The `tip_sha` stamp is **load-bearing** — the gate-audit seats compare it against the confirmed tip and attest a stale (mismatched) artifact `unverified`, so a prior-run artifact can never read as `met`.
 3. A red, hung, or timed-out command still gets its artifact (whatever it produced, plus its exit/timeout note) — record it and move on; **a failing check never fails this dispatch**.
+
+## Post-merge evidence opener
+
+Trigger: an `evidence` dispatch (the card's `## Post-merge evidence dispatch` opening paragraph, evicted 2026-11-08 by plan 2026-11-08-auditor-and-worker-guard-habits T1.6, an ADR 0042 headroom eviction; the card keeps the read-only rule beside its pointer, and "the two floor scripts" are the card's numbered steps that follow).
+
+After the serial merge queue and **before** the gate-audit pass, the Workflow dispatches ONE consolidated **`evidence:phase-<id>`** run (`dispatchKind: evidence`; cwd `_refinery`, at the final integration tip). It is a **read-only proof computation** — do **NOT** merge, push, rebase, or edit. Per merged task, run the two floor scripts (siblings of `assert-test-in-diff.sh`, invoked the same bare way) and record the tokens:
 
 ## MergeResult merge-task-only fields
 

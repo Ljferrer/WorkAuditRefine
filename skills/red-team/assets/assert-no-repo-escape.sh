@@ -28,8 +28,8 @@
 # directory is an infra error (2), not a pass.
 #
 # SNAPSHOT MODE (--snapshot): pre-run local integrity refusal FIRST — the
-#   working tree must be porcelain-clean and no local ref may match the check
-#   (b1) junk pattern. A hit is exit 1, refusing to baseline pre-existing residue
+#   working tree must be porcelain-clean and no local ref may be junk under
+#   the check (b1) junk rule. A hit is exit 1, refusing to baseline pre-existing residue
 #   or dirt (the #1244 cross-run collision shape, caught before launch) rather
 #   than laundering it into the baseline. Deliberately LOCAL-only: origin is not
 #   polled pre-run, so (b2) stays a check-mode floor. Then the file is written
@@ -56,8 +56,14 @@
 #       caught by check (d) below, which needs a --baseline; without one, ignored
 #       paths remain invisible (ponytail item 3).
 #   (b1) no local ref (`for-each-ref`) and (b2) no remote head (`ls-remote
-#       --heads origin`, only when an `origin` remote is configured) matches the
-#       throwaway-sandbox junk pattern: `refs/heads/redteam-*` or `*-sandbox-*`.
+#       --heads origin`, only when an `origin` remote is configured) is a
+#       throwaway-sandbox junk ref. The junk rule (is_junk_ref, PIN-16): only a
+#       `refs/heads/*` ref is a candidate; its short name (after `refs/heads/`)
+#       holding `/` is never junk; otherwise `redteam-*` or `*-sandbox-*` is
+#       junk. So a remote-tracking ref (`refs/remotes/*`) and a nested branch
+#       such as `feat/chat-sandbox-x`, local or on origin, never read as junk,
+#       while a top-level `refs/heads/redteam-x` on origin still does. A nested
+#       branch a probe makes is still caught by the check (c) ref-set diff.
 #   (c) WITH --baseline only: the exact ref-diff. a/b1/b2 above remain the
 #       unconditional floor; then any ref ADDED, REMOVED, or SHA-MOVED versus the
 #       snapshot is an escape (1), naming the delta ref(s) — fully NAME-AGNOSTIC
@@ -71,7 +77,16 @@
 #       detected". A missing, unreadable, or zero-byte baseline file is 2
 #       (validated at arg-parse time, so an infra fault can never be preempted
 #       by, or collapse into, an escape conclusion), never 1 and never a silent
-#       pass.
+#       pass. Each delta row carries a PROVENANCE CLASS in brackets (PIN-24,
+#       #2679): a `moved:` row is `[sibling-move: fast-forward, checked out in
+#       <path>]` when the live SHA descends from the baseline SHA (`merge-base
+#       --is-ancestor`) and the ref is the checked-out branch of a linked
+#       worktree other than --repo's own (`worktree list --porcelain`, both
+#       paths compared after `pwd -P`); every other row (an `added:` or
+#       `removed:` row, a non-fast-forward move, a move of --repo's own
+#       checked-out branch) is `[unclassified]`. When every row is
+#       `sibling-move`, one more line says so. The class is a triage hint
+#       only: any delta still exits 1. A git failure in the classing is 2.
 #   (d) WITH --baseline only: the ignored-FILE diff. The live ignored file set
 #       (`git ls-files --others --ignored --exclude-standard`) is compared with
 #       the set the baseline recorded. A NEW ignored file that no allowlist
@@ -93,12 +108,12 @@
 #
 # ponytail: with --baseline the ref half AND the ignored-file half are both exact
 # baseline diffs, not heuristics — three detection ceilings remain.
-#   1. b2 origin-side: a probe pushing an invented (non-pattern) ref name to
+#   1. b2 origin-side: a probe pushing an invented (non-junk) ref name to
 #      origin still slips, because the ref-diff half is deliberately LOCAL — a
 #      pre-run `ls-remote` would put network flake inside a floor script.
-#   2. Refs that predate the first baselined run: a pattern-slipping ref already
+#   2. Refs that predate the first baselined run: a junk-rule-slipping ref already
 #      present when the snapshot is taken is baselined as legitimate. Snapshot
-#      mode cannot see it and the pre-run refusal cannot pattern-match it.
+#      mode cannot see it and the pre-run refusal cannot match it by name.
 #   3. Gitignored leak paths WITHOUT a --baseline, and pre-existing ignored
 #      residue. Check (d) now DETECTS a gitignored leak — a probe writing into
 #      `node_modules/`, `*.log`, `screenshots/`, `.claude/teams/`, or
@@ -116,7 +131,10 @@
 #   • OVER-detection — a local branch or tag another session or worktree creates
 #     during the run window is a real delta the namespace scoping cannot remove.
 #     It is triaged by ACTION-PROVENANCE (SKILL.md Step 4): a delta no probe
-#     authored is recorded, not an escape.
+#     authored is recorded, not an escape. Check (c)'s provenance class names
+#     the common foreign shape: a `sibling-move` row is a fast-forward of a
+#     branch another linked worktree has checked out. An `unclassified` row
+#     still needs the full provenance triage.
 #   • A probe that ignores the SCOPE-LOCK preamble and runs a ref-writing sandbox
 #     form anyway. The diff firing there is a TRUE POSITIVE about an unsanctioned
 #     action, not a miss. (The sanctioned idioms — `git clone --no-hardlinks`,
@@ -176,6 +194,26 @@ ignored_allowed() {
       $_glob) return 0 ;;
     esac
   done
+  return 1
+}
+
+# is_junk_ref <refname>: 0 when the ref is a throwaway-sandbox junk ref, else 1.
+# The one junk rule every check-(b1)/(b2) and pre-run site applies (PIN-16, A24):
+# only a refs/heads/* ref is a candidate; a short name holding '/' is never junk
+# (a nested branch such as feat/chat-sandbox-x is real work); otherwise
+# redteam-* or *-sandbox-* is junk. A remote-tracking ref is never a candidate:
+# check (b2) reads origin's own heads. This is a NAME HEURISTIC: a nested or
+# invented name a probe makes slips it and is caught only by the check (c) diff.
+is_junk_ref() {
+  case "$1" in
+    refs/heads/*) : ;;
+    *) return 1 ;;
+  esac
+  _short="${1#refs/heads/}"
+  case "$_short" in
+    */*) return 1 ;;
+    redteam-*|*-sandbox-*) return 0 ;;
+  esac
   return 1
 }
 
@@ -281,10 +319,9 @@ $pre_status"
     || die "git for-each-ref failed for repo '$repo_dir'" 2
   while IFS= read -r ref; do
     [ -n "$ref" ] || continue
-    case "$ref" in
-      refs/heads/redteam-*|*-sandbox-*)
-        escape "pre-run residue — junk local ref predates this run (a prior run's leftovers; resolve it, never baseline it): $ref" ;;
-    esac
+    if is_junk_ref "$ref"; then
+      escape "pre-run residue — junk local ref predates this run (a prior run's leftovers; resolve it, never baseline it): $ref"
+    fi
   done <<PRE_REFS
 $pre_refs
 PRE_REFS
@@ -319,7 +356,7 @@ fi
 # this, so the ignored-half clause is load-bearing, not decoration.
 # ---------------------------------------------------------------------------
 if [ -z "$baseline_file" ]; then
-  printf '%s: advisory — no --baseline: the ref checks are a NAME HEURISTIC (refs/heads/redteam-*, *-sandbox-*) that a probe-invented ref name slips. Take a pre-run `--snapshot <abs-file>` and re-run with `--baseline <abs-file>` for the exact ref-diff. The gitignored-file half (check (d)) does not run at all without a baseline to diff against.\n' \
+  printf '%s: advisory — no --baseline: the ref checks are a NAME HEURISTIC (only a top-level refs/heads/* branch named redteam-* or *-sandbox-* is junk; a remote-tracking ref or a nested branch never is) that a probe-invented or nested ref name slips. Take a pre-run `--snapshot <abs-file>` and re-run with `--baseline <abs-file>` for the exact ref-diff. The gitignored-file half (check (d)) does not run at all without a baseline to diff against.\n' \
     "$PROG" >&2
 fi
 
@@ -337,7 +374,7 @@ $status_out"
 fi
 
 # ---------------------------------------------------------------------------
-# Check (b1): no LOCAL ref matches the junk sandbox pattern.
+# Check (b1): no LOCAL ref is junk under is_junk_ref.
 # ---------------------------------------------------------------------------
 local_refs=""
 local_refs="$(git -C "$repo_dir" for-each-ref --format='%(refname)' 2>/dev/null)" \
@@ -345,16 +382,15 @@ local_refs="$(git -C "$repo_dir" for-each-ref --format='%(refname)' 2>/dev/null)
 
 while IFS= read -r ref; do
   [ -n "$ref" ] || continue
-  case "$ref" in
-    refs/heads/redteam-*|*-sandbox-*)
-      escape "junk local ref: $ref" ;;
-  esac
+  if is_junk_ref "$ref"; then
+    escape "junk local ref: $ref"
+  fi
 done <<LOCAL_REFS
 $local_refs
 LOCAL_REFS
 
 # ---------------------------------------------------------------------------
-# Check (b2): no REMOTE head on origin matches the junk pattern.
+# Check (b2): no REMOTE head on origin is junk under is_junk_ref.
 # Only run when an `origin` remote is configured — a repo with no origin has no
 # remote to leak onto (benign, not an error). An origin that IS configured but
 # whose ls-remote fails (network, bad url) is a git error -> exit 2.
@@ -379,10 +415,9 @@ if [ "$has_origin" -eq 1 ]; then
   remote_refs="$(printf '%s\n' "$ls_out" | awk '{print $2}')" || true
   while IFS= read -r ref; do
     [ -n "$ref" ] || continue
-    case "$ref" in
-      refs/heads/redteam-*|*-sandbox-*)
-        escape "junk ref on origin: $ref" ;;
-    esac
+    if is_junk_ref "$ref"; then
+      escape "junk ref on origin: $ref"
+    fi
   done <<REMOTE_REFS
 $remote_refs
 REMOTE_REFS
@@ -399,8 +434,9 @@ if [ -n "$baseline_file" ]; then
     || die "git for-each-ref (ref-diff) failed for repo '$repo_dir'" 2
 
   # awk pass: the baseline file first (NR==FNR), then the live dump on stdin.
-  # Output lines are "added|moved|removed: <refname>", sorted for determinism
-  # (awk's `for (r in base)` iteration order is unspecified).
+  # Output lines are "added:|moved:|removed: <refname>", sorted for determinism
+  # (awk's `for (r in base)` iteration order is unspecified). A moved: line also
+  # carries "<baseline sha> <live sha>" for the provenance class below.
   delta=""
   delta="$(printf '%s\n' "$live_dump" | awk '
     NR == FNR {
@@ -410,8 +446,8 @@ if [ -n "$baseline_file" ]; then
     {
       if ($1 ~ /^refs\/heads\// || $1 ~ /^refs\/tags\//) {
         live[$1] = $2
-        if (!($1 in base))       { print "added:   " $1 }
-        else if (base[$1] != $2) { print "moved:   " $1 }
+        if (!($1 in base))       { print "added: " $1 }
+        else if (base[$1] != $2) { print "moved: " $1 " " base[$1] " " $2 }
       }
     }
     END { for (r in base) if (!(r in live)) print "removed: " r }
@@ -419,8 +455,64 @@ if [ -n "$baseline_file" ]; then
     || die "ref-diff failed while reading the baseline '$baseline_file'" 2
 
   if [ -n "$delta" ]; then
-    escape "ref-diff vs baseline '$baseline_file' — ref(s) under refs/heads/ or refs/tags/ changed during the run:
-$delta"
+    # Provenance class (PIN-24, #2679). A moved: row is sibling-move when the
+    # live SHA descends from the baseline SHA and the ref is the checked-out
+    # branch of a linked worktree other than --repo's own. Every other row is
+    # unclassified. The class is a triage hint: the exit stays 1 either way.
+    repo_top=""
+    repo_top="$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null)" \
+      || die "git rev-parse --show-toplevel (ref-diff class) failed for repo '$repo_dir'" 2
+    repo_phys="$(cd "$repo_top" 2>/dev/null && pwd -P)" || repo_phys="$repo_top"
+    wt_list=""
+    wt_list="$(git -C "$repo_dir" worktree list --porcelain 2>/dev/null)" \
+      || die "git worktree list (ref-diff class) failed for repo '$repo_dir'" 2
+
+    rows=""
+    all_sibling=1
+    while IFS=' ' read -r d_kind d_ref d_base d_live; do
+      [ -n "$d_kind" ] || continue
+      d_class="unclassified"
+      if [ "$d_kind" = "moved:" ]; then
+        # The worktree, other than --repo's own, that has d_ref checked out.
+        d_wt=""
+        w_path=""
+        while IFS= read -r w_line; do
+          case "$w_line" in
+            "worktree "*) w_path="${w_line#worktree }" ;;
+            "branch $d_ref")
+              w_phys="$(cd "$w_path" 2>/dev/null && pwd -P)" || w_phys=""
+              if [ -n "$w_phys" ] && [ "$w_phys" != "$repo_phys" ]; then
+                d_wt="$w_phys"
+              fi ;;
+          esac
+        done <<WT_LIST
+$wt_list
+WT_LIST
+        if [ -n "$d_wt" ]; then
+          _arc=0
+          git -C "$repo_dir" merge-base --is-ancestor "$d_base" "$d_live" >/dev/null 2>&1 || _arc=$?
+          if [ "$_arc" -eq 0 ]; then
+            d_class="sibling-move: fast-forward, checked out in $d_wt"
+          elif [ "$_arc" -ne 1 ]; then
+            die "git merge-base --is-ancestor (ref-diff class) failed for '$d_ref' in repo '$repo_dir'" 2
+          fi
+        fi
+      fi
+      case "$d_class" in
+        sibling-move:*) : ;;
+        *) all_sibling=0 ;;
+      esac
+      rows="$rows
+$(printf '%-9s%s [%s]' "$d_kind" "$d_ref" "$d_class")"
+    done <<DELTA
+$delta
+DELTA
+
+    if [ "$all_sibling" -eq 1 ]; then
+      rows="$rows
+every delta row is sibling-move: each is a fast-forward of a branch another linked worktree has checked out (likely concurrent sibling work, not a probe; confirm by action-provenance)"
+    fi
+    escape "ref-diff vs baseline '$baseline_file' — ref(s) under refs/heads/ or refs/tags/ changed during the run:${rows}"
   fi
 
   # -------------------------------------------------------------------------

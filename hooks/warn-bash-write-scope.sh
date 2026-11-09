@@ -28,9 +28,11 @@
 #     - dd of=PATH
 #     - Interpreter -c/-e payloads (python/python3/perl/ruby/node) that also
 #       contain a write-indicative token (open(, write, writeFile)
-#   Resolves the obvious write target(s).  For each resolved target, walks
+#   Resolves the obvious write target(s); `/dev/null` is a discard, never a
+#   target, so it is skipped.  For each resolved target, walks
 #   its ancestors: if none holds a .war-task marker → emit a warning on
-#   stderr and continue (exit 0).
+#   stderr and continue (exit 0).  The warning names WORKER_WRITE_TOOL_RULE,
+#   the worker rule that file content changes go through Edit or Write.
 #
 # COVERAGE (widened 2026-07-12, #809)
 #   - Relative redirect targets (> foo, >> foo, a>b) are now resolved against
@@ -109,6 +111,7 @@ warn_if_outside() {
   # and abort the (always-exit-0) hook.
   [ -z "$_t" ] && return 0
   case "$_t" in
+    /dev/null) return 0 ;;  # a discard, never a write target (plan 2026-11-08)
     /*) ;;  # absolute path — proceed
     *)
       case "$cwd" in
@@ -118,7 +121,7 @@ warn_if_outside() {
       ;;
   esac
   if ! has_war_task "$_t"; then
-    echo "WAR [advisory]: war-worker Bash command appears to write to '$_t' which has no .war-task ancestor. Verify this is intentional. (This is advisory only — F01 D4, ADR 0002)" >&2
+    echo "WAR [advisory]: war-worker Bash command appears to write to '$_t' which has no .war-task ancestor. Verify this is intentional. Change file content only with Edit or Write, never through Bash (WORKER_WRITE_TOOL_RULE). (This is advisory only — F01 D4, ADR 0002)" >&2
   fi
 }
 

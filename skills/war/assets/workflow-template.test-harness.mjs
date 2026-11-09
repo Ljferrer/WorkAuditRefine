@@ -90,6 +90,16 @@ const edgesMd = readFileSync(join(here, '../references/worker-servitor-edges.md'
 const src = readFileSync(join(here, 'workflow-template.js'), 'utf8').replace(/^export const meta/m, 'const meta')
 // #2485 D16: the one trailer-layout sentence, read from its single engine home.
 const TRAILER_BLOCK_RULE = src.match(/^const TRAILER_BLOCK_RULE = '([^']+)'$/m)[1]
+// The dispatch() prompt prefix (plan 2026-11-08-auditor-and-worker-guard-habits T1.6, PIN-6/9/11/23),
+// read from the template source so the tests and the engine key on one string each. Every captured
+// prompt opens with AUTHORITY_LINE + '\n'; unprefixed() drops that prefix so a test about a builder's
+// own opening line (a continuation header, a prepended clause) reads the builder text.
+const promptConst = name => (src.match(new RegExp(`^const ${name} = '([^']+)'$`, 'm')) || [])[1]
+const AUTHORITY_LINE = promptConst('AUTHORITY_LINE')
+const TOOL_ORDER_LINE = promptConst('TOOL_ORDER_LINE')
+const HOST_TURN_TOOL_LINE = promptConst('HOST_TURN_TOOL_LINE')
+const WORKER_WRITE_TOOL_RULE = promptConst('WORKER_WRITE_TOOL_RULE')
+const unprefixed = p => (typeof p === 'string' && AUTHORITY_LINE && p.startsWith(AUTHORITY_LINE + '\n')) ? p.slice(AUTHORITY_LINE.length + 1) : p
 // Execute the canonical read-only recipe; fixtures independently assert the actual Git contents.
 const exactGitDiffRecipe = refinerRecoveryMd.match(/## Exact Git diff identity[^]*?```bash\n([^]*?)```/)[1]
 const fixtureContentId = (repo, base, tip) => {
@@ -2268,6 +2278,9 @@ const dispatchBlock = (() => {
 const makeDispatch = (agent, maxParallel) => new Function('agent', 'maxParallel', `
   ${runForm(semBlock)}
   const dispatchSemaphore = makeSemaphore(maxParallel)
+  // The prompt prefix is identity here: these rows test the permit seam, and the AUTHORITY_LINE,
+  // TOOL ORDER and WORKER_WRITE_TOOL_RULE rows in engine-1 test the real prefix on captured prompts.
+  const prefixed = p => p
   ${runForm(dispatchBlock)}
   return { dispatch, dispatchSemaphore }
 `)(agent, maxParallel)
@@ -3448,7 +3461,9 @@ const READER_TOKEN = /\b(integration_sha|gate_sha|lastLandedTip|landedShaByTask|
 const READER_CENSUS = [
   ['MERGE_RESULT.integration_sha', /^\s+branch: \{ type: 'string' \}, integration_sha: \{ type: 'string' \}/, 1],
   ['MERGE_RESULT.gate_sha', /^\s+gate_sha: \{ type: 'string' \},$/, 1],
-  ['mergedTasksForGateAudit entry shape', /^const mergedTasksForGateAudit = \[\]/, 1],
+  // No mergedTasksForGateAudit row: its entry-shape note was a trailing comment on the declaration, so the
+  // line read as a reader. Plan 2026-11-08 T1.6 moved that note onto its own comment line, which the
+  // census skips, and the bare `const mergedTasksForGateAudit = []` names no reader token.
   ['lastLandedTip tracker', /^let lastLandedTip = null$/, 1],
   ['landedShaByTask retention', /^const landedShaByTask = new Map\(\)$/, 1],
   ['recovery predicate: confirmMerge claimed sha', /const claimed = result\[context\.land \? 'working_sha' : 'integration_sha'\]/, 1],
@@ -3625,7 +3640,40 @@ const withoutSweepDebt = (prompt) => {
   return i < 0 || j < 0 ? prompt : prompt.slice(0, i) + prompt.slice(j + SWEEP_DEBT_TAIL.length)
 }
 
+// Plan 2026-11-08-auditor-and-worker-guard-habits T1.6: the fixture set the dispatch() prefix tests
+// (WORKER_WRITE_TOOL_RULE, AUTHORITY_LINE, TOOL ORDER) read. One run per war-worker dispatch class, the
+// same reach the FIX_GATE_RULE prompt truth test uses, plus the default run for the work: dispatch.
+const workerPrefixRuns = async () => [
+  await runPhase(PROVISION_ARGS(), defaultImpl),
+  await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), fixNeededImpl()),
+  await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), floorRetryImpl()),
+  await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), pkgFloorRetryImpl()),
+  await runDoneUnmetLoop(),
+  await runPhase(ACE_ARGS({ tasks: [dwTask()] }), aceBase()),
+  await runPhase(ACE_ARGS({ tasks: [dwTask()] }), bisectSubsetImpl()),
+  await runPhase(ACE_ARGS({ tasks: [dwTask()] }), reentryImpl()),
+  await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()])),
+  await runPhase(SWEEP_ARGS(), terminalImpl()),
+  await runPhase(LATE_FIX_ARGS(), lateFixImpl()),
+]
+// Each war-worker dispatch site, keyed by the label expression that follows its agentType, maps to the
+// captured-label class that reaches it. A scanned site that matches no row reds (default-deny), so a new
+// war-worker dispatch must join this table and a fixture before it lands.
+const WORKER_SITE_LABELS = [
+  [/^label: aceLabel\(r, 'subset'\)/, /^ace:subset:/],
+  [/^label: aceLabel\(r, 'reentry'\)/, /^ace:reentry:/],
+  [/^label: aceLabel\(r, 'polish'\)/, /^ace:polish:/],
+  [/^label: `work:/, /^work:/],
+  [/^label: `fix:/, /^fix:/],
+  [/^label: `\$\{isNoTest \? 'add-test'/, /^(add-test|make-pass|cite-budget|package-it):/],
+  [/^label: 'late-fix:'/, /^late-fix:/],
+  [/^label: `polish:phase-/, /^polish:/],
+  [/^label: `terminal:phase-/, /^terminal:/],
+]
+
 export {
+  workerPrefixRuns,
+  WORKER_SITE_LABELS,
   test,
   assert,
   readFileSync,
@@ -3905,6 +3953,11 @@ export {
   semBlock,
   dispatchBlock,
   makeDispatch,
+  AUTHORITY_LINE,
+  TOOL_ORDER_LINE,
+  HOST_TURN_TOOL_LINE,
+  WORKER_WRITE_TOOL_RULE,
+  unprefixed,
   BARE_INTERPOLATION_CENSUS,
   ptSpanRanges,
   STOPLIST_ARGS,

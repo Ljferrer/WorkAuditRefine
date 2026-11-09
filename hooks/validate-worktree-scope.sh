@@ -17,7 +17,8 @@
 #                    *a* worktree, not *their own* — exact per-worktree
 #                    confinement was proven unattainable (E1). The sibling-write
 #                    residual is accepted, mitigated by absolute-path prompts +
-#                    auditor review.
+#                    auditor review. The deny text names <worktree>/.war/
+#                    as the place for scratch files (PIN-10).
 #   - war-servitor : allow only the CURRENT user's local project memory dir;
 #                    deny anything else. The repo-root (docs/learnings) allowance
 #                    is SUBTRACTED (#58 resolution): under the Gate-2 promotion
@@ -38,8 +39,11 @@
 #                    any non-WAR agent) : fail-open / unrestricted, so no
 #                    existing non-WAR flow is newly constrained (back-compat).
 #
-# A write with no file_path (e.g. a tool_input without a path) is always
-# allowed. Note: the servitor no longer holds Bash (capability allowlist:
+# Every path, and $HOME, is read in norm_path form (`\` to `/`, a leading `X:`
+# to `/x`) before any check below. The worker and servitor arms first deny a
+# raw path that holds a `\` and does not start with a drive `X:`. A write
+# with no file_path (e.g. a tool_input without a path) is always allowed.
+# Note: the servitor no longer holds Bash (capability allowlist:
 # Read, Grep, Glob, Write, Edit plus the read-only memory query tool — F01 D1),
 # so Bash can only slip through this hook for the worker or refiner, not the
 # servitor.
@@ -54,7 +58,39 @@ atype="$(get '.agent_type')"
 path="$(get '.tool_input.file_path // .tool_input.path // .tool_input.notebook_path')"
 deny() { echo "WAR: $1" >&2; exit 2; }
 
-# Reject any path that contains a '..' segment before per-agent checks.
+# norm_path <path> : print <path> in the slash form the globs below match
+# (plan 2026-11-08 PIN-13, PIN-20). Every `\` becomes `/`, and a leading
+# drive `X:` (alone or before `/`) becomes `/x` in lower case, so
+# `C:\Users\me\x` prints `/c/Users/me/x`. A path in any other form prints
+# unchanged. The copy is byte-equal in validate-worktree-scope.sh,
+# validate-servitor-provenance.sh and validate-evidence-auditor-mcp.sh
+# (guard-conventions.test.sh row NP1). Normalizing first only adds denials on
+# the `..` checks: a backslash `..` segment becomes a `/..` segment.
+norm_path() {
+  np_p="${1//\\//}"
+  case "$np_p" in
+    [a-zA-Z]:|[a-zA-Z]:/*)
+      np_d="$(printf '%s' "${np_p%"${np_p#?}"}" | tr '[:upper:]' '[:lower:]')"
+      np_p="/$np_d${np_p#??}" ;;
+  esac
+  printf '%s' "$np_p"
+}
+raw_path="$path"
+path="$(norm_path "$path")"
+# posix_backslash_deny: on macOS or Linux a `\` is a filename byte, not a
+# separator, so the write lands at the raw path while the checks read the
+# normalized one. The worker and servitor arms call this first: a raw path
+# that holds a `\` and does not start with a drive `X:` is denied, so
+# norm_path admits only Windows-form spellings of already-allowed paths.
+posix_backslash_deny() {
+  case "$raw_path" in
+    [a-zA-Z]:*) ;;
+    *\\*) deny "path '$raw_path' holds a backslash outside a Windows drive path; use / separators." ;;
+  esac
+}
+
+# Reject any path that contains a '..' segment before per-agent checks. The
+# path is already in norm_path form here, so a backslash `..` is caught too.
 # A path like /x/.claude/projects/p/memory/../../etc/foo matches the servitor's
 # memory glob yet escapes the intended directory. The worker's .war-task ancestor
 # walk is equally bypassable. Rejecting '..' early closes the traversal hole in
@@ -98,6 +134,7 @@ case "$atype" in
     ;;
   *war-worker)
     [ -z "$path" ] && exit 0
+    posix_backslash_deny
     d="$(dirname "$path")"
     # Walk ancestors until a .war-task marker is found, or until dirname stops
     # making progress. The progress guard (prev) is essential: for a relative
@@ -110,16 +147,19 @@ case "$atype" in
       prev="$d"
       d="$(dirname "$d")"
     done
-    deny "write to '$path' is outside any provisioned worktree (no .war-task marker). Stay in your worktree."
+    deny "write to '$path' is outside any provisioned worktree (no .war-task marker). Stay in your worktree; scratch files go under <worktree>/.war/."
     ;;
   *war-servitor)
     [ -z "$path" ] && exit 0
+    posix_backslash_deny
     # $HOME anchor (#810): confine the write to the CURRENT user's local memory
     # root, not merely any path of the right SHAPE. ${HOME:-} is mandatory — a
     # bare $HOME under `set -u` with HOME unset would kill the hook before the
     # fallback below; ${home%/} strips a trailing slash so the anchored pattern
     # never forms a `//` that matches nothing and bricks every wrap-up write.
-    home="${HOME:-}"; home="${home%/}"
+    # norm_path runs on $HOME too, so a Windows-form HOME matches the
+    # normalized path (PIN-13).
+    home="$(norm_path "${HOME:-}")"; home="${home%/}"
     if [ -n "$home" ]; then
       case "$path" in
         "$home"/.claude/projects/*/memory/*) exit 0 ;;

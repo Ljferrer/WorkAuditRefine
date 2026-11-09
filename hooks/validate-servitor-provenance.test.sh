@@ -269,6 +269,17 @@ expect "existing untagged MEMORY.md: Write -> allow (exempt above guard)" \
   0 "$(run "$(mk_write 'war-servitor' "$REAL_MEMORY" "$(content_no_metadata)")")"
 
 # ---------------------------------------------------------------------------
+# WP: Windows path form (plan 2026-11-08 PIN-13). norm_path runs before the
+# classifier case, so a backslash memory path is still content-gated. Without
+# it the path misses the classifier glob and the tag-less write passes.
+# ---------------------------------------------------------------------------
+WIN_FACT='C:\Users\wp\.claude\projects\p\memory\x.md'
+expect "WP1: Windows-form memory path still checked: tag-less Write -> deny exit 2" \
+  2 "$(run "$(mk_write 'war-servitor' "$WIN_FACT" "$(content_no_metadata)")")"
+expect "WP2: Windows-form memory path with a valid tier -> allow" \
+  0 "$(run "$(mk_write 'war-servitor' "$WIN_FACT" "$(content_with_tier 'code-verified')")")"
+
+# ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
 echo "validate-servitor-provenance.test.sh: PASS"

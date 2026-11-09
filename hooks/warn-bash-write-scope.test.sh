@@ -314,6 +314,23 @@ expect_silent "G2: 'work-audit-refine:war-worker-helper' + outside write → sil
   "$(typed_cmd "work-audit-refine:war-worker-helper" "echo hello > $OUTSIDE")"
 
 # ---------------------------------------------------------------------------
+# CASE GROUP BW: /dev/null is not a write target, and the warning names the
+# worker write rule (plan 2026-11-08 PIN-9). One run logged /dev/null 52 times
+# as a write target before this skip.
+# ---------------------------------------------------------------------------
+expect_silent "BW1: 'node --test x.mjs >/dev/null 2>&1' prints no warning" \
+  "$(worker_cmd_cwd "$INSIDE_CWD" "node --test x.mjs >/dev/null 2>&1")"
+# The redirect extractor takes the last `>` on the line, so the outside write
+# goes last here.
+expect_warn "BW2: an outside write after a /dev/null redirect still warns" \
+  "$(worker_cmd_cwd "$INSIDE_CWD" "ls 2>/dev/null > $OUTSIDE")"
+n=$((n + 1))
+case "$(stderr_of "$(worker_cmd "echo hello > $OUTSIDE")")" in
+  *WORKER_WRITE_TOOL_RULE*) printf 'ok %d - BW3: the warning names WORKER_WRITE_TOOL_RULE\n' "$n" ;;
+  *) printf 'FAIL %d - BW3: the warning omits WORKER_WRITE_TOOL_RULE\n' "$n"; fails=$((fails + 1)) ;;
+esac
+
+# ---------------------------------------------------------------------------
 # CASE GROUP H: STANDING advisory-posture guard (End state 2). The hook has
 # ZERO deny routes and its final line is `exit 0` — not a one-time hand check.
 # (These grep `$HOOK`, the .sh file; the literals in THIS test file are data.)
