@@ -1509,12 +1509,12 @@ produced by `stage-workflow.mjs` (see [ADR 0037](docs/adr/0037-run-scoped-staged
 **exactly-once**, pre-dispatch substitutions as pure literals — the Workflow sandbox has no shell/fs
 to compute them: always the two `export const meta` anchors (`name`/`description`), and, when
 `--args <file>` is passed, an **optional third** — the template's string-arm args fallback tail,
-rewritten so the staged copy falls back to a prelude carrying the validated phase-args object, which
-lets an assembled payload too large to ride the Workflow tool call travel with the script instead
+rewritten so the staged copy falls back to the args its one-line loader reads from a sibling `.args.js` script, which
+lets a payload too large to ride the Workflow tool call travel beside the script
 (dispatched args, when passed, still win). It fails loud on a missing or duplicated anchor rather
 than forking silently onto the wrong text.
 **Comment strip + size floor (#2099)**: before the substitutions the stager blanks every full-line `//`
-comment in code state and drops the leading indent of every top-level code line (#2613) (line count preserved — an `--args` stage then adds two prelude lines after
+comment in code state and drops the leading indent of every top-level code line (#2613) (line count preserved — an `--args` stage then adds one loader line after
 `meta`; strings, template literals, regexes and trailing comments pass through verbatim, one scanner
 residual recorded in the reference below), because the
 Workflow tool refuses a script over its 524,288-byte `scriptPath` cap and the shipped template alone

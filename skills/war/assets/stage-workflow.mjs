@@ -10,19 +10,25 @@
 //   staged file's ABSOLUTE path, exits 0. --force and --discard-injections are bare boolean flags.
 //   --args takes its value as a SEPARATE following token (--args <file>), never attached
 //   (--args=<file>): the file is read, JSON-parsed and required to be a non-null, non-array object
-//   BEFORE any write, then embedded in the staged copy as the
-//   absent-args fallback, so an assembled phase-args payload too large to ride the Workflow tool
-//   call can travel with the script instead. Dispatched args, when passed, always win.
+//   BEFORE any write, then written to the sibling args script <stagedDir>/war-[c<K>-]<planSlug>-p<N>.args.js
+//   (a meta statement, then `return` of the JSON, with its own .sha256 sidecar). The staged copy
+//   carries a one-line loader that reads that sibling through `workflow({ scriptPath })` only when no
+//   args were dispatched (D38), so an assembled phase-args payload too large to ride the Workflow
+//   tool call travels in the sibling, beside the script, and never counts toward the staged copy's
+//   size. Dispatched args, when passed, always win.
 //   Write-if-absent: an existing staged file IS the run's script — it may carry approved injected
 //   stages, and a journal replay must see identical bytes even across a mid-run plugin upgrade — so
 //   it is left byte-untouched, its path printed, exit 0 (with --args, one stderr warning that the
-//   flag was ignored). A deliberate restage passes --force, which overwrites an existing staged file
-//   (with a fresh comment- and indent-stripped substitution of the current shipped template) ONLY when
-//   its digest sidecar matches its bytes — that is also how changed args are re-embedded. A file whose
-//   bytes differ from its sidecar (a hand-applied stage), or a file with no sidecar, makes --force exit
-//   1 naming --discard-injections and write nothing; --discard-injections implies --force and
-//   overwrites regardless. An existing file over the scriptPath cap is the one reuse refused: it
-//   cannot dispatch, so the stager exits non-zero naming --discard-injections (every such file
+//   flag was ignored). A staged file whose loader names a missing args sibling is refused, naming
+//   --force and --discard-injections. A deliberate restage passes --force, which overwrites an
+//   existing staged file and its args sibling together (with a fresh comment- and indent-stripped
+//   substitution of the current shipped template) ONLY when each existing file's digest sidecar
+//   matches its bytes — that is also how changed args are re-embedded. A file whose bytes differ from
+//   its sidecar (a hand-applied stage), or a file with no sidecar, makes --force exit 1 naming
+//   --discard-injections and write nothing; --discard-injections implies --force and overwrites
+//   regardless. An args sibling with no staged file beside it is overwritten by a fresh stage. An
+//   existing staged file or args sibling over the scriptPath cap is refused on reuse: it cannot
+//   dispatch, so the stager exits non-zero naming --discard-injections (every such staged file
 //   predates the sidecar, so --force would refuse it).
 //   Fail-loud: a missing OR duplicated anchor exits NON-ZERO with a named error (never a silent
 //   fork).
@@ -31,7 +37,8 @@
 //   (contract and mechanics: stripFullLineComments below). The
 //   Workflow tool refuses a scriptPath over SCRIPT_BYTE_CAP bytes, and the shipped template alone
 //   crossed it at 0.21.11 (measured 525,209 bytes on 2026-09-06) — so a staged copy that would still
-//   exceed the cap after the strip exits NON-ZERO with a named error and writes nothing.
+//   exceed the cap after the strip, or an args sibling over the cap, exits NON-ZERO with a named
+//   error and writes nothing.
 
 import fs from 'node:fs'
 import { createHash } from 'node:crypto'
@@ -48,8 +55,8 @@ export const NAME_ANCHOR = "name: 'war-phase'"
 export const DESCRIPTION_ANCHOR = 'WAR per-phase execution: Work, Audit, Refine, Land, then Wrap-up learnings for one phase.'
 
 // The template's string-arm args fallback tail — the object arm of the D8-guarded `const A =` ternary
-// in workflow-template.js. Substituted ONLY under --args, so a staged copy falls back to its embedded
-// payload instead of an empty object. Canonical source of the bytes: the `const A =` ternary's
+// in workflow-template.js. Substituted ONLY under --args, so a staged copy falls back to the args its
+// loader read from the args sibling instead of an empty object (argsFallbackRewrite). Canonical source of the bytes: the `const A =` ternary's
 // args-fallback tail in workflow-template.js; this constant is the hand-maintained mirror site that
 // the imported-constant anchor guard in stage-workflow.test.mjs arbitrates (per ADR 0037's
 // Correction (2026-08-02, #1240) note). Same mirror discipline as the two meta anchors above: this
@@ -72,10 +79,30 @@ export const DISCARD_FLAG = '--discard-injections'
 export const SIDECAR_SUFFIX = '.sha256'
 const digestOf = (bytes) => createHash('sha256').update(bytes).digest('hex')
 
+// The args sibling script (D38): `<staged basename minus .js>` + ARGS_SIBLING_SUFFIX, written beside
+// the staged copy under --args. argsSiblingPath maps a staged path to it; argsSiblingText is its whole
+// body (a meta statement, then `return` of the validated args JSON); argsLoaderLine is the one prelude
+// line the staged copy carries, and argsFallbackRewrite the ARGS_FALLBACK_ANCHOR replacement. The
+// loader runs only when no args were dispatched and stores any load error instead of throwing, so
+// nothing above the engine's top-level `try {` throws; the rewrite sits inside that try and throws a
+// named error naming the args sibling when the load failed, which the engine returns as
+// held:workflow-error. Exported so stage-workflow.test.mjs builds its expected bytes from these.
+export const ARGS_SIBLING_SUFFIX = '.args.js'
+export const argsSiblingPath = (stagedPath) => stagedPath.replace(/\.js$/, '') + ARGS_SIBLING_SUFFIX
+export function argsSiblingText(name, args) {
+  const meta = { name: `${name}-args`, description: `Phase args for ${name} (stage-workflow.mjs --args).` }
+  return `export const meta = ${JSON.stringify(meta)}\nreturn ${JSON.stringify(args)}\n`
+}
+export const argsLoaderLine = (siblingPath) =>
+  `let EMBEDDED_ARGS = null, EMBEDDED_ARGS_ERROR = null; if (!args) try { EMBEDDED_ARGS = await workflow({ scriptPath: ${JSON.stringify(siblingPath)} }) } catch (e) { EMBEDDED_ARGS_ERROR = e }`
+const LOADER_LINE = /^let EMBEDDED_ARGS = null, EMBEDDED_ARGS_ERROR = null; /m
+export const argsFallbackRewrite =(siblingPath) =>
+  `: (args || EMBEDDED_ARGS || (() => { throw new Error('stage-workflow: args sibling load failed (' + ${JSON.stringify(siblingPath)} + '): ' + String((EMBEDDED_ARGS_ERROR && EMBEDDED_ARGS_ERROR.message) || EMBEDDED_ARGS_ERROR || 'it returned no args object')) })())`
+
 // Blank out every full-line `//` comment that sits in CODE state — a line whose first non-blank bytes
 // are `//` and that is not inside a string, a template literal (any `${…}` nesting), a regex literal
 // or a block comment. Each stripped line becomes an empty line, so the staged copy keeps the shipped
-// template's line count (an --args stage then adds its two prelude lines after `meta`). Also drop the
+// template's line count (an --args stage then adds its one loader line after `meta`). Also drop the
 // leading spaces and tabs of every line that STARTS in the top-level code frame (PIN-16); a line that
 // starts inside a string continuation, a template literal, a `${…}` body or a block comment keeps
 // every byte, and no line is ever removed (PIN-17). Nothing else moves: trailing comments, block
@@ -255,7 +282,7 @@ function replaceExactlyOnce(text, anchor, replacement, label) {
 }
 
 // The `export const meta = { … }` statement, terminated at the first column-0 `}` line that closes it.
-// The payload prelude is inserted immediately AFTER this statement — NEVER prepended: the Workflow
+// The args loader line is inserted immediately AFTER this statement — NEVER prepended: the Workflow
 // tool refuses a script whose first STATEMENT is not `export const meta` ("Invalid workflow script:
 // … must be the FIRST statement in the script"), dying before any agent is dispatched. A leading
 // *comment* is fine (the shipped template already opens with one); a leading `const` is not.
@@ -267,27 +294,24 @@ function replaceExactlyOnce(text, anchor, replacement, label) {
 // no match throws a named error (fail-loud), never a silent mis-insertion.
 const META_STATEMENT = /^export const meta\s*=\s*\{[\s\S]*?^\}$/m
 
-// Step (3) of the substitution order: inject the payload LAST, after every exactly-once count has
-// already run, so an args payload that quotes any anchor's bytes cannot fork the stage. JSON.stringify
-// output is valid JS source as-is (ES2019's JSON-superset grammar admits raw U+2028/U+2029 in string
-// literals) — no re-escaping pass, and it never contains a literal newline, which keeps the prelude
-// exactly two lines for the restore-roundtrip test. The match ends AT the line ending that closes
-// the `}` line (`\n`, or `\r\n` — a multiline `$` matches before `\r` too), so the prelude goes in
-// after that line ending (#2099 rounds 3 and 4): the staged copy gains exactly the two prelude lines,
-// no blank line, and a line number past `meta` is the template's plus two. The one other shape is a
-// `}` that is the file's last byte, where the prelude is appended after a newline of its own.
-function insertArgsPrelude(text, embedded) {
+// Step (3) of the substitution order: insert the args loader LAST, after every exactly-once count has
+// already run. The args themselves never enter the staged copy (D38): they live in the args sibling,
+// and the loader names only its absolute path (JSON.stringify output, valid JS and newline-free), so
+// the prelude is exactly one line. The match ends AT the line ending that closes the `}` line (`\n`,
+// or `\r\n` — a multiline `$` matches before `\r` too), so the loader goes in after that line ending
+// (#2099 rounds 3 and 4): the staged copy gains exactly the one loader line, no blank line, and a
+// line number past `meta` is the template's plus one. The one other shape is a `}` that is the
+// file's last byte, where the loader is appended after a newline of its own.
+function insertArgsPrelude(text, siblingPath) {
   const m = text.match(META_STATEMENT)
   if (!m) {
-    throw new Error('stage-workflow: could not locate the `export const meta = { … }` statement to insert the embedded-args prelude after')
+    throw new Error('stage-workflow: could not locate the `export const meta = { … }` statement to insert the args loader after')
   }
   const at = m.index + m[0].length
   const ending = text.startsWith('\r\n', at) ? 2 : text[at] === '\n' ? 1 : 0
   const after = at + ending
   const lead = ending ? '' : '\n'
-  const prelude = '// Embedded phase args (stage-workflow.mjs --args) — the absent-args fallback; dispatched args always win.\n'
-    + `const EMBEDDED_ARGS = ${JSON.stringify(embedded)}\n`
-  return text.slice(0, after) + lead + prelude + text.slice(after)
+  return text.slice(0, after) + lead + argsLoaderLine(siblingPath) + '\n' + text.slice(after)
 }
 
 const USAGE = 'usage: node stage-workflow.mjs <templatePath> <stagedDir> <planSlug> <phaseId> [campaignOrdinal] [--force] [--discard-injections] [--args <file>]'
@@ -326,9 +350,12 @@ function main(argv) {
 
   const basename = deriveName(planSlug, phaseId, campaignOrdinal) + '.js'
   const stagedPath = path.resolve(stagedDir, basename)
+  const siblingPath = argsSiblingPath(stagedPath)
 
   // Write-if-absent: an existing staged file is the run's script — never clobber it without --force,
-  // and --force itself refuses a file whose sidecar does not match.
+  // and --force itself refuses a file whose sidecar does not match. The args sibling travels with it:
+  // a staged file whose loader line names a sibling that is gone cannot load its args, so its reuse
+  // is refused too, and an existing sibling over the cap is refused like an over-cap staged file.
   // It short-circuits BEFORE any --args processing, exactly as before; the only addition is one
   // stderr warning so an operator who believes they just re-embedded is told otherwise. Exit code and
   // stdout stay byte-unchanged — a resume re-running the same stage command sees an accurate,
@@ -350,6 +377,30 @@ function main(argv) {
       process.stderr.write(`stage-workflow: existing staged file ${stagedPath} is ${existingBytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap — it cannot dispatch; restage it with ${DISCARD_FLAG} (a fresh, comment- and indent-stripped substitution: any injected stage in the old file is lost and must be re-applied, and a resumeFromRunId journal recorded against the old bytes no longer matches)\n`)
       process.exit(1)
     }
+    let existingText
+    try {
+      existingText = fs.readFileSync(stagedPath, 'utf8')
+    } catch (err) {
+      process.stderr.write(`stage-workflow: cannot read existing staged file ${stagedPath}: ${(err && err.message) || err}\n`)
+      process.exit(1)
+    }
+    if (LOADER_LINE.test(existingText) && !fs.existsSync(siblingPath)) {
+      process.stderr.write(`stage-workflow: existing staged file ${stagedPath} loads its args from ${siblingPath}, which is missing — refusing to reuse a staged file that cannot load its args; restage it with --force --args <file> (or ${DISCARD_FLAG} --args <file> if the staged file was hand-edited)\n`)
+      process.exit(1)
+    }
+    if (fs.existsSync(siblingPath)) {
+      let siblingBytes
+      try {
+        siblingBytes = fs.statSync(siblingPath).size
+      } catch (err) {
+        process.stderr.write(`stage-workflow: cannot stat existing args sibling ${siblingPath}: ${(err && err.message) || err}\n`)
+        process.exit(1)
+      }
+      if (siblingBytes > SCRIPT_BYTE_CAP) {
+        process.stderr.write(`stage-workflow: existing args sibling ${siblingPath} is ${siblingBytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap — it cannot load; restage with ${DISCARD_FLAG} and a slimmer --args payload\n`)
+        process.exit(1)
+      }
+    }
     if (argsFile !== null) {
       process.stderr.write('stage-workflow: existing staged file reused — --args ignored (pass --force or --discard-injections to re-embed)\n')
     }
@@ -360,25 +411,31 @@ function main(argv) {
   // --force over an existing file (#2345): overwrite only a file whose digest sidecar matches its
   // current bytes. A differing digest means a hand-applied stage; a missing sidecar means the file's
   // origin is unknown (a pre-sidecar stage, or a hand-written copy). Either refuses with a named error
-  // naming DISCARD_FLAG and writes nothing — the staged file stays byte-untouched.
+  // naming DISCARD_FLAG and writes nothing — the staged file stays byte-untouched. The args sibling
+  // beside an existing staged file is checked the same way (D38): either mismatch refuses, so the
+  // pair is overwritten together or not at all. A sibling with no staged file beside it is not
+  // checked: a fresh stage overwrites it.
   if (force && !discard && fs.existsSync(stagedPath)) {
-    let current
-    try {
-      current = fs.readFileSync(stagedPath)
-    } catch (err) {
-      process.stderr.write(`stage-workflow: cannot read existing staged file ${stagedPath}: ${(err && err.message) || err}\n`)
-      process.exit(1)
-    }
-    let recorded = null
-    try {
-      recorded = fs.readFileSync(stagedPath + SIDECAR_SUFFIX, 'utf8').trim()
-    } catch {
-      recorded = null
-    }
-    if (recorded !== digestOf(current)) {
-      const why = recorded === null ? `has no ${SIDECAR_SUFFIX} digest sidecar` : `differs from its ${SIDECAR_SUFFIX} digest sidecar (a hand-applied stage?)`
-      process.stderr.write(`stage-workflow: --force refused: existing staged file ${stagedPath} ${why} — nothing written; re-run with ${DISCARD_FLAG} to overwrite it and lose any injected stage\n`)
-      process.exit(1)
+    const pair = [['staged file', stagedPath], ...(fs.existsSync(siblingPath) ? [['args sibling', siblingPath]] : [])]
+    for (const [kind, p] of pair) {
+      let current
+      try {
+        current = fs.readFileSync(p)
+      } catch (err) {
+        process.stderr.write(`stage-workflow: cannot read existing ${kind} ${p}: ${(err && err.message) || err}\n`)
+        process.exit(1)
+      }
+      let recorded = null
+      try {
+        recorded = fs.readFileSync(p + SIDECAR_SUFFIX, 'utf8').trim()
+      } catch {
+        recorded = null
+      }
+      if (recorded !== digestOf(current)) {
+        const why = recorded === null ? `has no ${SIDECAR_SUFFIX} digest sidecar` : `differs from its ${SIDECAR_SUFFIX} digest sidecar (a hand-applied stage?)`
+        process.stderr.write(`stage-workflow: --force refused: existing ${kind} ${p} ${why} — nothing written; re-run with ${DISCARD_FLAG} to overwrite it and lose any injected stage\n`)
+        process.exit(1)
+      }
     }
   }
 
@@ -412,18 +469,18 @@ function main(argv) {
   let staged
   let strippedBytes = 0
   try {
-    // Step (0): strip the full-line code comments and the top-level indent FIRST, so the prelude's
-    // own comment line (step 3) and every substituted literal survive untouched.
+    // Step (0): strip the full-line code comments and the top-level indent FIRST, so the loader line
+    // (step 3) and every substituted literal survive untouched.
     staged = stripFullLineComments(template)
     strippedBytes = Buffer.byteLength(staged, 'utf8')
     staged = replaceExactlyOnce(staged, NAME_ANCHOR, `name: '${deriveName(planSlug, phaseId, campaignOrdinal)}'`, 'name')
     staged = replaceExactlyOnce(staged, DESCRIPTION_ANCHOR, deriveDescription(planSlug, phaseId, campaignOrdinal), 'description')
-    // Steps (2)+(3), --args only: rewrite the fallback tail, THEN inject the payload. Without the
+    // Steps (2)+(3), --args only: rewrite the fallback tail, THEN insert the loader. Without the
     // flag neither runs: the staged copy is the comment- and indent-stripped substitution with no
-    // prelude and no fallback rewrite.
+    // loader and no fallback rewrite, and no args sibling is written.
     if (embedded !== null) {
-      staged = replaceExactlyOnce(staged, ARGS_FALLBACK_ANCHOR, ': (args || EMBEDDED_ARGS)', 'args fallback')
-      staged = insertArgsPrelude(staged, embedded)
+      staged = replaceExactlyOnce(staged, ARGS_FALLBACK_ANCHOR, argsFallbackRewrite(siblingPath), 'args fallback')
+      staged = insertArgsPrelude(staged, siblingPath)
     }
   } catch (err) {
     process.stderr.write((err && err.message ? err.message : String(err)) + '\n')
@@ -431,18 +488,28 @@ function main(argv) {
   }
 
   // Size floor (#2099): the Workflow tool refuses a scriptPath over SCRIPT_BYTE_CAP bytes, before
-  // entry validation — so refuse HERE, with the two contributing sizes named as what they are (the
-  // stripped template measured before substitution; the args payload alone — the remainder is the
-  // substitution and prelude overhead), and write nothing. `bytes` is the UTF-8 length, which is what
-  // writeFileSync writes, statSync reports on reuse, and the tool measures off disk.
+  // entry validation — so refuse HERE, naming the stripped template measured before substitution
+  // (the remainder is the substitution and loader overhead), and write nothing. The args sibling is
+  // its own scriptPath, so it is held to the same cap (D38), naming the args JSON size. `bytes` is the
+  // UTF-8 length, which is what writeFileSync writes, statSync reports on reuse, and the tool
+  // measures off disk.
   const bytes = Buffer.byteLength(staged, 'utf8')
   if (bytes > SCRIPT_BYTE_CAP) {
-    const argsBytes = embedded === null ? 0 : Buffer.byteLength(JSON.stringify(embedded), 'utf8')
-    process.stderr.write(`stage-workflow: staged script would be ${bytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap (stripped template ${strippedBytes} bytes; embedded args ${argsBytes} bytes; the rest is substitution and prelude overhead) — nothing written; slim the --args payload, or the template's code\n`)
+    process.stderr.write(`stage-workflow: staged script would be ${bytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap (stripped template ${strippedBytes} bytes; the rest is substitution and loader overhead) — nothing written; slim the template's code\n`)
+    process.exit(1)
+  }
+  const sibling = embedded === null ? null : argsSiblingText(deriveName(planSlug, phaseId, campaignOrdinal), embedded)
+  const siblingBytes = sibling === null ? 0 : Buffer.byteLength(sibling, 'utf8')
+  if (siblingBytes > SCRIPT_BYTE_CAP) {
+    process.stderr.write(`stage-workflow: args sibling script would be ${siblingBytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap (args JSON ${Buffer.byteLength(JSON.stringify(embedded), 'utf8')} bytes) — nothing written; slim the --args payload\n`)
     process.exit(1)
   }
 
   fs.mkdirSync(stagedDir, { recursive: true })
+  if (sibling !== null) {
+    fs.writeFileSync(siblingPath, sibling)
+    fs.writeFileSync(siblingPath + SIDECAR_SUFFIX, digestOf(Buffer.from(sibling, 'utf8')) + '\n')
+  }
   fs.writeFileSync(stagedPath, staged)
   fs.writeFileSync(stagedPath + SIDECAR_SUFFIX, digestOf(Buffer.from(staged, 'utf8')) + '\n')
   process.stdout.write(stagedPath + '\n')
