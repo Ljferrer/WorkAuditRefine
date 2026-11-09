@@ -563,7 +563,7 @@ expect_allow "P15: work-audit-refine:war-evidence-auditor git grep -F -e token �
 
 # P16-P27: default-deny by token shape for the rest of the grep option space.
 expect_deny_teach "P16: git grep -F token → denied (pattern must ride -e)" \
-  "$(auditor_cmd "git grep -F token")" "git grep admits one form only"
+  "$(auditor_cmd "git grep -F token")" "at least one -e <token> is required"
 
 # P17 flipped to an allow at ADR 0029's Amendment 2026-11-08: several -e are admitted (GF3).
 expect_allow "P17: git grep -F -e a -e b → allowed (several -e, ADR 0029 Amendment 2026-11-08)" \
@@ -1372,9 +1372,9 @@ expect_deny_teach "GF26: git grep -F -A3x -e foo → denied (-A<n> takes digits 
 expect_deny_teach "GF27: git grep -F -e foo -A → denied (dangling count)" \
   "$(q_cmd "git grep -F -e foo -A")" "has no <n>"
 expect_deny_teach "GF28: git grep -F -nA 3 -e foo → denied (a count flag rides no cluster)" \
-  "$(q_cmd "git grep -F -nA 3 -e foo")" "carries -A"
+  "$(q_cmd "git grep -F -nA 3 -e foo")" "a context count is its own token"
 expect_deny_teach "GF29: git grep -E foo → denied (the pattern must ride -e)" \
-  "$(q_cmd "git grep -E foo")" "git grep admits one form only"
+  "$(q_cmd "git grep -E foo")" "at least one -e <token> is required"
 # A dash-led quoted value is data only as the value of a real -e. Here the
 # first -e consumes the second as its pattern, so git would read '-O vim' as
 # an option; the guard sees it in the revision position and denies.

@@ -283,5 +283,5 @@ and no write opens.
 
 The live flag list is the `grep_deny` helper in `hooks/validate-auditor-git.sh`; group GF of
 `hooks/validate-auditor-git.test.sh` pins each admitted and denied form, and runs every admitted
-form under real git. The audit tree fingerprint hook stays the compensating control. Every line
-above this amendment stands as ratified and is left byte-unchanged.
+form under real git. The audit tree fingerprint hook stays the compensating control. Every ratified
+line above this amendment stands and is left byte-unchanged; the Decision log gains one row.
