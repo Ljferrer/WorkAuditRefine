@@ -2770,8 +2770,10 @@ test('L3 T2 Test 2 — blocked initial-worker behavior preserved: escalate with 
   const { out: outB } = await runPhase(L3_ARGS(), implNull)
   const escB = (outB.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(escB, 'null initial worker must surface an escalated entry')
-  assert.equal(escB.reason, 'escalate', 'escalation reason must be "escalate" for null worker')
-  assert.equal(escB.blocked, 'worker returned no result', 'null worker escalation must carry the default reason')
+  // #2555 D11: a resolved null at the implementation site is env-died (SOFT), labeled with the site,
+  // never the HARD 'worker returned no result'.
+  assert.equal(escB.reason, 'env-died', 'a null initial worker classifies env-died')
+  assert.equal(escB.blocked, 'work:t1 dispatch resolved null (env-died)', 'the null worker record carries the site-labeled env-died reason')
 })
 
 test('Task 3 — default-off (ace-off-route, D14): run.ace unset ⇒ no ace dispatch; an absorb nit routes phaseClose:true to the sweep (no default roster ⇒ the sweep-skipped drain demotes it), aced empty', async () => {
@@ -8841,6 +8843,9 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const landP = (calls.find(c => (c.opts.label || '') === 'land:phase-3') || {}).prompt
   assert.ok(landP, 'the initial land prompt dispatched (presence guard, Task 5.1 rows)')
   const workerP = (calls.find(isWorker) || {}).prompt
+  // #2671 D28: the dep-wave worker (work:t2 declares deps) carries depClause's LEASE_DENIED_RULE.
+  const depWorkerP = (calls.find(c => isWorker(c) && c.opts.label === 'work:t2') || {}).prompt
+  assert.ok(depWorkerP && depWorkerP.includes('DEPS ALREADY MERGED'), 'the dep-wave worker prompt dispatched (presence guard, push-denied row)')
   const auditP = (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
   const servitorP = (calls.find(isServitor) || {}).prompt
   // Fix-round doctrine (#2097): the FIX_NEEDED fix prompt is only emitted on a blocking finding — drive
@@ -8968,8 +8973,10 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
                  ['inline gate-audit execution-evidence seat (src)', gateAuditExecSrc],
                  ['inline gate-audit end-state seat (src)', gateAuditEndStateSrc]],
       anchors: [/finding-less/i, /HARD hold/i] },
+    // The standing copy moved byte-identical to worker-servitor-edges.md § Comment hygiene (plan
+    // 2026-11-08-engine-recovery-relaunch-and-land T3.1, ADR 0042); the card keeps the trigger pointer.
     { name: 'comment-lag directive (D9, worker prompt)',
-      surfaces: [['war-worker.md', workerMd], ['worker prompt', workerP]],
+      surfaces: [['worker-servitor-edges.md § Comment hygiene', edgesMd], ['worker prompt', workerP]],
       anchors: [/comment/i, /lag/i, /retired/i] },
     // Task 1.4 (capture grounding): the servitor finding-match clause lives in D3 on the standing card AND
     // in the D3 block of the memClause-built Wrap-up prompt — both must carry it (spec criterion 7).
@@ -9326,8 +9333,13 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'WORKER_WRITE_TOOL_RULE (PIN-9, PIN-10): Edit/Write only, .war/ scratch, stop on a denial — worker card § Write tools + worker prompt',
       surfaces: [['war-worker.md', workerMd], ['worker prompt', workerP]],
       anchors: [/Change file content only with Edit or Write/, /<worktree>\/\.war\//, /[Ii]f Edit or Write is denied/, /Write tools/, /blocked/] },
+    // #2671 D28 (PIN-28): the host-denied lease push stop rule — LEASE_DENIED_RULE in depClause and its
+    // card twin in § Dep-wave rebase + force-with-lease carve-out. `push_denied:` counted 0 on both at base.
+    { name: 'push-denied (#2671, D28): lease-denial stop rule — worker card carve-out section + dep-wave worker prompt',
+      surfaces: [['war-worker.md', workerMd], ['dep-wave worker prompt', depWorkerP]],
+      anchors: [/If the host denies the lease push \(a permission or classifier denial, not a git rejection\), stop/, /blocked_reason starting `push_denied:`/, /never retry the push, never a plain `--force`, never another ref/] },
   ]
-  assert.ok(REGISTRY.length >= 44, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) + the four plan 2026-11-08 T1.6 prompt-prefix rows (AUTHORITY_LINE, TOOL ORDER, HOST_TURN_TOOL_LINE, WORKER_WRITE_TOOL_RULE) ')
+  assert.ok(REGISTRY.length >= 45, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) + the four plan 2026-11-08 T1.6 prompt-prefix rows (AUTHORITY_LINE, TOOL ORDER, HOST_TURN_TOOL_LINE, WORKER_WRITE_TOOL_RULE) ')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -9858,15 +9870,172 @@ test('both-surfaces (criterion 14): the stale-prior-attempt push-handoff sentenc
   // The sentence rides depClause (adjacent to FORCE_WITH_LEASE_RULE), so it is on a deps-bearing worker (work:t2).
   const w2 = calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:t2')
   assert.ok(w2, 'the deps-bearing worker was dispatched (presence guard)')
+  // #2646 D8 narrowed the sentence (SKILL §3 rule 6): the old unconditional run is asserted ABSENT on
+  // both surfaces, and the narrowed sentence present (the `stale-prior-attempt (#2646)` fixture holds
+  // its delete-the-feature proof).
   const FRAG = 'the remote task branch was never merged and shares only an older base is a stale prior attempt'
+  const NARROWED = 'is a stale prior attempt only when `git merge-base --is-ancestor origin/<branch> <pre-rebase HEAD>` exits 1'
   const surfaces = [['war-worker.md', workerMd], ['dispatched dep-clause worker prompt', w2.prompt]]
   for (const [name, text] of surfaces) {
-    assert.ok(text.includes(FRAG), `${name} carries the stale-prior-attempt sentence`)
-    assert.ok(!text.split(FRAG).join('REMOVED').includes(FRAG), `${name}: deleting the sentence reds the anchor (non-vacuous)`)
+    assert.ok(!text.includes(FRAG) && !/older base is a stale prior attempt/i.test(text), `${name} no longer carries the old unconditional stale-prior-attempt run`)
+    assert.ok(text.includes(NARROWED), `${name} carries the narrowed stale-prior-attempt sentence`)
   }
   // FORCE_WITH_LEASE_RULE stays byte-identical (its own byte-compare test is untouched) — the stale sentence is ADJACENT, not a rewrite.
   const RULE = 'You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason.'
   assert.ok(w2.prompt.includes(RULE), 'the force-with-lease rule stays byte-identical adjacent to the new sentence')
+})
+
+// ---- plan 2026-11-08-engine-recovery-relaunch-and-land Task 3.1: worker surfaces ----
+const depWaveWorkerPrompt = async () => {
+  const w2 = (await runPhase(PROVISION_ARGS(), defaultImpl)).calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:t2')
+  assert.ok(w2 && w2.prompt.includes('DEPS ALREADY MERGED'), 'the deps-bearing worker was dispatched with depClause (presence guard)')
+  return w2.prompt
+}
+const constLiteral = name => { const m = src.match(new RegExp('^const ' + name + " = '([^']+)'$", 'm')); assert.ok(m, name + ' is one single-quoted literal'); return m[1] }
+
+test('stale-prior-attempt (#2646): the narrowed sentence (ancestry test + pre-rebase rev-parse read) is on the card and the dep-wave prompt; delete-the-feature per surface', async () => {
+  const RULE = constLiteral('STALE_PRIOR_ATTEMPT_RULE')
+  const ANCHORS = ['git merge-base --is-ancestor origin/<branch> <pre-rebase HEAD>` exits 1',
+    'the SHA you recorded with `git rev-parse HEAD` before the rebase (`ORIG_HEAD` right after it)']
+  for (const a of ANCHORS) assert.ok(RULE.includes(a), 'the engine const carries ' + a)
+  for (const [name, text] of [['war-worker.md', workerMd], ['dispatched dep-wave worker prompt', await depWaveWorkerPrompt()]]) {
+    assert.ok(text.includes(RULE), name + ' carries the narrowed sentence byte-identical to STALE_PRIOR_ATTEMPT_RULE')
+    assert.ok(!/older base is a stale prior attempt/i.test(text), name + ': the old unconditional run is gone')
+    const deleted = text.split(RULE).join('')
+    for (const a of ANCHORS) assert.ok(!deleted.includes(a), name + ': deleting the sentence reds the anchor ' + a + ' (non-vacuous)')
+  }
+})
+
+test('commit-message read (#2494): both surfaces forbid reading a commit message from outside the task worktree', async () => {
+  const RULE = constLiteral('COMMIT_MESSAGE_READ_RULE')
+  assert.match(RULE, /scratchpad or any path outside your own task worktree/)
+  const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl())
+  const workers = calls.filter(c => seatOf(c.opts) === 'war-worker')
+  assert.ok(workers.some(isWorker) && workers.some(c => /^fix:/.test(c.opts.label || '')), 'an implementation and a fix worker dispatched (presence guard)')
+  for (const [name, text] of [['war-worker.md § Write tools', (workerMd.split('## Write tools')[1] || '').split('\n## ')[0]], ...workers.map(c => [c.opts.label + ' prompt', c.prompt])]) {
+    assert.ok(text.includes(RULE), name + ' carries the commit-message read rule')
+    assert.ok(!text.split(RULE).join('').includes('scratchpad or any path outside your own task worktree'), name + ': deleting the sentence reds the anchor (non-vacuous)')
+  }
+  const others = calls.filter(c => seatOf(c.opts) !== 'war-worker')
+  assert.ok(others.length > 0 && others.every(c => !c.prompt.includes(RULE)), 'the rule rides worker prompts only')
+})
+
+test('push-denied (#2671): both surfaces carry the LEASE_DENIED_RULE stop rule with push_denied:, and FORCE_WITH_LEASE_RULE stays byte-identical', async () => {
+  const RULE = constLiteral('LEASE_DENIED_RULE')
+  assert.ok(RULE.includes('blocked_reason starting `push_denied:`'), 'the const names the push_denied: prefix')
+  const depP = await depWaveWorkerPrompt()
+  const LEASE = 'You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason.'
+  assert.equal(constLiteral('FORCE_WITH_LEASE_RULE'), LEASE, 'FORCE_WITH_LEASE_RULE is byte-identical (PIN-26)')
+  assert.ok(depP.includes(LEASE + ' ' + constLiteral('STALE_PRIOR_ATTEMPT_RULE') + ' ' + RULE), 'depClause carries the lease rule, then the stale-prior-attempt sentence, then the lease-denied rule')
+  const section = (workerMd.split('## Dep-wave rebase + force-with-lease carve-out')[1] || '').split('\n## ')[0]
+  assert.ok(section.includes(constLiteral('STALE_PRIOR_ATTEMPT_RULE') + ' ' + RULE), 'the card carve-out section carries the rule right after the stale-prior-attempt sentence')
+  for (const [name, text] of [['war-worker.md carve-out section', section], ['dispatched dep-wave worker prompt', depP]]) {
+    assert.ok(text.includes('push_denied:'), name + ' names the push_denied: prefix')
+    assert.ok(!text.split(RULE).join('').includes('push_denied:'), name + ': deleting the sentence reds the anchor (non-vacuous)')
+  }
+  // No engine read of the prefix (A35): push_denied: appears only inside the const.
+  assert.equal(src.split('\n').filter(l => !/^\s*\/\//.test(l) && l.includes('push_denied')).length, 2, 'only LEASE_DENIED_RULE and the floorFixHead lease line name push_denied (no engine read)')
+})
+
+// #2555 D11: a resolved null at the implementation site.
+const implNullImpl = (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-worker' && opts.phase === 'Work') return null
+  return defaultImpl(prompt, opts)
+}
+const IMPL_NULL_LINE = "      const implNull = nullDied(impl, 'work:' + task.id); if (implNull) return { task, verdict: 'env-died', seats: [], expected: 0, blocked: implNull }\n"
+test('worker-site null (#2555): implementation null is env-died', async () => {
+  const { out, logs } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), implNullImpl)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'env-died')
+  assert.ok(esc, 'the null worker escalates env-died (SOFT), never HARD escalate')
+  assert.equal(esc.blocked, 'work:t1 dispatch resolved null (env-died)', 'the reason names the site label')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('work:t1 dispatch resolved null (env-died)')), 'the null is logged at the site')
+  assert.ok(!(out.escalated || []).some(e => e && e.blocked === 'worker returned no result'), 'never the HARD-sounding generic reason')
+  assert.notEqual(out.landDecision, 'held:escalation', 'a SOFT env-died never holds the phase on a hard escalation')
+})
+test('worker-site null (#2555): control — removing the nullDied route reds the env-died read', async () => {
+  assert.ok(src.includes(IMPL_NULL_LINE), 'the mutation target is the live implementation null route')
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), implNullImpl, {}, src.replace(IMPL_NULL_LINE, ''))
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 'the mutant still escalates the task (presence guard)')
+  assert.equal(esc.reason, 'escalate', 'without the route the null reads HARD escalate')
+  assert.equal(esc.blocked, 'worker returned no result', 'without the route the null reads the generic reason')
+  // The sibling worker sites route through nullDied too (fix round, floor fix, late fix, wave-side ace).
+  for (const site of ["nullDied(fix, 'fix:' + task.id + ':r' + (round + 1))", 'nullDied(floorFix, ', "nullDied(w, 'late-fix:' + lfOriginId + ':r' + lfRound)", "nullDied(ace, aceLabel(r, 'polish'))"]) {
+    assert.ok(src.includes(site), 'the worker site routes a resolved null through nullDied: ' + site)
+  }
+})
+
+test('INFRA_DEATH_RE (#2328): the bounded auth and DNS phrases classify a tagged throw env-died; decoys and an untagged engine throw stay HARD', async () => {
+  const tagged = msg => (prompt, opts) => {
+    if (seatOf(opts) === 'war-worker' && opts.phase === 'Work') throw new Error(msg)
+    return defaultImpl(prompt, opts)
+  }
+  const escOf = async msg => ((await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), tagged(msg))).out.escalated || []).find(e => e && e.task === 't1')
+  for (const msg of ['Your organization has disabled Claude subscription access for Claude Code. Please contact your administrator.',
+    'Failed to authenticate. API Error: 401 OAuth access token has expired.',
+    'getaddrinfo ENOTFOUND api.anthropic.com']) {
+    const esc = await escOf(msg)
+    assert.ok(esc, 'presence guard: ' + msg)
+    assert.equal(esc.reason, 'env-died', 'a tagged infra throw classifies env-died: ' + msg)
+    assert.equal(esc.blocked, 'worker died: ' + msg, 'the harness cause propagates verbatim')
+  }
+  for (const msg of ['sha 4019abc', 'task t401 failed', 'refactor oauth module title']) {
+    const esc = await escOf(msg)
+    assert.ok(esc, 'presence guard: ' + msg)
+    assert.equal(esc.reason, 'escalate', 'a tagged decoy throw stays HARD: ' + msg)
+  }
+  // Guardrail (green at base by the structural scope): an untagged engine throw embedding a new term
+  // from the task title stays HARD.
+  const term = 'getaddrinfo ENOTFOUND oauth access token'
+  const args = PROVISION_ARGS({ tasks: [{ id: 'tQ', issue: 1, title: term, planSlice: 's', roster: [{ lens: 'correctness' }] }] })
+  const { out } = await runPhase(args, (prompt, opts) => (seatOf(opts) === 'war-worker' && opts.phase === 'Work')
+    ? { task_id: 'tQ', status: 'implemented', head_sha: 'abc0000', tests: {}, files_changed: ['/opt/elsewhere/' + term.replace(/ /g, '-') + '.txt'] }
+    : defaultImpl(prompt, opts))
+  const esc = (out.escalated || []).find(e => e && e.task === 'tQ')
+  assert.ok(esc && /getaddrinfo/i.test(String(esc.blocked)), 'non-vacuity: the HARD message carries a new INFRA_DEATH_RE term')
+  assert.equal(esc.reason, 'escalate', 'an untagged engine throw stays HARD whatever its text')
+})
+
+test('worker head_sha (#2703): schema pattern — WORKER_RESULT.head_sha accepts 40 hex and rejects 39', () => {
+  const lit = src.match(/^const WORKER_RESULT = \{[^]*?blocked_reason: \{ type: 'string' \} \} \}\n/m)
+  assert.ok(lit, 'WORKER_RESULT is locatable in the template source')
+  const WORKER_RESULT = new Function(runForm(lit[0] + '\nreturn WORKER_RESULT'))()
+  const pattern = WORKER_RESULT.properties.head_sha.pattern
+  assert.equal(pattern, '^[0-9a-f]{40}$', 'head_sha carries the 40-hex pattern')
+  assert.ok(new RegExp(pattern).test('a'.repeat(40)), '40 hex is accepted')
+  assert.ok(!new RegExp(pattern).test('a'.repeat(39)), '39 hex is rejected')
+  assert.ok(!WORKER_RESULT.required.includes('head_sha'), 'the field stays optional (a blocked worker with no commit is unaffected)')
+})
+
+test('worker head_sha (#2703): worker-pin-only mismatch repairs without a re-audit', async () => {
+  const tip = 'c'.repeat(40)
+  let panels = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+    if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: tip.slice(0, 39) }
+    if ((o.label || '').startsWith('audit:t1:')) { panels++; return { seat: o.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: tip } }
+    return defaultImpl(p, o)
+  }, { rawTaskAuditPins: true, 'audit-pin': p => ({ head_sha: tip, pins: JSON.parse(p.match(/PIN REQUEST: ([^\n]+)/)[1]).map(s => s === tip ? tip : null) }) })
+  assert.equal(panels, 1, 'exactly one panel dispatch: the seat already judged the Git head')
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 1, 'one Git pin resolution')
+  const repaired = out.auditLog.find(r => r.task === 't1' && r.verdict === 'pin-repaired:worker')
+  assert.ok(repaired && repaired.headSha === tip, 'a pin-repaired:worker row names the Git head')
+  assert.ok(!out.auditLog.some(r => r.verdict === 'pin-mismatch:reconcile'), 'no pin-mismatch:reconcile row')
+  assert.ok(out.landed.includes('t1'), 'the approved verdict stands at the repaired pin and the task lands')
+})
+
+test('merge-slot lease (#2750): floorFixHead names the dispatch-rebase carve-out', async () => {
+  const LINE = 'A merge-slot rebase may have moved your task branch off its pushed remote: that rebase counts as a dispatch-rebase for the force-with-lease carve-out'
+  const run = source => runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), floorRetryImpl(), {}, source)
+  const fix = (await run(src)).calls.find(isAddTestWorker)
+  assert.ok(fix, 'the add-test floor-fix worker dispatched (presence guard)')
+  assert.ok(fix.prompt.includes(LINE) && fix.prompt.includes('push_denied:'), 'the floor-fix prompt names the carve-out and the push_denied: route')
+  const constHit = src.split('\n').filter(l => l.includes(LINE))
+  assert.equal(constHit.length, 1, 'the sentence has one engine home (floorFixHead), shared by the four floor prompts')
+  // Delete-the-feature: without the line the floor-fix prompt says nothing about the lease.
+  const mutant = (await run(src.replace(constHit[0] + '\n', ''))).calls.find(isAddTestWorker)
+  assert.ok(mutant && !mutant.prompt.includes('dispatch-rebase'), 'the mutant floor-fix prompt omits the carve-out (red without the feature)')
+  assert.equal(constLiteral('FORCE_WITH_LEASE_RULE'), 'You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason.', 'FORCE_WITH_LEASE_RULE stays byte-identical (PIN-26)')
 })
 
 test('both-surfaces (criterion/end-state 22): the STALE_REMOTE classify-and-continue carve-out is on agents/war-refiner.md AND the dispatched barrier prompt; delete-the-feature per surface', async () => {
