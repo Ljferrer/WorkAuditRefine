@@ -51,6 +51,7 @@ import {
   RANGE_TIP,
   mergeRangeRevert,
   ACE_FILE,
+  unprefixed,
 } from './workflow-template.test-harness.mjs'
 
 const labelOf = c => c.opts.label || ''
@@ -152,7 +153,7 @@ test('late-defect: ace base — a backgrounded base gate re-dispatches on the se
   assert.deepEqual(base.map(labelOf), ['ace-base-gate:t1', 'ace-base-gate:t1:segment-2'], 'one bounded re-dispatch, labelled with its segment')
   assert.ok(base[0].prompt.includes("Return { gate_green: false, gate_segment: 'incomplete', gate_log_path: '<the path>', segment_note: '<the step you reached>' }") && /run_in_background/.test(base[0].prompt), 'the base prompt carries the background rule and its return pair')
   assert.match(base[0].prompt, /mktemp -d "[^"]*\/\.war\/gate-ace-base-t1\.[^"]*-1\.XXXXXX"/, 'and its own gate capture key')
-  assert.ok(base[1].prompt.startsWith('SEGMENTED-GATE CONTINUATION (ace-base-gate:t1)') && base[1].prompt.includes(base[0].prompt), 'the continuation carries the full base prompt')
+  assert.ok(unprefixed(base[1].prompt).startsWith('SEGMENTED-GATE CONTINUATION (ace-base-gate:t1)') && base[1].prompt.includes(unprefixed(base[0].prompt)), 'the continuation carries the full base prompt')
   assert.ok(logged(logs, 'ace-base-gate:t1: segmented gate (docker build at layer 4)'), 'the segment note is logged')
   // The throwaway worktree outlives a backgrounded base gate: the first prompt asks for its path in
   // segment_note, the shared continuation threads that note, and the base check's own body owns the
@@ -170,7 +171,7 @@ test('late-defect: ace base — a backgrounded base gate re-dispatches on the se
   const aceCont = async source => (await runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': baseSeq(ACE_SEGMENT, aceRed([DOCKER])), 'ace-base-gate': baseRed([DOCKER]) }, source))
     .calls.find(c => labelOf(c) === 'ace-gate:t1:a1:segment-2')
   const cont = await aceCont()
-  assert.ok(cont && cont.prompt.startsWith('SEGMENTED-GATE CONTINUATION (ace-gate:t1:a1)') && cont.prompt.includes('Prior segment_note: pytest at 13% in the task worktree.\n'), 'the ace gate continuation threads its prior note')
+  assert.ok(cont && unprefixed(cont.prompt).startsWith('SEGMENTED-GATE CONTINUATION (ace-gate:t1:a1)') && cont.prompt.includes('Prior segment_note: pytest at 13% in the task worktree.\n'), 'the ace gate continuation threads its prior note')
   assert.deepEqual(removalIn(cont.prompt), [], 'the ace gate continuation carries no worktree removal or reuse order')
   // Red at base: put the reuse and removal clause back in the shared continuation and the oracle sees it.
   const shared = "Prior segment_note: ${prior.segment_note || 'none'}.\\n` + body,"

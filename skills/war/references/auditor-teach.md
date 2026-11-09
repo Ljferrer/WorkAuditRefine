@@ -1,4 +1,4 @@
-# Auditor teach — guard-contract mirror architecture, submodule / gitlink-bump pre-flight arms, widening nomination details
+# Auditor teach — guard-contract mirror architecture, domain and reserved lenses, submodule / gitlink-bump pre-flight arms, widening nomination details
 
 Verbatim evictions from `agents/war-auditor.md` (prompt-surface simplification, spec §4.3; each
 moved block was byte-identical to its pre-eviction card text at eviction time — the Gitlink-bump
@@ -35,6 +35,21 @@ every regex selector deny) is enforced by the hook's per-token grep loop and pin
 The optional-flag list (-n -i -l -w -c) has the same extraction-equality arbiter as the branch
 flags: the `D6 — grep flag enumeration` test in `skills/war/assets/workflow-template.engine-1.test.mjs`
 reads the hook's grep deny string and asserts each flag onto both prompt mirrors.
+
+Note (2026-11-08, plan 2026-11-08-auditor-and-worker-guard-habits, ADR 0029 Amendment 2026-11-08):
+the grep grammar above is widened. The guard now admits several `-e <token>`, the context counts
+`-A <n>`, `-B <n>`, `-C <n>` (and `-A<n>`), and `-F` or `-E` as the one selector. `-P`, `-f`, `-O`,
+`--no-index` and `--recurse-submodules` still deny. The live list is the `grep_deny` string in
+`hooks/validate-auditor-git.sh`; the same D6 test also reads its selector and context-count clauses
+onto both prompt mirrors.
+
+## Domain and reserved lenses
+
+Trigger: your lens is a domain lens (minted per run) or a reserved one (`execution-evidence`,
+`pin-validity`). Evicted byte-identical from the card's `## Review through your lens` section on
+2026-11-08 (plan 2026-11-08-auditor-and-worker-guard-habits T1.6, an ADR 0042 headroom eviction).
+
+Domain lenses (clinical safety, auth/PHI, etc.) are minted per run — see the open-namespace note under Inputs. `execution-evidence` and `pin-validity` are reserved for their built-in passes: `pin-validity`'s instructions are routed by the Submodule pre-flight above (arm bodies: [auditor-teach.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/auditor-teach.md)), and the `execution-evidence` gate-audit duties are the named checklist below — its body lives in `gate-audit-checklist.md` behind the heading's trigger pointer (the per-pass spawn prompt threads only the run-specific tokens — the stamped `pin_status`, the gate-log artifact path, the guard-specificity token — onto these standing duties).
 
 ## Widening nomination details
 
