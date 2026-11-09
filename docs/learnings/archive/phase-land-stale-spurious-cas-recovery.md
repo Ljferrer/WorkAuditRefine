@@ -37,7 +37,7 @@ coven. Instead:
 1. **Ground-truth check**: `git fetch origin && git rev-list --left-right --count dev/<plan>...origin/dev/<plan>` — `0 0` means the integration base is clean and origin never moved.
 2. **Gate re-verify on the integration tip**: run ALL gate runners (`node --test` + every `*.test.sh`) on `integration/<plan>/<phase>`, not the task branch alone.
 3. **Manual land**: `git checkout dev/<plan> && git merge --no-ff integration/<plan>/<phase>`, then push-first CAS: `git push origin HEAD:refs/heads/dev/<plan>`. A clean push (no `[rejected]`) confirms origin was not ahead.
-4. **Wrap up manually**: on `land_stale` the Workflow leaves `servitorResult: null` — the servitor is never spawned automatically. The Lead must spawn it explicitly after the manual land, passing the phase context directly. Add this to phase-wrap checklists for any run that reaches a land-phase `land_stale`.
+4. **Wrap up manually, only when `servitorResult` is null** (SUPERSEDED in part by #2702): since #2702 the in-flow Wrap-up also runs on `held:land-failed` when `memoryLocalRoot` was threaded, so a land-phase `land_stale` usually returns a populated `servitorResult`, and the Lead spawns no second servitor. Only when the return carries `servitorResult: null` (no `memoryLocalRoot`, or a dead servitor dispatch) does the Lead spawn it after the manual land, passing the phase context directly.
 
 ## Rule
 
