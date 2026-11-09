@@ -126,6 +126,8 @@ run() {
   OUT="$(printf '%s' "$1" | bash "$HOOK" 2>"$TMP/err")"; RC=$?
   ERR="$(cat "$TMP/err")"
 }
+# reason_of: the escalate_reason of the last run's updatedInput.
+reason_of() { printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null; }
 
 # --- other agent types pass through -----------------------------------------
 run "$(mk_start 'work-audit-refine:war-worker' w1)"
@@ -1819,6 +1821,13 @@ if [ "$RC" = 0 ] && [ "$EL" -lt "$SHIM_CAP" ] && touched_has bd5 '!deadline pass
 else
   fail "BD5: a blocked check-ignore was not killed or left no mark (rc=$RC el=${EL}s touched=|$(cat "$FP_ROOT/bd5/touched" 2>/dev/null)| err=|$ERR|)"
 fi
+# BD5v: the verdict names the Grep deadline mark's own cause (mark_cause).
+run "$(mk_verdict "$AUD" bd5)"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (deadline passed on a Grep call)' ]; then
+  pass "BD5v: the verdict on the Grep deadline mark names its cause"
+else
+  fail "BD5v: the Grep deadline mark's verdict reason is |$(reason_of)|"
+fi
 # BD6 and BD7: a blocked common-dir probe leaves MAIN empty, fail-open.
 shim_get bd6
 if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$EL" -lt "$SHIM_CAP" ] && [ ! -e "$FP_ROOT/bd6" ]; then
@@ -1899,8 +1908,6 @@ if [ "$_rc" = 0 ] && [ -z "$_out" ]; then pass "jq missing on a worker payload w
 rm -rf "$SHIM"
 
 # --- Bash records after the call runs (#2477) --------------------------------
-# reason_of: the escalate_reason of the last run's updatedInput.
-reason_of() { printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null; }
 # The host fires neither post event for a call a hook denied, so a denied
 # ~<name> grep reaches the hook on PreToolUse alone. The token sits in the pathspec:
 # since #2604 an `-e` pattern value records nothing on any event.
@@ -2511,6 +2518,20 @@ if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ -d "$PRT/leadprobeA" ]; then
 else
   fail "PR6: --prune usage errors (no name rc=$_r1, no repo rc=$RC)"
 fi
+# A symlinked record tree (the tree, or .claude/war above it) exits 2 and
+# leaves the old directory in the link target.
+PRL="$TMP/prl"; mkdir -p "$PRL/olddir"; printf 'x\n' > "$PRL/olddir/f"; touch -t "$_old" "$PRL/olddir/f"
+rm -rf "$PRT"; ln -s "$PRL" "$PRT"
+prune --prune --stale
+_r1="$RC"
+rm -f "$PRT"; mv "$PRM/.claude/war" "$PRM/.claude/warreal"; ln -s "$PRM/.claude/warreal" "$PRM/.claude/war"; ln -s "$PRL" "$PRM/.claude/warreal/audit-fingerprints"
+prune --prune --stale
+if [ "$_r1" = 2 ] && [ "$RC" = 2 ] && [ -d "$PRL/olddir" ]; then
+  pass "PR7: --prune --stale on a symlinked record tree exits 2 and removes nothing in the link target"
+else
+  fail "PR7: symlinked record tree (tree rc=$_r1, parent rc=$RC olddir=$([ -d "$PRL/olddir" ] && echo present || echo absent) err=|$ERR|)"
+fi
+rm -rf "$PRL"
 rm -rf "$PRM"
 
 # --- registration + conventions ---------------------------------------------
