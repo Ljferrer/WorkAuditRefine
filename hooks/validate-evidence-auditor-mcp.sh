@@ -18,6 +18,9 @@
 #                                         an evidence dir; DENY anything else.
 #     - every other agent_type (the main session with no agent_type, any
 #       non-WAR agent)                   : pass-through, exit 0.
+#   In the four seat arms a host turn tool (`mcp__ccd_turn__*`) is denied
+#   with its own text (PIN-23), and the war-worker REA-allowlist deny names
+#   the worker MCP limit (PIN-14).
 #
 # MEMORY TOOL (plan 2026-10-27-memory-query-mcp-tool; PIN-4, PIN-8, PIN-10)
 #   This file OWNS the full tool-name literal of the plugin's memory query
@@ -32,7 +35,9 @@
 #   string that starts with `/` (an absolute path; the glob's leading `*`
 #   would otherwise admit `x/.claude/projects/s/memory`), carries no `..`
 #   segment, and matches `*/.claude/projects/*/memory` (a trailing `/`
-#   tolerated), else DENY. The value itself must match: a path beneath the
+#   tolerated), else DENY. The three checks read the norm_path form of the
+#   value, so a Windows-form `C:\...\memory` passes and a backslash `..`
+#   is denied (PIN-13, PIN-20). The value itself must match: a path beneath the
 #   memory dir is denied unless its last segment is again `memory` (the
 #   glob's `*` spans `/`), because the server appends the query log into
 #   `local` itself. An absent key passes; `repo` is not fenced (the server
@@ -126,6 +131,24 @@ infra() { echo "WAR: evidence-auditor mcp guard: $1" >&2; exit 2; }
 deny()  { echo "WAR: evidence-auditor mcp guard DENIED: $1" >&2; exit 2; }
 trap 'infra "unexpected failure (exit folded to 2, fail-closed)"' ERR
 
+# norm_path <path> : print <path> in the slash form the globs below match
+# (plan 2026-11-08 PIN-13, PIN-20). Every `\` becomes `/`, and a leading
+# drive `X:` (alone or before `/`) becomes `/x` in lower case, so
+# `C:\Users\me\x` prints `/c/Users/me/x`. A path in any other form prints
+# unchanged. The copy is byte-equal in validate-worktree-scope.sh,
+# validate-servitor-provenance.sh and validate-evidence-auditor-mcp.sh
+# (guard-conventions.test.sh row NP1). Normalizing first only adds denials on
+# the `..` checks: a backslash `..` segment becomes a `/..` segment.
+norm_path() {
+  np_p="${1//\\//}"
+  case "$np_p" in
+    [a-zA-Z]:|[a-zA-Z]:/*)
+      np_d="$(printf '%s' "${np_p%"${np_p#?}"}" | tr '[:upper:]' '[:lower:]')"
+      np_p="/$np_d${np_p#??}" ;;
+  esac
+  printf '%s' "$np_p"
+}
+
 command -v jq >/dev/null 2>&1 || infra "jq is not installed"
 
 input="$(cat)"
@@ -148,8 +171,10 @@ MEMORY_TOOL='mcp__plugin_work-audit-refine_war-memory__memory_query'
 # segment (the value is wrapped in `/` so a leading or trailing `..` is a
 # segment too), start with `/` (an absolute path: the glob's leading `*`
 # alone would match a leading component such as `x/`), and itself match
-# `*/.claude/projects/*/memory`, with one trailing `/` tolerated. Returns on
-# pass; the caller exits 0.
+# `*/.claude/projects/*/memory`, with one trailing `/` tolerated. The three
+# checks read the norm_path form of the value (PIN-13, PIN-20), so a
+# Windows-form root passes and a backslash `..` segment is denied; the deny
+# texts quote the value as sent. Returns on pass; the caller exits 0.
 memory_fence() {
   mf_type="$(printf '%s' "$input" | jq -r '.tool_input | type')"
   case "$mf_type" in
@@ -162,33 +187,41 @@ memory_fence() {
     if [ "$mf_vtype" != "string" ] || [ -z "$mf_val" ]; then
       deny "tool '$tool' names local with a $mf_vtype value that is not a non-empty path string (a memory root matching */.claude/projects/*/memory only; PIN-4) for agent type '$atype'."
     fi
-    case "/$mf_val/" in
+    mf_np="$(norm_path "$mf_val")"
+    case "/$mf_np/" in
       *"/../"*) deny "tool '$tool' names local '$mf_val' with a .. segment (PIN-4) for agent type '$atype'." ;;
     esac
-    case "$mf_val" in
+    case "$mf_np" in
       /*) ;;
       *) deny "tool '$tool' names local '$mf_val' that is not an absolute path (PIN-4) for agent type '$atype'." ;;
     esac
-    case "$mf_val" in
+    case "$mf_np" in
       */.claude/projects/*/memory|*/.claude/projects/*/memory/) ;;
       *) deny "tool '$tool' names local '$mf_val' outside a memory root (the value must match */.claude/projects/*/memory; PIN-4) for agent type '$atype'." ;;
     esac
   fi
 }
 
+HOST_TURN_DENY="'$tool' is a host turn tool, denied for agent type '$atype' (ADR 0002): a WAR seat does not need it. A seat ends its turn by returning its JSON."
+
 # Route by agent type first: the refiner denies before any tool parsing (the
 # deny holds whatever the tool name is); the auditor and servitor admit the
 # memory tool by exact compare and deny everything else; the two REA roles
 # admit the memory tool the same way and otherwise fall through to the suffix
-# check; everything else passes through.
+# check; everything else passes through. Ahead of each seat arm's deny, a host
+# turn tool (`mcp__ccd_turn__*`, PIN-23) gets its own deny text: the tool is
+# not needed, and a seat ends its turn by returning its JSON. The check changes
+# only the message; the tool stays denied as before.
 case "$atype" in
   *war-refiner)
     deny "agent type '$atype' reaches no MCP tool (capability-first confinement, ADR 0002; PIN-7); refusing '$tool'." ;;
   *war-auditor|*war-servitor)
     if [ "$tool" = "$MEMORY_TOOL" ]; then memory_fence; exit 0; fi
+    case "$tool" in mcp__ccd_turn__*) deny "$HOST_TURN_DENY" ;; esac
     deny "agent type '$atype' reaches no MCP tool other than the memory query tool $MEMORY_TOOL (capability-first confinement, ADR 0002); refusing '$tool'." ;;
   *war-evidence-auditor|*war-worker)
-    if [ "$tool" = "$MEMORY_TOOL" ]; then memory_fence; exit 0; fi ;;
+    if [ "$tool" = "$MEMORY_TOOL" ]; then memory_fence; exit 0; fi
+    case "$tool" in mcp__ccd_turn__*) deny "$HOST_TURN_DENY" ;; esac ;;
   *) exit 0 ;;
 esac
 
@@ -402,7 +435,13 @@ fi
 # reject above keeps a name from spanning two lines.
 case "$REA_ALLOWLIST" in
   *$'\n'"mcp__rea__$suffix"$'\n'*) ;;
-  *) deny "tool '$tool' (suffix '$suffix') is not on the REA allowlist for agent type '$atype'; the allowlist is the REA effect predicate (never mutatesTarget, executesForeignCode, mutatesDevice or destructive)." ;;
+  *)
+    # The deny site is shared by both REA roles; the worker text names its
+    # MCP limit (PIN-14), and the evidence-auditor text stays as it was.
+    case "$atype" in
+      *war-worker) deny "tool '$tool' (suffix '$suffix') is not on the REA allowlist for agent type '$atype'; worker MCP is limited to the memory query tool and the REA allowlist, and a plan or todo tool is not needed for the task." ;;
+    esac
+    deny "tool '$tool' (suffix '$suffix') is not on the REA allowlist for agent type '$atype'; the allowlist is the REA effect predicate (never mutatesTarget, executesForeignCode, mutatesDevice or destructive)." ;;
 esac
 
 # ---------------------------------------------------------------------------
@@ -411,7 +450,8 @@ esac
 # RESIDUAL). The value must carry
 # the segment `/.claude/war/evidence/` and no `..` segment (the value is
 # wrapped in `/` so a leading or trailing `..` is a segment too; `v1..v2` is a
-# name, not a segment). An absent key passes. A present key is read by
+# name, not a segment; the value is read in norm_path form, so a backslash
+# `..` is a segment as well). An absent key passes. A present key is read by
 # presence (`has`), never by value: a present key whose value is not a
 # non-empty string (`""`, null, false, a number, an array or an object, which
 # jq -r would print as JSON text that could embed the segment) is denied. A
@@ -433,7 +473,9 @@ for key in output_directory destination; do
       *"/.claude/war/evidence/"*) ;;
       *) deny "tool '$tool' names $key '$val' outside the run's evidence dir (a path under /.claude/war/evidence/ only; the G2 bundle rule) for agent type '$atype'." ;;
     esac
-    case "/$val/" in
+    # The .. check reads the norm_path form, so a backslash .. is a segment
+    # too (PIN-20); containment above stays on the value as sent.
+    case "/$(norm_path "$val")/" in
       *"/../"*) deny "tool '$tool' names $key '$val' with a .. segment (the G2 bundle rule) for agent type '$atype'." ;;
     esac
   fi

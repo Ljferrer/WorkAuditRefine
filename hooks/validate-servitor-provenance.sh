@@ -35,6 +35,24 @@ fp="$(get '.tool_input.file_path // .tool_input.path // .tool_input.notebook_pat
 
 deny() { printf 'WAR provenance: %s\n' "$1" >&2; exit 2; }
 
+# norm_path <path> : print <path> in the slash form the globs below match
+# (plan 2026-11-08 PIN-13, PIN-20). Every `\` becomes `/`, and a leading
+# drive `X:` (alone or before `/`) becomes `/x` in lower case, so
+# `C:\Users\me\x` prints `/c/Users/me/x`. A path in any other form prints
+# unchanged. The copy is byte-equal in validate-worktree-scope.sh,
+# validate-servitor-provenance.sh and validate-evidence-auditor-mcp.sh
+# (guard-conventions.test.sh row NP1). Normalizing first only adds denials on
+# the `..` checks: a backslash `..` segment becomes a `/..` segment.
+norm_path() {
+  np_p="${1//\\//}"
+  case "$np_p" in
+    [a-zA-Z]:|[a-zA-Z]:/*)
+      np_d="$(printf '%s' "${np_p%"${np_p#?}"}" | tr '[:upper:]' '[:lower:]')"
+      np_p="/$np_d${np_p#??}" ;;
+  esac
+  printf '%s' "$np_p"
+}
+
 # Extract the NESTED metadata.provenance value from a frontmatter-bearing
 # string. The real memory-file shape is:
 #   metadata:
@@ -68,6 +86,9 @@ case "$atype" in
 esac
 # No file_path.
 [ -z "$fp" ] && exit 0
+# norm_path runs before the classifier case, so a Windows-form memory path is
+# still content-gated (PIN-13). The checks below read the normalized path.
+fp="$(norm_path "$fp")"
 # Path outside the memory/learnings target — scope hook handles denial; this
 # content gate allows it to avoid double-gating non-fact paths.
 #

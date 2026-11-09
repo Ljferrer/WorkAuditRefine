@@ -230,6 +230,23 @@ expect "the worktree branch points at the integration tip" \
   "$TIPW1" "$(git -C "$WT1" rev-parse HEAD 2>/dev/null)"
 
 # ---------------------------------------------------------------------------
+# Case (WX) Scratch exclude (plan 2026-11-08 PIN-10, A23): write_marker adds
+# `.war/` to the shared common-dir info/exclude beside `.war-task`, so a
+# worker's scratch file under <worktree>/.war/ is never staged by `git add -A`.
+# ---------------------------------------------------------------------------
+RWX="$(new_repo)"
+git -C "$RWX" branch integration/myplan/phase-2 HEAD
+TIPWX="$(git -C "$RWX" rev-parse integration/myplan/phase-2)"
+WTX="$(new_wt_path)"
+run_in "$RWX" ensure-worktree "$WTX" war/myplan/p2-wx "$TIPWX" >/dev/null
+mkdir -p "$WTX/.war"
+printf 'msg\n' > "$WTX/.war/commit-msg.txt"
+expect "WX1: git add -A --dry-run in a fresh worktree lists nothing from .war/" \
+  "" "$(git -C "$WTX" add -A --dry-run 2>&1 | awk '/\.war\//')"
+expect "WX2: git check-ignore -q .war/commit-msg.txt exits 0 in a fresh worktree" \
+  0 "$(git -C "$WTX" check-ignore -q .war/commit-msg.txt; echo $?)"
+
+# ---------------------------------------------------------------------------
 # Case (T3.2) Idempotent: a second call with the same args is a no-op — the
 # worktree is not recreated. Proven by a sentinel written into the worktree
 # surviving the second call.
