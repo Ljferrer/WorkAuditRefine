@@ -126,4 +126,4 @@ per-dispatch costs there. A byte line is a proxy. Tokens per dispatch are the ta
 ## Decision log
 
 - 2026-11-05 · the glossary moved to `GLOSSARY.md` and took the `CONTEXT.md` budget row unchanged; `CONTEXT.md` took a new 2,048 B hard budget · issue #2636
-- 2026-11-09 · D5's raise rule widened: a net context saving is a valid cited reason to raise a budget; D4's pointer shape extended to dispatched prompts and agent cards (least start) · issues #2782, #2783, #2784
+- 2026-11-09 · D5's raise rule widened: a net context saving is a valid cited reason to raise a budget; D4's pointer shape extended to dispatched prompts and agent cards (least start) · issues #2782, #2783, #2784 · failed because: the old rule admitted only tier-1 doctrine as a reason, so it blocked a 12 B `tools:` edit that saves about 315,000 tokens per dispatch
