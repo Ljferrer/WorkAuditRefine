@@ -103,6 +103,8 @@
 #   RD3. commit on --repo's own checked-out branch (cwd-reset shape) -> unclassified
 #   RD4. non-fast-forward update-ref of sib -> unclassified
 #   RD5. added ref -> unclassified; a mixed delta prints no every-row line
+#   RD6. SOURCE LOCK: the ref-diff classing's git failure paths (rev-parse
+#        --show-toplevel, worktree list, merge-base --is-ancestor) each die exit 2
 #   35. SOURCE LOCK: the ignored half's five git/read failure paths each die with their
 #       own message (unreachable behaviorally — `git status` dies first on a non-repo)
 set -u
@@ -1178,6 +1180,29 @@ if [ "$rcRD5" -eq 1 ] \
   pass "RD5: added ref is unclassified; mixed delta prints no every-row line"
 else
   fail "RD5: mixed delta -> expected exit 1, added unclassified, no every-row line, got $rcRD5; stderr: $(cat "$ERRRD5")"
+fi
+
+# RD6: SOURCE LOCK (modeled on case 35) — the ref-diff classing's git failure
+# paths (rev-parse --show-toplevel, worktree list, merge-base --is-ancestor) each
+# die with their own message AND an explicit exit 2. No RD fixture reaches them:
+# the snapshot and diff git calls run first and die on a broken repo. Each
+# pattern spans the die call through its trailing ` 2`, so dropping a guard or
+# its exit code reds this row.
+rd_die_missing=""
+for _msg in \
+  "die \"git rev-parse --show-toplevel (ref-diff class) failed for repo '\$repo_dir'\" 2" \
+  "die \"git worktree list (ref-diff class) failed for repo '\$repo_dir'\" 2" \
+  "die \"git merge-base --is-ancestor (ref-diff class) failed for '\$d_ref' in repo '\$repo_dir'\" 2"
+do
+  if ! grep -qF -- "$_msg" "$SCRIPT"; then
+    rd_die_missing="$rd_die_missing
+    $_msg"
+  fi
+done
+if [ -z "$rd_die_missing" ]; then
+  pass "RD6: the ref-diff classing's git failure paths each die with their own message and exit 2"
+else
+  fail "RD6: ref-diff class die call(s) missing from the guard:$rd_die_missing"
 fi
 
 # ---------------------------------------------------------------------------
