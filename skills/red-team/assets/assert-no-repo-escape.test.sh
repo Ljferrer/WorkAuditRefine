@@ -14,6 +14,8 @@
 # for total coverage:
 #   • b2 origin-side: a probe pushing an INVENTED (non-pattern) ref name to origin
 #     still slips, because the ref-diff half is deliberately local-only.
+#   • Nested branch names (feat/x-sandbox-y) never read as junk, so WITHOUT a
+#     --baseline a nested probe-made branch slips. With one, the ref diff catches it (RR3).
 #   • Pattern-slipping refs that PREDATE the first baselined run: already present when
 #     the snapshot is taken, so the diff baselines them as legitimate.
 #   • Gitignored leaks WITHOUT a --baseline, and ignored files that PREDATE the
@@ -86,6 +88,21 @@
 #       snapshot exits 0 (residue is baselined, never refused) and check stays exit 0
 #   34. BACK-COMPAT CONTROL: an OLD-FORMAT baseline with no ignored section makes the
 #       ignored half vacuous -> exit 0 even with a live leak
+#   JUNK RULE (PIN-16): only a top-level refs/heads/* branch named redteam-* or
+#   *-sandbox-* is junk. Each row has a real bare origin remote.
+#   RR1. nested origin branch feat/chat-sandbox-x (tracking ref + ls-remote) ->
+#        --snapshot 0 and plain run 0
+#   RR2. the same nested branch on origin only (check b2 alone) -> exit 0
+#   RR3. nested local branch -> plain run 0, --baseline ref diff 1
+#   RR4. top-level local refs/heads/x-sandbox-y -> exit 1
+#   RR5. top-level redteam-x on origin only -> exit 1 (junk ref on origin)
+#   RR6. a junk-shaped remote-tracking ref alone -> exit 0
+#   REF-DIFF PROVENANCE CLASS (PIN-24, #2679), main checkout + linked worktree on sib:
+#   RD1. commit in the linked worktree -> exit 1, sib row sibling-move, every-row line
+#   RD2. fast-forward update-ref of a branch no worktree holds -> unclassified
+#   RD3. commit on --repo's own checked-out branch (cwd-reset shape) -> unclassified
+#   RD4. non-fast-forward update-ref of sib -> unclassified
+#   RD5. added ref -> unclassified; a mixed delta prints no every-row line
 #   35. SOURCE LOCK: the ignored half's five git/read failure paths each die with their
 #       own message (unreachable behaviorally — `git status` dies first on a non-repo)
 set -u
@@ -227,9 +244,9 @@ fi
 # only the remote carries it — isolates the remote (b2 ls-remote) arm from the
 # local (b1 for-each-ref) arm. Working tree stays clean, so the porcelain arm is
 # inert too. NOTE: `git push` also writes the remote-tracking ref
-# refs/remotes/origin/redteam-sandbox-leak, which b1's unpatterned for-each-ref
-# enumerates; `branch -D` only removes refs/heads/*, so we must also drop the
-# remote-tracking ref or b1 would fire first and b2 would get zero coverage.
+# refs/remotes/origin/redteam-sandbox-leak. The junk rule (is_junk_ref) never
+# reads a remote-tracking ref as junk, so b1 cannot fire on it. The fixture still
+# drops it, so the case keeps proving b2 alone if that rule ever widens again.
 # ---------------------------------------------------------------------------
 R4="$(setup_repo)"
 ORIGIN4="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
@@ -273,8 +290,8 @@ fi
 
 # ---------------------------------------------------------------------------
 # Case 7: CONTROL — benign local ref, clean tree, no origin -> exit 0
-# Delete-and-trace: proves the junk pattern is specific. Widen the case globs in
-# the script to '*' and this flips to 1.
+# Delete-and-trace: proves the junk rule is specific. Widen is_junk_ref's junk
+# glob in the script to '*' and this flips to 1.
 # ---------------------------------------------------------------------------
 R7="$(setup_repo)"
 git -C "$R7" branch feature-normal-work 2>/dev/null
@@ -938,6 +955,227 @@ if [ -z "$ign_die_missing" ]; then
   pass "case 35: the five ignored-half failure paths each die with their own message (exit 2 per case 10)"
 else
   fail "case 35: ignored-half die message(s) missing from the guard:$ign_die_missing"
+fi
+
+# ---------------------------------------------------------------------------
+# RR rows: the junk-ref rule (PIN-16, A24). Only a refs/heads/* ref is a junk
+# candidate. A short name (the part after refs/heads/) that holds '/' is never
+# junk. Otherwise redteam-* or *-sandbox-* is junk. Each row runs against a
+# fixture with a real bare origin remote.
+# ---------------------------------------------------------------------------
+# setup_origin <repo>: give <repo> a fresh bare origin; echo the origin path.
+setup_origin() {
+  _o="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+  TMPFILES="$TMPFILES $_o"
+  git -C "$_o" init -q --bare
+  git -C "$1" remote add origin "$_o"
+  git -C "$1" push -q origin "$(git -C "$1" rev-parse --abbrev-ref HEAD)" 2>/dev/null
+  printf '%s\n' "$_o"
+}
+
+# RR1: origin carries the nested branch feat/chat-sandbox-x. The clone keeps
+# refs/remotes/origin/feat/chat-sandbox-x and ls-remote lists
+# refs/heads/feat/chat-sandbox-x. Neither is junk, so --snapshot and the plain
+# run both exit 0. At base the old pattern read both as junk (exit 1).
+RRA="$(setup_repo)"
+setup_origin "$RRA" >/dev/null
+git -C "$RRA" branch feat/chat-sandbox-x 2>/dev/null
+git -C "$RRA" push -q origin feat/chat-sandbox-x 2>/dev/null
+git -C "$RRA" branch -D feat/chat-sandbox-x >/dev/null 2>&1
+git -C "$RRA" rev-parse -q --verify refs/remotes/origin/feat/chat-sandbox-x >/dev/null \
+  || fail "RR1: FIXTURE — the remote-tracking ref is missing"
+git -C "$RRA" ls-remote --heads origin | grep -q 'refs/heads/feat/chat-sandbox-x$' \
+  || fail "RR1: FIXTURE — origin does not list the nested branch"
+SNAPRRA="$(artifact_path snap.txt)"
+rcRRAs="$(run_guard_args --repo "$RRA" --snapshot "$SNAPRRA")"
+rcRRAp="$(run_guard "$RRA")"
+if [ "$rcRRAs" -eq 0 ] && [ "$rcRRAp" -eq 0 ]; then
+  pass "RR1: nested origin branch feat/chat-sandbox-x (tracking ref + ls-remote) -> --snapshot 0 and plain run 0"
+else
+  fail "RR1: nested origin branch feat/chat-sandbox-x -> expected 0 and 0, got snapshot $rcRRAs, plain $rcRRAp"
+fi
+
+# RR2: the same nested branch on origin ONLY (tracking ref dropped), so only
+# check (b2) sees it. A nested branch on origin is never junk -> exit 0.
+RRB="$(setup_repo)"
+setup_origin "$RRB" >/dev/null
+git -C "$RRB" branch feat/chat-sandbox-x 2>/dev/null
+git -C "$RRB" push -q origin feat/chat-sandbox-x 2>/dev/null
+git -C "$RRB" branch -D feat/chat-sandbox-x >/dev/null 2>&1
+git -C "$RRB" update-ref -d refs/remotes/origin/feat/chat-sandbox-x >/dev/null 2>&1
+rcRRB="$(run_guard "$RRB")"
+if [ "$rcRRB" -eq 0 ]; then
+  pass "RR2: nested branch on origin only (check b2) -> exit 0"
+else
+  fail "RR2: nested branch on origin only -> expected exit 0, got $rcRRB"
+fi
+
+# RR3: a nested LOCAL branch feat/x-sandbox-y is never junk -> plain run 0. The
+# --baseline ref-set diff still catches a nested branch a probe makes -> 1.
+RRC="$(setup_repo)"
+setup_origin "$RRC" >/dev/null
+SNAPRRC="$(artifact_path snap.txt)"
+take_snapshot "$RRC" "$SNAPRRC" "RR3"
+git -C "$RRC" branch feat/x-sandbox-y 2>/dev/null
+rcRRCp="$(run_guard "$RRC")"
+rcRRCb="$(run_guard_args --repo "$RRC" --baseline "$SNAPRRC")"
+if [ "$rcRRCp" -eq 0 ] && [ "$rcRRCb" -eq 1 ]; then
+  pass "RR3: nested local branch feat/x-sandbox-y -> plain run 0, --baseline ref diff 1"
+else
+  fail "RR3: nested local branch -> expected plain 0 and baseline 1, got $rcRRCp and $rcRRCb"
+fi
+
+# RR4: a top-level LOCAL refs/heads/x-sandbox-y is still junk -> exit 1.
+RRD="$(setup_repo)"
+setup_origin "$RRD" >/dev/null
+git -C "$RRD" branch x-sandbox-y 2>/dev/null
+rcRRD="$(run_guard "$RRD")"
+if [ "$rcRRD" -eq 1 ]; then
+  pass "RR4: top-level local refs/heads/x-sandbox-y -> exit 1"
+else
+  fail "RR4: top-level local refs/heads/x-sandbox-y -> expected exit 1, got $rcRRD"
+fi
+
+# RR5: a top-level redteam-x on origin still fails the plain run. The local
+# copy and the tracking ref are dropped, so only check (b2) can fire.
+RRE="$(setup_repo)"
+setup_origin "$RRE" >/dev/null
+git -C "$RRE" branch redteam-x 2>/dev/null
+git -C "$RRE" push -q origin redteam-x 2>/dev/null
+git -C "$RRE" branch -D redteam-x >/dev/null 2>&1
+git -C "$RRE" update-ref -d refs/remotes/origin/redteam-x >/dev/null 2>&1
+ERRRE="$(artifact_path err.txt)"
+rcRRE="$(run_guard_err "$ERRRE" --repo "$RRE")"
+if [ "$rcRRE" -eq 1 ] && grep -qF 'junk ref on origin: refs/heads/redteam-x' "$ERRRE"; then
+  pass "RR5: top-level redteam-x on origin -> exit 1 (junk ref on origin)"
+else
+  fail "RR5: top-level redteam-x on origin -> expected exit 1 naming it, got $rcRRE; stderr: $(cat "$ERRRE")"
+fi
+
+# RR6: a remote-tracking ref with a junk-shaped top-level name is never junk.
+# Only the origin-side head (check b2) speaks for origin. Here origin holds no
+# such head, so the plain run exits 0.
+RRF="$(setup_repo)"
+setup_origin "$RRF" >/dev/null
+git -C "$RRF" update-ref refs/remotes/origin/redteam-y "$(git -C "$RRF" rev-parse HEAD)"
+rcRRF="$(run_guard "$RRF")"
+if [ "$rcRRF" -eq 0 ]; then
+  pass "RR6: remote-tracking refs/remotes/origin/redteam-y alone -> exit 0"
+else
+  fail "RR6: remote-tracking ref alone -> expected exit 0, got $rcRRF"
+fi
+
+# ---------------------------------------------------------------------------
+# RD rows: check (c) provenance class (PIN-24, #2679). A moved: row is
+# sibling-move when it fast-forwards the baseline SHA on a branch checked out in
+# a linked worktree other than --repo's own. Every other row is unclassified.
+# Exit stays 1 on any delta. Each row uses a scratch main checkout with a linked
+# worktree on branch sib, outside the main tree, and a baseline snapshot.
+# ---------------------------------------------------------------------------
+# setup_sib: main checkout + linked worktree on sib; sets SIB_MAIN and SIB_WT.
+setup_sib() {
+  SIB_MAIN="$(setup_repo)"
+  _wtp="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+  TMPFILES="$TMPFILES $_wtp"
+  SIB_WT="$_wtp/sib"
+  git -C "$SIB_MAIN" worktree add -q -b sib "$SIB_WT" >/dev/null 2>&1 \
+    || fail "RD: FIXTURE — git worktree add failed"
+}
+
+# RD1: a commit in the linked worktree moves refs/heads/sib forward.
+setup_sib
+SNAPRD1="$(artifact_path snap.txt)"
+take_snapshot "$SIB_MAIN" "$SNAPRD1" "RD1"
+printf 'wt\n' > "$SIB_WT/wt.txt"
+git -C "$SIB_WT" add wt.txt
+git -C "$SIB_WT" commit -qm "sibling work"
+ERRRD1="$(artifact_path err.txt)"
+rcRD1="$(run_guard_err "$ERRRD1" --repo "$SIB_MAIN" --baseline "$SNAPRD1")"
+if [ "$rcRD1" -eq 1 ] \
+  && grep -qE '^moved: +refs/heads/sib \[sibling-move: fast-forward, checked out in .+\]$' "$ERRRD1" \
+  && grep -qF 'every delta row is sibling-move' "$ERRRD1"; then
+  pass "RD1: commit in a linked worktree -> exit 1, refs/heads/sib row is sibling-move, every-row line present"
+else
+  fail "RD1: commit in a linked worktree -> expected exit 1 + sibling-move + every-row line, got $rcRD1; stderr: $(cat "$ERRRD1")"
+fi
+
+# RD2: update-ref on a branch no worktree has checked out. The move is a
+# fast-forward, but no worktree holds the branch -> unclassified.
+setup_sib
+git -C "$SIB_MAIN" branch other 2>/dev/null
+printf 'two\n' > "$SIB_MAIN/two.txt"
+git -C "$SIB_MAIN" add two.txt
+git -C "$SIB_MAIN" commit -qm "two"
+git -C "$SIB_MAIN" update-ref refs/heads/other "$(git -C "$SIB_MAIN" rev-parse HEAD~1)"
+SNAPRD2="$(artifact_path snap.txt)"
+take_snapshot "$SIB_MAIN" "$SNAPRD2" "RD2"
+git -C "$SIB_MAIN" update-ref refs/heads/other "$(git -C "$SIB_MAIN" rev-parse HEAD)"
+ERRRD2="$(artifact_path err.txt)"
+rcRD2="$(run_guard_err "$ERRRD2" --repo "$SIB_MAIN" --baseline "$SNAPRD2")"
+if [ "$rcRD2" -eq 1 ] \
+  && grep -qE '^moved: +refs/heads/other \[unclassified\]$' "$ERRRD2" \
+  && ! grep -qF 'every delta row is sibling-move' "$ERRRD2"; then
+  pass "RD2: update-ref of a branch no worktree holds -> exit 1, unclassified"
+else
+  fail "RD2: update-ref of an unheld branch -> expected exit 1 + unclassified, got $rcRD2; stderr: $(cat "$ERRRD2")"
+fi
+
+# RD3: a commit on the main checkout's own checked-out branch (the cwd-reset
+# escape shape) -> unclassified, even with a linked worktree present.
+setup_sib
+SNAPRD3="$(artifact_path snap.txt)"
+take_snapshot "$SIB_MAIN" "$SNAPRD3" "RD3"
+_cur3="$(git -C "$SIB_MAIN" symbolic-ref HEAD)"
+printf 'own\n' > "$SIB_MAIN/own.txt"
+git -C "$SIB_MAIN" add own.txt
+git -C "$SIB_MAIN" commit -qm "own branch"
+ERRRD3="$(artifact_path err.txt)"
+rcRD3="$(run_guard_err "$ERRRD3" --repo "$SIB_MAIN" --baseline "$SNAPRD3")"
+if [ "$rcRD3" -eq 1 ] \
+  && grep -qE "^moved: +$_cur3 \\[unclassified\\]\$" "$ERRRD3" \
+  && ! grep -qF 'sibling-move' "$ERRRD3"; then
+  pass "RD3: commit on --repo's own checked-out branch -> exit 1, unclassified"
+else
+  fail "RD3: commit on --repo's own branch -> expected exit 1 + unclassified, got $rcRD3; stderr: $(cat "$ERRRD3")"
+fi
+
+# RD4: a non-fast-forward update-ref of sib (moved back to its parent) ->
+# unclassified, though sib is checked out in the linked worktree.
+setup_sib
+printf 'wt\n' > "$SIB_WT/wt.txt"
+git -C "$SIB_WT" add wt.txt
+git -C "$SIB_WT" commit -qm "sibling work"
+SNAPRD4="$(artifact_path snap.txt)"
+take_snapshot "$SIB_MAIN" "$SNAPRD4" "RD4"
+git -C "$SIB_MAIN" update-ref refs/heads/sib "$(git -C "$SIB_MAIN" rev-parse sib~1)"
+ERRRD4="$(artifact_path err.txt)"
+rcRD4="$(run_guard_err "$ERRRD4" --repo "$SIB_MAIN" --baseline "$SNAPRD4")"
+if [ "$rcRD4" -eq 1 ] \
+  && grep -qE '^moved: +refs/heads/sib \[unclassified\]$' "$ERRRD4" \
+  && ! grep -qF 'sibling-move' "$ERRRD4"; then
+  pass "RD4: non-fast-forward update-ref of sib -> exit 1, unclassified"
+else
+  fail "RD4: non-fast-forward sib move -> expected exit 1 + unclassified, got $rcRD4; stderr: $(cat "$ERRRD4")"
+fi
+
+# RD5: an added ref is unclassified, and a mixed delta (one sibling-move row,
+# one added row) prints no every-row line.
+setup_sib
+SNAPRD5="$(artifact_path snap.txt)"
+take_snapshot "$SIB_MAIN" "$SNAPRD5" "RD5"
+printf 'wt\n' > "$SIB_WT/wt.txt"
+git -C "$SIB_WT" add wt.txt
+git -C "$SIB_WT" commit -qm "sibling work"
+git -C "$SIB_MAIN" branch fresh 2>/dev/null
+ERRRD5="$(artifact_path err.txt)"
+rcRD5="$(run_guard_err "$ERRRD5" --repo "$SIB_MAIN" --baseline "$SNAPRD5")"
+if [ "$rcRD5" -eq 1 ] \
+  && grep -qE '^added: +refs/heads/fresh \[unclassified\]$' "$ERRRD5" \
+  && grep -qE '^moved: +refs/heads/sib \[sibling-move: ' "$ERRRD5" \
+  && ! grep -qF 'every delta row is sibling-move' "$ERRRD5"; then
+  pass "RD5: added ref is unclassified; mixed delta prints no every-row line"
+else
+  fail "RD5: mixed delta -> expected exit 1, added unclassified, no every-row line, got $rcRD5; stderr: $(cat "$ERRRD5")"
 fi
 
 # ---------------------------------------------------------------------------
