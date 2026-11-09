@@ -159,6 +159,7 @@ const adr0012 = readFileSync(
 const designRefMd = readFileSync(join(HERE, '..', 'references', 'design.md'), 'utf8')
 const fileFollowupsMd = readFileSync(join(HERE, '..', 'references', 'file-followups.md'), 'utf8')
 const auditorCard = readFileSync(join(HERE, '..', '..', '..', 'agents', 'war-auditor.md'), 'utf8')
+const servitorCard = readFileSync(join(HERE, '..', '..', '..', 'agents', 'war-servitor.md'), 'utf8')
 const gastownMd = readFileSync(join(HERE, '..', 'references', 'gastown-design-params.md'), 'utf8')
 const warReviewSkillMd = readFileSync(
   join(HERE, '..', '..', 'war-review', 'SKILL.md'),
@@ -835,9 +836,13 @@ test('2702/seed — the Lead servitor skip narrows to landed, and the return lis
   const tourStep = tour.steps.find((s) => s.pattern === '^let servitorResult = null')
   assert.ok(tourStep, 'could not find the tour step anchored on `let servitorResult = null` — the anchor construct rotted')
   assert.match(tourStep.description, /skips its own `war-servitor` pass only when the in-flow Wrap-up ran on `landed`; after a manual or recovery land of a held phase it runs one more resolution-fed pass, even when `servitorResult` is set/)
-  for (const [label, src] of [['SKILL.md', skillMd], ['resume-and-recovery.md', resumeMd], ['design.md', designRefMd], ['tour Wrap-up step', tourStep.description]]) {
+  // The servitor card is the fifth surface (Late-Fix 5.1:3 sibling sweep): its description and opener
+  // name the resolution-fed second pass, so the card never promises one run per phase.
+  assert.match(servitorCard, /^description: WAR servitor — runs when a phase lands or holds as held:escalation or held:land-failed, and once more, fed the resolution, after a held phase lands by hand,/m)
+  assert.match(servitorCard, /and once more after a held phase lands by hand, fed the operator's resolution\./)
+  for (const [label, src] of [['SKILL.md', skillMd], ['resume-and-recovery.md', resumeMd], ['design.md', designRefMd], ['tour Wrap-up step', tourStep.description], ['war-servitor.md', servitorCard]]) {
     const folded = norm(src)
-    for (const re of [/Skip if `servitorResult` is already set/i, /Run it only if `servitorResult` is absent/i, /run only when `servitorResult` is absent/i, /spawns the servitor itself only when `servitorResult` is null/i, /guarded by `servitorResult` being absent/i, /never double-capture/i, /exactly once \*per landed phase\*/i]) {
+    for (const re of [/Skip if `servitorResult` is already set/i, /Run it only if `servitorResult` is absent/i, /run only when `servitorResult` is absent/i, /spawns the servitor itself only when `servitorResult` is null/i, /guarded by `servitorResult` being absent/i, /never double-capture/i, /exactly once \*per landed phase\*/i, /once per landed phase regardless of who lands it/i, /runs ONCE per phase/i, /You run once, after a phase has landed/i]) {
       assert.doesNotMatch(folded, re, `${label} still carries the retired unconditional skip ${re} — a held phase's resolution would never be captured`)
     }
   }
