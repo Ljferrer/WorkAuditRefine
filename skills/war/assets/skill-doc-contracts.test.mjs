@@ -4859,3 +4859,21 @@ test('learnings-publication-evict (b) — SKILL.md no longer carries the moved b
     assert.ok(skillMd.includes(`read [references/learnings-publication.md](references/learnings-publication.md) (§ ${name})`), `no SKILL.md pointer names § ${name}`)
   }
 })
+
+// (PIN-9, plan 2026-11-08-auditor-and-worker-guard-habits seed-1) The GLOSSARY.md
+// **Committed-tree grounding** entry called `git grep -F -e <token>` the auditor git guard's "one"
+// admitted grep form. ADR 0029 Amendment 2026-11-08 widened the guard (several -e, -E, -A/-B/-C
+// counts, a dash-led quoted -e value), so the count word taught a wrong rule. The phase-1 sweep
+// fixed the same word in the G6 label but grepped hooks/ only, so this mirror survived. The entry
+// now says "base" and cites both amendments. Extraction is by construct (bolded term to the next
+// bolded term) so the old count word is asserted absent from this entry alone.
+test('PIN-9 — GLOSSARY.md **Committed-tree grounding** calls git grep -F -e the base admitted grep form and cites both ADR 0029 amendments', () => {
+  const block = glossaryMd.match(/^\*\*Committed-tree grounding\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:)/m)
+  assert.ok(block, 'could not locate the `**Committed-tree grounding**:` glossary term in GLOSSARY.md — the extraction construct rotted')
+  assert.match(block[0], /`git grep -F -e <token>` is the auditor git guard's base admitted grep form/,
+    'the entry must call `git grep -F -e <token>` the guard\'s BASE admitted grep form (the guard admits more forms since Amendment 2026-11-08)')
+  assert.doesNotMatch(block[0], /one admitted grep form/,
+    'the old count word "one admitted grep form" teaches a rule the widened guard no longer has')
+  assert.match(block[0], /\[ADR 0029\]\(docs\/adr\/0029-capture-grounds-on-committed-tip\.md\), Amendments 2026-10-22\/11-08/,
+    'the entry must keep the ADR 0029 link and name Amendments 2026-10-22 and 2026-11-08')
+})
