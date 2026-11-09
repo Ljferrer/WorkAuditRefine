@@ -1,12 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, writeFileSync, mkdtempSync, symlinkSync, existsSync, readdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdtempSync, symlinkSync, existsSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, isAbsolute } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR, SCRIPT_BYTE_CAP, DISCARD_FLAG, SIDECAR_SUFFIX, deriveName, deriveDescription, stripFullLineComments } from './stage-workflow.mjs'
+import { NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR, SCRIPT_BYTE_CAP, DISCARD_FLAG, SIDECAR_SUFFIX, ARGS_SIBLING_SUFFIX, argsSiblingPath, argsLoaderLine, argsFallbackRewrite, deriveName, deriveDescription, stripFullLineComments } from './stage-workflow.mjs'
 import { extractInterpolations, extractArgsFields, unguardedTopLevelKeys, ptSpanRanges } from './assert-args-complete.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -18,8 +18,9 @@ const TEMPLATE = join(HERE, 'workflow-template.js')
 // shipped template, because the template's top-level body IS a phase run. The carve-out is case (m),
 // the embedded-args ENTRY-VALIDATION harness — it builds a staged copy into an AsyncFunction with
 // every effect handle stubbed and reads the returned object, which exercises the top-level arg entry
-// guard and nothing beyond it (no import(), no real dispatch). Any other execution of staged text
-// stays out of this suite. The `indent-strip: harness runs the staged form` row is no such execution:
+// guard and nothing beyond it (no import(), no real dispatch), and the `args sibling (D38):` rows that
+// run the same entry harness or evaluate an args sibling script (a meta statement and a `return` of
+// JSON, nothing else). Any other execution of staged text stays out of this suite. The `indent-strip: harness runs the staged form` row is no such execution:
 // its child process imports workflow-template.test-harness.mjs and COMPILES the template with build(),
 // reading the compiled bytes back, but never calls the result.
 function runStager(args, { expectFail = false } = {}) {
@@ -41,11 +42,24 @@ const MINIMAL_TEMPLATE = `export const meta = {
 export const other = 1
 `
 
-// The exact two-line prelude the stager injects, and the strip used by the restore roundtrips. Built
-// from the same JSON.stringify the stager runs, so the roundtrip proves byte-equality of the payload
-// rather than re-deriving it.
-const PRELUDE_STRIP = /\/\/ Embedded phase args \(stage-workflow\.mjs --args\)[^\n]*\nconst EMBEDDED_ARGS = [^\n]*\n/
-const preludeLine = (payload) => `const EMBEDDED_ARGS = ${JSON.stringify(payload)}`
+// The one-line args loader the stager inserts (D38), and the strip used by the restore roundtrips.
+// The expected loader and fallback bytes come from the stager's exports for the staged path the CLI
+// printed; the args sibling's evaluated return value (argsOf below) is the independent check that the
+// payload itself travels byte-equal.
+const PRELUDE_STRIP = /^let EMBEDDED_ARGS = null, EMBEDDED_ARGS_ERROR = null; [^\n]*\n/m
+const restoreArgs = (staged, stagedPath) => staged
+  .split(argsFallbackRewrite(argsSiblingPath(stagedPath))).join(ARGS_FALLBACK_ANCHOR)
+  .replace(PRELUDE_STRIP, '')
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+// Evaluate a Workflow script body the way the harness hands it one: `export const meta` becomes a
+// plain const and the body runs as an async function, with `workflow` bound to the given stub.
+const evalScript = (text, workflow) => new AsyncFunction('workflow', text.replace(/^export const meta/m, 'const meta'))(workflow)
+// A `workflow` stub that does what the Workflow tool does for a nested scriptPath: run that script.
+const siblingWorkflow = (calls = []) => async ({ scriptPath }) => {
+  calls.push(scriptPath)
+  return evalScript(readFileSync(scriptPath, 'utf8'), async () => { throw new Error('nested workflow() is refused') })
+}
+const argsOf = (stagedPath) => evalScript(readFileSync(argsSiblingPath(stagedPath), 'utf8'), async () => { throw new Error('the args sibling calls no workflow()') })
 const writeArgs = (dir, payload) => {
   const p = join(dir, 'args.json')
   writeFileSync(p, JSON.stringify(payload))
@@ -281,23 +295,24 @@ test('(h) attached-form --args=<file> exits non-zero with the usage error (#1134
 // a dispatch-shape assertion — the Workflow tool refuses a script whose first STATEMENT is not
 // `export const meta` ("Invalid workflow script: …"), so a prepended prelude dies before any agent is
 // dispatched. A "prelude is present" check would have passed that broken prepend; this one does not.
-test('(i) valid --args: prelude follows the meta statement, fallback rewritten, restores to the shipped template', () => {
+test('(i) valid --args: prelude follows the meta statement, fallback rewritten, restores to the shipped template', async () => {
   const dir = scratch('stage-args-ok-')
   const original = stripFullLineComments(readFileSync(TEMPLATE, 'utf8'))
   const payload = { phase: { id: 7 }, tasks: [], note: 'hello' }
   const slug = 'args-embedding'
   const { stdout } = runStager([TEMPLATE, dir, slug, '2', '--args', writeArgs(dir, payload)])
-  const staged = readFileSync(stdout.trim(), 'utf8')
+  const stagedPath = stdout.trim()
+  const staged = readFileSync(stagedPath, 'utf8')
 
   // (i) placement — positional, not presence.
   const metaAt = staged.indexOf('export const meta')
-  const preludeAt = staged.indexOf('const EMBEDDED_ARGS =')
+  const preludeAt = staged.indexOf('let EMBEDDED_ARGS =')
   assert.notEqual(metaAt, -1, 'staged text keeps its `export const meta` statement')
-  assert.notEqual(preludeAt, -1, 'staged text carries the EMBEDDED_ARGS prelude')
-  assert.ok(preludeAt > metaAt, 'the prelude must follow the `export const meta` statement, never precede it')
-  assert.equal(staged.split('\n').length, original.split('\n').length + 2, 'an --args stage adds exactly the two prelude lines — no blank line left behind (#2099 round 3)')
-  assert.match(staged, /^\}\n\/\/ Embedded phase args/m, 'the prelude comment sits on the line right after the `}` that closes meta')
-  assert.equal(staged.indexOf('// Embedded phase args'), staged.indexOf('\n}\n') + 3, 'and that `}` is the FIRST column-0 `}` of the file — meta\'s own, not a later one')
+  assert.notEqual(preludeAt, -1, 'staged text carries the EMBEDDED_ARGS loader')
+  assert.ok(preludeAt > metaAt, 'the loader must follow the `export const meta` statement, never precede it')
+  assert.equal(staged.split('\n').length, original.split('\n').length + 1, 'an --args stage adds exactly the one loader line — no blank line left behind (#2099 round 3)')
+  assert.match(staged, /^\}\nlet EMBEDDED_ARGS = /m, 'the loader sits on the line right after the `}` that closes meta')
+  assert.equal(staged.indexOf('let EMBEDDED_ARGS = '), staged.indexOf('\n}\n') + 3, 'and that `}` is the FIRST column-0 `}` of the file — meta\'s own, not a later one')
   for (const line of staged.slice(0, metaAt).split('\n')) {
     assert.ok(
       line.trim() === '' || line.trim().startsWith('//'),
@@ -305,45 +320,47 @@ test('(i) valid --args: prelude follows the meta statement, fallback rewritten, 
     )
   }
 
-  // (ii) the fallback is rewritten, and the original fallback bytes are gone.
-  assert.equal(staged.split(': (args || EMBEDDED_ARGS)').length - 1, 1, 'the rewritten fallback appears exactly once')
+  // (ii) the fallback is rewritten, the original fallback bytes are gone, and the args ride the
+  // sibling, never the staged copy.
+  assert.equal(staged.split(argsFallbackRewrite(argsSiblingPath(stagedPath))).length - 1, 1, 'the rewritten fallback appears exactly once')
   assert.ok(!staged.includes(ARGS_FALLBACK_ANCHOR), 'the original fallback bytes are gone from the staged text')
-  assert.ok(staged.includes(preludeLine(payload)), 'the prelude carries the JSON.stringify payload byte-equal')
+  assert.ok(staged.includes(argsLoaderLine(argsSiblingPath(stagedPath)) + '\n'), 'the loader names the args sibling beside the staged copy')
+  assert.ok(!staged.includes('"note":"hello"'), 'the args JSON is not in the staged copy')
+  assert.deepEqual(await argsOf(stagedPath), payload, 'the args sibling returns the payload')
 
-  // (iii) reversing all three substitutions and stripping the prelude restores the shipped template.
+  // (iii) reversing all three substitutions and stripping the loader restores the shipped template.
   const name = deriveName(slug, '2')
   const desc = deriveDescription(slug, '2')
-  const restored = staged
+  const restored = restoreArgs(staged
     .split(`name: '${name}'`).join(NAME_ANCHOR)
-    .split(desc).join(DESCRIPTION_ANCHOR)
-    .split(': (args || EMBEDDED_ARGS)').join(ARGS_FALLBACK_ANCHOR)
-    .replace(PRELUDE_STRIP, '')
+    .split(desc).join(DESCRIPTION_ANCHOR), stagedPath)
   assert.equal(restored, original)
 })
 
 // (i) The two other line-ending shapes insertArgsPrelude must handle (#2099 round 4): a CRLF template,
 // where a multiline `$` matches before `\r` and the prelude must still go in after the whole `\r\n`
-// (no blank third line); and a template whose meta `}` is the file's last byte, where the prelude is
+// (no blank second line); and a template whose meta `}` is the file's last byte, where the loader is
 // appended after a newline of its own instead of glued onto the `}`. Both carry the fallback tail
 // inside meta so the --args path reaches the insert.
 const TAIL_IN_META = `export const meta = {\n  ${NAME_ANCHOR},\n  description: '${DESCRIPTION_ANCHOR}',\n  a${ARGS_FALLBACK_ANCHOR},\n}`
-test('(i) --args prelude under CRLF endings adds exactly two lines; a `}` as the last byte gets the prelude on its own line', () => {
+test('(i) --args prelude under CRLF endings adds exactly one line; a `}` as the last byte gets the prelude on its own line', () => {
   const dir = scratch('stage-args-endings-')
   const crlf = join(dir, 'crlf.js')
   writeFileSync(crlf, (TAIL_IN_META + '\nexport const other = 1\n').replace(/\n/g, '\r\n'))
   const stagedCrlf = readFileSync(runStager([crlf, dir, 'crlf-slug', '1', '--args', writeArgs(dir, { k: 1 })]).stdout.trim(), 'utf8')
-  assert.ok(stagedCrlf.includes('}\r\n// Embedded phase args'), 'the prelude follows the whole CRLF line ending')
-  assert.equal(stagedCrlf.split('\n').length, (TAIL_IN_META + '\nexport const other = 1\n').split('\n').length + 2, 'exactly two lines added under CRLF — no blank third line')
+  assert.ok(stagedCrlf.includes('}\r\nlet EMBEDDED_ARGS = '), 'the loader follows the whole CRLF line ending')
+  assert.equal(stagedCrlf.split('\n').length, (TAIL_IN_META + '\nexport const other = 1\n').split('\n').length + 1, 'exactly one line added under CRLF — no blank second line')
   const lastByte = join(dir, 'last-byte.js')
   writeFileSync(lastByte, TAIL_IN_META)
   const stagedLast = readFileSync(runStager([lastByte, dir, 'last-slug', '1', '--args', writeArgs(dir, { k: 1 })]).stdout.trim(), 'utf8')
-  assert.ok(stagedLast.includes('}\n// Embedded phase args'), 'a `}` that is the last byte gets the prelude on its own line, never glued on')
+  assert.ok(stagedLast.includes('}\nlet EMBEDDED_ARGS = '), 'a `}` that is the last byte gets the loader on its own line, never glued on')
 })
 
 // (j) Injection-ordering invariant (End state 4) — a payload that string-quotes all three anchors AND
 // carries JS-meta content (backticks, `${`, quotes, newlines, U+2028/U+2029) still stages cleanly: the
-// payload is injected only AFTER every exactly-once count has run, so it cannot fork the stage.
-test('(j) a payload quoting all three anchors with JS-meta content stages cleanly, prelude byte-equal', () => {
+// payload never enters the staged copy (it rides the args sibling, D38), and the loader goes in only
+// AFTER every exactly-once count has run, so the payload cannot fork the stage.
+test('(j) a payload quoting all three anchors with JS-meta content stages cleanly, prelude byte-equal', async () => {
   const dir = scratch('stage-args-evil-')
   const original = stripFullLineComments(readFileSync(TEMPLATE, 'utf8'))
   const payload = {
@@ -353,16 +370,17 @@ test('(j) a payload quoting all three anchors with JS-meta content stages cleanl
   const slug = 'evil-payload'
   const { stdout, status } = runStager([TEMPLATE, dir, slug, '3', '--args', writeArgs(dir, payload)])
   assert.equal(status, 0, 'an anchor-quoting payload must stage cleanly')
-  const staged = readFileSync(stdout.trim(), 'utf8')
+  const stagedPath = stdout.trim()
+  const staged = readFileSync(stagedPath, 'utf8')
   assert.ok(staged.includes(`name: '${deriveName(slug, '3')}'`), 'the name substitution still landed')
   assert.ok(staged.includes(deriveDescription(slug, '3')), 'the description substitution still landed')
-  assert.equal(staged.split(': (args || EMBEDDED_ARGS)').length - 1, 1, 'the fallback rewrite is still exactly-once')
-  assert.ok(staged.includes(preludeLine(payload)), 'the prelude carries the JSON.stringify output byte-equal')
-  const restored = staged
+  assert.equal(staged.split(argsFallbackRewrite(argsSiblingPath(stagedPath))).length - 1, 1, 'the fallback rewrite is still exactly-once')
+  assert.ok(staged.includes(argsLoaderLine(argsSiblingPath(stagedPath)) + '\n'), 'the loader line is byte-equal to the stager\'s')
+  assert.ok(!staged.includes(JSON.stringify(payload.jsMeta)), 'the payload is not in the staged copy')
+  assert.deepEqual(await argsOf(stagedPath), payload, 'the args sibling returns the JS-meta payload byte-equal')
+  const restored = restoreArgs(staged
     .split(`name: '${deriveName(slug, '3')}'`).join(NAME_ANCHOR)
-    .split(deriveDescription(slug, '3')).join(DESCRIPTION_ANCHOR)
-    .split(': (args || EMBEDDED_ARGS)').join(ARGS_FALLBACK_ANCHOR)
-    .replace(PRELUDE_STRIP, '')
+    .split(deriveDescription(slug, '3')).join(DESCRIPTION_ANCHOR), stagedPath)
   assert.equal(restored, original, 'even an anchor-quoting payload leaves the rest of the template byte-untouched')
 })
 
@@ -375,9 +393,10 @@ test('(k) without --args the staged output carries no substitution evidence and 
   const dir = scratch('stage-noflag-')
   const { stdout } = runStager([TEMPLATE, dir, 'no-flag-slug', '1'])
   const staged = readFileSync(stdout.trim(), 'utf8')
-  assert.equal(staged.split('const EMBEDDED_ARGS =').length - 1, 0, 'no prelude was injected')
-  assert.equal(staged.split(': (args || EMBEDDED_ARGS)').length - 1, 0, 'the fallback was not rewritten')
+  assert.equal(staged.split('let EMBEDDED_ARGS =').length - 1, 0, 'no loader was inserted')
+  assert.equal(staged.split(': (args || EMBEDDED_ARGS').length - 1, 0, 'the fallback was not rewritten')
   assert.equal(staged.split(ARGS_FALLBACK_ANCHOR).length - 1, 1, 'the original fallback survives exactly once')
+  assert.ok(!existsSync(argsSiblingPath(stdout.trim())), 'no args sibling is written')
 })
 
 // (l) Write-if-absent still short-circuits before any --args processing — the addition is one stderr
@@ -414,18 +433,21 @@ test('(l) --args on a pre-existing staged file warns on stderr, leaves it byte-u
 // The discriminator is the returned `phase` field: entry validation assigns `phaseId` from the args
 // object it resolved, so a sentinel phase id can only appear if the EMBEDDED payload became `A`. The
 // no-flag control proves it: staged without --args, the same falsy entry resolves `{}` and the field
-// comes back null. Red: break the embedding and the sentinel arm returns null too.
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
-const runStagedEntry = (text, args) => new AsyncFunction(
-  'agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget',
+// comes back null. Red: break the embedding and the sentinel arm returns null too. The staged copy
+// loads its args from the args sibling through `workflow({ scriptPath })` (D38), so the harness binds
+// `workflow` to siblingWorkflow, which runs the named script as the Workflow tool would.
+const runStagedEntry = (text, args, workflow = siblingWorkflow()) => new AsyncFunction(
+  'agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', 'workflow',
   text.replace(/^export const meta/m, 'const meta'),
-)(async () => ({}), async (t) => Promise.all(t.map((f) => f())), async () => [], () => {}, () => {}, args, { total: null })
+)(async () => ({}), async (t) => Promise.all(t.map((f) => f())), async () => [], () => {}, () => {}, args, { total: null }, workflow)
 
 test('(m) a staged script entered with FALSY args clears entry validation via the embedded fallback', async () => {
   const dir = scratch('stage-entry-')
   const sentinel = 'P-EMBEDDED-SENTINEL'
   const withArgs = runStager([TEMPLATE, dir, 'entry-slug', '1', '--args', writeArgs(dir, { phase: { id: sentinel } })])
-  const out = await runStagedEntry(readFileSync(withArgs.stdout.trim(), 'utf8'), undefined)
+  const loads = []
+  const out = await runStagedEntry(readFileSync(withArgs.stdout.trim(), 'utf8'), undefined, siblingWorkflow(loads))
+  assert.deepEqual(loads, [argsSiblingPath(withArgs.stdout.trim())], 'the falsy entry loads the args sibling exactly once')
   assert.doesNotMatch(
     String((out.workflowError && out.workflowError.message) || ''),
     /args must be a JSON object/,
@@ -437,6 +459,109 @@ test('(m) a staged script entered with FALSY args clears entry validation via th
   const noArgs = runStager([TEMPLATE, scratch('stage-entry-ctl-'), 'entry-slug', '1'])
   const ctl = await runStagedEntry(readFileSync(noArgs.stdout.trim(), 'utf8'), undefined)
   assert.equal(ctl.phase, null, 'without --args a falsy entry still resolves {} — so the sentinel above is real evidence')
+})
+
+// args sibling (D38, operator ruling 2026-11-09: the staged-template cap is funded by moving the
+// embedded args into a sibling args script). Under --args the stager writes the args to
+// `<staged basename minus .js>.args.js` with its own sidecar, and the staged copy carries one loader
+// line that reads it through `workflow({ scriptPath })` only when no args were dispatched. Each row
+// names the stage it proves: the loader shape, the sibling's return value, the paired --force and cap
+// refusals, the dispatched-args skip, the held:workflow-error on a failed load (the loader stores the
+// error, so nothing above the engine's top-level try throws), and the partial-presence rules.
+const D38_MARKER = 'D38-PAYLOAD-MARKER'
+const d38Stage = (extra = []) => {
+  const dir = scratch('stage-d38-')
+  const payload = { phase: { id: 'P-D38' }, tasks: [], marker: D38_MARKER }
+  const argsFile = writeArgs(scratch('stage-d38-args-'), payload)
+  const stagedPath = runStager([TEMPLATE, dir, 'd38-slug', '1', '--args', argsFile, ...extra]).stdout.trim()
+  return { dir, payload, argsFile, stagedPath, siblingPath: argsSiblingPath(stagedPath) }
+}
+test('args sibling (D38): the staged copy carries the one-line loader and no args JSON', () => {
+  const { dir, stagedPath, siblingPath } = d38Stage()
+  assert.equal(siblingPath, join(dir, deriveName('d38-slug', '1') + ARGS_SIBLING_SUFFIX), 'the sibling sits beside the staged copy, named after it')
+  const staged = readFileSync(stagedPath, 'utf8')
+  const loaders = staged.split('\n').filter((l) => l.includes('EMBEDDED_ARGS = null'))
+  assert.deepEqual(loaders, [argsLoaderLine(siblingPath)], 'exactly one loader line, naming the absolute sibling path')
+  assert.ok(loaders[0].includes('if (!args) try {') && loaders[0].includes('catch (e) { EMBEDDED_ARGS_ERROR = e }'), 'the loader runs only on absent args and stores its error')
+  assert.ok(!staged.includes(D38_MARKER), 'the args JSON is not in the staged copy')
+  assert.ok(readFileSync(siblingPath, 'utf8').includes(D38_MARKER), 'the args JSON is in the sibling')
+  const bare = readFileSync(runStager([TEMPLATE, scratch('stage-d38-bare-'), 'd38-slug', '1']).stdout.trim(), 'utf8')
+  assert.equal(staged.split('\n').length, bare.split('\n').length + 1, 'the loader is the only line an --args stage adds')
+})
+test('args sibling (D38): the sibling returns the exact args object', async () => {
+  const { payload, stagedPath, siblingPath } = d38Stage()
+  const text = readFileSync(siblingPath, 'utf8')
+  assert.match(text, /^export const meta = \{/, 'the sibling opens with its meta statement, as the Workflow tool requires')
+  assert.equal(text.split('\n').filter(Boolean).length, 2, 'a meta statement, then the return')
+  assert.deepEqual(await argsOf(stagedPath), payload)
+  assert.equal(readFileSync(siblingPath + SIDECAR_SUFFIX, 'utf8'), sha256(text) + '\n', 'the sibling has its own matching sidecar')
+})
+test('args sibling (D38): a --force restage over a hand-edited sibling refuses', () => {
+  const { dir, argsFile, stagedPath, siblingPath } = d38Stage()
+  const edited = readFileSync(siblingPath, 'utf8').replace(D38_MARKER, 'HAND-EDITED')
+  writeFileSync(siblingPath, edited)
+  const stagedBefore = readFileSync(stagedPath, 'utf8')
+  const r = runStager([TEMPLATE, dir, 'd38-slug', '1', '--force', '--args', argsFile], { expectFail: true })
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, /existing args sibling .* differs from its \.sha256 digest sidecar/)
+  assert.match(r.stderr, new RegExp(DISCARD_FLAG))
+  assert.equal(readFileSync(siblingPath, 'utf8'), edited, 'the sibling is left byte-untouched')
+  assert.equal(readFileSync(stagedPath, 'utf8'), stagedBefore, 'the staged copy is left byte-untouched too: the pair moves together')
+  runStager([TEMPLATE, dir, 'd38-slug', '1', DISCARD_FLAG, '--args', argsFile])
+  assert.ok(readFileSync(siblingPath, 'utf8').includes(D38_MARKER), `${DISCARD_FLAG} overwrites the hand-edited sibling`)
+})
+test('args sibling (D38): an over-cap args file refuses and writes nothing', () => {
+  const dir = scratch('stage-d38-cap-')
+  const r = runStager([TEMPLATE, dir, 'd38-cap', '1', '--args', writeArgs(dir, { pad: 'x'.repeat(SCRIPT_BYTE_CAP) })], { expectFail: true })
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr, new RegExp(`args sibling script would be \\d+ bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap \\(args JSON [1-9]\\d* bytes\\)`))
+  const staged = join(dir, deriveName('d38-cap', '1') + '.js')
+  assert.ok(!existsSync(staged) && !existsSync(argsSiblingPath(staged)), 'neither file is written')
+})
+test('args sibling (D38): dispatched args skip the loader', async () => {
+  const { stagedPath } = d38Stage()
+  const loads = []
+  const out = await runStagedEntry(readFileSync(stagedPath, 'utf8'), { phase: { id: 'P-DISPATCHED' } }, siblingWorkflow(loads))
+  assert.deepEqual(loads, [], 'no workflow() load runs when args were dispatched')
+  assert.equal(out.phase, 'P-DISPATCHED', 'the dispatched args win')
+})
+test('args sibling (D38): a missing sibling yields held:workflow-error naming the args sibling', async () => {
+  const { stagedPath, siblingPath } = d38Stage()
+  rmSync(siblingPath)
+  const text = readFileSync(stagedPath, 'utf8')
+  for (const [label, workflow] of [['a workflow() that cannot read the sibling', siblingWorkflow()], ['no workflow binding at all', undefined]]) {
+    const out = await new AsyncFunction(
+      'agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', 'workflow',
+      text.replace(/^export const meta/m, 'const meta'),
+    )(async () => ({}), async (t) => Promise.all(t.map((f) => f())), async () => [], () => {}, () => {}, undefined, { total: null }, workflow)
+    assert.equal(out.landDecision, 'held:workflow-error', `${label}: a failed load returns a structured hold, never a throw`)
+    assert.match(out.workflowError.message, /args sibling load failed/, `${label}: the message names the args sibling`)
+    assert.ok(out.workflowError.message.includes(siblingPath), `${label}: and its path`)
+  }
+})
+test('args sibling (D38): a staged copy with no sibling refuses reuse', () => {
+  const { dir, argsFile, stagedPath, siblingPath } = d38Stage()
+  rmSync(siblingPath)
+  rmSync(siblingPath + SIDECAR_SUFFIX)
+  const before = readFileSync(stagedPath, 'utf8')
+  const r = runStager([TEMPLATE, dir, 'd38-slug', '1'], { expectFail: true })
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr, /loads its args from .* which is missing/)
+  assert.match(r.stderr, /--force/)
+  assert.match(r.stderr, new RegExp(DISCARD_FLAG))
+  assert.equal(r.stdout, '', 'no staged path is printed on refusal')
+  assert.equal(readFileSync(stagedPath, 'utf8'), before, 'the staged copy is left byte-untouched')
+  runStager([TEMPLATE, dir, 'd38-slug', '1', '--force', '--args', argsFile])
+  assert.ok(existsSync(siblingPath), 'a --force restage writes the sibling back')
+})
+test('args sibling (D38): a sibling with no staged copy is overwritten', async () => {
+  const { dir, stagedPath, siblingPath } = d38Stage()
+  rmSync(stagedPath)
+  rmSync(stagedPath + SIDECAR_SUFFIX)
+  writeFileSync(siblingPath, 'export const meta = {}\nreturn { stale: true }\n')
+  const fresh = { phase: { id: 'P-FRESH' } }
+  runStager([TEMPLATE, dir, 'd38-slug', '1', '--args', writeArgs(scratch('stage-d38-fresh-'), fresh)])
+  assert.deepEqual(await argsOf(stagedPath), fresh, 'the orphan sibling is replaced by the fresh stage\'s args')
 })
 
 // (n)–(o) The two fail-loud arms of the `--args` path that had NO test at all (#1163). Both are
@@ -643,11 +768,15 @@ test('(p) stripFullLineComments blanks only full-line code comments, keeps every
 // blanked, which oracle (1) alone would accept. Scope: the oracle proves pt-tagged prompt spans; a
 // plain (untagged) template literal is outside it and rests on oracle (1) plus the fixture arms. (3) `node --check` parses the result, and the fallback-free interpolation census the
 // args preflight reads is unchanged, occurrence counts included. The staged size must also sit under
-// the cap with headroom for the measured ~104.5 KB over-size args class (SKILL.md) — pinned at 117
-// KiB, still 12 KiB above that class, so a template growth that eats the margin reds here before a campaign launch dies at dispatch.
-// Lowered from 119 KiB by operator ruling 2026-11-05 (#2617 part 2), and from 118 KiB by operator
-// ruling 2026-11-08 (#2622), each giving the template 1 KiB more room.
-const ARGS_HEADROOM_BYTES = 119808
+// the cap with headroom for what an --args stage adds to the staged copy. The args themselves ride
+// the args sibling script (D38, operator ruling 2026-11-09: the staged-template cap is funded by
+// moving the embedded args into a sibling args script), so the reserve covers only the one loader
+// line and the fallback rewrite, each naming the absolute sibling path once (about 420 bytes plus
+// twice the path length): 4 KiB holds a path of well over 1,500 bytes, so a template growth that eats
+// the margin reds here before a launch dies at dispatch. History: the reserve held the ~104.5 KB
+// over-size args class at 117 KiB, lowered from 119 KiB (#2617 part 2) and from 118 KiB (#2622); the
+// D38 ruling dropped it to this prelude reserve, and ADR 0037's 2026-11-09 amendment records why.
+const ARGS_HEADROOM_BYTES = 4096
 // Oracles (1) and (2), shared by the shipped-template arm and the synthetic negative below. Returns
 // { blanked, spans, insideExpr } so each caller can add its own non-vacuity bounds.
 function assertStripKeptPromptBytes (original, stripped) {
@@ -718,7 +847,7 @@ test('(p) shipped template: only `//`-led lines blank, no prompt byte moves, the
   assert.equal(check.status, 0, `the stripped template must still parse: ${check.stderr}`)
   assert.deepEqual([...extractInterpolations(stripped)], [...extractInterpolations(original)], 'the fallback-free interpolation census, with occurrence counts, is unchanged by the strip')
   const bytes = Buffer.byteLength(stripped, 'utf8')
-  assert.ok(bytes + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP, `stripped template is ${bytes} bytes; it must leave at least ${ARGS_HEADROOM_BYTES} bytes under the ${SCRIPT_BYTE_CAP}-byte cap for embedded args`)
+  assert.ok(bytes + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP, `stripped template is ${bytes} bytes; it must leave at least ${ARGS_HEADROOM_BYTES} bytes under the ${SCRIPT_BYTE_CAP}-byte cap for the args loader prelude`)
 })
 
 // (s) Indent strip (plan 2026-11-04-late-defects-fixed-in-run, Task 1.1; PIN-16, PIN-17, PIN-18,
@@ -994,16 +1123,15 @@ test('indent-strip: NAME_ANCHOR and ARGS_FALLBACK_ANCHOR substitute on the stage
   const dir = scratch('stage-indent-anchor-')
   const slug = 'indent-anchor'
   const { stdout } = runStager([TEMPLATE, dir, slug, '1', '--args', writeArgs(dir, { k: 1 })])
-  const staged = readFileSync(stdout.trim(), 'utf8')
+  const stagedPath = stdout.trim()
+  const staged = readFileSync(stagedPath, 'utf8')
   const stripped = shippedStripped()
-  assert.equal(staged.split('\n').length, SHIPPED.split('\n').length + 2, 'only the two prelude lines are added')
+  assert.equal(staged.split('\n').length, SHIPPED.split('\n').length + 1, 'only the one loader line is added')
   assert.match(staged, new RegExp(`\\nname: '${deriveName(slug, '1')}',\\n`), 'the name substitution lands on the unindented meta line')
-  assert.equal(staged.split('\n})() : (args || EMBEDDED_ARGS)\n').length - 1, 1, 'the args fallback is rewritten exactly once, on its column-0 line')
-  const restored = staged
+  assert.equal(staged.split(`\n})() ${argsFallbackRewrite(argsSiblingPath(stagedPath))}\n`).length - 1, 1, 'the args fallback is rewritten exactly once, on its column-0 line')
+  const restored = restoreArgs(staged
     .split(`name: '${deriveName(slug, '1')}'`).join(NAME_ANCHOR)
-    .split(deriveDescription(slug, '1')).join(DESCRIPTION_ANCHOR)
-    .split(': (args || EMBEDDED_ARGS)').join(ARGS_FALLBACK_ANCHOR)
-    .replace(PRELUDE_STRIP, '')
+    .split(deriveDescription(slug, '1')).join(DESCRIPTION_ANCHOR), stagedPath)
   assert.equal(restored, stripped, 'reversing the substitutions restores the indent-stripped template')
 })
 test('indent-strip: the oracles refuse a synthetic corruption', () => {
@@ -1188,8 +1316,8 @@ test('indent-strip: skip-signal scan lists a skip near a staged-form signal and 
 
 // (q) Size floor (#2099). Matchers anchor on narrow fragments built from the imported constant
 // (spec §8 — never the full message bytes, never a hand-copied number). Arms: an over-cap fresh
-// stage exits non-zero, names both contributing sizes, writes nothing; comment bytes do not count;
-// an over-cap --args payload is named as such; the boundary is `at or under dispatches, over
+// stage exits non-zero, names the stripped-template size, writes nothing; comment bytes do not count;
+// an over-cap --args payload is named as such, as the args sibling's size (D38); the boundary is `at or under dispatches, over
 // refuses` (exactly SCRIPT_BYTE_CAP bytes stages, one more refuses); the live 0.21.11 shape — the
 // shipped template plus an over-size-class args payload — stages under the cap; and a pre-existing
 // over-cap staged file is refused (naming --discard-injections) rather than reused, byte-untouched.
@@ -1205,7 +1333,7 @@ test('(q) over-cap fresh stage: exits non-zero, names the sizes, writes nothing;
   assert.notEqual(over.status, 0, 'an over-cap staged copy must not exit 0')
   assert.match(over.stderr, CAP_FRAGMENT)
   assert.match(over.stderr, /\(stripped template \d+ bytes;/, 'the size floor labels the comment- and indent-stripped size as the stripped template')
-  assert.match(over.stderr, /embedded args 0 bytes/)
+  assert.doesNotMatch(over.stderr, /args/, 'the staged copy carries no args, so its size floor names none')
   assert.ok(!existsSync(join(dir, deriveName('cap-slug', '1') + '.js')), 'nothing is written on refusal')
 
   const commented = join(dir, 'commented.js')
@@ -1218,8 +1346,10 @@ test('(q) over-cap fresh stage: exits non-zero, names the sizes, writes nothing;
   const argsOver = runStager([withTail, dir, 'args-cap-slug', '1', '--args', writeArgs(dir, { pad: 'x'.repeat(SCRIPT_BYTE_CAP) })], { expectFail: true })
   assert.notEqual(argsOver.status, 0)
   assert.match(argsOver.stderr, CAP_FRAGMENT)
-  assert.match(argsOver.stderr, /embedded args [1-9]\d* bytes/, 'the args payload is named with its own non-zero size')
+  assert.match(argsOver.stderr, /args sibling script would be \d+ bytes/, 'the over-cap file is named as the args sibling')
+  assert.match(argsOver.stderr, /args JSON [1-9]\d* bytes/, 'the args payload is named with its own non-zero size')
   assert.ok(!existsSync(join(dir, deriveName('args-cap-slug', '1') + '.js')), 'nothing is written on refusal')
+  assert.ok(!existsSync(join(dir, deriveName('args-cap-slug', '1') + ARGS_SIBLING_SUFFIX)), 'no args sibling either')
 })
 
 test('(q) cap boundary: exactly SCRIPT_BYTE_CAP bytes stages, one byte more refuses', () => {
@@ -1237,6 +1367,7 @@ test('(q) the live 0.21.11 shape: the shipped template plus a ~104.5 KB --args p
   const live = scratch('stage-cap-live-')
   const { stdout } = runStager([TEMPLATE, live, 'live-slug', '1', '--args', writeArgs(live, { phase: { id: 1 }, pad: 'x'.repeat(107008) })])
   assert.ok(Buffer.byteLength(readFileSync(stdout.trim(), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP)
+  assert.ok(Buffer.byteLength(readFileSync(argsSiblingPath(stdout.trim()), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP, 'and so does its args sibling')
 })
 
 test('(q) write-if-absent refuses a pre-existing staged file over the cap, naming --discard-injections, file untouched', () => {
@@ -1326,9 +1457,13 @@ test('(t) every write leaves a matching sidecar', () => {
   for (const [i, args] of runs.entries()) {
     const p = runStager(args).stdout.trim()
     assert.equal(readFileSync(p + SIDECAR_SUFFIX, 'utf8'), sha256(readFileSync(p, 'utf8')) + '\n', `sidecar matches after: ${args.slice(2).join(' ')}`)
-    if (i === 2) assert.match(readFileSync(p, 'utf8'), /"a":1/, 'the fresh --args stage embedded the first args')
+    if (args.includes('--args')) {
+      const s = argsSiblingPath(p)
+      assert.equal(readFileSync(s + SIDECAR_SUFFIX, 'utf8'), sha256(readFileSync(s, 'utf8')) + '\n', `args sibling sidecar matches after: ${args.slice(2).join(' ')}`)
+    }
+    if (i === 2) assert.match(readFileSync(argsSiblingPath(p), 'utf8'), /"a":1/, 'the fresh --args stage wrote the first args to the sibling')
   }
-  assert.match(readFileSync(join(dir, deriveName('slug', '2') + '.js'), 'utf8'), /"a":2/, 'the --force re-embed over a clean stage took the new args')
+  assert.match(readFileSync(join(dir, deriveName('slug', '2') + ARGS_SIBLING_SUFFIX), 'utf8'), /"a":2/, 'the --force re-embed over a clean stage took the new args')
 })
 
 // staged-script doc (#2345, operator ruling 3, 2026-11-08): the three doc surfaces that state the

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, symlinkSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -437,7 +437,12 @@ test('CLI --template: EMBEDDED_ARGS prose leaves the field set unchanged', () =>
     assert.equal(st.status, 0, `the stager writes the staged copy — stderr: ${st.stderr}`)
     const stagedPath = st.stdout.trim()
     const staged = readFileSync(stagedPath, 'utf8')
-    assert.ok(staged.includes('const EMBEDDED_ARGS = ') && staged.includes('pt`${plan.zzz}`'), 'the fixture embeds the pt-backtick prose in the EMBEDDED_ARGS line')
+    // The args ride the args sibling script beside the staged copy (D38); the staged copy carries
+    // only the EMBEDDED_ARGS loader line, so the prose is read from the sibling.
+    const sibling = readFileSync(stagedPath.replace(/\.js$/, '.args.js'), 'utf8')
+    assert.ok(staged.includes('let EMBEDDED_ARGS = ') && !staged.includes('pt`${plan.zzz}`'), 'the staged copy carries the EMBEDDED_ARGS loader and none of the args prose')
+    assert.ok(sibling.includes('pt`${plan.zzz}`'), 'the fixture writes the pt-backtick prose into the args sibling')
+    assert.deepEqual(extractArgsFields(sibling), [], 'the prose inside the sibling\'s JSON string opens no pt span')
     const fields = extractArgsFields(staged)
     assert.deepEqual(fields, extractArgsFields(templateSrc), `the staged field set equals the shipped one — got ${JSON.stringify(fields)}`)
     assert.ok(!fields.includes('plan.zzz'), 'the phantom plan.zzz from the args prose is not a field')
@@ -778,4 +783,86 @@ test('check-shape: a staged doneWhen with an unreadable plan file exits 2', () =
     assert.equal(r.status, 2, `exit 2 on an unreadable plan — stderr: ${r.stderr}`)
     assert.ok(r.stderr.includes(join(dir, 'docs/plans/missing.md')), `stderr names the resolved path — got ${r.stderr}`)
   } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// ---------------------------------------------------------------------------
+// Plugin identity floor (#2495, D10): --prior-manifest on a sanctioned recovery relaunch
+// ---------------------------------------------------------------------------
+// The running plugin root is the CLI's own location, three directories up from skills/war/assets/,
+// realpath'd; its version is that root's .claude-plugin/plugin.json version. Both are computed here
+// from this test file's own path, independently of the CLI's code.
+const RUNNING_ROOT = realpathSync(join(here, '..', '..', '..'))
+const RUNNING_VERSION = JSON.parse(readFileSync(join(RUNNING_ROOT, '.claude-plugin', 'plugin.json'), 'utf8')).version
+const RECOVERY = () => ({ ...COMPLETE(), recovery: { sanctioned: true } })
+const withManifest = (manifest, fn) => {
+  const dir = mkdtempSync(join(tmpdir(), 'aac-manifest-'))
+  try {
+    const p = join(dir, 'manifest.json')
+    writeFileSync(p, JSON.stringify(manifest))
+    return fn(p, dir)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+}
+
+test('prior-manifest (#2495): a version mismatch exits 1 and prints both versions', () => {
+  withManifest({ runId: 'old', pluginRoot: RUNNING_ROOT, pluginVersion: '0.0.1-prior' }, (p) => {
+    const r = runCli(['--prior-manifest', p], JSON.stringify(RECOVERY()))
+    assert.equal(r.status, 1, `exit 1 on a version mismatch — stderr: ${r.stderr}`)
+    assert.ok(r.stderr.includes('0.0.1-prior') && r.stderr.includes(RUNNING_VERSION), `stderr prints both versions — got ${r.stderr}`)
+    assert.match(r.stderr, /--plugin-dir /, 'stderr names the --plugin-dir relaunch form')
+    assert.doesNotMatch(r.stdout, /dispatch-complete/, 'a refused launch is never certified')
+  })
+})
+
+test('prior-manifest (#2495): a root mismatch exits 1 and prints both roots', () => {
+  withManifest({}, (_, dir) => {
+    const other = realpathSync(mkdtempSync(join(dir, 'other-root-')))
+    const p = join(dir, 'm2.json')
+    writeFileSync(p, JSON.stringify({ pluginRoot: other, pluginVersion: RUNNING_VERSION }))
+    const r = runCli(['--prior-manifest', p], JSON.stringify(RECOVERY()))
+    assert.equal(r.status, 1, `exit 1 on a root mismatch — stderr: ${r.stderr}`)
+    assert.ok(r.stderr.includes(other) && r.stderr.includes(RUNNING_ROOT), `stderr prints both roots — got ${r.stderr}`)
+    assert.ok(r.stderr.includes(`--plugin-dir ${other}`), 'the --plugin-dir form names the prior root')
+  })
+})
+
+test('prior-manifest (#2495): a manifest without the fields warns and exits 0', () => {
+  for (const manifest of [{ runId: 'old' }, { runId: 'old', pluginRoot: null, pluginVersion: null }]) {
+    withManifest(manifest, (p) => {
+      const r = runCli(['--prior-manifest', p], JSON.stringify(RECOVERY()))
+      assert.equal(r.status, 0, `exit 0 when the identity fields are absent or null — stderr: ${r.stderr}`)
+      assert.match(r.stderr, /warning: .*pluginRoot/, 'one warning names the absent pluginRoot')
+      assert.match(r.stderr, /warning: .*pluginVersion/, 'one warning names the absent pluginVersion')
+      assert.match(r.stdout, /dispatch-complete/)
+    })
+  }
+})
+
+test('prior-manifest (#2495): a non-recovery launch never reads the manifest', () => {
+  const missing = join(tmpdir(), `aac-no-such-manifest-${process.pid}.json`)
+  for (const args of [COMPLETE(), { ...COMPLETE(), recovery: { sanctioned: false } }, { ...COMPLETE(), recovery: { sanctioned: 'true' } }]) {
+    const r = runCli(['--prior-manifest', missing], JSON.stringify(args))
+    assert.equal(r.status, 0, `a non-recovery launch exits 0 though the manifest path does not exist — stderr: ${r.stderr}`)
+    assert.ok(!r.stderr.includes(missing), 'the manifest path is never read or named')
+  }
+  const sanctioned = runCli(['--prior-manifest', missing], JSON.stringify(RECOVERY()))
+  assert.equal(sanctioned.status, 2, 'control: a sanctioned recovery does read it, and an unreadable manifest is a tooling error')
+  assert.ok(sanctioned.stderr.includes(missing))
+})
+
+test('prior-manifest (#2495): a matching root and version exits 0 with no warning', () => {
+  withManifest({ pluginRoot: RUNNING_ROOT, pluginVersion: RUNNING_VERSION }, (p) => {
+    const r = runCli(['--prior-manifest', p], JSON.stringify(RECOVERY()))
+    assert.equal(r.status, 0, `exit 0 on a matching identity — stderr: ${r.stderr}`)
+    assert.doesNotMatch(r.stderr, /warning|plugin root|plugin version/, 'no identity warning on a matching identity')
+    assert.match(r.stdout, /dispatch-complete/)
+  })
+  withManifest({ pluginRoot: join(RUNNING_ROOT, 'skills', '..'), pluginVersion: RUNNING_VERSION }, (p) => {
+    assert.equal(runCli(['--prior-manifest', p], JSON.stringify(RECOVERY())).status, 0, 'the manifest root is realpath\'d before the compare')
+  })
+})
+
+test('prior-manifest (#2495): the flag needs a path', () => {
+  const r = runCli(['--prior-manifest'], JSON.stringify(RECOVERY()))
+  assert.equal(r.status, 2)
+  assert.match(r.stderr, /--prior-manifest needs a path/)
 })

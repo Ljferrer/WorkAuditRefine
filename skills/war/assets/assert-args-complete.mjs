@@ -12,25 +12,35 @@
 // bullet byte for byte, and runs the template's own provenance floor (#1896) over the args.
 //
 // Usage:
-//   node assert-args-complete.mjs [--template <path>] [<args-file.json>|-]
+//   node assert-args-complete.mjs [--template <path>] [--prior-manifest <path>] [<args-file.json>|-]
 // The args object arrives as a JSON file path on argv, or on stdin when the positional is `-` or
 // absent. --template overrides the template source path (default: workflow-template.js beside this
-// script). Unknown flags are refused loudly in BOTH input modes (the two-input-mode CLI trap —
+// script). --prior-manifest names the run manifest of the launch a sanctioned recovery relaunch
+// recovers (#2495, D10): when `args.recovery.sanctioned === true`, the running plugin root (this
+// script's realpath, three directories up) and its `.claude-plugin/plugin.json` version must equal
+// that manifest's `pluginRoot` (realpath'd) and `pluginVersion`. Without the flag, or on any other
+// launch, the manifest is never read. Unknown flags are refused loudly in BOTH input modes (the two-input-mode CLI trap —
 // an argv guarantee must not hold in one mode by accident of positional handling).
 //
 // Exit contract (floor scripts exit 0/1/2; 2 never collapses into the floor status):
 //   0 — every check passes; the launch is dispatch-complete. The stdout line names the two dispatch
 //       shapes: the parsed object as the Workflow args, or no args over an --args staged script.
 //   1 — the args fail a check, and stderr names each failure. Fix the assembled args (or the row at
-//       its ledger source). The checks run in order and the first failing one exits: a missing
-//       required field; an End state `check` or task `doneWhen` that does not parse as shell, or a
+//       its ledger source). The checks run in order and the first failing one exits: on a sanctioned
+//       recovery with --prior-manifest, a plugin root or version that differs from the prior
+//       manifest's (stderr prints both values and the `claude --plugin-dir <prior root>` form); a
+//       missing required field; an End state `check` or task `doneWhen` that does not parse as shell, or a
 //       `None — …` doneWhen; a staged doneWhen string that equals no plan `Done when:` bullet; a
 //       provenance floor refusal, printed verbatim from the template plus one line telling the
 //       Lead to fix the row at its ledger source, not the launch copy (provenanceRemedies names
 //       the per-surface remedy: a planFile or planSlug stamp, the intent text, or a dropped
 //       foreign row).
 //   A boundary warning (#2545 part 3, boundaryWarnings below) goes to stderr and never changes the exit code.
+//   So does the identity warning for a prior manifest whose `pluginRoot` or `pluginVersion` is absent
+//   or null: that field is not compared.
 //   2 — tooling error: unreadable template, unreadable args file/stdin, unparseable args JSON,
+//       a --prior-manifest that is unreadable or not a JSON object on a sanctioned recovery, an
+//       unreadable running `.claude-plugin/plugin.json`,
 //       a readable template that yields ZERO fallback-free interpolations (wrong template source —
 //       certifying against zero requirements would be a silent pass), a `bash` that cannot spawn,
 //       an unreadable plan.file while a doneWhen string is staged, or a provenance mirror that
@@ -42,7 +52,7 @@
 //   - Only pt-tagged template literals are scanned (the dispatched-prompt surface). Comments, error
 //     messages, and derivation helpers are not prompt bytes. The seed scan skips `//` and `/* */`
 //     comments, `'…'` / `"…"` strings and regex literals outside spans (#1775), so a pt` byte-run in
-//     one of them (a staged copy's embedded-args JSON string included) opens no span; error messages and helpers
+//     one of them (an args sibling script's JSON string included) opens no span; error messages and helpers
 //     outside pt spans contribute nothing. The default-deny census in
 //     workflow-template.engine-1.test.mjs still pins the extracted set.
 //   - An interpolation qualifies when its expression is a PURE member chain (`a.b.c`, with
@@ -552,12 +562,16 @@ if (invokedDirectly) {
   const here = dirname(fileURLToPath(import.meta.url))
   let templatePath = join(here, 'workflow-template.js')
   let argsSource = null
+  let priorManifest = null
   const argv = process.argv.slice(2)
   for (let i = 0; i < argv.length; i++) {
     const tok = argv[i]
     if (tok === '--template') {
       if (!argv[i + 1]) { process.stderr.write('assert-args-complete: --template needs a path\n'); process.exit(2) }
       templatePath = argv[++i]
+    } else if (tok === '--prior-manifest') {
+      if (!argv[i + 1]) { process.stderr.write('assert-args-complete: --prior-manifest needs a path\n'); process.exit(2) }
+      priorManifest = argv[++i]
     } else if (tok.startsWith('--')) {
       // Default-deny: an unknown flag is refused in BOTH input modes, never silently dropped.
       process.stderr.write(`assert-args-complete: unknown flag ${tok}\n`); process.exit(2)
@@ -587,6 +601,49 @@ if (invokedDirectly) {
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     process.stderr.write(`assert-args-complete: args must be a JSON object, got ${parsed === null ? 'null' : Array.isArray(parsed) ? 'array' : typeof parsed}\n`); process.exit(2)
+  }
+  // Plugin identity floor (#2495, D10): a sanctioned recovery relaunch runs from the plugin root and
+  // version of the launch it recovers. The running root is this script's own location, never an
+  // environment variable; the manifest is read only on a sanctioned recovery with the flag passed.
+  if (priorManifest !== null && parsed.recovery && typeof parsed.recovery === 'object' && parsed.recovery.sanctioned === true) {
+    const assetsDir = dirname(realpathSync(fileURLToPath(import.meta.url))) // <root>/skills/war/assets
+    const root = dirname(dirname(dirname(assetsDir)))
+    let version
+    try {
+      version = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8')).version
+    } catch (err) {
+      process.stderr.write(`assert-args-complete: cannot read the running plugin version from ${join(root, '.claude-plugin', 'plugin.json')}: ${err.message}\n`); process.exit(2)
+    }
+    let manifest
+    try {
+      manifest = JSON.parse(readFileSync(priorManifest, 'utf8'))
+    } catch (err) {
+      process.stderr.write(`assert-args-complete: cannot read the prior manifest ${priorManifest}: ${err.message}\n`); process.exit(2)
+    }
+    if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) {
+      process.stderr.write(`assert-args-complete: the prior manifest ${priorManifest} is not a JSON object\n`); process.exit(2)
+    }
+    const absent = v => v === undefined || v === null || v === ''
+    const mismatches = []
+    if (absent(manifest.pluginRoot)) {
+      process.stderr.write('assert-args-complete: warning: the prior manifest has no pluginRoot — the plugin root is not compared; the relaunch proceeds from the current root\n')
+    } else {
+      let prior = String(manifest.pluginRoot)
+      try { prior = realpathSync(prior) } catch { /* an unresolvable prior root compares as written, and so mismatches */ }
+      if (prior !== root) mismatches.push(`plugin root: prior run ${prior}, this run ${root}`)
+    }
+    if (absent(manifest.pluginVersion)) {
+      process.stderr.write('assert-args-complete: warning: the prior manifest has no pluginVersion — the plugin version is not compared; the relaunch proceeds from the current version\n')
+    } else if (String(manifest.pluginVersion) !== String(version)) {
+      mismatches.push(`plugin version: prior run ${manifest.pluginVersion}, this run ${version}`)
+    }
+    if (mismatches.length) {
+      process.stderr.write(`assert-args-complete: a sanctioned recovery relaunch must run from the plugin root and version of the launch it recovers (${priorManifest}):\n`)
+      for (const line of mismatches) process.stderr.write(`  - ${line}\n`)
+      const priorRoot = absent(manifest.pluginRoot) ? root : String(manifest.pluginRoot)
+      process.stderr.write(`assert-args-complete: relaunch from the prior plugin with claude --plugin-dir ${priorRoot}${absent(manifest.pluginVersion) ? '' : ` (it must carry version ${manifest.pluginVersion})`}, never recover an in-flight run on another engine\n`)
+      process.exit(1)
+    }
   }
   const fields = extractArgsFields(src)
   if (fields.length === 0) {
