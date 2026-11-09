@@ -26,3 +26,8 @@
 - D37 and D17 (c) predate ADR 0059. Point them at `setup.md` § Run root.
 - #2750 (push after a pin-transfer rebase): the smallest fix is one `floorFixHead` sentence in T3.1 that names the merge-slot rebase as a dispatch-rebase for the lease carve-out.
 - Minor: stale counts (21 and 18 claimed issues, the plan lists 28), the D10 grep evidence, the D37 adopt-form pointer (it lives in `schemas.md` staleRemote row), the T4.2 D32 anchor (it is § Held-partial-phase recovery runbook step 4), and the operator re-confirmation of appended End states 24 to 32.
+
+## Operator ruling (2026-11-09) and patches after round 1
+
+- **Staged cap ruling:** the stager moves the phase args into a sibling args script that the staged copy loads with `workflow({ scriptPath })`. `ARGS_HEADROOM_BYTES` then reserves only that loader line. Plan patch: D38, TRIAL-3 (a 387 B parent loaded 109,925 B of real phase args from a child script, 0 agents), T1.2 owns the change, T1.1 deps on T1.2, End states 33 and 34.
+- **Open-list patches:** T1.1 now owns `workflow-template.recovery.test.mjs` and names its three pins. T3.1 re-derives the worker card funding at 20 B free and carries the #2750 `floorFixHead` sentence. The T4.2 Done when and End state 23 check `patch-id`, `repoint` and `Manifest restamp`. The T5.1 Done when is marked a guardrail. D37 points at `setup.md` § Run root and the `schemas.md` staleRemote row. The D32 anchor, the D10 evidence and the issue counts (28, all open) are fixed.
