@@ -152,7 +152,7 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
     severity: { enum: ['Critical', 'Major', 'Minor', 'Nit'] }, title: { type: 'string' }, file: { type: 'string' },
     line: { type: 'number' }, rationale: { type: 'string' }, suggested_fix: { type: 'string' }, plan_ref: { type: 'string' },
     // Disposition routing (ADR 0013): auditor-owned, orthogonal to severity. Omitted → the engine
-    // default: a fully specified Minor/Nit (non-empty suggested_fix) on a task whose diff probe ran
+    // default: a fully specified Minor/Nit (a suggested_fix that names a fix, noFixText false) on a task whose diff probe ran
     // reads absorb (in-diff) or absorb + phaseClose:true (out-of-diff); otherwise the severity default
     // (Minor → follow-up, Nit → note; 'ask' is never defaulted) — dispositionOf, in-band-absorb-default
     // D1/D4. phaseClose:true routes an absorb to the phase-close queue.
@@ -478,7 +478,7 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // lateFixCharges (late-defects D25, PIN-25) — { <task>: n }, the HIGHEST `Late-Fix: <task>:<n>` index on
 // the first-parent single-parent commits after a preMerged task's merge commit (recovery only) — seeds
 // that task's fixRounds, so a relaunch keeps the late-fix charge. A sixth OPTIONAL field, integrationTip
-// (#2575 D9, recovery only) — the third TASK_INTEGRATED field — seeds recoveryPredSeed. savedWork (#2588
+// (#2575 D9, recovery only) — the last field of a TASK_INTEGRATED line (the integration tip, after the merge commit) — seeds recoveryPredSeed. savedWork (#2588
 // D7) rides a per-task provision-run ok: true when the saved-edit patch did not re-apply: its path.
 const ENV_OUTCOME = { type: 'object', required: ['ok'], properties: {
   ok: { type: 'boolean' },
@@ -548,7 +548,7 @@ const aced = []
 // Phase-close queue (ADR 0012): absorb findings the per-task ace cannot reach (phaseClose:true or a
 // release-slot filename) — drained by the phase-close coherence sweep at the integrated tip.
 const phaseCloseQueue = []
-// collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha, gateLogPath, preMergeTip, mappedTests?, claimedEndStateIds?, baselineDebt?} for post-merge gate-audit pass (F04 R3)
+// collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha, gateLogPath, preMergeTip, mappedTests?, claimedEndStateIds?, workerReport?, baselineDebt?} for post-merge gate-audit pass (F04 R3)
 const mergedTasksForGateAudit = []
 // #806: the last REAL integration_sha any landMerged() call recorded (incl. requiresTest:false tasks,
 // which never enter mergedTasksForGateAudit), or a merged late fix's tip (lateFixPass, after every predTip
@@ -750,7 +750,7 @@ const backstops = Array.isArray(A.backstops) ? A.backstops : null
 const testPattern = (plan && typeof plan.testPattern === 'string' && plan.testPattern) ? plan.testPattern : null
 const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 // Partial-phase recovery (spec §4.2/§4.4): a Lead-supplied top-level arg armed ONLY on a sanctioned
-// recovery relaunch (the war skill's references/resume-and-recovery.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean }.
+// recovery relaunch (the war skill's references/resume-and-recovery.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean, priorReturn?: { aced?: [...], minorsFiled?: [...] } }.
 // Absent / non-sanctioned ⇒ FOUR recovery-gated barrier arms are DORMANT, not one: (1) the
 // derive-and-skip step (deriveSkipClause — a task branch that is an ancestor of the frozen tip AND
 // was merged by a first-parent merge commit whose WAR-Task trailer names it and whose second parent is its tip
@@ -1447,7 +1447,9 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     // is what fails the own-token floor, the refusal names the missing coordinate — the actual
     // cause — before the generic own-token message could misname it. A coordinate-less record whose
     // surface still carries an own token clears the floor and is dropped LOUDLY at the intake below.
-    const coordinateLess = rows.find(r => r.coordinateLessName)
+    // A text-less record (`{}`) is never named (#2142, D6): it is not what failed the own-token scan,
+    // so the refusal is the generic own-token message.
+    const coordinateLess = rows.find(r => r.coordinateLessName && r.text)
     if (argName === 'intent' && foreignIds.length) log('workflow-template: args.intent names a foreign docs/plans identifier (' + foreignIds.join(', ') + ') differing from plan.file — a warning, not a refusal (#2375)')
     if (foreignIds.length && (argName === 'backstops' || argName === 'adjudications')) {
       provenanceProblems.push('workflow-template: args.' + argName + ' names a foreign docs/plans identifier (' + foreignIds[0] + ') differing from plan.file — a cross-plan args leak; refused at entry (#1413)')
@@ -1599,8 +1601,8 @@ const PROVISION_CLEAN_LINE = pt`Provision steps must leave the worktree CLEAN: r
 // conflict. A dirty tracked tree is written to the patch; untracked files are never touched. The restore
 // is worktree only (no --index). provisionStep fills `<task id>`. An apply failure keeps the patch and
 // returns its path as ENV_OUTCOME.savedWork, which the worker prompt names.
-const PROVISION_SAVE_LINE = pt`SAVE FIRST (a reused worktree may hold a dead worker's edits): before step 1, inside the worktree, run \`git reset -q && if [ -n "$(git status --porcelain --untracked-files=no)" ]; then mkdir -p .war && git diff --binary HEAD > .war/preprovision-<task id>.patch; fi\`.`
-const PROVISION_RESTORE_LINE = pt`RESTORE AFTER THE CLEAN: after that restore, inside the worktree, run \`if [ -f .war/preprovision-<task id>.patch ]; then git apply .war/preprovision-<task id>.patch && rm .war/preprovision-<task id>.patch; fi\` (worktree only, never --index). If that apply fails, keep the patch and return { ok: true, savedWork: ".war/preprovision-<task id>.patch" }.`
+const PROVISION_SAVE_LINE = pt`SAVE FIRST (a reused worktree may hold a dead worker's edits): before step 1, inside the worktree, run \`git reset -q && if [ -n "$(git status --porcelain --untracked-files=no)" ]; then mkdir -p .war && git diff --binary HEAD > .war/preprovision-<task id>.patch && git checkout -- .; fi\`.`
+const PROVISION_RESTORE_LINE = pt`RESTORE AFTER THE CLEAN: after that restore, inside the worktree, run \`if [ -f .war/preprovision-<task id>.patch ]; then git checkout -- . && git apply .war/preprovision-<task id>.patch && rm .war/preprovision-<task id>.patch; fi\` (worktree only, never --index). If that apply fails, keep the patch and return { ok: true, savedWork: ".war/preprovision-<task id>.patch" }.`
 // PROVISION_RERUN_CLAUSE (#2485 D15/D19, PIN-15/PIN-19): the ONE tree-keyed re-run sentence every
 // refiner gate site interpolates before any floor or gate — the four merge step (a) copies, the ace-gate
 // check and its pre-ace base check (ace-base-gate), the polish-sweep, terminal-pass and late-fix merges,
@@ -1745,7 +1747,7 @@ const minorsOf   = seats => seats.flatMap(s => (s.findings || []).filter(f => f.
 // (null when the probe failed or never ran — the polish pseudo-task, the escalation arm; an EMPTY
 // Set when every row is out-of-diff by construction — routeGateAuditRows passes one so a fully
 // specified row reads absorb + phaseClose:true). A fully
-// specified finding (non-empty suggested_fix) on a probed task reads 'absorb' — and when its file is
+// specified finding (a suggested_fix that names a fix: noFixText false, D1) on a probed task reads 'absorb' — and when its file is
 // OUTSIDE the diff the classifier stamps phaseClose:true on the row so the absorb rides the sweep
 // (the one side effect here; every caller keeps its single-arg-shaped routing chain). Otherwise the
 // old severity default: Minor → 'follow-up', Nit → 'note'. Legacy autoFixable:true reads as
@@ -1754,7 +1756,7 @@ const dispositionOf = (f, diff) => {
   if (f.disposition === 'ask') return 'ask'
   if (f.disposition === 'absorb' || f.disposition === 'follow-up' || f.disposition === 'note') return f.disposition
   if (f.autoFixable === true) return 'absorb'
-  if (diff instanceof Set && !blankText(f.suggested_fix)) {
+  if (diff instanceof Set && !noFixText(f.suggested_fix)) {
     if (!(typeof f.file === 'string' && f.file && diff.has(aceRelPath(f.file)))) f.phaseClose = true
     return 'absorb'
   }
@@ -1801,7 +1803,8 @@ const floorSkipLogged = new Set()
 // the enum) ⇒ 'absorb' — in-diff it joins the task's own ace batch; out-of-diff it rides
 // phaseClose:true to the sweep; `barrier:trade-off` with the `ask` field ⇒ 'ask', without it ⇒ keep
 // 'follow-up' with the "trade-off without ask fields" log (never a schema throw); any other barrier
-// ⇒ file as stated; a seat `note` whose file is in diff_files with a non-empty suggested_fix ⇒
+// ⇒ file as stated; a seat `note` whose file is in diff_files with a suggested_fix that names a fix
+// (noFixText false: neither blank nor a no-fix sentinel such as "None needed.", D1) ⇒
 // 'absorb' ("note with a specified fix rerouted"); every other row keeps its classification. Probe
 // ABSENT (diff null) ⇒ the old default stands, the task's skip is logged once, and each seat row
 // filed for that task carries floorSkipped (rendered demote:floor-skipped on the issue-body prefix
@@ -1814,7 +1817,7 @@ const floorSkipLogged = new Set()
 const intakeFloor = (f, d, diff) => {
   if (f.engineFiled === true) return d
   if (d === 'note' && f.findingClass === 'behavior') {
-    if (typeof f.file === 'string' && f.file.length > 0 && !blankText(f.suggested_fix)) {
+    if (typeof f.file === 'string' && f.file.length > 0 && !noFixText(f.suggested_fix)) {
       const inDiff = diff instanceof Set && diff.has(aceRelPath(f.file))
       if (!inDiff) f.phaseClose = true
       log('intake floor REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') behavior note with a fix → absorb' + (inDiff ? ' (in-diff: joins the task\'s ace batch)' : ' + phaseClose:true (out-of-diff or no probe: rides the sort)') + ' — a behavior note never stays a note (PIN-2).')
@@ -1832,7 +1835,7 @@ const intakeFloor = (f, d, diff) => {
     return d
   }
   const inDiff = typeof f.file === 'string' && f.file.length > 0 && diff.has(aceRelPath(f.file))
-  const fix = !blankText(f.suggested_fix)
+  const fix = !noFixText(f.suggested_fix)
   const barrier = BARRIER_TOKENS.includes(f.barrier) ? f.barrier : null
   if (f.disposition === 'follow-up') {
     if (!barrier) {
@@ -1881,10 +1884,18 @@ const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p
 // ONE finding-content definition (verdict-integrity D2, #2124 fix round): the text fields a router
 // or a fixer can act on beyond the key tuple — rationale, suggested_fix, and the ask's question
 // (askContentKey / parkAsk derive the question from `ask.question` first; dispositionOf reads a
-// non-empty suggested_fix as a fully specified absorb, and PIN-29 dispatches a fix round on it).
+// suggested_fix that names a fix (noFixText false, D1) as a fully specified absorb, and PIN-29
+// dispatches a fix round on it).
 // BOTH readers consume this list: the empty-key fold below serializes it (plus the line / plan_ref
 // locators), and normalizeSeat's empty-content demotion tests it — never two field lists.
 const blankText = v => typeof v !== 'string' || !v.trim()
+// No-fix sentinels (#2378, D1, PIN-1): a `suggested_fix` that names no fix ("None needed.", "n/a",
+// "—") reads fix-less at every route decision, exactly like a blank one — so a seat note that says
+// "None needed." stays a note, and a sentinel Major is fix-less at gateHardOf. The closed list is
+// matched on the trimmed, lower-cased text with trailing sentence punctuation removed. A read that
+// only renders the fix text keeps the raw field.
+const NO_FIX_SENTINELS = ['none', 'none needed', 'n/a', 'na', 'no fix needed', '—', '-']
+const noFixText = v => blankText(v) || NO_FIX_SENTINELS.includes(v.trim().toLowerCase().replace(/[.!?,;:]+$/, '').trim())
 const contentTextOf = f => [f.rationale, f.suggested_fix, (f.ask && typeof f.ask === 'object') ? f.ask.question : undefined]
 // Empty-key fold (#1870, verdict-integrity D2): when file AND title are both absent (or blank —
 // the same trim-aware blankText the demotion arm reads, so a whitespace title never keys as a
@@ -1893,6 +1904,11 @@ const contentTextOf = f => [f.rationale, f.suggested_fix, (f.ask && typeof f.ask
 // only content it carries, never files. The serialized tuple of contentTextOf plus the line / plan_ref
 // locators is folded in ONLY on that degenerate arm, so a keyed finding's tuple is byte-identical
 // to before.
+// One follow-up locus identity (D25): the file-followups collapse and remintNear read these two.
+const FOLLOWUP_LINE_WINDOW = 10
+const normTitle = t => String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+const TITLE_STOP_WORDS = new Set(['a', 'an', 'the', 'of', 'in', 'on', 'at', 'to', 'for', 'is', 'are', 'and', 'or', 'with', 'by', 'from', 'that', 'this', 'its', 'as', 'be'])
+const titleWords = t => normTitle(t).split(' ').filter(w => w && !TITLE_STOP_WORDS.has(w)).join(' ')
 const remintKey = f => (f.task ?? '') + '\u0000'
   + (typeof f.file === 'string' ? aceRelPath(f.file) : '') + '\u0000'
   + (f.title ?? '')
@@ -2016,7 +2032,7 @@ const demote = (f, to, why, opts) => {
   }
   const k = remintKey(f)
   // the oscillation bound stamps on EVERY forward-revert demote, note arm included, before the consult below
-  if (opts && opts.reverted) revertedKeys.add(k)
+  if (opts && opts.reverted) revertedKeys.add(k, f)
   if (to !== 'note') {
     const prior = acedKeys.has(k) ? 'the aced record' : filedKeys.has(k) ? 'the filed follow-up record' : null
     if (prior) {
@@ -2029,7 +2045,7 @@ const demote = (f, to, why, opts) => {
       return
     }
     // the filed funnel (End state 6) — a demoted follow-up is a filed record
-    filedKeys.add(k)
+    filedKeys.add(k, f)
   }
   log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
   f.engineFiled = true
@@ -2087,14 +2103,30 @@ const releaseSlotAceClause = t => isReleaseTask(t)
 // --afk resolution (the aced record's citation stamp, which both modes write). A citation absorb
 // whose content key (askContentKey) matches NO parked record — or does not match exactly one —
 // logs the miss too (never a silent no-op).
-const acedKeys = new Set()
+// Near re-mint side list (D25, #2683): each of the four FINDING registries is a keyRegistry — a Set
+// whose add(key, row) also keeps the row's { task, file, line, title, seat, sha } under that key, and
+// whose delete(key) drops it, so remintNear reads exactly the rows the registry still holds. Every
+// stamp site passes its row (a bare add(key) keeps the key and adds no near-identity row).
+const keyRegistry = () => {
+  const s = new Set()
+  const add = s.add.bind(s)
+  const del = s.delete.bind(s)
+  s.rows = new Map()
+  s.add = (k, f) => {
+    if (f && typeof f === 'object') s.rows.set(k, { task: f.task ?? null, file: typeof f.file === 'string' ? aceRelPath(f.file) : null, line: Number.isFinite(f.line) ? f.line : null, title: f.title ?? '', seat: f.seat ?? null, sha: f.sha ?? null })
+    return add(k)
+  }
+  s.delete = k => { s.rows.delete(k); return del(k) }
+  return s
+}
+const acedKeys = keyRegistry()
 // forward-revert funnel (the oscillation bound, A1): every finding demoted on a forward-revert arm
 // (aceReentry's regressed batch; aceBisect's culprit, whole-batch, and depth/split-floor demotions)
 // records its content key here (via demote's { reverted: true } opt) so routeReauditMinors can
 // refuse a content-identical re-mint — a forward-reverted finding never re-enters; its filed
 // follow-up record in minorsFiled is the durable home, whether the engine demoted it or the seat
 // filed it (no second file, no aced∩minorsFiled overlap).
-const revertedKeys = new Set()
+const revertedKeys = keyRegistry()
 // filed funnel (End state 6, the OTHER direction): every follow-up that lands in minorsFiled on a
 // path with a later re-audit window records its content key here, so a re-mint of an ALREADY-FILED
 // finding — re-raised as absorb (the D3 widening's re-audit default) or as follow-up again — never
@@ -2107,7 +2139,7 @@ const revertedKeys = new Set()
 // is NOT stamped: routeTerminalMinors' follow-up arm — no later re-audit runs after it, so no re-mint
 // window exists. Consultation sites: re-audit routing, the re-entry drain, the held-row judgment
 // (judgeHeldRow), and demote()'s pre-push registry consult (D12, #1862). No count word here — a new caller joins by calling fileFollowUp (#2066).
-const filedKeys = new Set()
+const filedKeys = keyRegistry()
 // queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (EVERY
 // phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, the
 // gate-audit floor pass's routeToSweep calls, and the ruledAsks push loop below (#1875);
@@ -2121,13 +2153,14 @@ const filedKeys = new Set()
 // never silent). Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
 // aceReentry's drain deletes the drained entries' keys before its re-check (a drained finding is
 // no longer queued — the drain-time re-filter must judge it on the OTHER registries alone).
-const queuedKeys = new Set(phaseCloseQueue.map(remintKey))
+const queuedKeys = keyRegistry()
+for (const q of phaseCloseQueue) queuedKeys.add(remintKey(q), q)
 // Terminal queue (D3a, #2069): the merged sweep arm's input to the terminal pass — declared beside
 // the registries so corroborateSurvivor can find a queued row; every push stamps queuedKeys.
 const terminalQueue = []
-const fileFollowUp = f => { minorsFiled.push(f); filedKeys.add(remintKey(f)) }
+const fileFollowUp = f => { minorsFiled.push(f); filedKeys.add(remintKey(f), f) }
 const recordAced = (f, sha, extra) => {
-  acedKeys.add(remintKey(f))
+  acedKeys.add(remintKey(f), f)
   if (extra && extra.citation) {
     // Unpark match (D11, #1863): the parked record's key came from the round-1 ask's `question`.
     // askContentKey's own question-then-title precedence IS the derivation: the `ask.question` the
@@ -2179,7 +2212,7 @@ const recordAced = (f, sha, extra) => {
 // downstream. Release-slot rows never enter here (demoteReleaseSlot at birth, PIN-11).
 const routeToSweep = (f, why) => {
   log('Re-entry routing: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → phaseClose sweep — ' + why + '.')
-  queuedKeys.add(remintKey(f))
+  queuedKeys.add(remintKey(f), f)
   phaseCloseQueue.push({ ...f, phaseClose: true })
 }
 // Held-row judgment (snipe: simplicity) — the ONE head shared by aceStage's held fold and the
@@ -2259,7 +2292,7 @@ const auditVerdictOf = id => {
 // Logged, never silent.
 const carryPhaseClose = (f, why) => {
   // stamps queuedKeys (mirrors routeToSweep) — a later seat re-mint never carries a second copy
-  queuedKeys.add(remintKey(f))
+  queuedKeys.add(remintKey(f), f)
   log('held-carry: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → carriedPhaseClose — ' + why + '.')
   // #2701 D33: the phase is the row's first origin (a re-carried seeded row keeps it); the reason is the latest hop.
   carriedPhaseClose.push({ ...f, phaseClose: true, planSlug: planSlug ?? null, carriedFrom: { phase: (f.carriedFrom && f.carriedFrom.phase != null) ? f.carriedFrom.phase : phaseId, reason: why } })
@@ -2288,6 +2321,32 @@ const remintBlock = f => {
   if (revertedKeys.has(k)) return 'a forward-reverted finding never re-enters (the oscillation bound, A1); its filed follow-up record stands, whether the engine demoted it or the seat filed it'
   if (filedKeys.has(k)) return 'already filed as a follow-up in an earlier round (content-key identity); the filed record stands — a re-mint never also aces (End state 6)'
   if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry, held for the next ace batch, carried on carriedPhaseClose for the relaunch, queued for the late-fix pass, or carried on carriedTasks, this phase — the queued record stands'
+  // The second read (D25, #2683): a reworded title on the same task, file and line window.
+  return remintNear(f)
+}
+// Near re-mint identity (D25, #2683): read only after the exact remintKey misses. A registry row on the
+// same task and the same aceRelPath(file) is the same finding when both rows carry a line within
+// FOLLOWUP_LINE_WINDOW, or when both lines are absent and the titles match under normTitle with stop
+// words dropped. A row from the same seat at the same sha is never a re-mint (one return, two
+// findings). A hit is corroboration: nearHitOf remembers the survivor's key, so corroborateSurvivor
+// merges onto that record and keeps the reworded title on its merged[] list — never a second record.
+const nearHitOf = new WeakMap()
+const remintNear = f => {
+  const file = typeof f.file === 'string' ? aceRelPath(f.file) : ''
+  if (!file) return null
+  const line = Number.isFinite(f.line) ? f.line : null
+  for (const reg of [acedKeys, revertedKeys, filedKeys, queuedKeys]) {
+    for (const [k, r] of reg.rows) {
+      if (String(r.task ?? '') !== String(f.task ?? '') || r.file !== file) continue
+      if (r.seat != null && r.seat === f.seat && r.sha != null && r.sha === f.sha) continue
+      const near = line != null && r.line != null ? Math.abs(r.line - line) <= FOLLOWUP_LINE_WINDOW
+        : line == null && r.line == null && titleWords(r.title) === titleWords(f.title) && titleWords(f.title) !== ''
+      if (!near) continue
+      nearHitOf.set(f, k)
+      log('near re-mint of "' + (r.title || '(untitled)') + '" (task ' + (f.task ?? '?') + ', ' + file + ') — "' + (f.title ?? '') + '" is the same finding reworded (D25).')
+      return 'a near re-mint of "' + (r.title || '(untitled)') + '" (same task, file and ±' + FOLLOWUP_LINE_WINDOW + '-line window, D25) — the surviving record stands'
+    }
+  }
   return null
 }
 // Seat ref (D8) — the ONE renderer for every seats list and filing row: seat+task when both are
@@ -2381,6 +2440,7 @@ const normalizeFinding = f => {
   return rest
 }
 const askShaped = f => (f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask'
+const intakeNoteKey = (task, seat, sev, f) => JSON.stringify([task ?? null, seat ?? null, sev ?? null, contentTextOf(f).map(v => v ?? null)])
 const normalizeSeat = (seat, taskId) => {
   if (!seat || typeof seat !== 'object') return seat
   const who = 'seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ')'
@@ -2395,7 +2455,16 @@ const normalizeSeat = (seat, taskId) => {
     if (blankText(f.title) && contentTextOf(f).every(blankText) && !askShaped(f) && f.scopeBreach !== true && blankText(f.plan_ref)) {
       removed++
       log('intake normalization: [' + (f.severity ?? '(severity unrecorded)') + '] empty-content finding (no title and no routable content) from ' + who + ' demoted to a note — it carries nothing a router or fixer could act on (#1869).')
-      notes.push({ ...f, task: taskId, seat: seat.seat, title: '(untitled: empty-content finding demoted at intake)', originalSeverity: f.severity, severity: 'Nit', demoteReason: 'intake:empty-content' })
+      // One note per content key (D2, #2133): a re-raise of the same (task, seat, originalSeverity,
+      // contentTextOf) in a later round counts on the first note's `rounds`, logged, never a second row.
+      const key = intakeNoteKey(taskId, seat.seat, f.severity, f)
+      const hit = notes.find(n => n.demoteReason === 'intake:empty-content' && intakeNoteKey(n.task, n.seat, n.originalSeverity, n) === key)
+      if (hit) {
+        hit.rounds = (Number.isInteger(hit.rounds) ? hit.rounds : 1) + 1
+        log('intake normalization: the same empty-content note from ' + who + ' was raised again — counted on the existing note (rounds: ' + hit.rounds + ', D2).')
+        continue
+      }
+      notes.push({ ...f, task: taskId, seat: seat.seat, title: '(untitled: empty-content finding demoted at intake)', originalSeverity: f.severity, severity: 'Nit', demoteReason: 'intake:empty-content', rounds: 1 })
       continue
     }
     kept.push(f)
@@ -2428,7 +2497,9 @@ const dropDup = (list, f, who, taskId, whereNoun) => {
   return dup
 }
 const corroborateSurvivor = f => {
-  const k = remintKey(f)
+  // A near re-mint (D25) merges onto the record remintNear matched, under that record's own key.
+  const near = nearHitOf.get(f)
+  const k = near ?? remintKey(f)
   const hit = minorsFiled.find(m => remintKey(m) === k)
     || (aced.find(a => a && a.finding && remintKey(a.finding) === k) || {}).finding
     || phaseCloseQueue.find(q => remintKey(q) === k)
@@ -2442,6 +2513,12 @@ const corroborateSurvivor = f => {
     || [...liveTaskRecords].flatMap(r => [...(Array.isArray(r.reentryQueue) ? r.reentryQueue : []), ...(r.task && Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs : [])]).find(q => remintKey(q) === k)
   if (!hit) { log('corroboration: no surviving record found for re-mint "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — the re-raiser\'s attribution is not merged (logged, never silent).'); return null }
   mergeSeat(hit, f)
+  // a reworded near re-mint keeps its own title and rationale on the survivor's merged[] list (D25)
+  // (mergedRowsOf's filter inline: that const is declared after the wave loop)
+  if (near != null) {
+    hit.merged = (Array.isArray(hit.merged) ? hit.merged : []).filter(x => x && typeof x === 'object')
+    hit.merged.push({ seat: seatRefOf(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)' })
+  }
   // demote()'s corroborating arm stamps its demoteReason onto the survivor
   return hit
 }
@@ -2474,7 +2551,7 @@ const routeReauditMinors = (r, seats, opts) => {
       // no drain left — the sweep is the vehicle
       if (noReentry) routeToSweep(f, noReentry)
       // born at a re-audit — re-enters (D1)
-      else { queuedKeys.add(remintKey(f)); r.reentryQueue.push(f) }
+      else { queuedKeys.add(remintKey(f), f); r.reentryQueue.push(f) }
     }
     else routeToSweep(f, 'phaseClose absorb born at a re-audit — the sweep is its vehicle')
   }
@@ -2533,7 +2610,7 @@ for (const ra of ruledAsks) {
     task: ra.task ?? 'ruled-ask', title: ra.findingTitle, file: ra.file ?? null,
     ...(ra.line != null ? { line: ra.line } : {}),
     rationale: 'ruled ask (operator ruling: ' + ra.ruling + ')', suggested_fix: ra.suggested_fix }
-  queuedKeys.add(remintKey(row)); phaseCloseQueue.push(row)
+  queuedKeys.add(remintKey(row), row); phaseCloseQueue.push(row)
 }
 // → reason string if the worker did not deliver (null/dead or self-reported blocked), else null
 // ponytail: applied at the worker-dispatch sites in T2 (not dead code — defined-but-not-yet-emitted-plan-slice-pattern)
@@ -3550,16 +3627,34 @@ const ignoreLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Ignore for now:[
 // sweep's commit body never merges, and a dead dispatch has no list. The list runs to the next blank
 // line, because a worker bullets it or wraps it. A first line of "none", "nothing" or "no other ...", alone or
 // with a reason, writes no row.
-const ignoreListOf = text => {
+const ignoreBlockOf = text => {
   const m = typeof text === 'string' ? text.match(/(?:^|\n)[ \t]*(Ignore for now:[^\n]*(?:\n[ \t]*\S[^\n]*)*)/) : null
-  return m ? m[1].split('\n').map(l => l.trim()).join(' ') : null
+  return m ? m[1].split('\n').map(l => l.trim()) : null
 }
+const ignoreListOf = text => { const b = ignoreBlockOf(text); return b ? b.join(' ') : null }
 const recordIgnoreList = (site, taskId, w) => {
   const line = ignoreListOf(w && w.notes)
   const first = ignoreLineOf(w && w.notes) || ''
   if (!line || line === 'Ignore for now:' || /^Ignore for now:\s*(?:none|nothing|no other\b)(?:$|[.,:;]|\s+[-(\u2014]|(?<=other)\s)/i.test(first)) return
   log(site + ': the worker left defects for a ruling — ' + line)
-  notes.push({ task: taskId, title: site + ' left for a ruling: ' + line, severity: 'Nit', disposition: 'note' })
+  // One note per bullet (D27, #2685): a line that starts with `-`, `*` or a digit and `.` opens a
+  // bullet, and a wrapped line joins the bullet above it. Text before the first bullet is its own
+  // note, never dropped. A block with no bullet marker stays one note, as before.
+  const raw = ignoreBlockOf(w.notes)
+  raw[0] = raw[0].slice('Ignore for now:'.length).trim()
+  const BULLET = /^(?:[-*]|\d+\.)\s+/
+  const items = []
+  let bulleted = false
+  for (const l of raw.filter(Boolean)) {
+    if (BULLET.test(l)) { bulleted = true; items.push(l.replace(BULLET, '')) }
+    else if (items.length && bulleted) items[items.length - 1] += ' ' + l
+    else items.push(l)
+  }
+  if (!bulleted) {
+    notes.push({ task: taskId, title: site + ' left for a ruling: ' + line, severity: 'Nit', disposition: 'note', site, rounds: 1 })
+    return
+  }
+  for (const b of items) notes.push({ task: taskId, title: site + ' left for a ruling: ' + b, severity: 'Nit', disposition: 'note', site, rounds: 1 })
 }
 const criticalPathOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Critical path:[\s\S]*?(?:\n[ \t]*Ignore for now:[^\n]*|$))/)
 // continuation lines of a multi-line rationale keep the row's indent
@@ -3650,6 +3745,24 @@ const EVIDENCE_SEAT_HOLD = pt`HOLD only on a sha256 mismatch between the REA-rep
 const evidenceSeatSkeleton = (task, lens) => pt`\nEVIDENCE SEAT (lens ${lens}; standing card agents/war-evidence-auditor.md, doctrine home skills/war-strategy/references/artifact-evidence.md): measure each cited artifact through your allowlisted REA tools and compare the REA-reported subject digest with that artifact's digest manifest at the pin — one manifest per cited artifact, read with git show <audit_sha>:` + manifestPathOf(task.manifestTask || task) + pt` (<sha12>: the first 12 hex of that artifact's declared sha256), never from the working tree. ` + EVIDENCE_SEAT_RUNG + pt` ` + EVIDENCE_SEAT_HOLD + pt` Declared target artifacts — ` + artifactRows(targetArtifacts) + pt`. ` + CITE_ONLY_LINE
 // D12 staleness line (plan-interview D12, G8): the regular seat's ONE gated line; its source is the doctrine home.
 const REA_STALENESS_LINE = pt`\nREA STALENESS (plan-interview D12; source: skills/war-strategy/references/artifact-evidence.md): a \`rea:\` claim is digest-bound, never re-measured, never a hold — read it as settled; the evidence seat measures the artifact, not the claim's prose.`
+// WORKER REPORT block (D23, #2667): the work dispatch's `notes`, stamped on task.workerReport, quoted
+// whole up to WORKER_REPORT_CAP characters and then cut with a `[truncated]` marker. One renderer for
+// the roster seats (auditPrompt) and the per-task post-merge gate-audit seat. Absent ⇒ '' (byte-identical).
+// The card's universal floor rules carry the rung-3 sentence (the `worker-report` registry row).
+const WORKER_REPORT_CAP = 4000
+const workerReportBlock = text => {
+  if (typeof text !== 'string' || !text.trim()) return ''
+  const body = text.length > WORKER_REPORT_CAP ? text.slice(0, WORKER_REPORT_CAP) + '\n[truncated]' : text
+  return pt`\n\nWORKER REPORT (the worker's own account of what it did and deferred — a claim to check at \`audit_sha\`, never proof of a code change):\n--- begin worker report ---\n` + body + pt`\n--- end worker report ---`
+}
+// PARKED ASKS block (D5): the task's parked asks (question + fork, at most 10), for a re-audit seat.
+const PARKED_ASKS_MAX = 10
+const parkedAsksBlock = taskId => {
+  const mine = asks.filter(a => a && a.task === taskId).slice(0, PARKED_ASKS_MAX)
+  if (!mine.length) return ''
+  return pt`\n\nPARKED ASKS (this task's asks already parked for the Checkpoint ruling): if you raise the same question, copy its \`ask.question\` verbatim.\n`
+    + mine.map(a => '- question: ' + a.question + (Array.isArray(a.fork) && a.fork.length ? ' | fork: ' + a.fork.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' / ') : '')).join('\n')
+}
 function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound, agentType = 'war-auditor') {
   let p = pt`Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
     // ${(plan && plan.file) ?? '<unset>'} (#1430 defense-in-depth): the entry-validation plan.file
@@ -3695,9 +3808,11 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // DISPOSITION WIDENINGS (in-run-finding-resolution D3/D4/D5; release-slot eligibility by literal,
     // verdict-integrity D20/PIN-24) — standing home: skills/war/references/disposition-eligibility.md
     // carries widenings (1)-(3); the auditor card's eligibility pointer sentence is the standing leg
-    // for (4), bound by the D3 registry's release-slot row (same commit). The dispatched
+    // for (4), bound by the D3 registry's release-slot row (same commit). The (3) citation sentence
+    // (D7, #2224) interpolates CITATION_MIN_LENGTH; the card and the reference state the same value
+    // (the `citation` registry row). The dispatched
     // block is pinned by the `disposition-prompt-widened` fixture in workflow-template.engine-1.test.mjs.
-    + pt`\nDISPOSITION WIDENINGS: (1) a mechanical, fully-specified finding born at a re-audit DEFAULTS to absorb — it re-enters the ace ladder while the task's absorb budget remains (absorbRounds < run.absorbRounds), and the phase-close sweep is its vehicle when that budget is spent (set phaseClose:true when the fix wants the integrated tip); follow-up stays correct only with a barrier tag (unspecified → barrier:underspecified, release-slot → barrier:release-slot; decision-shaped routes ask via barrier:trade-off); a finding whose file is outside the task diff routes absorb + phaseClose:true, and the engine exclusion set demotes a foreign-owned file naming its owner. (2) a fully-specified NEW-test (or test-harness) addition in a task-owned test file is a legitimate absorb — "needs a new test" is not by itself a why-not-absorbable reason (adding only; never delete or weaken tests). (3) a finding whose fix is fully specified but entails a behavior change with a nameable trade-off routes ask (the trade-off IS the fork), not follow-up — and when a threaded adjudication row covers that NAMED trade-off (never merely its topic), set disposition:'absorb' with the \`citation\` field (\`row\` + one-line match \`rationale\`) AND KEEP the parked ask's \`ask\` field verbatim (question + fork) on the citation-carrying finding — the engine matches the parked record by that content key (resolved under --afk; interactively it stays parked and surfaces at the Checkpoint with a prefilled recommended ruling); ambiguity is NO-match: park the ask. (4) release-slot eligibility is by literal, not file: a CHANGELOG.md/README.md absorb is eligible when the fix moves no version literal, CHANGELOG head heading or \`## Status\` version token (blurb prose, counts and enumerations are ordinary doc-truth absorbs); only plugin.json/marketplace.json are refused by basename, and version-slots.test.mjs in the gate is the merge guard.`
+    + pt`\nDISPOSITION WIDENINGS: (1) a mechanical, fully-specified finding born at a re-audit DEFAULTS to absorb — it re-enters the ace ladder while the task's absorb budget remains (absorbRounds < run.absorbRounds), and the phase-close sweep is its vehicle when that budget is spent (set phaseClose:true when the fix wants the integrated tip); follow-up stays correct only with a barrier tag (unspecified → barrier:underspecified, release-slot → barrier:release-slot; decision-shaped routes ask via barrier:trade-off); a finding whose file is outside the task diff routes absorb + phaseClose:true, and the engine exclusion set demotes a foreign-owned file naming its owner. (2) a fully-specified NEW-test (or test-harness) addition in a task-owned test file is a legitimate absorb — "needs a new test" is not by itself a why-not-absorbable reason (adding only; never delete or weaken tests). (3) a finding whose fix is fully specified but entails a behavior change with a nameable trade-off routes ask (the trade-off IS the fork), not follow-up — and when a threaded adjudication row covers that NAMED trade-off (never merely its topic), set disposition:'absorb' with the \`citation\` field (\`row\` + one-line match \`rationale\`) AND KEEP the parked ask's \`ask\` field verbatim (question + fork) on the citation-carrying finding — the engine matches the parked record by that content key (resolved under --afk; interactively it stays parked and surfaces at the Checkpoint with a prefilled recommended ruling); ambiguity is NO-match: park the ask. \`citation.row\` must be the threaded row's own text, or one contiguous run of it of at least ${CITATION_MIN_LENGTH} characters that no other threaded row contains — never a row id, a paraphrase, or a row with your own words added; a refused row rides as a plain absorb and the ask stays parked. (4) release-slot eligibility is by literal, not file: a CHANGELOG.md/README.md absorb is eligible when the fix moves no version literal, CHANGELOG head heading or \`## Status\` version token (blurb prose, counts and enumerations are ordinary doc-truth absorbs); only plugin.json/marketplace.json are refused by basename, and version-slots.test.mjs in the gate is the merge guard.`
     // FINDING-PATH FORM (D12; both surfaces since verdict-integrity Task 2.1, #1811/#2005) — shared
     // with the three gate-audit-family seats and mirrored on agents/war-auditor.md; see the const.
     + FINDING_PATH_FORM_CLAUSE
@@ -3773,6 +3888,11 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
   if (workerTests) {
     p += pt`\n\nWorker-reported tests summary (cross-check claim vs diff): ${JSON.stringify(workerTests)}`
   }
+  // WORKER REPORT (D23, #2667): the worker's notes, quoted, when the work dispatch stamped them.
+  p += workerReportBlock(task.workerReport)
+  // PARKED ASKS (D5, #2373 item 3): a re-audit sees the task's parked asks, so a re-raise keys onto
+  // the same parked record (askContentKey is unchanged). None parked ⇒ '' ⇒ byte-identical.
+  p += parkedAsksBlock(task.id)
   if (peers && peers.length) {
     // Split-panel boundary (verdict-integrity D17, PIN-29, #1989) — its leading clause mirrored VERBATIM beside the
     // `escalate` bullet of agents/war-auditor.md (the registry row anchors both surfaces by pattern, not by byte-compare;
@@ -3916,7 +4036,7 @@ if (tasks.length) {
   // ensure-refinery-worktree (#1823 D16: a { task: null, refinery: true } row) (the STALE_REMOTE
   // marker-capture idiom); the captured array rides the ok: true return and NEVER halts the barrier,
   // reorders tasks, or changes routing.
-  const worktreeHygieneClause = pt`WORKTREE-HYGIENE CAPTURE (per task, always-on): an ensure-worktree REUSE or the ensure-refinery-worktree step may emit \`WORKTREE_HYGIENE\` marker lines (dirty-submodule state, or a reused branch moved or kept). Capture each as { task: "<that task's id>", path: "<the marker's path>", action: "repaired"|"detected"|"moved", detail: "<the marker's detail>" }, and each step-4 ensure-refinery-worktree marker as { task: null, refinery: true, path, action, detail }, into a \`worktreeHygiene\` array on the ok: true env-outcome, beside \`staleRemote\` — the markers ride a zero exit: visibility only, never halt the barrier on them and never skip or reorder tasks.\n`
+  const worktreeHygieneClause = pt`WORKTREE-HYGIENE CAPTURE (per task and _refinery, always-on): an ensure-worktree REUSE or the ensure-refinery-worktree step may emit \`WORKTREE_HYGIENE\` marker lines (dirty-submodule state, or a reused branch moved or kept). Capture each as { task: "<that task's id>", path: "<the marker's path>", action: "repaired"|"detected"|"moved", detail: "<the marker's detail>" }, and each step-4 ensure-refinery-worktree marker as { task: null, refinery: true, path, action, detail }, into a \`worktreeHygiene\` array on the ok: true env-outcome, beside \`staleRemote\` — the markers ride a zero exit: visibility only, never halt the barrier on them and never skip or reorder tasks.\n`
   // Absorb-budget relaunch seed (D5): the ONE git read allowed beyond the named subcommands, or on a
   // recovery relaunch one of the two (the LATE-FIX CHARGE READ is the other) — a
   // per-task bash trailer read of `Ace-Charge: <task>:<n>` on the task's own commits. The HIGHEST
@@ -3934,7 +4054,7 @@ if (tasks.length) {
   const deriveSkipClause = recovery
     ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: BEFORE each task's ensure-worktree, run task-integrated.sh <branch> <integration> <working> in the repo named by that task's entry below. Use these repository-local arguments, never the superproject working branch inside a submodule.\nRECOVERY TASK PROOFS: ${JSON.stringify(tasks.map(t => ({ task: t.id, repo: t.taskType === 'submodule' ? t.targetRepo : (mainCheckout || '.'), branch: t.branch, integration: ph.integrationBranch, working: workingBranchFor(t) })))}\nThis read-only helper is authoritative for preMerged: exit 0 with TASK_INTEGRATED proves ancestry, a first-parent merge commit in the phase whose parsed WAR-Task trailer equals the task branch and whose second parent equals the task tip (worker commits need no trailer, and a task whose commits net to zero still proves), task content at that merge commit across the paths it changed (M^1..M^2), every later first-parent change to those paths coming from a merge commit whose WAR-Task trailer names another task or a one-parent commit whose Late-Fix trailer names this task, and stable input refs; report that task id in preMerged and skip its ensure-worktree. Exit 1 with NO_TASK_PROOF (including a zero-commit, sibling-only, fast-forward-only, unmerged or unattributed-change branch, or one whose only merge commit names another task) means ordinary ensure-worktree and work/audit, never completed; preserve the marker in the transcript. Exit 2 or any unrecognized failure halts provisioning with the exact command and stderr. A shared positive commit count is not ownership proof (#2196); never substitute the old ancestor/count shortcut. Existing non-integrated branches keep their commits, never reset; ensure-worktree owns any fast-forward.\n`
       + pt`LATE-FIX CHARGE READ (per preMerged task): with M the merge commit its TASK_INTEGRATED line prints, run \`git -C "<that task's repo>" log --first-parent --no-merges --format='%(trailers:key=Late-Fix,valueonly)' "<M>..${ph.integrationBranch}"\` and return \`lateFixCharges: { "<task id>": <the HIGHEST n across the <task id>:<n> values whose bare task id is that task's> }\` on the ok: true env-outcome, omitting a task with no such value or a failing read.\n`
-      + pt`INTEGRATION TIP (when any task is preMerged): return the third field of a TASK_INTEGRATED line (the integration tip) as \`integrationTip\` on the ok: true env-outcome.\n`
+      + pt`INTEGRATION TIP (when any task is preMerged): return the last field of a TASK_INTEGRATED line (the integration tip, after the merge commit) as \`integrationTip\` on the ok: true env-outcome.\n`
     : ''
   // Recovery holder auto-free (#1712 fix 3, Phase 6 Task 1 (e)) — DORMANT unless args.recovery.sanctioned,
   // like deriveSkipClause. Plain git verbs only, no new script flag: a CLEAN prior-generation holder of
@@ -4233,13 +4353,13 @@ const queuedFindingRow = (f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''}
 
 // lateFixQueue (late-defects D5/D13, PIN-5/PIN-13): the late defects the late-fix pass fixes before the
 // land decision, each row stamped with the seat and its `task` (a real task id, or a gate-audit
-// pseudo id that lateOriginOf resolves). A gate-audit-family seat's Critical/Major with a non-blank
-// suggested_fix joins it; a fix-less one, or an `escalate` verdict, keeps the gate-evidence hold. The
+// pseudo id that lateOriginOf resolves). A gate-audit-family seat's Critical/Major with a suggested_fix
+// that names a fix (noFixText false, D1) joins it; a fix-less one, or an `escalate` verdict, keeps the gate-evidence hold. The
 // behavior-row sort adds each behavior phaseCloseQueue row on a stacked-owned or unowned file (PIN-21).
 // The wave-side pre-ace probe (PIN-3/PIN-11) and the per-task baseline row (PIN-12) add rows too, so
 // this block sits before the wave loop, out of the temporal dead zone.
 const lateFixQueue = []
-const gateHardOf = v => v.verdict === 'escalate' || (v.findings || []).some(f => (f.severity === 'Critical' || f.severity === 'Major') && blankText(f.suggested_fix))
+const gateHardOf = v => v.verdict === 'escalate' || (v.findings || []).some(f => (f.severity === 'Critical' || f.severity === 'Major') && noFixText(f.suggested_fix))
 // One defect, one late fix: the queue key is remintKey with the task blanked, because the per-task,
 // integrated-tip and end-state seats stamp different task ids on the same file + title. A duplicate
 // drops (logged), its seat corroborated onto the survivor (mergeSeat, the dropDup idiom). A fileless
@@ -5012,7 +5132,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           if (!dupQ && f.phaseClose) {
             aceable.splice(aceable.indexOf(dup), 1)
             dup.phaseClose = true
-            queuedKeys.add(key); phaseCloseQueue.push(dup)
+            queuedKeys.add(key, dup); phaseCloseQueue.push(dup)
             log('absorb-budget: the dropped copy of "' + (f.title ?? '') + '" (task ' + r.task.id + ') carries phaseClose:true — the ace-batch survivor is PROMOTED to the phase-close queue.')
           }
           return 'dropped'
@@ -5020,7 +5140,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (!run.ace) { routeToSweep(f, (who === 'absorb' ? '' : who + ' with ') + 'ace off this run (run.ace false) — the per-task ladder never dispatches; the sweep is the vehicle (D14)'); return 'ace-off' }
         if (!f.phaseClose) { aceable.push(f); return 'aceable' }
         // stamps queuedKeys — a later re-audit re-mint never queues twice
-        queuedKeys.add(key); phaseCloseQueue.push(f); return 'queued'
+        queuedKeys.add(key, f); phaseCloseQueue.push(f); return 'queued'
       }
       for (const f of taskMinors) {
         const d = intakeFloor(f, dispositionOf(f, diff), diff)
@@ -5218,7 +5338,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // alike), and pendingAbsorbs was spliced empty at the fold above — no hold-time dedup is needed.
         for (const f of aceable) {
           // stamps queuedKeys — a merge-slot re-mint never queues a second copy beside the held one
-          queuedKeys.add(remintKey(f))
+          queuedKeys.add(remintKey(f), f)
           // every held row IS an absorb (aceable = absorb-routed rows, an ask never reaches it): a floor-rerouted note or follow-up must not replay its seat-set token at the relaunch judgment (snipe: test-fidelity Major)
           f.disposition = 'absorb'
           r.task.pendingAbsorbs.push(f)
@@ -5305,6 +5425,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // A1 redefinition) on the task; landMerged threads them into the gate-audit entry, where the
       // per-task seat cross-checks them against its endStateAttestations rows. Absent/malformed ⇒ null.
       task.claimedEndStateIds = Array.isArray(impl.acceptance_criteria_covered) ? impl.acceptance_criteria_covered : null
+      // D23 (#2667): the worker's `notes`, a non-empty string, else null — auditPrompt quotes it as the
+      // WORKER REPORT block, and landMerged threads it to the per-task post-merge gate-audit seat.
+      task.workerReport = (typeof impl.notes === 'string' && impl.notes.trim()) ? impl.notes : null
 
       // DIFF PROBE (in-band-absorb-default D4, PIN-6): ONE helper dispatch per task between the
       // worker's green return and the seat convene — `git diff --name-only <base>...<tip>` in
@@ -5366,7 +5489,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         const survivors = blockingOf(seats)
         const emptyBlockers = seats.filter(s => s.verdict === 'request_changes' && !blockingOf([s]).length)
         const unchanged = survivors.filter(f => lastFixKeys.has(blockerKey(f)))
-        const fixless = survivors.filter(f => blankText(f.suggested_fix))
+        const fixless = survivors.filter(f => noFixText(f.suggested_fix))
         blocked = emptyBlockers.length
           ? 'post-rebuttal split or agreed-block panel with no blocking finding on the blocking seat(s) ' + emptyBlockers.map(s => s.seat ?? '?').join(', ')
           : unchanged.length ? 'blocking finding survived a fix round unchanged (PIN-29): ' + nameFindings(unchanged)
@@ -5508,6 +5631,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // (fail-open — the seat prompt is byte-identical to today without them).
         ...(Array.isArray(mr.mappedTests) && mr.mappedTests.length ? { mappedTests: mr.mappedTests } : {}),
         ...(Array.isArray(task.claimedEndStateIds) && task.claimedEndStateIds.length ? { claimedEndStateIds: task.claimedEndStateIds } : {}),
+        // workerReport (D23): OPTIONAL too — the per-task seat quotes it beside the claimed ids.
+        ...(typeof task.workerReport === 'string' && task.workerReport ? { workerReport: task.workerReport } : {}),
         ...(Array.isArray(taskDebt) && taskDebt.length ? { baselineDebt: taskDebt } : {}) })
     }
     // Update the tracker AFTER capturing predTip, and ONLY on a real integration_sha (isSha === the
@@ -6244,7 +6369,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // ask precedes the absorb chain (#1550, D7)
         if (d === 'ask') parkAsk(f)
         // #2050: the stamp site is never silent
-        else if (d === 'follow-up') { f.floorSkipped = true; filedKeys.add(remintKey(f)); minorsFiled.push(f); log('escalation arm: seat-raised follow-up "' + (f.title ?? '') + '" (task ' + r.task.id + ') files with floorSkipped (no intake floor ran).') }
+        else if (d === 'follow-up') { f.floorSkipped = true; filedKeys.add(remintKey(f), f); minorsFiled.push(f); log('escalation arm: seat-raised follow-up "' + (f.title ?? '') + '" (task ' + r.task.id + ') files with floorSkipped (no intake floor ran).') }
         else demote(f, 'follow-up', 'demote:task-unapproved — task never reached the approve branch (verdict: ' + r.verdict + ') — filed with the escalation')
       }
       if (r.verdict === 'env-blocked') {
@@ -6493,7 +6618,7 @@ if (mergedTasksForGateAudit.length > 0) {
   // under BENIGN-ADVANCE the observed tip legitimately differs from gateHeadSha, so checking
   // seat-vs-gateHeadSha would demote exactly the benign case. Absent (evidence dispatch failed/produced no
   // token) ⇒ fall back to gateHeadSha (fail-open — today's behavior).
-  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, gateLogPath, pinStatus, pinEvidence, guardSpecificity, guardEvidence, mappedTests, claimedEndStateIds, baselineDebt: taskDebt }) => async () => {
+  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, gateLogPath, pinStatus, pinEvidence, guardSpecificity, guardEvidence, mappedTests, claimedEndStateIds, workerReport, baselineDebt: taskDebt }) => async () => {
     // Baseline-debt line (spec §6 / ADR 0019): a baseline-merged task carries its classified failing
     // identifiers so a pre-existing base failure in the gate output is NOT read as a provably-unrun
     // mapped test (which would fake a HARD hold). Empty/absent debt ⇒ '' ⇒ byte-identical prompt.
@@ -6551,6 +6676,9 @@ if (mergedTasksForGateAudit.length > 0) {
       + pt`Acceptance criteria / plan slice: ${acceptanceCriteria || '(see plan file)'}\n`
       + pt`Executed gate output (NON-AUTHORITATIVE context — the captured artifact above is authoritative for the HARD path):\n${gateOutput || '(no gate output recorded)'}\n`
       + claimedIdsLine
+      // WORKER REPORT (D23): the same block the roster seats read, so an End state whose evidence is
+      // the report can be attested here. Absent ⇒ '' (byte-identical).
+      + workerReportBlock(workerReport)
       // adjudicationClause rides this seat directly (Task 1.1): a gate-time ruling reaches the gate-audit
       // pass, so a pre-adjudicated delta is a confirmation note here too. Empty set ⇒ '' ⇒ byte-identical.
       + endStateBlock + intentClause + adjudicationClause + MEMORY_QUERY_TOOL_LINE
@@ -6572,7 +6700,7 @@ if (mergedTasksForGateAudit.length > 0) {
     // present-but-unrun (enumeration-conditional, truncation-aware); the conjunctive clause governs a
     // MISSING mapped test (genuinely absent at the confirmed tip, artifact-confirmed on an enumerating half).
     // Per Open decision #1 (resolved: operationally defined) — severity Critical/Major signals provably-unrun.
-    // Late-defects PIN-5: such a blocker WITH a non-blank suggested_fix joins the late-fix queue instead of
+    // Late-defects PIN-5: such a blocker WITH a non-sentinel suggested_fix (noFixText false) joins the late-fix queue instead of
     // holding; a fix-less one, or an escalate verdict, still holds (gateHardOf).
     // Death arm (D21, PIN-25): a dead gate-audit seat classifies env-died SOFT naming the site — the
     // merged task stays landed (nothing judged it); never gate-evidence, never a hold. The escalated
@@ -6603,7 +6731,7 @@ if (mergedTasksForGateAudit.length > 0) {
       // D8: severity OR verdict gates the hard path — a finding-less `verdict === 'escalate'` is HARD by
       // design (defence-in-depth against a silent finding-less escalate landing); Minor/Nit stay SOFT-by-
       // default. A pin-mismatched seat is NEVER hard (fail-open): !mismatch gates the whole disjunct.
-      // PIN-5 (gateHardOf): a Critical/Major with a non-blank suggested_fix is not hard here — it joins
+      // PIN-5 (gateHardOf): a Critical/Major with a non-sentinel suggested_fix (noFixText false) is not hard here — it joins
       // the late-fix queue below; a fix-less one, or an escalate verdict, still holds.
       const isHardGateEvidence = !mismatch && gateHardOf(gateAuditVerdict)
       // Distinguish hard vs soft (and pin-mismatch) in the auditLog so the Lead can adjudicate even if held.
@@ -6783,8 +6911,8 @@ if (mergedTasksForGateAudit.length > 0) {
 // stamped with the seat label (the sweep drains it under the exclusion set); a seat follow-up with no
 // barrier ⇒ absorb + phaseClose:true with NO diff check (the sweep is the only lane left); a
 // barrier:trade-off follow-up with the ask field ⇒ ask, without it ⇒ keep follow-up with the
-// trade-off-without-ask log; any other barrier ⇒ filed as stated; a seat note whose suggested_fix is
-// non-empty and whose file is in phase_diff_files ⇒ absorb + phaseClose:true; phase_diff_files ABSENT
+// trade-off-without-ask log; any other barrier ⇒ filed as stated; a seat note whose suggested_fix
+// names a fix (noFixText false: not blank, not a no-fix sentinel, D1) and whose file is in phase_diff_files ⇒ absorb + phaseClose:true; phase_diff_files ABSENT
 // reads as an empty Set (#2058) ⇒ the note arm keeps every cosmetic or classless note, logged, while
 // the follow-up arm still reroutes, and NO demote:floor-skipped comes from this pass; a note classed
 // `behavior` (late-defects PIN-2/PIN-7) never stays a note: with a fix on a named file ⇒ absorb +
@@ -6803,7 +6931,7 @@ const routeGateAuditRows = () => {
   const phaseDiff = phaseDiffFiles === null ? new Set() : phaseDiffFiles
   if (phaseDiffFiles === null) log('gate-audit floor pass: phase_diff_files absent — the note arm matches nothing (D15).')
   for (const f of gateAuditRows.splice(0)) {
-    const fix = !blankText(f.suggested_fix)
+    const fix = !noFixText(f.suggested_fix)
     const barrier = BARRIER_TOKENS.includes(f.barrier) ? f.barrier : null
     // An EMPTY Set, never phase_diff_files (#2058): an omitted-disposition fully specified row reads
     // absorb + phaseClose:true whether the phase diff is present or absent (PIN-17), and the null arm
@@ -7123,15 +7251,15 @@ await lateFixPass()
 // later seat re-mint corroborates (corroborateSurvivor searches carriedTasks).
 const carryLate = (f, why) => {
   const origin = lateOriginOf(f)
-  queuedKeys.add(remintKey(f))
+  queuedKeys.add(remintKey(f), f)
   log('carriedTasks: "' + f.title + '" — ' + why + ' (PIN-21).')
   carriedTasks.push({ ...f, task: origin ? carryTaskOf(origin) : f.task, raisedTask: f.task, findingClass: 'behavior', fixRounds: origin ? spentOf(origin.fixRounds) : 0, ...(origin ? { roster: origin.roster } : {}), planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
 }
 // parkFixless (#2624, PIN-2): the polish and terminal arms skip intakeFloor, so a behavior row with no
-// file or a blank suggested_fix parks as an ask here, before carryLate or the final-phase demote.
+// file or a blank or sentinel suggested_fix (noFixText, D1) parks as an ask here, before carryLate or the final-phase demote.
 // Returns true when it parked the row.
 const parkFixless = (f, who) => {
-  if (typeof f.file === 'string' && f.file && !blankText(f.suggested_fix)) return false
+  if (typeof f.file === 'string' && f.file && !noFixText(f.suggested_fix)) return false
   log(who + ' REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" behavior row with no fix on a named file → ask (parked, PIN-2).')
   parkAsk(f)
   return true
@@ -7430,7 +7558,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         else if (d === 'follow-up') { f.floorSkipped = true; fileFollowUp(f); log('phase-close sweep: sweep-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped (no intake floor ran for the polish pseudo-task).') }
         else if (d === 'note') notes.push(f)
         // #2069: stamp the registry so a second seat's copy corroborates
-        else { queuedKeys.add(remintKey(f)); terminalQueue.push(f) }
+        else { queuedKeys.add(remintKey(f), f); terminalQueue.push(f) }
       }
       // ---- TERMINAL PASS (D3a, PIN-4/PIN-9) — ONE hop after the polish merge, never a second ----
       // Input: the polish panel's absorbs + the queued absorbs the sweep could not land. Filtered
@@ -8075,8 +8203,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   // rationale (rendered through the filing prompt, the issue-body instruction, handoff followUps, and
   // the consolidation log line — nothing merges away silently); a non-collapsed row renders its single
   // raising seat via seatRefOf (End state 9 — the lens is in hand on every row).
-  const FOLLOWUP_LINE_WINDOW = 10
-  const normTitle = t => String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  // FOLLOWUP_LINE_WINDOW and normTitle live at top level (D25): remintNear reads the same identity.
   // Concatenation-built strings throughout this block (census-safe — #931).
   // seatRefOf (module-level, D8) renders every seat ref here — one helper, no scoped mirror.
   // seatsListOf (module level) reads every seats list here — its Array.isArray + length gate (never
@@ -8102,7 +8229,13 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // absence-tolerant defaults (schema-optional fields), never a throw. mergedRowsOf normalizes
       // the container AND drops malformed non-object elements at the single write point.
       hit.merged = mergedRowsOf(hit)
-      hit.merged.push({ seat: seatRefOf(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)' })
+      // drainCause (D3, #2244): a survivor with no drain cause takes the merged-away row's, so the
+      // `drain cause:` cell and handoff.followUps[].drainCause keep it; when both carry one, the
+      // survivor keeps its own and the merged-away cause rides that row's merged[] entry.
+      const fdc = drainCauseOf(f)
+      const both = fdc && drainCauseOf(hit)
+      if (fdc && !both) hit.drainCause = fdc
+      hit.merged.push({ seat: seatRefOf(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)', ...(both ? { drainCause: fdc } : {}) })
     } else collapsed.push(f)
   }
   if (collapsed.length < minorsFiled.length) {
@@ -8175,7 +8308,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // would throw here and kill the whole batch; seatsListOf sends a non-array or empty seats key
       // down the seatRefOf fallback instead. merged[] (D8) renders per row so the filing agent
       // carries each merged-away title+rationale into the issue body.
-      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; const dc = drainCauseOf(m); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''} · seats: ${seatsListOf(m).join(', ')}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}${typeof m.demoteReason === 'string' && m.demoteReason ? pt` · engine demote reason: ${m.demoteReason}` : ''}${dc ? pt` · drain cause: ${dc.dispatch} died — ${dc.why}` : ''} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}` }).join('\n') + '\n'
+      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; const dc = drainCauseOf(m); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''} · seats: ${seatsListOf(m).join(', ')}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}${typeof m.demoteReason === 'string' && m.demoteReason ? pt` · engine demote reason: ${m.demoteReason}` : ''}${dc ? pt` · drain cause: ${dc.dispatch} died — ${dc.why}` : ''} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}${typeof m.issue === 'number' ? pt` · already filed #${m.issue ?? ''} (reuse it: no new issue, no comment)` : ''}` }).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
@@ -8193,12 +8326,15 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   }
   // Stamping (D2): each returned row with an in-range integer n AND a numeric issue stamps
   // minorsFiled[n-1].issue; out-of-range/non-numeric/absent rows are ignored. The handoff assembly's
-  // `issue: m.issue ?? null` (byte-unchanged below) then renders the stamped values.
+  // `issue: m.issue ?? null` (byte-unchanged below) then renders the stamped values. A row that
+  // already carried a numeric issue before the dispatch (a #2700 prior-return carry) keeps it.
   const filedRows = (filingOut && Array.isArray(filingOut.filed)) ? filingOut.filed : null
   if (filedRows) {
+    const preFiled = minorsFiled.map(m => typeof m.issue === 'number')
     for (const row of filedRows) {
       if (!row || typeof row !== 'object' || !Number.isInteger(row.n)) continue
       if (row.n < 1 || row.n > minorsFiled.length || typeof row.issue !== 'number') continue
+      if (preFiled[row.n - 1]) continue
       minorsFiled[row.n - 1].issue = row.issue
     }
     // clusters[] manifest asserts (Task 2.1, #1566) — FAIL-OPEN, the non-conforming-return arm's
@@ -8234,7 +8370,9 @@ if (landDecision === 'landed' || landDecision === 'held:escalation' || landDecis
   // tipSha is HOISTED above the Wrap-up gate (see LANDED-TIP ANCHOR) — the Wrap-up
   // dispatch threads the same value. This block consumes them unchanged: Wrap-up fires on this
   // block's own emit conditions (wrapUpDecision), and every field it reads is hoisted or top-level,
-  // so a held:land-failed phase (tipSha the last merge tip; the block never reads landResult, which landDied leaves null) reads no null field.
+  // so a held:land-failed phase (tipSha the last merge tip) reads no null field: the block reads no
+  // landResult field at all, so it does not matter whether landResult is null (landDied) or set (the
+  // error and gate_failed arm, landProvisionRed, the terminal else; #2763, D43).
   // absorbed: aced provenance grouped by commit sha → [{ sha, findings: [title] }].
   const bySha = {}
   for (const a of aced) (bySha[a.sha] = bySha[a.sha] || []).push(a.finding && a.finding.title)
@@ -8285,9 +8423,32 @@ if (landDecision === 'landed' || landDecision === 'held:escalation' || landDecis
     // held:workflow-error and destroy this very handoff.
     // drainCause (verdict-integrity D13, #1799): ADDITIVE key, present only on a row a phase-close
     // dispatch death drained (stampDrainCause) — { dispatch, why } through drainCauseOf's shape guard.
-    followUps: minorsFiled.map(m => { const dc = drainCauseOf(m); return { issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)',
-      ...(mergedRowsOf(m).length ? { merged: mergedRowsOf(m).map(x => ({ seat: x.seat ?? '(seat unrecorded)', title: x.title ?? '(untitled finding)', rationale: x.rationale ?? '(no rationale recorded)' })) } : {}),
-      ...(dc ? { drainCause: dc } : {}) } }),
+    // One entry per filed issue (D26, #2684): rows that share one numeric `issue` print once — the first
+    // row in minorsFiled order is the entry and each other row rides its merged[] list (seat, title,
+    // rationale, and its drainCause per D3). Rows with issue null stay one entry each. The Checkpoint
+    // floor reads minorsFiled, not this projection, so its row count is unchanged.
+    followUps: (() => {
+      const mergedOf = x => ({ seat: x.seat ?? '(seat unrecorded)', title: x.title ?? '(untitled finding)', rationale: x.rationale ?? '(no rationale recorded)', ...(drainCauseOf(x) ? { drainCause: drainCauseOf(x) } : {}) })
+      const out = []
+      const byIssue = new Map()
+      for (const m of minorsFiled) {
+        const dc = drainCauseOf(m)
+        const first = typeof m.issue === 'number' ? byIssue.get(m.issue) : null
+        if (first) {
+          first.merged = first.merged || []
+          first.merged.push({ seat: seatRefOf(m), title: m.title ?? '(untitled finding)', rationale: m.rationale ?? '(no rationale recorded)', ...(dc ? { drainCause: dc } : {}) }, ...mergedRowsOf(m).map(mergedOf))
+          if (dc && !first.drainCause) first.drainCause = dc
+          continue
+        }
+        const e = { issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)',
+          ...(mergedRowsOf(m).length ? { merged: mergedRowsOf(m).map(mergedOf) } : {}),
+          ...(dc ? { drainCause: dc } : {}) }
+        if (typeof m.issue === 'number') byIssue.set(m.issue, e)
+        out.push(e)
+      }
+      if (out.length < minorsFiled.length) log('handoff followUps: ' + minorsFiled.length + ' filed row(s) print as ' + out.length + ' entr(ies) — rows filed to one issue ride its merged[] list (D26).')
+      return out
+    })(),
     // asks (#1550 — the NINTH handoff key, ADDITIVE beside the follow-ups row; no exact-key
     // validator exists or is introduced): the LOSSY projection of the parked unruled ask records —
     // question + fork + task/seat/sha provenance, plus `corroborators` when a collision merged a
@@ -8301,7 +8462,11 @@ if (landDecision === 'landed' || landDecision === 'held:escalation' || landDecis
     asks: asks.map(a => ({ task: a.task, seat: a.seat, sha: a.sha, question: a.question, fork: a.fork,
       ...(Array.isArray(a.corroborators) && a.corroborators.length ? { corroborators: a.corroborators } : {}),
       ...(a.citationPrefill ? { citationPrefill: a.citationPrefill } : {}) })),
-    notes: notes.map(n => ({ task: n.task, title: n.title })),
+    // rounds (D2, #2133): present when one intake note stood for re-raises across rounds (above 1).
+    // site (D27, #2685): the polish site of a parked `Ignore for now:` bullet, when set.
+    notes: notes.map(n => ({ task: n.task, title: n.title,
+      ...(Number.isInteger(n.rounds) && n.rounds > 1 ? { rounds: n.rounds } : {}),
+      ...(typeof n.site === 'string' && n.site ? { site: n.site } : {}) })),
     endState: endStateClaims.map(condition => {
       // Vacuous-phase clamp first (D5, End state 10): 'unverified' + note, never green — evaluated
       // BEFORE gateAuditRan so an end-state-only seat's 'met' attestation on a vacuous tip cannot land.
