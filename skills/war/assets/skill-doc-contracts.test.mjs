@@ -726,13 +726,17 @@ test('Segmented-land bullet — filing-on-held names the filing dispatch alone; 
 // (#2702 D34, task 2.1 late fix 2) The Wrap-up gate (`wrapUpDecision`) and the handoff emit gate are
 // EXTRACTED from workflow-template.js and must agree. Each Lead-facing restatement of either set —
 // SKILL.md's return bullet and Checkpoint learnings bullet, resume-and-recovery.md's Capture-learnings
-// and Segmented-land bullets, design.md's Land-path-agnostic Wrap-up and Intent-threading bullets —
-// must name every member, and the retired pair-only sentences must be gone from all three surfaces.
+// and Segmented-land bullets, design.md's Land-path-agnostic Wrap-up and Intent-threading bullets,
+// and (late fix 4) the two "handoff-emitting phase" readers — SKILL.md's Follow-up filing floor
+// bullet and war-review's unfiled follow-ups bullet — must name every member, and the retired
+// pair-only sentences must be gone from every swept surface.
 // schemas.md is NOT swept here: its `handoff?` comment still reads "landed / held:escalation only" and
 // is locked by PIN-24 of the 2026-11-08 engine-recovery plan (a later plan retunes it).
 const wrapUpDocSurfaces = () => [
   ['SKILL.md return bullet', skillMd, /^- returns `\{ landed, escalated/, /^- /],
   ['SKILL.md Checkpoint learnings bullet', skillMd, /^- \*\*Every landed phase captures learnings exactly once\*\*/, /^- /],
+  ['SKILL.md Follow-up filing floor bullet', skillMd, /^- \*\*Follow-up filing floor — gate the DAG advance \(D4, #1331\)\.\*\*/, /^- /],
+  ['war-review SKILL.md unfiled follow-ups bullet', warReviewSkillMd, /^- \*\*unfiled follow-ups\*\*/, /^- |^\S/],
   ['resume-and-recovery.md Capture-learnings bullet', resumeMd, /^- \*\*Capture learnings on every landed phase \(exactly once\)\.\*\*/, /^- /],
   ['resume-and-recovery.md Segmented-land bullet', resumeMd, /^ {2}- \*\*Segmented land \(in-band marker\) and filing-on-held\./, /^ {2}- \*\*|^\S/],
   ['design.md Land-path-agnostic Wrap-up bullet', designRefMd, /^- \*\*Land-path-agnostic Wrap-up\.\*\*/, /^- /],
@@ -782,9 +786,10 @@ test('2702/D34 — the Wrap-up gate equals the handoff emit gate, and every doc 
   }
   // Bare-rendering ban: the retired pair-only sentences (the spellings at 4cb017a7, before the sweep),
   // whitespace-folded, over ALL of each surface.
-  for (const [label, src] of [['SKILL.md', skillMd], ['resume-and-recovery.md', resumeMd], ['design.md', designRefMd]]) {
+  for (const [label, src] of [['SKILL.md', skillMd], ['resume-and-recovery.md', resumeMd], ['design.md', designRefMd], ['war-review SKILL.md', warReviewSkillMd]]) {
     const folded = norm(src)
     for (const [re, what] of [
+      [/handoff-emitting phase \(`landed` \/ `held:escalation`\)/i, 'the retired pair-only "handoff-emitting phase (`landed` / `held:escalation`)" reader'],
       [/No `handoff` block is emitted there/i, 'the retired "No `handoff` block is emitted there" sentence'],
       [/`landed` \+ `held:escalation` only/i, 'the retired "`landed` + `held:escalation` only" emit gate'],
       [/`landed`\/`held:escalation` only/i, 'the retired "`landed`/`held:escalation` only" emit gate'],
