@@ -16808,7 +16808,9 @@ for (const [name, corrupt] of [
   })
   assert.notEqual(out.landDecision, 'landed'); assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
   // #2702 D34: a held land still runs the wrap-up, and its prompt names the hold
-  for (const c of calls.filter(isServitor)) assert.ok(c.prompt.includes('land decision: ' + out.landDecision + ';'))
+  const servs = calls.filter(isServitor)
+  assert.equal(servs.length, ['held:escalation', 'held:land-failed'].includes(out.landDecision) ? 1 : 0, 'the wrap-up runs once on a held land and never otherwise')
+  for (const c of servs) assert.ok(c.prompt.includes('land decision: ' + out.landDecision + ';'))
   assert.ok(out.auditLog.some(r => r.verdict === 'git-confirmation:unresolved' && r.site === 'land:phase-3'), 'bad proof is classified, not an accidental exception')
 })
 
@@ -18926,7 +18928,9 @@ test('land-confirm (#2657): an unconfirmed landed claim', async () => {
   assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-confirm' && /land:phase-3/.test(c.opts.label || '')), 'presence guard: Git confirmation reads the land')
   assert.notEqual(out.landDecision, 'landed', 'an unconfirmed landed claim never lands')
   // #2702 D34: a held land still runs the wrap-up, and its prompt names the hold, never a landed phase
-  for (const c of calls.filter(isServitor)) assert.ok(c.prompt.includes('land decision: ' + out.landDecision + ';'), 'the wrap-up on an unconfirmed land names the hold')
+  const servs = calls.filter(isServitor)
+  assert.equal(servs.length, ['held:escalation', 'held:land-failed'].includes(out.landDecision) ? 1 : 0, 'the wrap-up runs once on a held land and never otherwise')
+  for (const c of servs) assert.ok(c.prompt.includes('land decision: ' + out.landDecision + ';'), 'the wrap-up on an unconfirmed land names the hold')
 })
 
 // ---- first-push refspec (#2699 D31, PIN-31) -------------------------------------------------------
@@ -19475,6 +19479,7 @@ test('held-land wrap-up (#2702): servitor on held:escalation', async () => {
   assert.equal(wraps.length, 1, 'the wrap-up dispatches once')
   assert.ok(wraps[0].prompt.includes('land decision: held:escalation; working branch dev/wtprov-a'), 'the first line names the hold and the working branch')
   assert.ok(!wraps[0].prompt.includes('(landed on '), 'never says landed on')
+  assert.match(wraps[0].prompt, /Landed tip: [0-9a-f]{40} on integration\/wtprov-a\/phase-3 \(/, 'a hold anchors the tip on the integration branch')
   assert.deepEqual(out.servitorResult, servitor, "servitorResult is the mock's return")
 })
 
@@ -19489,7 +19494,7 @@ test('held-land wrap-up (#2702): handoff on held:land-failed', async () => {
   assert.ok(out.handoff, 'held:land-failed emits the handoff block')
   assert.equal(out.handoff.tipSha, tips['merge:t2'], 'handoff.tipSha is the last merge commit')
   const wrap = calls.find(c => c.opts.label === 'wrap-up:phase-3')
-  assert.ok(wrap && wrap.prompt.includes('Landed tip: ' + tips['merge:t2']), 'the wrap-up anchor is the last merge tip')
+  assert.ok(wrap && wrap.prompt.includes('Landed tip: ' + tips['merge:t2'] + ' on integration/wtprov-a/phase-3 ('), 'the wrap-up anchor is the last merge tip on the integration branch')
 })
 
 test('held-land wrap-up (#2702): no servitor on held:workflow-error', async () => {

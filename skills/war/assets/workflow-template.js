@@ -5771,7 +5771,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           pinTransfers.push(probeRow('mismatch', rbSeats))
           // #2590 D6: the approving re-audit's tip is the approved tip, never a prior ace tip
           r.seats = rbSeats
-          r.aceSha = pinProbe.rebased_tip
+          r.aceSha = pinProof.head_sha
           if (upstreamReaudit) {
             landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProof.head_sha, gate_sha: pinProof.head_sha })
             continue
@@ -7886,7 +7886,7 @@ const wrapUpDecision = landDecision === 'landed' || landDecision === 'held:escal
 if (wrapUpDecision && memoryLocalRoot) {
   servitorResult = await dispatchSite(
     pt`Wrap up learnings for WAR phase ${ph.id} "${ph.title}" (land decision: ${landDecision}; working branch ${ph.workingBranch}).\n`
-    + pt`Landed tip: ${landedTipAnchor} on ${ph.workingBranch} (plan slug: ${planSlug || '<plan-slug>'}). This anchor — NOT your working directory — is what every referent read grounds on; see LANDED-TIP GROUNDING below.\n`
+    + pt`Landed tip: ${landedTipAnchor} on ${landDecision === 'landed' ? ph.workingBranch : ph.integrationBranch} (plan slug: ${planSlug || '<plan-slug>'}). This anchor — NOT your working directory — is what every referent read grounds on; see LANDED-TIP GROUNDING below.\n`
     + pt`Your ONLY writable path (your capability allowlist holds no Bash — Write/Edit only — and the PreToolUse scope hook gates those by agent_type to the local memory root): ${memoryLocalRoot}.\n`
     + pt`Every lesson file — regardless of metadata.type — is written under that local root. type: project marks a lesson PROMOTABLE (the Lead's Gate 2 promotes it into the repo root); NEVER write into any docs/learnings/ directory yourself — repo-root publication is the Lead's job, not yours.\n`
     + pt`Landed tasks: ${landed.join(', ') || 'none'}.\n`

@@ -726,7 +726,7 @@ for (const shape of ['subset-mode approval then merge', 'merge-slot mismatch re-
         // Each arm's r.aceSha is the tip that arm judged, not any right-hand side.
         const pairs = paired.map(p => p.trim().split(/\s*\n\s*/).map(l => l.split(' = ')[1]))
         assert.deepEqual(pairs.sort(), [
-          ['rbSeats', 'pinProbe.rebased_tip'], ['reS', 'reSha'], ['reSeats', 'aceSha'], ['subSeats', 'subSha'],
+          ['rbSeats', 'pinProof.head_sha'], ['reS', 'reSha'], ['reSeats', 'aceSha'], ['subSeats', 'subSha'],
         ], 'each r.aceSha names the tip its own arm judged')
       }
       assert.ok(out.landed.includes('t1'), 'the approved ace work merges')
