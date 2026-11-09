@@ -487,7 +487,7 @@ expect_deny "G5: git fetch → denied (not in read allowlist)" \
 # (group P), and the audit tree fingerprint hook is the compensating control. Flipping this row
 # back to expect_deny, or widening it past the form group GF pins, contradicts those amendments.
 # ADR 0029's Amendment 2026-10-30 lets the <token> be one quoted value (group Q).
-expect_allow "G6: git grep -F -e token allowed (the one admitted grep form; ADR 0029 Amendment 2026-10-22)" \
+expect_allow "G6: git grep -F -e token allowed (the base admitted grep form; ADR 0029 Amendment 2026-10-22)" \
   "$(auditor_cmd "git grep -F -e token")"
 
 # ---------------------------------------------------------------------------
@@ -1365,6 +1365,9 @@ expect_deny_teach "GF23: git grep -G -e foo → denied (-G is not a selector her
   "$(q_cmd "git grep -G -e foo")" "carries -G"
 expect_deny_teach "GF24: git grep -E -e foo --recurse-submodules → denied" \
   "$(q_cmd "git grep -E -e foo --recurse-submodules")" "git grep admits one form only"
+# GF25 to GF27 are labelled token-shape rows (constraint 8's exception): git
+# rejects a non-numeric or missing -A count, so no git-valid form of the shape
+# exists.
 expect_deny_teach "GF25: git grep -F -A x -e foo → denied (count takes digits only)" \
   "$(q_cmd "git grep -F -A x -e foo")" "digits only"
 expect_deny_teach "GF26: git grep -F -A3x -e foo → denied (-A<n> takes digits only)" \
@@ -1380,6 +1383,8 @@ expect_deny_teach "GF29: git grep -E foo → denied (the pattern must ride -e)" 
 # an option; the guard sees it in the revision position and denies.
 expect_deny_teach "GF30: git grep -F -e -e '-O vim' → denied (a dash-led quote outside an -e value)" \
   "$(q_cmd "git grep -F -e -e '-O vim'")" "only as the value of git grep -e"
+# GF31 is a labelled token-shape row (constraint 8's exception): git log has
+# no -e, so no git-valid form of the shape exists.
 expect_deny_teach "GF31: git log -e '-p x' → denied (a dash-led quote outside git grep)" \
   "$(q_cmd "git log -e '-p x'")" "only as the value of git grep -e"
 expect_deny_lacks "GF32: a dash-led quote deny hides the mask word" \

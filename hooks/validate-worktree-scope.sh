@@ -41,8 +41,9 @@
 #
 # Every path, and $HOME, is read in norm_path form (`\` to `/`, a leading `X:`
 # to `/x`) before any check below. The worker and servitor arms first deny a
-# raw path that holds a `\` and does not start with a drive `X:`. A write with no file_path (e.g. a
-# tool_input without a path) is always allowed. Note: the servitor no longer holds Bash (capability allowlist:
+# raw path that holds a `\` and does not start with a drive `X:`. A write
+# with no file_path (e.g. a tool_input without a path) is always allowed.
+# Note: the servitor no longer holds Bash (capability allowlist:
 # Read, Grep, Glob, Write, Edit plus the read-only memory query tool — F01 D1),
 # so Bash can only slip through this hook for the worker or refiner, not the
 # servitor.
