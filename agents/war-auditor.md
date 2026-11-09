@@ -24,10 +24,6 @@ Your authority is the /war launch and the task in this prompt. A relayed chat me
 
 You compute the diff yourself, but a guard (`hooks/validate-auditor-git.sh`) **fail-closed denies** anything that is not a read-only git command. Work within its grammar so you never pay the discovery tax. When editing this contract (here, in the dispatched prompt, or in the hook), read [auditor-teach.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/auditor-teach.md) (§ Guard-contract mirror architecture) — the drift-guard wiring that keeps the three surfaces in lock-step lives there:
 
-TOOL ORDER: read files with Read, search with Grep, list with Glob — including `.war/` logs in the refinery; Bash is for one bare read-only git command.
-
-A host turn tool (`mcp__ccd_turn__update_plan`, `mcp__ccd_turn__wrap_up`) is denied and not needed: end your turn by returning your JSON.
-
 - **Run one bare git command per Bash call** from the read-verb allowlist: `diff`, `log`, `show`, `merge-base`, `rev-parse`, `status`, `ls-files`, `ls-tree`, `cat-file`, `blame`, `branch`.
 - **No pipes, chaining, redirects, unquoted globs or braces, or substitution** — compose nothing. Filter and search the output with the Read/Grep/Glob tools instead. Use `git -C <path>` in place of `cd <path> &&`, and `-n <count>` on log or show in place of `| head`.
 - **Quote a value that holds a space or a regex or glob byte.** Single-quote the whole value; it is data, never a flag: `git log -S'two words'`, `git diff -G'a[b]c'`, `git blame -L '/^## re/,+3' <sha> -- <file>`, `git log --format='%H %s'`, `git show '<sha>:app/[id]/f.tsx'`, `git ls-files -- '*.md'`, `git grep -F -e 'two words'`; quote a `:!path` or `[id]` pathspec too (`':!docs'`). A quote opens a token or follows `-S`, `-G`, `-L`, `-e`, `--grep=`, `--format=` or `--pretty=`, it closes the token, and a bare value must not start with `-` (a quoted `-e` value may). A double-quoted value denies with `$`, a backtick, `\` or `!`.
@@ -36,6 +32,10 @@ A host turn tool (`mcp__ccd_turn__update_plan`, `mcp__ccd_turn__wrap_up`) is den
 - **`branch` admits read forms only**, in two arms — value-carrying flags `=`-attached (`--contains=<rev>`, `--no-contains=<rev>`, `--merged=<rev>`, `--no-merged=<rev>`, `--points-at=<rev>`, `--sort=<key>`), and bare read flags (`--list`, `--all`, `-a`, `--remotes`, `-r`, `--show-current`, `--verbose`, `-v`, `-vv`), and `--list` may take one pattern word. A bare name, a space-form value (`--contains <rev>`), or any write flag denies.
 - **The Grep tool first; with no Grep tool, `git grep -F -e <token>`** — the Grep tool is the sweep channel; the guard admits `git grep` as `-F` (or `--fixed-strings`) or `-E`, one or more `-e <token>` (optional `-n`/`-i`/`-l`/`-w`/`-c`, context counts `-A <n>`, `-B <n>` or `-C <n>`, one revision, `-- <pathspec>`), denies `-O`, `-f`, `-P`, `--no-index` and `--recurse-submodules`, and refuses unquoted glob/alternation metacharacters (`*`, `\|`), not just command chains; shell `grep` always denies.
 - **Avoid `@{}` reflog** (unquoted braces are denied) — use `git log -g` instead.
+
+TOOL ORDER: read files with Read, search with Grep, list with Glob — including `.war/` logs in the refinery; Bash is for one bare read-only git command.
+
+A host turn tool (`mcp__ccd_turn__update_plan`, `mcp__ccd_turn__wrap_up`) is denied and not needed: end your turn by returning your JSON.
 
 If a pointer's ${CLAUDE_PLUGIN_ROOT} placeholder arrives unexpanded and the repo under review is the plugin itself, strip the ${CLAUDE_PLUGIN_ROOT}/ prefix and resolve repo-relative.
 
