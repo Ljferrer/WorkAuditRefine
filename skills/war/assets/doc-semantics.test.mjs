@@ -33,6 +33,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { HARD_ESCALATION_REASONS } from './land-decision.mjs';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
@@ -560,4 +561,46 @@ test('2485/ES18 key-set drift — MERGE_CONFIRMATION and MERGE_RECONCILIATION ke
       `refiner-recovery.md § Uncertain merge reconciliation does not name the engine key \`${key}\` — the doctrine drifted from the engine literal`,
     );
   }
+});
+
+// --- land_stale hold route in the CAS lesson (plan 2026-11-08 engine-recovery, seed-1) ---------
+// Step 4 of the archived lesson said a land-phase `land_stale` reaches the Wrap-up through
+// `held:land-failed`. The engine's first land arm routes every HARD_ESCALATION_REASONS member to
+// `held:escalation`, and land-decision.mjs lists `land_stale` there, so the stated route was wrong
+// (a Lead could misread the hold decision). The step also said the Lead spawns no second servitor,
+// which the held-phase learnings rule on SKILL.md retired. Both sweep halves live here, plus the
+// engine premise the NEW text restates, so dropping `land_stale` from the array or rerouting the
+// land arm reds this row instead of silently re-staling the lesson.
+const LAND_STALE_LESSON = 'docs/learnings/archive/phase-land-stale-spurious-cas-recovery.md';
+const LAND_STALE_STEP4 = {
+  old: ['Wrap up manually, only when `servitorResult` is null', 'the Lead spawns no second servitor'],
+  new: [
+    'runs on `held:escalation` (where a land-phase `land_stale` routes, via HARD_ESCALATION_REASONS) and `held:land-failed`',
+    'one resolution-fed `war-servitor` pass after the manual land',
+  ],
+};
+
+test('seed-1 land_stale lesson step 4 — held:escalation route present, held:land-failed-only route and no-second-servitor absent', () => {
+  const step4 = normalize(lineStarting(readRel(LAND_STALE_LESSON), '4. **'));
+  const hay = step4.toLowerCase();
+  for (const token of LAND_STALE_STEP4.old) {
+    assert.ok(!hay.includes(normalize(token).toLowerCase()),
+      `${LAND_STALE_LESSON} step 4 still carries retired text ${JSON.stringify(token)}`);
+  }
+  for (const token of LAND_STALE_STEP4.new) {
+    assert.ok(hay.includes(normalize(token).toLowerCase()),
+      `${LAND_STALE_LESSON} step 4 lacks ${JSON.stringify(token)} — OLD-absent alone passes on a deleted line`);
+  }
+});
+
+test('seed-1 land_stale lesson premise — land_stale is a hard escalation reason and the first land arm holds it as held:escalation', () => {
+  assert.ok(HARD_ESCALATION_REASONS.includes('land_stale'),
+    'land-decision.mjs no longer lists land_stale in HARD_ESCALATION_REASONS — step 4 of the lesson restates that route');
+  const landArm = between(readRel(ENGINE_PATH),
+    'if (landResult && HARD_ESCALATION_REASONS.includes(landResult.status)) {', '\n  } else');
+  assert.ok(landArm.includes("landDecision = 'held:escalation'"),
+    'the first land arm no longer holds a HARD_ESCALATION_REASONS land status as held:escalation');
+  // The resolution-fed Lead pass the NEW step-4 text relies on is the SKILL.md rule, not an invention here.
+  assert.ok(normalize(readRel('skills/war/SKILL.md')).includes('run one more `war-servitor` pass fed the resolution'),
+    'skills/war/SKILL.md no longer carries the resolution-fed war-servitor pass rule that lesson step 4 restates');
 });
