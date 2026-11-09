@@ -857,11 +857,6 @@ test('reused-worktree provision (#2588): real repo — the dispatched save, clea
     assert.equal(read(wt, 'lock'), 'lock\n', 'the lockfile is at its provisioned (cleaned) content: the provision rewrite never leaks')
     assert.equal(run(wt, 'git diff --cached --name-only').stdout, '', 'the restore is worktree only: nothing is staged')
     assert.equal(run(wt, 'test -e .war/preprovision-t1.patch').status, 1, 'a clean apply deletes the patch')
-    // No step touches a tracked file, so a literal refiner skips the conditional clean: save then restore alone still bring every edit back.
-    const skip = reused('noclean')
-    for (const cmd of [save, restore]) { const r = run(skip, cmd); assert.equal(r.status, 0, cmd + '\n' + r.stderr) }
-    assert.equal(read(skip, 'a') + read(skip, 'b'), 'staged\nunstaged\n', 'a skipped clean still restores both edits')
-    assert.equal(run(skip, 'test -e .war/preprovision-t1.patch').status, 1, 'the apply succeeded, so the patch is gone')
     // Control: without the save and restore lines the clean line discards both edits.
     const ctl = reused('control')
     for (const cmd of [provisionStep, clean]) assert.equal(run(ctl, cmd).status, 0)

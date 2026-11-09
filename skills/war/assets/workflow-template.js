@@ -478,7 +478,7 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // lateFixCharges (late-defects D25, PIN-25) — { <task>: n }, the HIGHEST `Late-Fix: <task>:<n>` index on
 // the first-parent single-parent commits after a preMerged task's merge commit (recovery only) — seeds
 // that task's fixRounds, so a relaunch keeps the late-fix charge. A sixth OPTIONAL field, integrationTip
-// (#2575 D9, recovery only) — the last field of a TASK_INTEGRATED line (the integration tip, after the merge commit) — seeds recoveryPredSeed. savedWork (#2588
+// (#2575 D9, recovery only) — the third TASK_INTEGRATED field — seeds recoveryPredSeed. savedWork (#2588
 // D7) rides a per-task provision-run ok: true when the saved-edit patch did not re-apply: its path.
 const ENV_OUTCOME = { type: 'object', required: ['ok'], properties: {
   ok: { type: 'boolean' },
@@ -750,7 +750,7 @@ const backstops = Array.isArray(A.backstops) ? A.backstops : null
 const testPattern = (plan && typeof plan.testPattern === 'string' && plan.testPattern) ? plan.testPattern : null
 const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 // Partial-phase recovery (spec §4.2/§4.4): a Lead-supplied top-level arg armed ONLY on a sanctioned
-// recovery relaunch (the war skill's references/resume-and-recovery.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean, priorReturn?: { aced?: [...], minorsFiled?: [...] } }.
+// recovery relaunch (the war skill's references/resume-and-recovery.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean }.
 // Absent / non-sanctioned ⇒ FOUR recovery-gated barrier arms are DORMANT, not one: (1) the
 // derive-and-skip step (deriveSkipClause — a task branch that is an ancestor of the frozen tip AND
 // was merged by a first-parent merge commit whose WAR-Task trailer names it and whose second parent is its tip
@@ -1599,8 +1599,8 @@ const PROVISION_CLEAN_LINE = pt`Provision steps must leave the worktree CLEAN: r
 // conflict. A dirty tracked tree is written to the patch; untracked files are never touched. The restore
 // is worktree only (no --index). provisionStep fills `<task id>`. An apply failure keeps the patch and
 // returns its path as ENV_OUTCOME.savedWork, which the worker prompt names.
-const PROVISION_SAVE_LINE = pt`SAVE FIRST (a reused worktree may hold a dead worker's edits): before step 1, inside the worktree, run \`git reset -q && if [ -n "$(git status --porcelain --untracked-files=no)" ]; then mkdir -p .war && git diff --binary HEAD > .war/preprovision-<task id>.patch && git checkout -- .; fi\`.`
-const PROVISION_RESTORE_LINE = pt`RESTORE AFTER THE CLEAN: after that restore, inside the worktree, run \`if [ -f .war/preprovision-<task id>.patch ]; then git checkout -- . && git apply .war/preprovision-<task id>.patch && rm .war/preprovision-<task id>.patch; fi\` (worktree only, never --index). If that apply fails, keep the patch and return { ok: true, savedWork: ".war/preprovision-<task id>.patch" }.`
+const PROVISION_SAVE_LINE = pt`SAVE FIRST (a reused worktree may hold a dead worker's edits): before step 1, inside the worktree, run \`git reset -q && if [ -n "$(git status --porcelain --untracked-files=no)" ]; then mkdir -p .war && git diff --binary HEAD > .war/preprovision-<task id>.patch; fi\`.`
+const PROVISION_RESTORE_LINE = pt`RESTORE AFTER THE CLEAN: after that restore, inside the worktree, run \`if [ -f .war/preprovision-<task id>.patch ]; then git apply .war/preprovision-<task id>.patch && rm .war/preprovision-<task id>.patch; fi\` (worktree only, never --index). If that apply fails, keep the patch and return { ok: true, savedWork: ".war/preprovision-<task id>.patch" }.`
 // PROVISION_RERUN_CLAUSE (#2485 D15/D19, PIN-15/PIN-19): the ONE tree-keyed re-run sentence every
 // refiner gate site interpolates before any floor or gate — the four merge step (a) copies, the ace-gate
 // check and its pre-ace base check (ace-base-gate), the polish-sweep, terminal-pass and late-fix merges,
@@ -3916,7 +3916,7 @@ if (tasks.length) {
   // ensure-refinery-worktree (#1823 D16: a { task: null, refinery: true } row) (the STALE_REMOTE
   // marker-capture idiom); the captured array rides the ok: true return and NEVER halts the barrier,
   // reorders tasks, or changes routing.
-  const worktreeHygieneClause = pt`WORKTREE-HYGIENE CAPTURE (per task and _refinery, always-on): an ensure-worktree REUSE or the ensure-refinery-worktree step may emit \`WORKTREE_HYGIENE\` marker lines (dirty-submodule state, or a reused branch moved or kept). Capture each as { task: "<that task's id>", path: "<the marker's path>", action: "repaired"|"detected"|"moved", detail: "<the marker's detail>" }, and each step-4 ensure-refinery-worktree marker as { task: null, refinery: true, path, action, detail }, into a \`worktreeHygiene\` array on the ok: true env-outcome, beside \`staleRemote\` — the markers ride a zero exit: visibility only, never halt the barrier on them and never skip or reorder tasks.\n`
+  const worktreeHygieneClause = pt`WORKTREE-HYGIENE CAPTURE (per task, always-on): an ensure-worktree REUSE or the ensure-refinery-worktree step may emit \`WORKTREE_HYGIENE\` marker lines (dirty-submodule state, or a reused branch moved or kept). Capture each as { task: "<that task's id>", path: "<the marker's path>", action: "repaired"|"detected"|"moved", detail: "<the marker's detail>" }, and each step-4 ensure-refinery-worktree marker as { task: null, refinery: true, path, action, detail }, into a \`worktreeHygiene\` array on the ok: true env-outcome, beside \`staleRemote\` — the markers ride a zero exit: visibility only, never halt the barrier on them and never skip or reorder tasks.\n`
   // Absorb-budget relaunch seed (D5): the ONE git read allowed beyond the named subcommands, or on a
   // recovery relaunch one of the two (the LATE-FIX CHARGE READ is the other) — a
   // per-task bash trailer read of `Ace-Charge: <task>:<n>` on the task's own commits. The HIGHEST
@@ -3934,7 +3934,7 @@ if (tasks.length) {
   const deriveSkipClause = recovery
     ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: BEFORE each task's ensure-worktree, run task-integrated.sh <branch> <integration> <working> in the repo named by that task's entry below. Use these repository-local arguments, never the superproject working branch inside a submodule.\nRECOVERY TASK PROOFS: ${JSON.stringify(tasks.map(t => ({ task: t.id, repo: t.taskType === 'submodule' ? t.targetRepo : (mainCheckout || '.'), branch: t.branch, integration: ph.integrationBranch, working: workingBranchFor(t) })))}\nThis read-only helper is authoritative for preMerged: exit 0 with TASK_INTEGRATED proves ancestry, a first-parent merge commit in the phase whose parsed WAR-Task trailer equals the task branch and whose second parent equals the task tip (worker commits need no trailer, and a task whose commits net to zero still proves), task content at that merge commit across the paths it changed (M^1..M^2), every later first-parent change to those paths coming from a merge commit whose WAR-Task trailer names another task or a one-parent commit whose Late-Fix trailer names this task, and stable input refs; report that task id in preMerged and skip its ensure-worktree. Exit 1 with NO_TASK_PROOF (including a zero-commit, sibling-only, fast-forward-only, unmerged or unattributed-change branch, or one whose only merge commit names another task) means ordinary ensure-worktree and work/audit, never completed; preserve the marker in the transcript. Exit 2 or any unrecognized failure halts provisioning with the exact command and stderr. A shared positive commit count is not ownership proof (#2196); never substitute the old ancestor/count shortcut. Existing non-integrated branches keep their commits, never reset; ensure-worktree owns any fast-forward.\n`
       + pt`LATE-FIX CHARGE READ (per preMerged task): with M the merge commit its TASK_INTEGRATED line prints, run \`git -C "<that task's repo>" log --first-parent --no-merges --format='%(trailers:key=Late-Fix,valueonly)' "<M>..${ph.integrationBranch}"\` and return \`lateFixCharges: { "<task id>": <the HIGHEST n across the <task id>:<n> values whose bare task id is that task's> }\` on the ok: true env-outcome, omitting a task with no such value or a failing read.\n`
-      + pt`INTEGRATION TIP (when any task is preMerged): return the last field of a TASK_INTEGRATED line (the integration tip, after the merge commit) as \`integrationTip\` on the ok: true env-outcome.\n`
+      + pt`INTEGRATION TIP (when any task is preMerged): return the third field of a TASK_INTEGRATED line (the integration tip) as \`integrationTip\` on the ok: true env-outcome.\n`
     : ''
   // Recovery holder auto-free (#1712 fix 3, Phase 6 Task 1 (e)) — DORMANT unless args.recovery.sanctioned,
   // like deriveSkipClause. Plain git verbs only, no new script flag: a CLEAN prior-generation holder of
@@ -8175,7 +8175,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // would throw here and kill the whole batch; seatsListOf sends a non-array or empty seats key
       // down the seatRefOf fallback instead. merged[] (D8) renders per row so the filing agent
       // carries each merged-away title+rationale into the issue body.
-      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; const dc = drainCauseOf(m); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''} · seats: ${seatsListOf(m).join(', ')}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}${typeof m.demoteReason === 'string' && m.demoteReason ? pt` · engine demote reason: ${m.demoteReason}` : ''}${dc ? pt` · drain cause: ${dc.dispatch} died — ${dc.why}` : ''} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}${typeof m.issue === 'number' ? pt` · already filed #${m.issue} (reuse it: no new issue, no comment)` : ''}` }).join('\n') + '\n'
+      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; const dc = drainCauseOf(m); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''} · seats: ${seatsListOf(m).join(', ')}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}${typeof m.demoteReason === 'string' && m.demoteReason ? pt` · engine demote reason: ${m.demoteReason}` : ''}${dc ? pt` · drain cause: ${dc.dispatch} died — ${dc.why}` : ''} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}` }).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
@@ -8193,15 +8193,12 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   }
   // Stamping (D2): each returned row with an in-range integer n AND a numeric issue stamps
   // minorsFiled[n-1].issue; out-of-range/non-numeric/absent rows are ignored. The handoff assembly's
-  // `issue: m.issue ?? null` (byte-unchanged below) then renders the stamped values. A row that
-  // already carried a numeric issue before the dispatch (a #2700 prior-return carry) keeps it.
+  // `issue: m.issue ?? null` (byte-unchanged below) then renders the stamped values.
   const filedRows = (filingOut && Array.isArray(filingOut.filed)) ? filingOut.filed : null
   if (filedRows) {
-    const preFiled = minorsFiled.map(m => typeof m.issue === 'number')
     for (const row of filedRows) {
       if (!row || typeof row !== 'object' || !Number.isInteger(row.n)) continue
       if (row.n < 1 || row.n > minorsFiled.length || typeof row.issue !== 'number') continue
-      if (preFiled[row.n - 1]) continue
       minorsFiled[row.n - 1].issue = row.issue
     }
     // clusters[] manifest asserts (Task 2.1, #1566) — FAIL-OPEN, the non-conforming-return arm's
