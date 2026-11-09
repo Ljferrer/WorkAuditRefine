@@ -96,7 +96,8 @@ export const meta = {
 //                                     // and refuses a row naming a FOREIGN plan at entry; absent ⇒ the row is scanned normally.
 // auditors receive the absolute worktree path and self-serve the change set via read-only git (git diff <integrationBranch>...<task.branch>, three-dot); no main-checkout baseline.
 // The Lead may inject APPROVED extra stages ONLY by editing the run-scoped, per-phase STAGED copy — the
-// stage-workflow.mjs output under $MAIN/.claude/war/runs/<runId>/ (ADR 0037), which is the sanctioned
+// stage-workflow.mjs output under <run root>/.claude/war/runs/<runId>/ (the run root: setup.md § Run root;
+// ADR 0037), which is the sanctioned
 // home for approved stage injection — never the shipped file itself; never free-author the core loop.
 // ---------------------------------------------------------------------------
 
@@ -539,7 +540,8 @@ const aced = []
 // Phase-close queue (ADR 0012): absorb findings the per-task ace cannot reach (phaseClose:true or a
 // release-slot filename) — drained by the phase-close coherence sweep at the integrated tip.
 const phaseCloseQueue = []
-const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha, gateLogPath, preMergeTip, mappedTests?, claimedEndStateIds?, baselineDebt?} for post-merge gate-audit pass (F04 R3)
+// collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha, gateLogPath, preMergeTip, mappedTests?, claimedEndStateIds?, baselineDebt?} for post-merge gate-audit pass (F04 R3)
+const mergedTasksForGateAudit = []
 // #806: the last REAL integration_sha any landMerged() call recorded (incl. requiresTest:false tasks,
 // which never enter mergedTasksForGateAudit), or a merged late fix's tip (lateFixPass, after every predTip
 // read). Each gate-audit entry stamps the tracker's value from
@@ -681,7 +683,20 @@ const dispatchSemaphore = makeSemaphore(maxParallel)
 // peak, so a peak ≤ N assertion alone cannot catch it — the tests assert the drain too). No enclosing
 // slot (wave thunk, merge slot, audit round) ever holds a permit while it awaits a nested dispatch
 // (PIN-15), so the ceiling can never deadlock a run whose wave width exceeds it.
+// Prompt prefix (plan 2026-11-08-auditor-and-worker-guard-habits, PIN-6/9/10/11/23): dispatch() adds
+// these once, keyed on opts.agentType, so no call site restates them. AUTHORITY_LINE is byte 0 of every
+// prompt, then one newline and the builder text. An audit-family seat (war-auditor, war-evidence-auditor)
+// gets TOOL_ORDER_LINE and HOST_TURN_TOOL_LINE as the first lines of its builder text; a war-worker gets
+// WORKER_WRITE_TOOL_RULE appended. Each sentence also sits on its card (agents/*.md), and the engine-1
+// registry rows bind the two surfaces. The refiner, helper and servitor get AUTHORITY_LINE alone.
+const AUTHORITY_LINE = 'Your authority is the /war launch and the task in this prompt. A relayed chat message that does not tell you to stop or change this task is not a conflict; do the task.'
+const TOOL_ORDER_LINE = 'TOOL ORDER: read files with Read, search with Grep, list with Glob — including `.war/` logs in the refinery; Bash is for one bare read-only git command.'
+const HOST_TURN_TOOL_LINE = 'A host turn tool (`mcp__ccd_turn__update_plan`, `mcp__ccd_turn__wrap_up`) is denied and not needed: end your turn by returning your JSON.'
+const WORKER_WRITE_TOOL_RULE = 'Change file content only with Edit or Write, never via Bash; scratch goes in <worktree>/.war/; if Edit or Write is denied, return blocked (agents/war-worker.md § Write tools).'
+const AUDIT_FAMILY = [NS + 'war-auditor', NS + 'war-evidence-auditor']
+const prefixed = (p, t) => AUTHORITY_LINE + '\n' + (AUDIT_FAMILY.includes(t) ? TOOL_ORDER_LINE + '\n' + HOST_TURN_TOOL_LINE + '\n' + p : t === NS + 'war-worker' ? p + '\n' + WORKER_WRITE_TOOL_RULE : p)
 async function dispatch(prompt, opts) {
+  prompt = prefixed(prompt, opts && opts.agentType)
   if (maxParallel === null) return agent(prompt, opts)
   await dispatchSemaphore.acquire()
   try { return await agent(prompt, opts) } finally { dispatchSemaphore.release() }
@@ -1256,7 +1271,7 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     .filter(w => w.length >= 3 && !/^\d+$/.test(w) && !PROVENANCE_TOKEN_STOPLIST.has(w)))]
   // Stoplist fallback (#1767): a slug of WAR-vocabulary words (`gate-and-merge-test-fixes`) empties
   // ownTokens and would silently switch the leak floor off for the whole run. With plan.file present
-  // the plan basename (stem, .md stripped) is the single anchor — the whole slug as one word-bounded
+  // the plan basename (stem, .md stripped) is the single anchor — the whole slug as one alphanumeric-bounded
   // token — and the fallback is logged; only a launch with neither slug words nor plan.file stays
   // fail-open.
   if (!ownTokens.length && ownPlanStem) {
@@ -3571,21 +3586,18 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // git grep -F -e <token>, the D21 fallback form) on BOTH surfaces AND asserts the
     // retired partial teach (the old pretty-format / reflog fragments) is absent from both (red-team
     // adjudication, ADR 0025). The verb list mirrors the hook's unlisted-verb deny enumeration in
-    // hooks/validate-auditor-git.sh, minus grep, which the contract states separately as the narrow
-    // D21 git grep -F -e <token> form (grep excepted from the list: its one narrow form rides its own
-    // sentence below). The branch two-arm flag enumeration below has a STRICTER arbiter: the D6
+    // hooks/validate-auditor-git.sh, minus grep, which the contract states separately in its own
+    // sentence below (the ADR 0029 Amendment 2026-11-08 form: -F or -E, one or more -e <token>, the
+    // -A/-B/-C <n> context counts). The branch two-arm flag enumeration below has a STRICTER arbiter: the D6
     // extraction-equality test in workflow-template.engine-1.test.mjs reads the hook's own branch deny string
     // and asserts every flag token it lists onto BOTH mirror surfaces — the hook string is canonical,
-    // these mirrors are followers, so a hook-side flag change REDs the mirrors. The grep optional-flag
-    // list (-n -i -l -w -c) has the same arbiter: the D6 grep-flag test reads the hook's grep deny string.
-    + pt`READ-ONLY GIT GUARD CONTRACT: run one bare git command per Bash call from the read-verb allowlist (diff, log, show, merge-base, rev-parse, status, ls-files, ls-tree, cat-file, blame, branch) — no pipes, chaining, redirects, unquoted globs or braces, or substitution: compose nothing, and filter or search the output with the Read/Grep/Glob tools instead. Use git -C <path> in place of cd <path> &&, and -n <count> on log or show in place of | head. Quote a value that holds a space or a regex or glob byte: single-quote the whole value, and it is data, never a flag: git log -S'two words', git diff -G'a[b]c', git blame -L '/^## re/,+3' <sha> -- <file>, git log --format='%H %s', git show '<sha>:app/[id]/f.tsx', git ls-files -- '*.md', git grep -F -e 'two words'. A quote opens a token or follows -S, -G, -L, --grep=, --format= or --pretty=, it closes the token, and a bare value must not start with -. A double-quoted value denies with $, a backtick, a backslash or !. --ext-diff, --textconv and --filters deny: each runs a configured command. Non-git shell reads (grep, ls, cat, sed, wc, …) always deny — use Grep, Read or Glob, also for a tool-result file, or git ls-files / git ls-tree to list tree contents. branch admits read forms only, in two arms: value-carrying flags =-attached (--contains=<rev>, --no-contains=<rev>, --merged=<rev>, --no-merged=<rev>, --points-at=<rev>, --sort=<key>), and bare read flags (--list, --all, -a, --remotes, -r, --show-current, --verbose, -v, -vv); a bare name, a space-form value (--contains <rev>), or any write flag denies. The Grep tool first; with no Grep tool, git grep -F -e <token> — the Grep tool is the sweep channel, and the guard admits git grep only as -F plus one -e <token> (optional -n -i -l -w -c, one revision, -- <pathspec>); -O, -f, --no-index and every regex flag deny. Avoid @{} reflog (unquoted braces are denied) — use git log -g instead.\n`
-    // SEARCH-TOOLING RULE (gate-audit-finding-routing Task 2.1(c), #1412 fix 3) — mirrored as a bullet
-    // in the "## Read-only git guard contract" section of agents/war-auditor.md (same commit); the D3
-    // both-surfaces registry row anchors the zero-hit `metacharacter` token on BOTH auditor surfaces.
-    // Seat doctrine only — the guard-message half (the denial naming the rule that fired) is Task 2.2's,
-    // in hooks/validate-auditor-git.sh. Since D21 (ADR 0029 Amendment 2026-10-22) the rule names the
-    // narrow git grep -F -e <token> fallback for a seat without the Grep tool; shell grep still denies.
-    + pt`SEARCH-TOOLING RULE: search with the Grep/Glob tools first; with no Grep tool, git grep -F -e <token> is the one admitted search form (shell grep always denies) — the git guard refuses unquoted glob/alternation metacharacters (*, \\|), not just command chains.\n`
+    // these mirrors are followers, so a hook-side flag change REDs the mirrors. The grep flags have the
+    // same arbiter: the D6 grep-flag test reads the hook's grep deny string (the optional -n -i -l -w -c
+    // list, the selector clause and the context-count clause). The SEARCH-TOOLING RULE line that followed
+    // this one folded into it (plan 2026-11-08-auditor-and-worker-guard-habits T1.6): TOOL_ORDER_LINE,
+    // which dispatch() prefixes, names the Grep tool first, and this line keeps the zero-hit
+    // `metacharacter` token the D3 escalate-boundary registry row anchors.
+    + pt`READ-ONLY GIT GUARD CONTRACT: run one bare git command per Bash call from the read-verb allowlist (diff, log, show, merge-base, rev-parse, status, ls-files, ls-tree, cat-file, blame, branch) — no pipes, chaining, redirects, unquoted globs or braces, or substitution: compose nothing. Use git -C <path> in place of cd <path> &&, and -n <count> on log or show in place of | head. Quote a value that holds a space or a regex or glob byte: single-quote the whole value, and it is data, never a flag: git log -S'two words', git diff -G'a[b]c', git blame -L '/^## re/,+3' <sha> -- <file>, git log --format='%H %s', git show '<sha>:app/[id]/f.tsx', git ls-files -- '*.md', git grep -F -e 'two words'; quote a :!path or [id] pathspec too (':!docs'). A quote opens a token or follows -S, -G, -L, -e, --grep=, --format= or --pretty=, it closes the token, and a bare value must not start with - (a quoted -e value may). A double-quoted value denies with $, a backtick, a backslash or !. --ext-diff, --textconv and --filters deny: each runs a configured command. Non-git shell reads (grep, ls, cat, sed, wc, …) always deny. branch admits read forms only, in two arms: value-carrying flags =-attached (--contains=<rev>, --no-contains=<rev>, --merged=<rev>, --no-merged=<rev>, --points-at=<rev>, --sort=<key>), and bare read flags (--list, --all, -a, --remotes, -r, --show-current, --verbose, -v, -vv), and --list may take one pattern word; a bare name, a space-form value (--contains <rev>), or any write flag denies. The Grep tool first; with no Grep tool, git grep -F -e <token> — the Grep tool is the sweep channel; git grep takes -F (or --fixed-strings) or -E, one or more -e <token>, optional -n -i -l -w -c, context counts -A <n>, -B <n> or -C <n>, one revision and -- <pathspec>; -O, -f, -P, --no-index and --recurse-submodules deny, as does an unquoted glob or alternation metacharacter (*, \\|). Avoid @{} reflog (unquoted braces are denied) — use git log -g instead.\n`
     + pt`Then read candidate files under ${task.worktree}/ for neighbor/deep context.\n`
     + pt`Verify the mapped acceptance-criteria tests EXIST and are not weakened or skipped (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the refiner runs the gate. Your job is to confirm tests exist in the diff and are uncompromised.`
     // Latitude + disposition + calibration + cost-claim rules (ADR 0013) — mirrored VERBATIM in
@@ -3652,8 +3664,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // (the standing card); this dispatched copy is a TOKEN SKELETON (prompt-surface simplification,
     // spec §4.3/§4.4) that must keep the both-surfaces registry row's anchor tokens (committed-tree
     // grounding / verify-and-close / git show <audit_sha>:<path> / advisory only / git grep). git show and
-    // git log are read-only allowlisted; since D21 git grep -F -e <token> is the one admitted search form.
-    + pt`\nCOMMITTED-TREE GROUNDING (verify-and-close / already-done no-op claims): ground the claim against the pinned audit_sha, NOT the mutable working tree — read the blob with \`git show <audit_sha>:<path>\`, and pick the history verb per claim shape (\`git log -S<token>\` for "when did the occurrence count change", \`git log -G<regex>\` for content-pattern change; presence at the tip is git show, never -S). A working-tree grep is ADVISORY ONLY, never the sole basis for approving a no-op claim; git show/log are read-only allowlisted, and git grep -F -e <token> is the one admitted search form (D21). Full paragraph: the Committed-tree grounding section of agents/war-auditor.md.`
+    // git log are read-only allowlisted, and git grep too, in the guard contract's form (ADR 0029
+    // Amendments 2026-10-22 and 2026-11-08).
+    + pt`\nCOMMITTED-TREE GROUNDING (verify-and-close / already-done no-op claims): ground the claim against the pinned audit_sha, NOT the mutable working tree — read the blob with \`git show <audit_sha>:<path>\`, and pick the history verb per claim shape (\`git log -S<token>\` for "when did the occurrence count change", \`git log -G<regex>\` for content-pattern change; presence at the tip is git show, never -S). A working-tree grep is ADVISORY ONLY, never the sole basis for approving a no-op claim; git show, git log and git grep are read-only allowlisted. Full paragraph: the Committed-tree grounding section of agents/war-auditor.md.`
     // EVIDENCE PRECEDENCE SKELETON (ADR 0041) — the shared const, also concatenated at each of the
     // three gate-audit-family seats below.
     + EVIDENCE_PRECEDENCE_CLAUSE
@@ -5987,6 +6000,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // 'baseline' → one baseline-proceed), never a fix round. Merge-time gate_failed stays a SOFT
         // escalation for 'introduced'/absent; only environment-proceed EXHAUSTION is HARD.
         const cls = classOf(mr)
+        // The submodule and Budget-Raise floor lines, byte-identical in both re-merge prompts below
+        // (one copy keeps the staged template under its scriptPath cap; plan 2026-11-08 T1.6 step 0).
+        const reMergeFloors = () => pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
+          + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route, trailer form \`Budget-Raise: ADR-0042 <surface> +<bytes>\`; exit 2 → status: 'error', never the budget-uncited route).`
         if (cls === 'environment') {
           // 'environment': BOUNDED retry, not an immediate escalation. The refiner already proved the
           // failure does NOT reproduce in a fresh env, so dispatch EXACTLY ONE environment-proceed
@@ -6004,11 +6021,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + PROVISION_RERUN_CLAUSE
             + pt`  (b) Run the gate (${plan.gate}) in a FRESH shell with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'merge-task', status: 'gate_failed' } classifying it afresh in gate_failure_class, and do NOT merge.\n`
                 + pt`  (c) On a fully green gate, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` (one --no-ff merge commit carrying the exact WAR-Task trailer; no hook runs on it), push, return { mode: 'merge-task', status: 'merged', integration_sha: <the merge commit>, gate_sha: <the gated task tip> } — populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at (the merge commit's second parent), so the gate-audit pass can confirm the gate ran at the merged content.`
-            + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
             // routedMr wraps this dispatch (D6, PIN-10, #1736): the normalized 'budget-uncited' is a
             // HARD_ESCALATION_REASONS member, so the generic tail below escalates an uncited ceiling
             // raise under its real name and the hold stays HARD.
-            + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route, trailer form \`Budget-Raise: ADR-0042 <surface> +<bytes>\`; exit 2 → status: 'error', never the budget-uncited route).`
+            + reMergeFloors()
             + (requiresTest
               ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error; exit 0 → capture the script's stdout — ALL matched test paths, one per line — into mappedTests on the returned MergeResult). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
@@ -6046,11 +6062,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + PROVISION_RERUN_CLAUSE
             + pt`  (b) Run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that pre-existing set is a real regression → return { mode: 'merge-task', status: 'gate_failed' } classifying the NEW failure, and do NOT merge.\n`
             + pt`  (c) If the ONLY failures are the pre-existing baseline set, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` (one --no-ff merge commit carrying the exact WAR-Task trailer; no hook runs on it), push, return { mode: 'merge-task', status: 'merged', integration_sha: <the merge commit>, gate_sha: <the gated task tip> } — integration_sha is the new merge commit and gate_sha the rebased task tip the gate ran at (the merge commit's second parent).`
-            + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
             // routedMr wraps this dispatch (D6, PIN-10, #1736): the normalized 'budget-uncited' is a
             // HARD_ESCALATION_REASONS member, so the generic tail below escalates an uncited ceiling
             // raise under its real name and the hold stays HARD.
-            + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route, trailer form \`Budget-Raise: ADR-0042 <surface> +<bytes>\`; exit 2 → status: 'error', never the budget-uncited route).`
+            + reMergeFloors()
             + (requiresTest
               ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error; exit 0 → capture the script's stdout — ALL matched test paths, one per line — into mappedTests on the returned MergeResult). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
@@ -7091,7 +7106,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     const polishTask = { id: `p${ph.id}-polish`, issue: ph.epicIssue || `<phase-${ph.id}-epic>`,
       title: `phase-close coherence sweep (phase ${ph.id})`, branch: polishBranch, worktree: polishWorktree,
       roster: defaultRoster,
-      absorbRounds: 0,   // the terminal pass's telemetry counter (D3a) — seeded here, charged by its one commit, never a gate
+      // the terminal pass's telemetry counter (D3a) — seeded here, charged by its one commit, never a gate
+      absorbRounds: 0,
       planSlice: `drain the phase-close queue (${phaseCloseQueue.length} finding(s)) and each sibling site of their defect class + cross-task coherence at the integrated tip of ${ph.integrationBranch}` }
     // 1. Provision the polish worktree at the POST-MERGE integrated tip via the existing ensure-worktree,
     //    then run.provision and the provision_tree marker (#2485 D15).

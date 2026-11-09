@@ -1,4 +1,4 @@
-# Worker + servitor edges — submodule/gitlink-bump task mechanics, servitor confinement rationale, archived lessons
+# Worker + servitor edges — submodule/gitlink-bump task mechanics, floor/tooling config mismatch, servitor confinement rationale, archived lessons
 
 Verbatim evictions from `agents/war-worker.md` and `agents/war-servitor.md` (prompt-surface
 simplification, Task 5.1; each moved block was byte-identical to its pre-eviction card text
@@ -44,6 +44,12 @@ For a **declared gitlink-bump task** the task's entire diff is advancing a submo
 3. **Commit** in the superproject worktree — this is a **worker/contents commit** (the bump is a real task output, preserving the Container/Contents distinction). Message referencing the sub-issue (`#<n>`).
 4. **Push** the superproject task branch.
 5. Return `WorkerResult` — `files_changed` includes the submodule path (the gitlink entry), `notes` records the SHA advanced to.
+
+## Floor/tooling config mismatch
+
+Trigger: the observed failure is a floor/tooling config mismatch (the card's `## Stop and escalate instead of guessing` config-mismatch paragraph, evicted 2026-11-08 by plan 2026-11-08-auditor-and-worker-guard-habits T1.6, an ADR 0042 headroom eviction).
+
+When the observed failure is a floor/tooling **config mismatch** — e.g. a threaded `floor_diagnostic` naming the active test-pattern set and suggesting `--pattern` / `overrides.testPattern` — the root cause is run configuration, not the plan: return `status: "blocked"` quoting the diagnostic verbatim in `blocked_reason`, **without** the `PLAN-DEFECT:` prefix. Only that literal prefix sets `defectClass: 'plan'`, and only that tag auto-routes the escalation to a `/red-team` plan amendment at the Lead's adjudication step; leaving the prefix off keeps the escalation out of the automatic plan-amendment route — the Lead adjudicates it as a config question in ordinary Lead adjudication, where the quoted diagnostic points the fix at run config.
 
 ## Servitor confinement
 
