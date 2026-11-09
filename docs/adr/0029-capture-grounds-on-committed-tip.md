@@ -239,6 +239,7 @@ this amendment, and a quoted value would have raised it to an arbitrary alias co
 
 ## Decision log
 
+- 2026-11-08 · the auditor git guard's `git grep` form widens to several `-e`, `-A/-B/-C <n>` and `-A<n>`, `-E` as the second selector and a dash-led quoted `-e` value; `-O`, `-f`, `--no-index`, `--recurse-submodules`, `-P` and `-G` stay denied; `git branch --list` takes one pattern word; the residue deny names one of four rules (chain-operator, grouping, metacharacter, quote) · plan 2026-11-08-auditor-and-worker-guard-habits PIN-1 to PIN-5, #1829, #1915, #2374, #2581, #2583, #2627
 - 2026-10-30 · the auditor git guard admits one quoted value at a listed token position, widens the `git grep -F -e` token and pathspecs to one quoted value, denies `--ext-diff`, `--textconv` and `--filters`, and collapses repeated spaces; the fingerprint hook splits commands by the same quote rule · #1915, #2162, #2374
 - 2026-10-22 · the auditor git guard admits `git grep -F -e <token>` (fixed-string, one `-e`, optional `-n -i -l -w -c`, one revision, `-- <pathspec>`) and denies every other grep form, `-O` in any spelling or cluster by name; reverses the 2026-07-26 "still no" because no seat had the Grep tool on Claude Code 2.1.304; the audit tree fingerprint hook is the compensating control · plan 2026-10-20-rea-artifact-evidence D21/D22, Task 6.1
 
@@ -247,3 +248,40 @@ this amendment, and a quoted value would have raised it to an arbitrary alias co
 #2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
 (ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
 next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+
+## Amendment (2026-11-08): the wider `git grep` form
+
+The single `-F -e <token>` form stayed the largest auditor denial class: 38 of 58 denials in one
+recurrence of #2627, and seats asked for a second pattern, context lines and alternation (#1915,
+#2374, #2581, #2583). Plan [2026-11-08-auditor-and-worker-guard-habits](../plans/2026-11-08-auditor-and-worker-guard-habits.md)
+PIN-1 to PIN-5 record the ruling.
+
+**Decision, amended.** `hooks/validate-auditor-git.sh` now admits these `git grep` forms, beside the
+2026-10-22 and 2026-10-30 ones:
+
+- one or more `-e <token>`; each value is data, as git reads it;
+- the context counts `-A <n>`, `-B <n>`, `-C <n>` and `-A<n>`, digits only, each its own token;
+- `-E` as a second regex selector beside `-F`; exactly one of the two is required, so `-E -F`
+  together still denies;
+- a quoted `-e` value that starts with `-` (`-e '- AMEND-'`). The guard masks it as its own word and
+  admits that word only where the grep parser reads it as an `-e` value, so no flag rides in a quote.
+
+These stay denied, each for its own reason:
+
+- `-O` / `--open-files-in-pager`: it runs a pager command, in any spelling or cluster.
+- `-f` / `--file`: it reads patterns from a file.
+- `--no-index`: it searches files outside the repository.
+- `--recurse-submodules`: it leaves the repository for its submodules.
+- `-P`: it is a second regex engine, and `-E` covers alternation.
+- `-G` and the long regex selectors: the form keeps one short spelling per selector.
+
+`git branch` also admits `--list` followed by one pattern word, bare or quoted; every write flag
+still denies. The residue deny now names one of four rules: chain-operator, grouping (redirect,
+grouping or continuation), metacharacter, or the quote rule for a refused quote. The metacharacter
+and grouping messages print the quoted rewrite of the offending word. The verb set does not grow,
+and no write opens.
+
+The live flag list is the `grep_deny` helper in `hooks/validate-auditor-git.sh`; group GF of
+`hooks/validate-auditor-git.test.sh` pins each admitted and denied form, and runs every admitted
+form under real git. The audit tree fingerprint hook stays the compensating control. Every ratified
+line above this amendment stands and is left byte-unchanged; the Decision log gains one row.
