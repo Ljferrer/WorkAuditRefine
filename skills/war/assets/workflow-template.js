@@ -8134,8 +8134,7 @@ if (landDecision === 'landed' || landDecision === 'held:escalation' || landDecis
   // tipSha is HOISTED above the Wrap-up gate (see LANDED-TIP ANCHOR) — the Wrap-up
   // dispatch threads the same value. This block consumes them unchanged: Wrap-up fires on this
   // block's own emit conditions (wrapUpDecision), and every field it reads is hoisted or top-level,
-  // so a held:land-failed phase (tipSha the last merge tip; the block never reads landResult, which is null after
-  // landDied or a null-returning land dispatch and a non-null unlanded result on the other held:land-failed arms) reads no null field.
+  // so a held:land-failed phase (tipSha the last merge tip; the block never reads landResult, which landDied leaves null) reads no null field.
   // absorbed: aced provenance grouped by commit sha → [{ sha, findings: [title] }].
   const bySha = {}
   for (const a of aced) (bySha[a.sha] = bySha[a.sha] || []).push(a.finding && a.finding.title)
