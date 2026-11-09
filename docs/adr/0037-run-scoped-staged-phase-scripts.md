@@ -121,6 +121,10 @@ sanctioned surface for both display identity and approved stage injection.**
    `/war-review`. A recovery relaunch mints a fresh `runId` and therefore a fresh directory, so it never
    collides with the run it is recovering from.
 
+   **Amendment (2026-11-08, #2351):** for a launch from a linked worktree, the staged copy follows the
+   run root, not `$MAIN` ([ADR 0059](0059-run-root-follows-the-launch-checkout.md) supersedes this
+   location there); a main-checkout launch keeps the location above.
+
 5. **The staged copy is the sole sanctioned home for approved stage injection.** The template's header
    comment ("the Lead may inject APPROVED extra stages by editing a copy of this file") names the staged
    per-phase copy as *the* copy meant (Task 1.2, same commit as the launch-prose change — the

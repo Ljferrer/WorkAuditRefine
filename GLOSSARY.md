@@ -1503,10 +1503,9 @@ skills/war/references/glossary-cold.md
 
 **Staged phase script**:
 The run-scoped, identity-stamped copy of `workflow-template.js` the Lead dispatches for one phase —
-basename `war-[c<K>-]<planSlug>-p<N>.js` under `$MAIN/.claude/war/runs/<runId>/` (a directory sibling
-of the run manifest, same main-checkout anchor idiom, riding the existing `.claude/` exclude),
-produced by `stage-workflow.mjs` (**defined-but-not-yet-emitted as of this entry; produced in Task 1.1,
-same phase** — see [ADR 0037](docs/adr/0037-run-scoped-staged-phase-scripts.md)). The stager makes
+basename `war-[c<K>-]<planSlug>-p<N>.js` under the run root's `.claude/war/runs/<runId>/` (a sibling
+of the run manifest; setup.md § Run root; riding the existing `.claude/` exclude),
+produced by `stage-workflow.mjs` (see [ADR 0037](docs/adr/0037-run-scoped-staged-phase-scripts.md)). The stager makes
 **exactly-once**, pre-dispatch substitutions as pure literals — the Workflow sandbox has no shell/fs
 to compute them: always the two `export const meta` anchors (`name`/`description`), and, when
 `--args <file>` is passed, an **optional third** — the template's string-arm args fallback tail,
@@ -1751,11 +1750,14 @@ untouched (skill surfaces are read in-plugin — the supersession is agent-cards
 ### State & resume
 
 **Run manifest**:
-The uncommitted per-run telemetry record `/war` accumulates under the main checkout's
-`.claude/war/runs/` — per-phase timestamps, workflow IDs, transcript-dir pointers, dispatch
+The uncommitted per-run telemetry record `/war` accumulates under the run root's
+`.claude/war/runs/` (setup.md § Run root) — per-phase timestamps, workflow IDs, transcript-dir pointers, dispatch
 counts, terminal statuses. Fail-open bookkeeping consumed by `/war-review`; **never resume
 input** (the correctness record stays git > issues > ledger).
 _Avoid_: run ledger (the ledger is the owned-refs record); reading it during resume.
+
+**Run root** · **Denial class**:
+when locating a run or classing a denial, read skills/war/references/glossary-cold.md
 
 **Launch identity of a recovery**:
 when relaunching to recover a run, read skills/war/references/glossary-cold.md

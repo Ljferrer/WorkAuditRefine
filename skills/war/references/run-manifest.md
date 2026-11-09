@@ -7,7 +7,7 @@ section's **per-stamp field detail** and **file identity**. The `## When — at 
 this file's depth, and the init sentence later gained the launch-identity fields); `## Top-level fields`
 and `## Relaunch` are new doctrine authored here (ADR 0042's default placement), never an eviction,
 and have no card twin. The section's **hot** half stays on the card: the `## Run manifest (telemetry)`
-anchor, the main-checkout `MAIN=$(dirname …)` idiom two other surfaces cite by name, and the
+anchor, the run-root location (whose rule lives in [setup.md](setup.md) § Run root), and the
 fail-open / never-resume-input invariant. Positional words below ("above", "the Run-manifest
 section") refer to that card section.
 
