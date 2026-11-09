@@ -660,7 +660,9 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
 // name at the literal (deliberately, never silently) before the doc assert retunes. GLOSSARY.md's
 // **Clean handoff** row must name exactly the emit set, and the retired pair-only emit clause
 // (`emitted on `landed` and `held:escalation` only`) must be gone. GLOSSARY.md is hard-wrapped, so the
-// row is whitespace-folded first (a line-anchored grep false-negates on a re-wrap).
+// row is whitespace-folded first (a line-anchored grep false-negates on a re-wrap). SKILL.md's
+// return-contract `handoff` clause is pinned to the same emit set, and the retired pair-only wording
+// is banned from SKILL.md and resume-and-recovery.md.
 const gateStatuses = (src, label, re) => {
   const m = src.match(re)
   assert.ok(m, `could not locate the ${label} gate in workflow-template.js — construct rotted (non-vacuous guard)`)
@@ -698,6 +700,20 @@ test('D21 (extended) — GLOSSARY.md **Clean handoff** names the engine emit set
     /emitted\s+on\s+`landed`\s+and\s+`held:escalation`\s+only/i,
     'the retired pair-only emit clause (`emitted on `landed` and `held:escalation` only`) is still in GLOSSARY.md — the handoff also emits on held:land-failed (#2702)',
   )
+  // SKILL.md's return-contract `handoff` clause: every backticked token from `is present on` up to
+  // `omitted on` must be exactly the emit set (no filter, so a stray extra member reds too).
+  const skillHandoff = norm(skillMd).match(/`handoff` \(the machine-readable debt map[^)]*\) is present on ([\s\S]*?) omitted on/)
+  assert.ok(skillHandoff, 'could not locate the SKILL.md `handoff` … is present on … omitted on clause — construct rotted')
+  const skillNamed = [...skillHandoff[1].matchAll(/`([^`]+)`/g)].map((x) => x[1])
+  assert.deepEqual([...skillNamed].sort(), [...emitSet].sort(), `the SKILL.md handoff clause must name exactly the engine's emit set (${emitSet.join(', ')}) — got: ${skillNamed.join(', ')}`)
+  // The retired wording that outlived the #2702 engine change must stay gone.
+  for (const [label, src, re] of [
+    ['SKILL.md', skillMd, /`servitorResult` is null unless the Workflow landed the phase itself/i],
+    ['SKILL.md', skillMd, /present on `landed` \*\*and\*\* `held:escalation`/i],
+    ['resume-and-recovery.md', resumeMd, /only wraps up when it lands the phase itself/i],
+  ]) {
+    assert.doesNotMatch(norm(src), re, `${label} still carries the retired pair-only wording ${re} — the Wrap-up and handoff also fire on held:land-failed (#2702)`)
+  }
 })
 
 // (2026-09-06 Task 1.2, #1801) resume-and-recovery.md's `Segmented land (in-band marker) and
