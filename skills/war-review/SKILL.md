@@ -46,7 +46,7 @@ the main checkout is found:
 ```bash
 LAUNCH=$(git rev-parse --show-toplevel)
 MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
-RUNS="$LAUNCH/.claude/war/runs"; ls "$RUNS"/*.json >/dev/null 2>&1 || RUNS="$MAIN/.claude/war/runs"   # manifests: $RUNS/<runId>.json ; reviews: $RUNS/<runId>-review.md
+RUNS="$LAUNCH/.claude/war/runs"; [ -n "$(find "$RUNS" -maxdepth 1 -name '*.json' 2>/dev/null)" ] || RUNS="$MAIN/.claude/war/runs"   # manifests: $RUNS/<runId>.json ; reviews: $RUNS/<runId>-review.md
 ROOT=$(dirname "$(dirname "$(dirname "$RUNS")")")   # the run root that holds $RUNS
 ```
 
