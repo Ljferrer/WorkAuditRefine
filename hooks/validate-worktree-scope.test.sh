@@ -503,6 +503,41 @@ expect "exact-shape :war-worker still gated (outside-worktree write denied)" \
 expect "trailing-junk :war-worker-helper falls to fail-open default arm" \
   0 "$(run "$(mk 'work-audit-refine:war-worker-helper' "$OUTSIDE_WT")")"
 
+# ---------------------------------------------------------------------------
+# WP: Windows path form (plan 2026-11-08 PIN-13, PIN-20). norm_path turns `\`
+# into `/` and a leading `X:` into `/x` on the path and on $HOME before the
+# `..` reject and the servitor globs. Each row is red without norm_path.
+# ---------------------------------------------------------------------------
+WIN_SERV='C:\Users\wp\.claude\projects\p\memory\x.md'
+expect "WP1: war-servitor Windows-form memory path with HOME=/c/Users/wp allowed" \
+  0 "$(run_home "/c/Users/wp" "$(mk 'war-servitor' "$WIN_SERV")")"
+# Without norm_path the backslash `..` hides inside one segment, the worker's
+# ancestor walk reaches task-1/.war-task, and the write is allowed.
+expect "WP2: war-worker backslash '..' path denied (normalized before the .. reject)" \
+  2 "$(run "$(mk 'war-worker' "$WT/wt/task-1/sub\\..\\..\\..\\plain\\x.txt")")"
+expect "WP3: war-servitor backslash '..' escape from the memory root denied" \
+  2 "$(run_home "$SERV_HOME" "$(mk 'war-servitor' "$SERV_HOME/.claude/projects/p/memory/..\\..\\..\\..\\etc\\x.md")")"
+expect "WP4: war-servitor memory path allowed under a Windows-form \$HOME" \
+  0 "$(run_home 'C:\Users\wp' "$(mk 'war-servitor' "/c/Users/wp/.claude/projects/p/memory/x.md")")"
+
+# ---------------------------------------------------------------------------
+# WS: the worker deny names the scratch place (PIN-10). A Lead-scratchpad-shaped
+# path sits outside every .war-task worktree, so the write is denied and stderr
+# carries the `.war/` hint.
+# ---------------------------------------------------------------------------
+SCRATCH_PATH="$WT/private/tmp/claude-501/-Users-x-repo/sess/scratchpad/commit-msg.txt"
+expect "WS1: war-worker write to a scratchpad path outside every worktree denied" \
+  2 "$(run "$(mk 'war-worker' "$SCRATCH_PATH")")"
+ws_err="$(run_home_err "$SERV_HOME" "$(mk 'war-worker' "$SCRATCH_PATH")")"
+n=$((n + 1))
+case "$ws_err" in
+  *"scratch files go under <worktree>/.war/"*)
+    printf 'ok %d - WS2: worker deny names <worktree>/.war/ as the scratch place\n' "$n" ;;
+  *)
+    printf 'FAIL %d - WS2: worker deny omits the scratch hint (got: %s)\n' "$n" "$ws_err"
+    fails=$((fails + 1)) ;;
+esac
+
 # Grep assertion: no dead 'warned' variable remains in the hook
 # (printf-json-escaping-vacuous-test-case cleanup, D6 verified-correction).
 n=$((n + 1))

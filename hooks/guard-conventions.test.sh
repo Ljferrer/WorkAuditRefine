@@ -573,6 +573,39 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# NP: the three norm_path copies are byte-equal (plan 2026-11-08 PIN-13,
+# PIN-20). np_body prints one file's norm_path function, from its
+# `norm_path() {` line to the first column-0 `}`. np_same passes only when
+# every body is non-empty and equal to the first. A one-byte mutant of one
+# copy must fail np_same, so the row cannot pass vacuously.
+# ---------------------------------------------------------------------------
+np_body() { awk '/^norm_path\(\) \{$/ { f = 1 } f { print } f && /^\}$/ { exit }' "$1"; }
+np_same() {
+  _np_ref="$(np_body "$1")"
+  [ -n "$_np_ref" ] || return 1
+  for _np_f in "$@"; do
+    [ "$(np_body "$_np_f")" = "$_np_ref" ] || return 1
+  done
+  return 0
+}
+NP_FILES="$REPO/hooks/validate-worktree-scope.sh $REPO/hooks/validate-servitor-provenance.sh $REPO/hooks/validate-evidence-auditor-mcp.sh"
+# shellcheck disable=SC2086
+if np_same $NP_FILES; then
+  pass "NP1: the three norm_path bodies are byte-equal and non-empty"
+else
+  fail "NP1: the norm_path bodies differ or one is missing"
+fi
+NP_MUT="$TMP/np-mutant.sh"
+awk '/^norm_path\(\) \{$/ { f = 1 } f && !d && sub(/np_p=/, "np_P=") { d = 1 } { print }' \
+  "$REPO/hooks/validate-servitor-provenance.sh" > "$NP_MUT"
+if [ "$(np_body "$NP_MUT")" != "$(np_body "$REPO/hooks/validate-servitor-provenance.sh")" ] \
+  && ! np_same "$REPO/hooks/validate-worktree-scope.sh" "$NP_MUT" "$REPO/hooks/validate-evidence-auditor-mcp.sh"; then
+  pass "NP2: a one-byte norm_path mutant fails the byte-equality check"
+else
+  fail "NP2: the byte-equality check missed a one-byte norm_path mutant"
+fi
+
+# ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
 echo "guard-conventions.test.sh: PASS"

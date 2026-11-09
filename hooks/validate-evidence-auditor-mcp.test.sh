@@ -605,6 +605,54 @@ expect_deny "war-servitor memory tool local outside the memory root denied" \
   "$(mk_local 'war-servitor' "/tmp/memory")" "outside"
 
 # ---------------------------------------------------------------------------
+# WP: Windows path form (plan 2026-11-08 PIN-13, PIN-20). memory_fence runs
+# norm_path before its `..`, absolute-path and memory-root checks, so a
+# Windows-form `local` passes and a backslash `..` segment is still denied.
+# ---------------------------------------------------------------------------
+expect_allow "WP1: war-auditor memory tool Windows-form local passes the fence" \
+  "$(mk_local 'war-auditor' 'C:\Users\wp\.claude\projects\p\memory')"
+expect_deny "WP2: war-auditor memory tool backslash '..' local denied" \
+  "$(mk_local 'war-auditor' 'C:\Users\wp\.claude\projects\p\memory\..\..\x\memory')" ".. segment"
+# The output-path `..` check reads the norm_path form too (sweep of every
+# `..` check in the hook).
+expect_deny "WP3: war-worker REA output_directory with a backslash '..' denied" \
+  "$(mk_in 'war-worker' "$WRITE_TOOL" "$(jq -nc --arg d "$EVID_DIR\\..\\..\\x" '{output_directory:$d}')")" ".. segment"
+
+# ---------------------------------------------------------------------------
+# WM: the REA-allowlist deny text by agent type (PIN-14). A non-member,
+# non-ccd_turn tool reaches the shared deny site. The worker gets the
+# allowlist and plan-tool text; the evidence auditor keeps the base text.
+# ---------------------------------------------------------------------------
+WM_TOOL='mcp__github__get_issue'
+expect_deny "WM1: war-worker REA-allowlist deny names the worker MCP limit" \
+  "$(mk 'war-worker' "$WM_TOOL")" "worker MCP is limited to the memory query tool and the REA allowlist"
+expect_deny "WM2: war-worker REA-allowlist deny says a plan or todo tool is not needed" \
+  "$(mk 'work-audit-refine:war-worker' "$WM_TOOL")" "a plan or todo tool is not needed for the task"
+WM_BASE="WAR: evidence-auditor mcp guard DENIED: tool '$WM_TOOL' (suffix 'get_issue') is not on the REA allowlist for agent type 'war-evidence-auditor'; the allowlist is the REA effect predicate (never mutatesTarget, executesForeignCode, mutatesDevice or destructive)."
+_wm_err="$(stderr_of "$(mk 'war-evidence-auditor' "$WM_TOOL")")"
+if [ "$_wm_err" = "$WM_BASE" ] && [ "$(rc_of "$(mk 'war-evidence-auditor' "$WM_TOOL")")" = "2" ]; then
+  pass "WM3: war-evidence-auditor REA-allowlist deny text is byte-for-byte the base text"
+else
+  fail "WM3: war-evidence-auditor REA-allowlist deny text changed (got |$_wm_err|)"
+fi
+
+# ---------------------------------------------------------------------------
+# HT: host turn tools (PIN-23). A `mcp__ccd_turn__*` call from a WAR seat is
+# denied with a text that names the host turn tool class; the pass-through
+# arm is untouched.
+# ---------------------------------------------------------------------------
+expect_deny "HT1: war-auditor mcp__ccd_turn__update_plan denied as a host turn tool" \
+  "$(mk 'war-auditor' 'mcp__ccd_turn__update_plan')" "host turn tool"
+expect_deny "HT2: war-evidence-auditor mcp__ccd_turn__wrap_up denied as a host turn tool" \
+  "$(mk 'war-evidence-auditor' 'mcp__ccd_turn__wrap_up')" "host turn tool"
+expect_allow "HT3: mcp__ccd_turn__update_plan for a non-WAR agent type passes through" \
+  "$(mk 'general-purpose' 'mcp__ccd_turn__update_plan')"
+expect_deny "HT4: war-worker host turn tool deny says the seat ends its turn by returning its JSON" \
+  "$(mk 'war-worker' 'mcp__ccd_turn__update_plan')" "ends its turn by returning its JSON"
+expect_deny "HT5: war-servitor mcp__ccd_turn__wrap_up denied as a host turn tool" \
+  "$(mk 'work-audit-refine:war-servitor' 'mcp__ccd_turn__wrap_up')" "host turn tool"
+
+# ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
 echo "validate-evidence-auditor-mcp.test.sh: PASS"
