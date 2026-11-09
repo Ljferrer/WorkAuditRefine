@@ -19478,6 +19478,16 @@ test('audit-pin retry (#2704): two empty replies keep audit-blocked', async () =
   assert.ok(out.escalated.some(e => e.task === 't1' && e.reason === 'audit-blocked'), "today's audit-blocked arm")
 })
 
+test('audit-pin retry (#2704): a death on the retry keeps env-died', async () => {
+  let n = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+    'audit-pin': () => { if (n++ === 0) return { head_sha: '', pins: [] }; throw new Error('529 overloaded') },
+  })
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 2, 'the death lands on the retry attempt')
+  assert.ok((out.escalated || []).some(e => e.task === 't1' && e.reason === 'env-died'), 'the retry death keeps the env-died return')
+  assert.ok(!(out.escalated || []).some(e => e.reason === 'audit-blocked'), 'no audit-blocked row')
+})
+
 // ---- held-land wrap-up (#2702 D34, PIN-34) --------------------------------------------------------
 test('held-land wrap-up (#2702): servitor on held:escalation', async () => {
   const servitor = { phase: 3, target: 'held', learnings: ['held lesson'] }
