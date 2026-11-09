@@ -1,6 +1,6 @@
 ---
 name: never-move-report-it-merged-sentence-resolves-to-a-hold-not-a-recorded-merge
-description: "NEVER_MOVE_MERGED says report it merged, but the engine holds such a task instead"
+description: "RESOLVED (#2662, D3): NEVER_MOVE_MERGED now says the engine holds the task; the old 'report it merged' ending always resolved to a hold"
 metadata:
   node_type: memory
   type: project
@@ -28,9 +28,10 @@ metadata:
 
 # The never-move "report it merged" sentence ends in a hold, not a recorded merge
 
-**The sentence.** `NEVER_MOVE_MERGED` in `skills/war/assets/workflow-template.js` reads: "never rebase, move or re-merge it, and report it merged."
+**The sentence.** `NEVER_MOVE_MERGED` in `skills/war/assets/workflow-template.js` used to read: "never rebase, move or re-merge it, and report it merged."
+Plan 2026-11-08 D3 (#2662) rewrote it. It now reads: "never rebase, move or re-merge it; the engine holds it for the Lead and never records a merge from your report."
 Plan #2485 D11 (PIN-11) places it at the pin-transfer probe step (2), all four merge step (a) copies and the refiner card step 1.
-ES9 guards the verbatim text.
+ES9 guards the verbatim text and asserts the old ending is absent from the engine and the card.
 
 **What the engine does with it.**
 - At the probe step (2), the prompt tells the refiner to return `empty-unmatched` with detail "already merged". The engine escalates that status. The probe status enum has no merged member.
