@@ -734,10 +734,10 @@ test('Segmented-land bullet — filing-on-held names the filing dispatch alone; 
 // is locked by PIN-24 of the 2026-11-08 engine-recovery plan (a later plan retunes it).
 const wrapUpDocSurfaces = () => [
   ['SKILL.md return bullet', skillMd, /^- returns `\{ landed, escalated/, /^- /],
-  ['SKILL.md Checkpoint learnings bullet', skillMd, /^- \*\*Every landed phase captures learnings exactly once\*\*/, /^- /],
+  ['SKILL.md Checkpoint learnings bullet', skillMd, /^- \*\*Every landed phase captures learnings once, plus one resolution-fed pass after a held phase lands\*\*/, /^- /],
   ['SKILL.md Follow-up filing floor bullet', skillMd, /^- \*\*Follow-up filing floor — gate the DAG advance \(D4, #1331\)\.\*\*/, /^- /],
   ['war-review SKILL.md unfiled follow-ups bullet', warReviewSkillMd, /^- \*\*unfiled follow-ups\*\*/, /^- |^\S/],
-  ['resume-and-recovery.md Capture-learnings bullet', resumeMd, /^- \*\*Capture learnings on every landed phase \(exactly once\)\.\*\*/, /^- /],
+  ['resume-and-recovery.md Capture-learnings bullet', resumeMd, /^- \*\*Capture learnings on every landed phase \(once, plus one resolution pass on a held land\)\.\*\*/, /^- /],
   ['resume-and-recovery.md Segmented-land bullet', resumeMd, /^ {2}- \*\*Segmented land \(in-band marker\) and filing-on-held\./, /^ {2}- \*\*|^\S/],
   ['design.md Land-path-agnostic Wrap-up bullet', designRefMd, /^- \*\*Land-path-agnostic Wrap-up\.\*\*/, /^- /],
   ['design.md Intent threading + handoff bullet', designRefMd, /^- \*\*Intent threading \+ handoff \(ADR 0013\)\.\*\*/, /^- /],
@@ -801,6 +801,37 @@ test('2702/D34 — the Wrap-up gate equals the handoff emit gate, and every doc 
       assert.doesNotMatch(folded, re, `${what} is still in ${label} — the Wrap-up and handoff also fire on held:land-failed (#2702)`)
     }
   }
+})
+
+// (#2702 phase-3 seed, ruled ask fork 2) A hold-time Wrap-up never sees the operator's resolution, so
+// the Lead skip narrows: skip only when the in-flow Wrap-up ran on `landed`; after a manual or recovery
+// land of a held phase the Lead runs one more resolution-fed pass even when `servitorResult` is set.
+// Also pins the return list's `dispatchFailures` key and the widened Wraps-up bullet opener.
+test('2702/seed — the Lead servitor skip narrows to landed, and the return list names dispatchFailures (#2702)', () => {
+  const surfaces = wrapUpDocSurfaces()
+  const region = (l) => surfaces.find(([label]) => label === l)[1]
+  assert.match(region('SKILL.md Checkpoint learnings bullet'), /Skip the Lead pass only when the in-flow Wrap-up ran on `landDecision` `landed`\. After a manual land or a recovery land of a held phase, run one more `war-servitor` pass fed the resolution, even when `servitorResult` is set\./)
+  assert.match(region('resume-and-recovery.md Capture-learnings bullet'), /Skip the Lead pass only when the in-flow Wrap-up ran on `landDecision` `landed`\. After a manual land or a recovery land of a held phase, run one more `war-servitor` pass fed the resolution, even when `servitorResult` is set/)
+  assert.match(region('design.md Land-path-agnostic Wrap-up bullet'), /skip the Lead pass only when the in-flow Wrap-up ran on `landed`; after a manual or recovery land of a held phase the Lead runs one more resolution-fed pass, even when `servitorResult` is set/)
+  for (const [label, src] of [['SKILL.md', skillMd], ['resume-and-recovery.md', resumeMd], ['design.md', designRefMd]]) {
+    const folded = norm(src)
+    for (const re of [/Skip if `servitorResult` is already set/i, /Run it only if `servitorResult` is absent/i, /run only when `servitorResult` is absent/i, /spawns the servitor itself only when `servitorResult` is null/i]) {
+      assert.doesNotMatch(folded, re, `${label} still carries the retired unconditional skip ${re} — a held phase's resolution would never be captured`)
+    }
+  }
+  assert.match(region('SKILL.md return bullet'), /carriedPhaseClose, dispatchFailures, handoff\? \}/, 'the SKILL.md return list must name `dispatchFailures` (both engine return sites carry it, #2645)')
+  // Bind the bullet's keys to the engine's main return: the listed keys plus the subset note's keys
+  // must, together, be exactly the keys of that return (handoff counted from its spread).
+  const engineRet = workflowTemplateSrc.match(/^return \{ phase: phaseId, ([^\n]*) \}$/m)
+  assert.ok(engineRet, 'the engine main return line must be found')
+  const engineKeys = new Set(['phase', ...engineRet[1].split(', ').map((k) => k.replace(/^\.\.\.\(handoff.*$/, 'handoff'))])
+  const bullet = region('SKILL.md return bullet')
+  const listed = bullet.match(/^- returns `\{ ([^}]*) \}`/)[1].split(', ').map((k) => k.replace(/\?$/, ''))
+  const subsetNote = bullet.match(/\(a subset: the engine return in `workflow-template\.js` also carries ([^)]*)\)/)
+  assert.ok(subsetNote, 'the SKILL.md return bullet must say its list is a subset and point at the engine return')
+  const noted = [...subsetNote[1].matchAll(/`(\w+)`/g)].map((m) => m[1])
+  assert.deepEqual(new Set([...listed, ...noted]), engineKeys, 'the SKILL.md return bullet keys plus its subset note must equal the engine main return keys')
+  assert.match(norm(skillMd), /- \*\*Wraps up\*\* — once the phase lands \(or holds on `held:escalation` \/ `held:land-failed` with `memoryLocalRoot` threaded; #2702\),/)
 })
 
 // (#2485 Task 5.1 — D22, PIN-26) De-mirror pins: run-manifest.md's field table is the one home of the
