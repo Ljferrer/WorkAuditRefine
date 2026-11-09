@@ -357,7 +357,9 @@ if [ "${1-}" = --prune ]; then
     [ -n "$aid" ] || infra "--prune: '$_pn' is not a record name"
     [ -d "$_pr/$aid" ] && [ ! -L "$_pr/$aid" ] || infra "--prune: no record directory '$_pr/$aid'"
   done
-  for _pn in "$@"; do prune_one "$_pr/$_pn"; done
+  # A repeated name was removed on its first pass: skip it, so the exit
+  # status never says nothing changed after a removal.
+  for _pn in "$@"; do [ -d "$_pr/$_pn" ] || continue; prune_one "$_pr/$_pn"; done
   exit 0
 fi
 
