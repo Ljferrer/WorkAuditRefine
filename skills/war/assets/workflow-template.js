@@ -466,7 +466,8 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // classifications ({ task, remoteSha, frozenTip }) captured from an ensure-worktree exit carrying the
 // STALE_REMOTE marker (always-on classification, never recovery-gated); worktreeHygiene (D20, #1381) —
 // reuse-path hygiene findings ([{ task, path, action: "repaired"|"detected"|"moved", detail }]) captured from
-// WORKTREE_HYGIENE marker lines an ensure-worktree REUSE emits (the STALE_REMOTE marker-capture idiom),
+// WORKTREE_HYGIENE marker lines an ensure-worktree REUSE emits, or ensure-refinery-worktree emits as a
+// { task: null, refinery: true, path, action, detail } row (#1823) (the STALE_REMOTE marker-capture idiom),
 // carried on an ok: true return beside staleRemote. worktreeHygiene is visibility only, fail-open: ONE
 // log() summary line when non-empty, no auditLog entry, no routing change, never a hold — the barrier
 // never halts on it. All three absent on a plain barrier with nothing to report. A fourth OPTIONAL
@@ -476,12 +477,15 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // r.task.absorbRounds on a relaunch; absent or malformed ⇒ 0 with a loud log. A fifth OPTIONAL field,
 // lateFixCharges (late-defects D25, PIN-25) — { <task>: n }, the HIGHEST `Late-Fix: <task>:<n>` index on
 // the first-parent single-parent commits after a preMerged task's merge commit (recovery only) — seeds
-// that task's fixRounds, so a relaunch keeps the late-fix charge.
+// that task's fixRounds, so a relaunch keeps the late-fix charge. A sixth OPTIONAL field, integrationTip
+// (#2575 D9, recovery only) — the third TASK_INTEGRATED field — seeds recoveryPredSeed. savedWork (#2588
+// D7) rides a per-task provision-run ok: true when the saved-edit patch did not re-apply: its path.
 const ENV_OUTCOME = { type: 'object', required: ['ok'], properties: {
   ok: { type: 'boolean' },
   taskId: { type: 'string' }, failedCommand: { type: 'string' }, exitCode: { type: 'number' },
   stderrTail: { type: 'string' }, provisionSource: { type: 'string' },
   preMerged: { type: 'array' }, staleRemote: { type: 'array' }, worktreeHygiene: { type: 'array' },
+  integrationTip: { type: 'string' }, savedWork: { type: 'string' },
   lateFixCharges: { type: 'object' }, absorbCharges: { type: 'object' } } }
 // MergeResult.provision (#2485 D19, PIN-19): a failed tree-keyed provision re-run step at a merge or land
 // gate rides this OPTIONAL field on an unmerged result; MergeResult.status is not widened. Its five
@@ -553,8 +557,14 @@ const mergedTasksForGateAudit = []
 // requiresTest:false interleave no longer over-populates the successor's --mapped diff range. A sentinel
 // integration_sha leaves the tracker at the last REAL sha (feeding the sentinel forward would poison the
 // successor's `git diff <preMergeTip> <gateHeadSha>` into a guaranteed exit-2 ERROR — the [i-1].gateHeadSha
-// chain this replaces had exactly that defect). Null until the first real land ⇒ evItems falls back to phaseBaseCmd.
+// chain this replaces had exactly that defect). Null until the first real land ⇒ predTip reads recoveryPredSeed (below),
+// and when that is null too evItems falls back to phaseBaseCmd.
 let lastLandedTip = null
+// #2575 D9 (PIN-9, PIN-20): on a sanctioned recovery whose barrier proved preMerged tasks, the first
+// fresh merge's predecessor is the adopted integration tip (the barrier's integrationTip), not the
+// phase base. landMerged reads lastLandedTip ?? recoveryPredSeed; lastLandedTip stays unset, so the
+// handoff tipSha fallback is unchanged when no fresh merge lands.
+let recoveryPredSeed = null
 // Per-task landed sha (Phase 5 Task 1): the REAL integration_sha each landMerged() call recorded, keyed
 // by task id — retained for EVERY landed task, because a requiresTest:false task never enters
 // mergedTasksForGateAudit (the D7 skip) and so never gets a gate-audit auditLog entry: without this map
@@ -741,7 +751,7 @@ const testPattern = (plan && typeof plan.testPattern === 'string' && plan.testPa
 const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 // Partial-phase recovery (spec §4.2/§4.4): a Lead-supplied top-level arg armed ONLY on a sanctioned
 // recovery relaunch (the war skill's references/resume-and-recovery.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean }.
-// Absent / non-sanctioned ⇒ THREE recovery-gated barrier arms are DORMANT, not one: (1) the
+// Absent / non-sanctioned ⇒ FOUR recovery-gated barrier arms are DORMANT, not one: (1) the
 // derive-and-skip step (deriveSkipClause — a task branch that is an ancestor of the frozen tip AND
 // was merged by a first-parent merge commit whose WAR-Task trailer names it and whose second parent is its tip
 // is reported preMerged and its ensure-worktree skipped; a zero-commit ancestor has no merge commit and is
@@ -749,7 +759,8 @@ const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 // pre-checkout ref-holder auto-free (holderFreeClause, #1712 fix 3 — clean prior-generation holders of
 // THIS plan's own refs only, carrying TWO refusal arms: a DIRTY holder and a FOREIGN plan's holder are
 // never freed, each dying loud with the holder path named in stderrTail); (3) the
-// --reclaim-stale-remote pass-through. Dormant, every dispatched prompt is byte-identical to a
+// --reclaim-stale-remote pass-through; (4) the owned-file adoption (adoptOwnedClause, #2671 — also
+// needs args.ownedFile). Dormant, every dispatched prompt is byte-identical to a
 // non-recovery run APART FROM the barrier prompt's TWO always-on clauses — the §4.4 stale-remote
 // classification and the D20 worktree-hygiene capture (default behavior, not recovery machinery).
 // A resumeFromRunId replay / accidental same-named local branch never triggers
@@ -757,6 +768,17 @@ const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 const recovery = (A.recovery && typeof A.recovery === 'object' && !Array.isArray(A.recovery) && A.recovery.sanctioned === true)
   ? { sanctioned: true, reclaimStaleRemote: A.recovery.reclaimStaleRemote === true }
   : null
+// Prior-return carry (#2700 D32, PIN-32): args.recovery.priorReturn = { aced?: [...], minorsFiled?: [...] },
+// the held attempt's two top-level arrays, threaded verbatim by the Lead. The preMerged loop carries the
+// rows of each pre-merged task. Any other shape, or a priorReturn outside sanctioned recovery, is
+// ignored with one log line (the ruledAsks container precedent).
+const priorReturnArg = A.recovery && typeof A.recovery === 'object' ? A.recovery.priorReturn : undefined
+if (priorReturnArg != null) {
+  const shaped = typeof priorReturnArg === 'object' && !Array.isArray(priorReturnArg) && ['aced', 'minorsFiled'].every(k => priorReturnArg[k] === undefined || Array.isArray(priorReturnArg[k]))
+  if (!shaped) log('prior-return carry IGNORED a malformed args.recovery.priorReturn — the channel takes { aced?: [...], minorsFiled?: [...] } (#2700).')
+  else if (!recovery) log('prior-return carry: args.recovery.priorReturn ignored outside sanctioned recovery (#2700).')
+  else recovery.priorReturn = priorReturnArg
+}
 const intentClause = intent
   ? pt`\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
   : ''
@@ -1567,8 +1589,18 @@ const PROVISION_TREE_LINE = pt`PROVISION TREE MARKER (run inside the worktree): 
 // Interpolated by provisionStep (task worktrees and _refinery), tipWorktreeProvision (the polish-worktree and late-fix-worktree provisions) and
 // PROVISION_RERUN_CLAUSE; the refiner card's merge-task step 1 carries it byte-equal. endstateProvisionClause
 // keeps its own `git -C` spelling (fail-open, every check still runs). depClause omits it: the worker's
-// own uncommitted edits live in that worktree, and `git checkout -- .` would discard them.
+// own uncommitted edits live in that worktree, and `git checkout -- .` would discard them. A reused task
+// worktree can hold a dead worker's edits too, so provisionStep's task-worktree prompt wraps this line in
+// PROVISION_SAVE_LINE and PROVISION_RESTORE_LINE below.
 const PROVISION_CLEAN_LINE = pt`Provision steps must leave the worktree CLEAN: restore tracked files via \`git checkout -- .\` in that worktree after any step that mutates them (untracked build output is fine). Write the marker only after the restore.`
+// PROVISION_SAVE_LINE / PROVISION_RESTORE_LINE (#2588 D7, PIN-7): the save-and-restore pair around the
+// clean line, task worktrees only (never _refinery, never depClause). `git reset -q` unstages first: the
+// clean line restores from the INDEX, so a staged edit would survive it and make the apply a false
+// conflict. A dirty tracked tree is written to the patch; untracked files are never touched. The restore
+// is worktree only (no --index). provisionStep fills `<task id>`. An apply failure keeps the patch and
+// returns its path as ENV_OUTCOME.savedWork, which the worker prompt names.
+const PROVISION_SAVE_LINE = pt`SAVE FIRST (a reused worktree may hold a dead worker's edits): before step 1, inside the worktree, run \`git reset -q && if [ -n "$(git status --porcelain --untracked-files=no)" ]; then mkdir -p .war && git diff --binary HEAD > .war/preprovision-<task id>.patch; fi\`.`
+const PROVISION_RESTORE_LINE = pt`RESTORE AFTER THE CLEAN: after that restore, inside the worktree, run \`if [ -f .war/preprovision-<task id>.patch ]; then git apply .war/preprovision-<task id>.patch && rm .war/preprovision-<task id>.patch; fi\` (worktree only, never --index). If that apply fails, keep the patch and return { ok: true, savedWork: ".war/preprovision-<task id>.patch" }.`
 // PROVISION_RERUN_CLAUSE (#2485 D15/D19, PIN-15/PIN-19): the ONE tree-keyed re-run sentence every
 // refiner gate site interpolates before any floor or gate — the four merge step (a) copies, the ace-gate
 // check and its pre-ace base check (ace-base-gate), the polish-sweep, terminal-pass and late-fix merges,
@@ -1604,12 +1636,16 @@ const provisionEvidence = (out, id, label) => {
 // provisionStep runs the pinned run.provision list, IN ORDER, inside one worktree — a refiner seat in
 // the Provision phase (the refiner owns provisioning; ADR 0001): each task worktree before its worker,
 // and `_refinery` once per phase before the first merge (#2485 D15, `purpose` names which). Every run
-// restores tracked files (PROVISION_CLEAN_LINE), then writes the PROVISION_TREE_LINE marker. It returns ok:true on full success or the env-blocked outcome
+// restores tracked files (PROVISION_CLEAN_LINE; a task worktree saves its edits first and re-applies them
+// after, PROVISION_SAVE_LINE / PROVISION_RESTORE_LINE), then writes the PROVISION_TREE_LINE marker. It returns ok:true (with
+// savedWork when the saved patch did not re-apply) on full success or the env-blocked outcome
 // ({ taskId, failedCommand, exitCode, stderrTail, provisionSource } — schemas.md) for the FIRST failing
 // step. The caller keeps the worktree on ok:false. With an empty list provisioning is a no-op: ok:true
 // with no agent dispatched.
 async function provisionStep(task, purpose = pt`for WAR task ${task.id} before its worker runs`) {
   if (!provisionList.length) return { ok: true }
+  // #2588 D7: the save and restore lines ride a task worktree only, with this task's id filled in.
+  const saved = (s, end) => task.id === '_refinery' ? '' : s.split('<task id>').join(task.id) + end
   // provision mode (agents/war-refiner.md ## provision): per-task provision-run — env-outcome return.
   // dispatchKind: 'provision-run' (stable discriminator — mocks/handlers/audits key on it, not the label prefix).
   // dispatchAgent (Phase 6 Task 1 (c)): a post-spawn harness death of THIS dispatch is TAGGED at the
@@ -1617,11 +1653,11 @@ async function provisionStep(task, purpose = pt`for WAR task ${task.id} before i
   const out = await dispatchAgent(
     pt`PROVISION the worktree ${purpose ?? '<purpose>'}. cd into ${task.worktree} `
     + pt`(the refiner's Provision barrier already created it) and run these provisioning commands IN ORDER, `
-    + pt`inside that worktree:\n`
+    + pt`inside that worktree:\n` + saved(PROVISION_SAVE_LINE, '\n')
     // pt-tagged prompt-feeding row builder: ${c ?? '<step>'} is absence-tolerant (run.provision elements
     // are not per-task-schema-guaranteed; a placeholder over a phase-killing throw — Q17/ADR 0034).
     + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n') + pt`\n`
-    + PROVISION_CLEAN_LINE + pt` `
+    + PROVISION_CLEAN_LINE + pt` ` + saved(PROVISION_RESTORE_LINE, ' ')
     + pt`These steps make the worktree gate-ready (derived from the repo's own setup; source: ${provisionSource}). `
     + pt`Run them verbatim; do NOT free-author other commands. If EVERY step exits 0, write the marker and return { ok: true }. ` + PROVISION_TREE_LINE + pt` `
     + pt`If a step exits NON-ZERO, STOP at that first failure and return the env-blocked outcome — `
@@ -1629,7 +1665,7 @@ async function provisionStep(task, purpose = pt`for WAR task ${task.id} before i
     + pt`where failedCommand is the failing step VERBATIM (copy it exactly from the list above — the Workflow's evidence gate matches it against the dispatched list, and a paraphrased or invented command fails closed to held:workflow-error). `
     + pt`do NOT continue and do NOT remove the worktree (it is kept for inspection). This is environment setup, not the artifact under test: a failure is an env-block, never a code defect.`,
     { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision-run:${task.id}`, dispatchKind: 'provision-run', schema: ENV_OUTCOME, ...spawn('refiner') })
-  if (out && out.ok === true) return { ok: true }
+  if (out && out.ok === true) return (typeof out.savedWork === 'string' && out.savedWork) ? { ok: true, savedWork: out.savedWork } : { ok: true }
   // Evidence gate (C, tightened): provisionEvidence above. The env-blocked shape is downstream
   // byte-preserved: reason env-blocked, worker unspawned, worktree kept, siblings proceed. The old
   // provisionList[0] / synthetic exitCode / the synthetic no-result stderrTail fabrication is DELETED
@@ -2225,7 +2261,8 @@ const carryPhaseClose = (f, why) => {
   // stamps queuedKeys (mirrors routeToSweep) — a later seat re-mint never carries a second copy
   queuedKeys.add(remintKey(f))
   log('held-carry: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → carriedPhaseClose — ' + why + '.')
-  carriedPhaseClose.push({ ...f, phaseClose: true, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
+  // #2701 D33: the phase is the row's first origin (a re-carried seeded row keeps it); the reason is the latest hop.
+  carriedPhaseClose.push({ ...f, phaseClose: true, planSlug: planSlug ?? null, carriedFrom: { phase: (f.carriedFrom && f.carriedFrom.phase != null) ? f.carriedFrom.phase : phaseId, reason: why } })
 }
 // Re-audit-born finding routing (D1/D2/D3, #1731 — replaces the retired "the ladder never opens
 // for fresh findings" demotions): fresh Minor/Nits raised at ANY re-audit (the plain batch
@@ -3875,10 +3912,11 @@ if (tasks.length) {
   // are the always-on deltas between a recovery-absent barrier prompt and today.
   const staleRemoteClause = pt`STALE-REMOTE CLASSIFICATION (per task, always-on): if a task's ensure-worktree exits NON-ZERO and its output carries the \`STALE_REMOTE\` marker line, do NOT halt the barrier — capture { task: "<that task's id>", remoteSha: "<the marker's remote SHA>", frozenTip: "$TIP" } into a \`staleRemote\` array on the env-outcome and CONTINUE provisioning the remaining tasks. The marker token is the key, never the numeric exit code. Any OTHER non-zero ensure-worktree exit — one WITHOUT the marker — remains a barrier failure exactly as the fail-loud rule above.\n`
   // Reuse-path hygiene capture (D20, #1381) — always-on, visibility only. The barrier keys on the
-  // WORKTREE_HYGIENE marker TOKEN emitted by ensure-worktree's reuse path (the STALE_REMOTE
+  // WORKTREE_HYGIENE marker TOKEN emitted by ensure-worktree's reuse path and by
+  // ensure-refinery-worktree (#1823 D16: a { task: null, refinery: true } row) (the STALE_REMOTE
   // marker-capture idiom); the captured array rides the ok: true return and NEVER halts the barrier,
   // reorders tasks, or changes routing.
-  const worktreeHygieneClause = pt`WORKTREE-HYGIENE CAPTURE (per task, always-on): an ensure-worktree REUSE may emit \`WORKTREE_HYGIENE\` marker lines (dirty-submodule state, or a reused branch moved or kept). Capture each as { task: "<that task's id>", path: "<the marker's path>", action: "repaired"|"detected"|"moved", detail: "<the marker's detail>" } into a \`worktreeHygiene\` array on the ok: true env-outcome, beside \`staleRemote\` — the markers ride a zero exit: visibility only, never halt the barrier on them and never skip or reorder tasks.\n`
+  const worktreeHygieneClause = pt`WORKTREE-HYGIENE CAPTURE (per task, always-on): an ensure-worktree REUSE or the ensure-refinery-worktree step may emit \`WORKTREE_HYGIENE\` marker lines (dirty-submodule state, or a reused branch moved or kept). Capture each as { task: "<that task's id>", path: "<the marker's path>", action: "repaired"|"detected"|"moved", detail: "<the marker's detail>" }, and each step-4 ensure-refinery-worktree marker as { task: null, refinery: true, path, action, detail }, into a \`worktreeHygiene\` array on the ok: true env-outcome, beside \`staleRemote\` — the markers ride a zero exit: visibility only, never halt the barrier on them and never skip or reorder tasks.\n`
   // Absorb-budget relaunch seed (D5): the ONE git read allowed beyond the named subcommands, or on a
   // recovery relaunch one of the two (the LATE-FIX CHARGE READ is the other) — a
   // per-task bash trailer read of `Ace-Charge: <task>:<n>` on the task's own commits. The HIGHEST
@@ -3896,6 +3934,7 @@ if (tasks.length) {
   const deriveSkipClause = recovery
     ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: BEFORE each task's ensure-worktree, run task-integrated.sh <branch> <integration> <working> in the repo named by that task's entry below. Use these repository-local arguments, never the superproject working branch inside a submodule.\nRECOVERY TASK PROOFS: ${JSON.stringify(tasks.map(t => ({ task: t.id, repo: t.taskType === 'submodule' ? t.targetRepo : (mainCheckout || '.'), branch: t.branch, integration: ph.integrationBranch, working: workingBranchFor(t) })))}\nThis read-only helper is authoritative for preMerged: exit 0 with TASK_INTEGRATED proves ancestry, a first-parent merge commit in the phase whose parsed WAR-Task trailer equals the task branch and whose second parent equals the task tip (worker commits need no trailer, and a task whose commits net to zero still proves), task content at that merge commit across the paths it changed (M^1..M^2), every later first-parent change to those paths coming from a merge commit whose WAR-Task trailer names another task or a one-parent commit whose Late-Fix trailer names this task, and stable input refs; report that task id in preMerged and skip its ensure-worktree. Exit 1 with NO_TASK_PROOF (including a zero-commit, sibling-only, fast-forward-only, unmerged or unattributed-change branch, or one whose only merge commit names another task) means ordinary ensure-worktree and work/audit, never completed; preserve the marker in the transcript. Exit 2 or any unrecognized failure halts provisioning with the exact command and stderr. A shared positive commit count is not ownership proof (#2196); never substitute the old ancestor/count shortcut. Existing non-integrated branches keep their commits, never reset; ensure-worktree owns any fast-forward.\n`
       + pt`LATE-FIX CHARGE READ (per preMerged task): with M the merge commit its TASK_INTEGRATED line prints, run \`git -C "<that task's repo>" log --first-parent --no-merges --format='%(trailers:key=Late-Fix,valueonly)' "<M>..${ph.integrationBranch}"\` and return \`lateFixCharges: { "<task id>": <the HIGHEST n across the <task id>:<n> values whose bare task id is that task's> }\` on the ok: true env-outcome, omitting a task with no such value or a failing read.\n`
+      + pt`INTEGRATION TIP (when any task is preMerged): return the third field of a TASK_INTEGRATED line (the integration tip) as \`integrationTip\` on the ok: true env-outcome.\n`
     : ''
   // Recovery holder auto-free (#1712 fix 3, Phase 6 Task 1 (e)) — DORMANT unless args.recovery.sanctioned,
   // like deriveSkipClause. Plain git verbs only, no new script flag: a CLEAN prior-generation holder of
@@ -3906,6 +3945,14 @@ if (tasks.length) {
   // resolves the integration branch itself, guarded on the branch existing (a fresh cut has none).
   const holderFreeClause = recovery
     ? pt`SANCTIONED RECOVERY RELAUNCH — pre-checkout ref-holder auto-free (#1712 fix 3): BEFORE steps 2–4, run \`git worktree list --porcelain\` ONCE and, for EVERY ref this relaunch checks out (${ph.integrationBranch} for _refinery, each task branch in step 3), check whether a prior-generation worktree still holds it. Auto-free ONLY a CLEAN prior-generation holder of THIS plan's own refs (its held branch carries the plan slug ${planSlug || '<plan-slug>'}): for a stale _refinery holding ${ph.integrationBranch}, run \`git -C <holder-path> checkout --detach\` (detach — the worktree survives); for a WORKLESS task worktree (empty \`git -C <holder-path> status --porcelain\` AND \`git merge-base --is-ancestor <that holder's branch> ${ph.integrationBranch}\` holds — no unmerged work), run \`git worktree remove <holder-path>\`. This clause runs BEFORE step 3, so step 3's TIP is NOT yet bound here — resolve the ancestor check against ${ph.integrationBranch} directly (never "$TIP"), and when ${ph.integrationBranch} does not yet exist SKIP the removal arm entirely: a fresh cut has no prior-generation holder of it, and an unverified worktree is never removed. Plain git verbs only — never a new script flag. NEVER free a DIRTY holder (non-empty status --porcelain): die loud — return the \`{ ok: false, … }\` env-outcome with the HOLDER PATH named in stderrTail. NEVER free a holder of a FOREIGN plan's refs: leave it in place, and if it blocks a checkout, die loud the same way naming its path.\n`
+    : ''
+  // Owned-file adoption (#2671 D27, PIN-27) — DORMANT unless recovery AND ownedFile: a sanctioned
+  // relaunch has a new runId, so its owned-file ledger lacks the integration branch the held attempt
+  // cut, and step 2 would die EX_FOREIGN. Before step 2, an existing unrecorded integration branch is
+  // adopted with record-as-owned against the working branch (its ancestor proof keeps a branch that
+  // does not descend from the working tip a foreign halt, ADR 0003). The script is unchanged (PIN-24).
+  const adoptOwnedClause = (recovery && ownedFile)
+    ? pt`SANCTIONED RECOVERY RELAUNCH — owned-file adoption (#2671): BEFORE step 2, run \`if git show-ref --verify --quiet refs/heads/${ph.integrationBranch} && ! grep -qxF '${ph.integrationBranch}' ${ownedFile ?? '<ownedFile>'}; then provision-worktrees.sh record-as-owned ${ph.integrationBranch} ${ph.workingBranch}${owned}; fi\` from the main checkout, then step 2 as written. On a non-zero exit return the \`{ ok: false, … }\` env-outcome with the die text in \`stderrTail\` and STOP.\n`
     : ''
   // Submodule tasks: thread the target repo + base into the Provision prompt so the refiner knows
   // to initialize the submodule checkout (git submodule update --init) before running ensure-integration
@@ -3935,6 +3982,7 @@ if (tasks.length) {
     + pt`Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — do NOT special-case a numeric code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — with ONE marker-keyed carve-out: a per-task worktree-creation exit whose output carries the \`STALE_REMOTE\` marker line is CLASSIFIED per task (step 3's classify-and-continue clause) and does NOT halt the barrier; the marker token is the key, never the numeric code. Return the env-outcome JSON: \`{ ok: true }\` when every subcommand exited 0 (optionally carrying the step-3 \`preMerged\` / \`staleRemote\` / \`worktreeHygiene\` arrays and the \`absorbCharges\` map); on the FIRST non-zero exit WITHOUT the STALE_REMOTE marker return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
     + pt`1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
     + pt`provision-worktrees.sh ensure-exclude ${mainCheckout || '<mainCheckout>'} — pass the main checkout EXPLICITLY as the target repo (the optional <repo-dir> positional); ensure-exclude then writes the exclude into that repo's git dir regardless of your cwd. This excludes \`.claude/\` in the parent checkout so the nested task worktrees do not surface as untracked there (probe E2).\n`
+    + adoptOwnedClause
     + pt`2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger); else DERIVE the cut base against origin (ADR 0008): the script fetches origin/${ph.workingBranch} and reconciles the local ${ph.workingBranch} — equal or ahead → cut from local; behind → cut from the ORIGIN tip plus a guarded follower fast-forward (skipped with a warning when ${ph.workingBranch} is checked out in a worktree); a fetch failure or missing origin → cut from local with a stderr warning (today's offline behavior). DIVERGED (neither SHA an ancestor of the other) is a HALT: the script dies non-zero carrying BOTH SHAs and the two repair directions, and creates no branch. On that die — or ANY non-zero exit — return the \`{ ok: false, … }\` env-outcome carrying the die text in \`stderrTail\` and STOP: never pick a side, never retry with a different base. The phase never starts; I surface the die message like today's foreign-branch halt.\n`
     + pt`3. Capture the resulting integration tip (TIP="$(git rev-parse ${ph.integrationBranch})"), then for EACH task run ensure-worktree at the integration tip captured in step 3 (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
     + deriveSkipClause
@@ -3972,6 +4020,7 @@ if (tasks.length) {
   const preMergedIdOf = id => { const m = String(id).match(/^p\d+-(.+)$/); return m ? m[1] : String(id) }
   const preMergedRows = Array.isArray(barrierOut.preMerged) ? barrierOut.preMerged : []
   if (!recovery && preMergedRows.length) log('recovery: preMerged ignored outside sanctioned recovery — ordinary work/audit required.')
+  const preMergedNorms = new Set()
   for (const raw of (recovery ? preMergedRows : [])) {
     const norm = preMergedIdOf(raw)
     const t = tasks.find(t => preMergedIdOf(t.id) === norm)
@@ -3982,6 +4031,7 @@ if (tasks.length) {
     const id = t.id
     if (done.has(id)) continue
     done.add(id); succeeded.add(id); landed.push(id)
+    if (isSha(barrierOut.integrationTip)) recoveryPredSeed = barrierOut.integrationTip
     auditLog.push({ task: id, verdict: 'recovered:pre-merged', findings: [], note: 'recovered: pre-merged on adopted integration branch' })
     // Late-fix charge (PIN-25): the barrier's highest Late-Fix trailer index after the merge commit
     // seeds fixRounds, so the late-fix pass resumes the origin task's budget, never a fresh one.
@@ -3995,6 +4045,20 @@ if (tasks.length) {
       log('late-fix charge: task ' + id + ' lateFixCharges value ' + JSON.stringify(lfc[lfKey]) + ' is malformed — fixRounds not seeded (logged, never silent).')
     }
     log(`recovery: task ${id} is pre-merged on the adopted integration branch (task-integrated.sh proof) — recorded merged, no worker dispatched.`)
+    // #2700 D32: carry this task's held-attempt rows, stamped recovered: true. An aced row is a plain
+    // push; a minorsFiled row goes through fileFollowUp (filedKeys stamped), and keeps any issue it has.
+    if (recovery.priorReturn) {
+      const mine = k => (recovery.priorReturn[k] || []).filter(r => r && typeof r === 'object' && preMergedIdOf(r.task) === norm)
+      const a = mine('aced'), m = mine('minorsFiled')
+      for (const row of a) aced.push({ ...row, recovered: true })
+      for (const row of m) fileFollowUp({ ...row, recovered: true })
+      preMergedNorms.add(norm)
+      log('prior-return carry: task ' + id + ' carries ' + a.length + ' aced and ' + m.length + ' minorsFiled row(s) from the held attempt (#2700).')
+    }
+  }
+  if (recovery && recovery.priorReturn) {
+    const dropped = ['aced', 'minorsFiled'].flatMap(k => recovery.priorReturn[k] || []).filter(r => !(r && typeof r === 'object' && preMergedNorms.has(preMergedIdOf(r.task))))
+    if (dropped.length) log('prior-return carry: dropped ' + dropped.length + ' row(s) for tasks that are not pre-merged — those tasks re-run here and raise their own rows (#2700).')
   }
   // ---- §4.4 stale-remote classification → per-task env-blocked (always-on, never a phase halt) ----
   // The barrier CONTINUED past a per-task ensure-worktree exit carrying the STALE_REMOTE marker and
@@ -4033,13 +4097,14 @@ if (tasks.length) {
   }
   // ---- D20 (#1381) Lead-visibility carrier: reuse-path worktree hygiene ----
   // The barrier captured WORKTREE_HYGIENE marker lines into the optional worktreeHygiene array
-  // ([{ task, path, action: "repaired"|"detected"|"moved", detail }]). Visibility only, fail-open by design:
+  // ([{ task, path, action: "repaired"|"detected"|"moved", detail }], or { task: null, refinery: true, … } for
+  // the _refinery worktree, which logs as "(refinery)" without a task, #1823). Visibility only, fail-open by design:
   // ONE census-safe (concatenation-built) run-log summary line when non-empty — no auditLog entry,
   // no routing change, never a hold; schemas.md's ENV_OUTCOME bullet carries the Lead's phase-report duty.
   const hygieneRows = Array.isArray(barrierOut.worktreeHygiene) ? barrierOut.worktreeHygiene : []
   if (hygieneRows.length > 0) {
     log('worktree hygiene (D20, #1381): ' + hygieneRows.map(h =>
-      ((h && h.action) || 'detected') + ' ' + ((h && h.path) || '<path>') + ' (task ' + ((h && h.task) || '<task>') + ')'
+      ((h && h.action) || 'detected') + ' ' + ((h && h.path) || '<path>') + (h && h.refinery === true ? ' (refinery)' : ' (task ' + ((h && h.task) || '<task>') + ')')
       + ((h && h.detail) ? ' — ' + h.detail : '')).join('; ')
       + ' — visibility only; no routing change, the barrier never halts on it.')
   }
@@ -5213,6 +5278,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         depClause(task)
         + pt`Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
         + pt`The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
+        // #2588 D7: one line only when provision kept a saved-edit patch it could not re-apply.
+        + (env.savedWork ? pt`SAVED WORK (recovery): provision saved a dead worker's uncommitted edits in ${env.savedWork ?? '<patch>'} inside the worktree and could not re-apply them; apply that patch before you start, then delete it.\n` : '')
         // ${(plan && plan.file) ?? '<unset>'} (#1430 defense-in-depth — the second of the two
         // formerly-undefended sites; see the auditPrompt site's comment for the rationale).
         // ${task.planSlice ?? '<unset>'} (D5 defense-in-depth): planSlice is entry-validated
@@ -5429,7 +5496,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     landed.push(task.id); succeeded.add(task.id)
     // #806: capture this task's TRUE immediate predecessor tip (the tracker's value BEFORE this task's
     // own update) — the successor's --mapped diff range starts there, even across a requiresTest:false skip.
-    const predTip = lastLandedTip
+    const predTip = lastLandedTip ?? recoveryPredSeed
     if (task.requiresTest === false) {
       log(`gate-audit: skipping ${task.id} (requiresTest:false — no mapped tests, HARD path vacuous)`)
     } else {
@@ -6369,6 +6436,7 @@ if (mergedTasksForGateAudit.length > 0) {
   // merge order, the stamped preMergeTip landMerged() captured (#806) from lastLandedTip (the previous merge
   // commit), which correctly spans a requiresTest:false interleave (that skipped task lands but never enters
   // this list, yet its real integration tip IS the successor's base) — or, for the FIRST landed task, the
+  // barrier integrationTip on a recovery after preMerged tasks (recoveryPredSeed, #2575), else the
   // phase integration base (a shell substitution the refiner resolves). So <preMergeTip>..<gateHeadSha> is
   // M^1..M^2, the task's own change set. NOT the previous LIST entry's gateHeadSha (over-counts across a
   // requiresTest:false skip / can be a sentinel), and NOT the post-merge integration tip (an empty

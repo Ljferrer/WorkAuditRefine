@@ -3509,7 +3509,7 @@ const READER_CENSUS = [
   ['task audit-pin mismatch row (a task-audit pin, not a merge sha)', /verdict: 'pin-mismatch:reconcile', pinMismatch: true, expectedPin: pin/, 1],
   ['pinOrSentinel', /'\(integration_sha unrecorded\/malformed\)'/, 1],
   ['gate_sha Git binding (gitBoundGateSha)', /const gated = result && result\.gate_sha, second = proof|const \{ gate_sha: dropped, \.\.\.rest \} = result$/, 2],
-  ['landMerged: predTip from lastLandedTip', /const predTip = lastLandedTip$/, 1],
+  ['landMerged: predTip from lastLandedTip', /const predTip = lastLandedTip \?\? recoveryPredSeed$/, 1],
   ['landMerged: gateHeadSha from gate_sha, preMergeTip', /gateHeadSha: pinOrSentinel\(mr\.gate_sha\), gateLogPath: mr\.gate_log_path, preMergeTip: predTip/, 1],
   ['landMerged: lastLandedTip and landedShaByTask from integration_sha', /if \(isSha\(mr\.integration_sha\)\) \{ lastLandedTip = mr\.integration_sha; landedShaByTask\.set\(task\.id, mr\.integration_sha\) \}/, 1],
   ['already_upstream landMerged (pinProof.head_sha)', /landMerged\(r\.task, \{ mode: 'merge-task', status: 'merged', integration_sha: pinProof\.head_sha, gate_sha: pinProof\.head_sha \}\)/, 2],
@@ -3584,6 +3584,10 @@ const evalTemplateConst = name => {
 }
 const PROVISION_TREE_SENTENCE = evalTemplateConst('PROVISION_TREE_LINE')
 const PROVISION_CLEAN_SENTENCE = evalTemplateConst('PROVISION_CLEAN_LINE')
+// #2588 D7: the save-and-restore pair around the clean line in a task worktree's provision-run prompt.
+// Each carries a `<task id>` placeholder that provisionStep fills per task.
+const PROVISION_SAVE_SENTENCE = evalTemplateConst('PROVISION_SAVE_LINE')
+const PROVISION_RESTORE_SENTENCE = evalTemplateConst('PROVISION_RESTORE_LINE')
 const DEP_WAVE_PROVISION_SENTENCE = src.match(/^const DEP_WAVE_PROVISION_RULE = '([^']+)'$/m)[1]
 // The marker's two shell spellings, cut from the sentence: the writer and the reader test (exit 0 = seen).
 const markerWriterOf = text => { const m = String(text).match(/write it with `([^`]+)`/); assert.ok(m, 'the marker writer is spelled'); return m[1] }
@@ -4155,6 +4159,8 @@ export {
   evalTemplateConst,
   PROVISION_TREE_SENTENCE,
   PROVISION_CLEAN_SENTENCE,
+  PROVISION_SAVE_SENTENCE,
+  PROVISION_RESTORE_SENTENCE,
   DEP_WAVE_PROVISION_SENTENCE,
   markerWriterOf,
   markerTestOf,

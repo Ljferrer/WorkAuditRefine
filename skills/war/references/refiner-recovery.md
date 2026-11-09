@@ -130,6 +130,12 @@ Trigger: an `evidence` dispatch (the card's `## Post-merge evidence dispatch` op
 
 After the serial merge queue and **before** the gate-audit pass, the Workflow dispatches ONE consolidated **`evidence:phase-<id>`** run (`dispatchKind: evidence`; cwd `_refinery`, at the final integration tip). It is a **read-only proof computation** — do **NOT** merge, push, rebase, or edit. Per merged task, run the two floor scripts (siblings of `assert-test-in-diff.sh`, invoked the same bare way) and record the tokens:
 
+## Evidence phase diff
+
+Trigger: an `evidence` dispatch reaching its step 3 (the card's `## Post-merge evidence dispatch` step 3, evicted 2026-11-09 by plan 2026-11-08-engine-recovery-relaunch-and-land T4.1, an ADR 0042 headroom eviction; the card keeps the step number and its pointer).
+
+3. **Phase diff** — `git -C <_refinery> diff --name-only <phaseBase>..$(git -C <_refinery> rev-parse HEAD)` (`<phaseBase>` = the integration/working merge-base above); return its lines as `phase_diff_files` — the gate-audit floor pass's note arm reads it (absent ⇒ that arm skips).
+
 ## MergeResult merge-task-only fields
 
 Trigger: a merge-task return where the step that sets one of `floor_diagnostic`, `mappedTests`, `done_when_log_path`, `floor_route` or `gate_segment` is in doubt (the card's `## Return` MergeResult parenthetical, evicted #2156 a4).
