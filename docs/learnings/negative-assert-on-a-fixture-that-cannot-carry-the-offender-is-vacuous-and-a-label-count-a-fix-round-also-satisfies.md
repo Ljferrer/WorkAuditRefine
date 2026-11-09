@@ -2,7 +2,7 @@
 name: negative-assert-on-a-fixture-that-cannot-carry-the-offender-is-vacuous-and-a-label-count-a-fix-round-also-satisfies
 description: "A not-seated assertion on a fixture with no such row cannot fail, and a label count that a fix round also reaches proves nothing"
 metadata:
-  promoted: dev/2026-10-20-rea-artifact-evidence@phase-3
+  promoted: dev/2026-10-28-blocked-ace-and-merge-provenance@phase-5
   node_type: memory
   type: project
   keywords:
@@ -21,9 +21,13 @@ metadata:
     - add-only surface
     - doctrine grep guard
     - retired premise
+    - tautological prompt check
+    - every over empty array
+    - retuned negative
+    - servitor count pin
   provenance: code-verified
   slug: negative-assert-on-a-fixture-that-cannot-carry-the-offender-is-vacuous-and-a-label-count-a-fix-round-also-satisfies
-  phase: 2026-10-20-rea-artifact-evidence/phase-2 task 2.3 +1 recurrence (2026-10-28-blocked-ace-and-merge-provenance/phase-5 task 5.4)
+  phase: 2026-10-20-rea-artifact-evidence/phase-2 task 2.3 +2 recurrences (2026-10-28-blocked-ace-and-merge-provenance/phase-5 task 5.4; 2026-11-08-engine-recovery-relaunch-and-land/phase-2 task 2.1)
   tags:
     - war
     - testing
@@ -31,7 +35,7 @@ metadata:
     - workflow-template
   created: 2026-10-21
   originSessionId: 18c261f6-f7c5-4bb3-8473-a40e81fb5346
-  modified: 2026-10-30T13:38:09.861Z
+  modified: 2026-11-09T16:11:11.040Z
 ---
 
 # Two new vacuous-test shapes from the REA absent-path test
@@ -56,8 +60,14 @@ Both shapes were caught by audit seats and fixed in ace rounds before land. Both
 - A shared token read from the engine at load time sits in a try/catch. On failure, every row that needs it gets a sentinel no file contains. Each row then fails on its own line, and the whole test file never dies at import.
 - Rule: when you review a retire-the-text grep guard, find the rows whose OLD half the surface never held. Judge those rows only by their NEW half.
 
+**Shape 4 (recurrence, 2026-11-08-engine-recovery-relaunch-and-land phase 2, task 2.1): a retuned negative that checks a value the prompt builds from the same variable.** The Wrap-up gate widened to held lands (#2702). Old tests asserted `!calls.some(isServitor)` on an unproved land. The worker retuned them to "each servitor prompt includes `'land decision: ' + out.landDecision + ';'`". The prompt interpolates `landDecision` itself, so the check holds by construction. A `for` loop or `every` over zero servitor calls also passes. Audit seats caught it at four sites, one in a later round.
+- Fix used here: pin the count against the gate (exactly 1 on a held land, 0 otherwise). Then check the `Landed tip:` line never carries the unproved claim.
+- Rule: when a negative "X never happens" becomes "X happens correctly", assert the count first. Never assert a prompt contains text the prompt derives from the value under test.
+
 **Status.** Audit findings from phase 2 resolved in a fix round before land, recorded as pattern, not live instance.
 
 **Locate-cue (verify still present before acting).** `skills/war/assets/workflow-template.engine-1.test.mjs`, the test titled "rea absent path: evidence off with targetArtifacts present", and its `widenStray` arm. The test moved there when `workflow-template.test.mjs` was split into topic files. First found in the old file at the phase-3 integration tip f94b8783, read through the run's `_refinery` worktree. That commit is the second parent of landed tip 6e655d6e, and the landed merge's other parent is an ancestor of it, so the two trees match by ancestry (tree not read directly).
 
 **Locate-cue for shape 3 (verify still present before acting).** `skills/war/assets/doc-semantics.test.mjs`, the `PREMISE_TOKENS` constant and the `ES18_SURFACES` rows whose `old` is `[...PREMISE_TOKENS]` (ADR 0021, ADR 0013, the four ADR 0054 rows, the two dated lessons). Also the `UNREADABLE_FORM` sentinel beside `ENGINE_MERGE_FORM`. Found at landed tip 7d6b597e, read through the run's `_refinery` worktree, whose HEAD equals that tip. This finding was a live note at land, not fixed in a fix round.
+
+**Locate-cue for shape 4 (verify still present before acting).** The `const servs = calls.filter(isServitor)` count pins in `skills/war/assets/workflow-template.engine-1.test.mjs` (two sites), `workflow-template.recovery.test.mjs` (#990) and `workflow-template.git-2.test.mjs` (the `if (!success)` arm). Found @ integration tip 8501616b, the second parent of landed tip 15a7f598 (the run's `_refinery` worktree). The tautological form was fixed in fix rounds before land.

@@ -20,9 +20,14 @@ metadata:
     - ADR dated amendment
     - pin-transfer.md stale
     - paraphrase grep miss
+    - wrapUpDecision
+    - handoff emit set
+    - held:land-failed
+    - servitorResult reader
+    - gate widening
   provenance: code-verified
   slug: turning-an-always-hold-signal-into-a-fix-route-stales-every-reader-that-assumed-it-held
-  phase: 2026-11-04-late-defects-fixed-in-run/phase-3 (task 3.1) + phase-4 (task 4.1, recurrence) + phase-5 (task 5.1, recurrence) + phase-6 (task 6.2 and polish, status)
+  phase: 2026-11-04-late-defects-fixed-in-run/phase-3 (task 3.1) + phase-4 (task 4.1, recurrence) + phase-5 (task 5.1, recurrence) + phase-6 (task 6.2 and polish, status) + 2026-11-08-engine-recovery-relaunch-and-land/phase-2 (task 2.1, recurrence)
   tags:
     - gate-audit
     - handoff
@@ -30,7 +35,7 @@ metadata:
     - adr
   created: 2026-11-05
   originSessionId: f18978de-02f5-4ccd-9681-eb7dbaa3087b
-  modified: 2026-11-06T04:26:29.065Z
+  modified: 2026-11-09T16:10:56.695Z
 ---
 
 # Turning an always-hold signal into a fix route stales every reader that assumed it held
@@ -120,3 +125,26 @@ The phase 5 STILL STALE list above is history at tip 86335b32. At phase 6:
 Rule for a sibling sweep: grep the rule's meaning, not one spelling of it. Try the short forms too ("can't merge", "never merge", "no approval").
 
 Locate-cue (phase 6): verify still present before acting — the "One exception: the ace base gate" sentence in `pin-transfer.md`, the "probe carve-out (PIN-3)" text in `SKILL.md`, the "can't merge with an open" line in `design.md`, ADR 0024 §(C), and the `land-decision.mjs` header, found @ phase 6 integration tip c43cebee, the second parent of landed tip 66c0f263 (the run's `_refinery` worktree, HEAD on that integration branch).
+
+## Recurrence: a widened dispatch and emit gate (2026-11-08-engine-recovery-relaunch-and-land, phase 2, #2702)
+
+Task 2.1 widened two gates in `skills/war/assets/workflow-template.js`.
+`wrapUpDecision` now runs the servitor on `landed`, `held:escalation` and `held:land-failed`.
+The handoff block now emits on `held:land-failed` too.
+
+Readers had inferred "the phase landed" from a non-null `servitorResult` or a present handoff.
+Every audit round of task 2.1 named stale readers: `skills/war/SKILL.md` (return bullet, Wraps-up bullet, follow-up filing floor), `skills/war/references/resume-and-recovery.md`, `skills/war/references/design.md`, `GLOSSARY.md` and the servitor card description.
+The task slice told the worker to report SKILL.md, never edit it, so the fixes rode five late-fix passes.
+Late-fix passes 4 and 5 found most of their slices already done by passes 1 and 2.
+A late-fix slice built from early-round findings can be stale by dispatch time, so diff the slice against the integration tip first.
+
+What stopped the drift: a doc pin that extracts the gate set from the engine source and checks each doc restatement names every member.
+It also refuses the retired phrases.
+
+STILL STALE at the landed tip: `skills/war/references/schemas.md`, the `handoff?` ledger comment ("landed / held:escalation only") and the Consolidation bullet ("no handoff emits there").
+PIN-24 locked that file for this plan, so a later plan owns it.
+
+Rule for a gate widening: grep every reader of the gate's output field (`servitorResult`, `handoff`), not only the gate.
+Add the extract-the-set doc pin in the same task, not after the first stale reader escapes.
+
+Locate-cue (2026-11-08 phase 2): verify still present before acting — `wrapUpDecision` in `workflow-template.js`, the test `2702/D34 — the Wrap-up gate equals the handoff emit gate` in `skills/war/assets/skill-doc-contracts.test.mjs`, and the stale `schemas.md` lines. Found @ integration tip 8501616b, the second parent of landed tip 15a7f598 (the run's `_refinery` worktree, HEAD on that integration branch).
