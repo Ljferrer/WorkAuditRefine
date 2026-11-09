@@ -12,11 +12,11 @@
 # Residual detection ceilings — mirrors the script's ponytail. No case below can
 # assert these away; they are recorded so a reader does not mistake the suite's green
 # for total coverage:
-#   • b2 origin-side: a probe pushing an INVENTED (non-pattern) ref name to origin
+#   • b2 origin-side: a probe pushing an INVENTED (non-junk) ref name to origin
 #     still slips, because the ref-diff half is deliberately local-only.
 #   • Nested branch names (feat/x-sandbox-y) never read as junk, so WITHOUT a
 #     --baseline a nested probe-made branch slips. With one, the ref diff catches it (RR3).
-#   • Pattern-slipping refs that PREDATE the first baselined run: already present when
+#   • Junk-rule-slipping refs that PREDATE the first baselined run: already present when
 #     the snapshot is taken, so the diff baselines them as legitimate.
 #   • Gitignored leaks WITHOUT a --baseline, and ignored files that PREDATE the
 #     snapshot. Check (d) diffs the live ignored FILE set against the baselined one, so
@@ -34,10 +34,10 @@
 #   5.  non-repo / git error -> exit 2 (asserted != 1 — the boundary never collapses)
 #   6.  .. traversal in --repo -> exit 2 (guard rule)
 #   7.  CONTROL: benign local ref name, clean tree, no origin -> exit 0
-#       (delete-and-trace: proves the junk pattern is specific, not match-all —
+#       (delete-and-trace: proves the junk rule is specific, not match-all —
 #        widening it to '*' flips this to 1)
 #   8.  CONTROL: origin with only a benign head -> exit 0
-#       (delete-and-trace: proves the remote arm is pattern-specific, not
+#       (delete-and-trace: proves the remote arm's junk rule is specific, not
 #        "any remote ref = escape")
 #   9.  SOURCE LOCK: die() definition carries the ${2:-2} default (infra code),
 #       not ${2:-1} — no call site omits the code today, so this is the only way
@@ -47,7 +47,7 @@
 #       manual sweep made a permanent standing guard.
 #   SNAPSHOT MODE (--snapshot):
 #   11. clean repo -> exit 0, and the file carries "<refname> <objectname>" lines
-#   12. PRE-RUN REFUSAL (ref arm): a b1-pattern local ref already present -> exit 1,
+#   12. PRE-RUN REFUSAL (ref arm): a (b1) junk-rule local ref already present -> exit 1,
 #       and NO snapshot file is written (residue is never laundered into a baseline)
 #   13. PRE-RUN REFUSAL (porcelain arm): a stray working-tree file -> exit 1, no file
 #   ARGUMENT / CONTAINMENT LAYER (runs before any check):
@@ -60,7 +60,7 @@
 #   REF-DIFF (check mode with --baseline):
 #   19. identical pre/post ref set + clean tree -> exit 0, and the no-baseline stderr
 #       advisory is ABSENT under --baseline
-#   20. #1244 DEMONSTRATED RED (half 1): pattern-slipping `rogue` branch, NO --baseline
+#   20. #1244 DEMONSTRATED RED (half 1): junk-rule-slipping `rogue` branch, NO --baseline
 #       -> exit 0 with the stderr advisory present exactly once, naming the heuristic
 #       ceiling, the --baseline upgrade, and the ignored half being off
 #   21. #1244 DEMONSTRATED RED (half 2): same fixture WITH --baseline -> exit 1
@@ -96,7 +96,7 @@
 #   RR3. nested local branch -> plain run 0, --baseline ref diff 1
 #   RR4. top-level local refs/heads/x-sandbox-y -> exit 1
 #   RR5. top-level redteam-x on origin only -> exit 1 (junk ref on origin)
-#   RR6. a junk-shaped remote-tracking ref alone -> exit 0
+#   RR6. junk-shaped remote-tracking refs alone (redteam-y and x-sandbox-y) -> exit 0
 #   REF-DIFF PROVENANCE CLASS (PIN-24, #2679), main checkout + linked worktree on sib:
 #   RD1. commit in the linked worktree -> exit 1, sib row sibling-move, every-row line
 #   RD2. fast-forward update-ref of a branch no worktree holds -> unclassified
@@ -297,15 +297,15 @@ R7="$(setup_repo)"
 git -C "$R7" branch feature-normal-work 2>/dev/null
 rc7="$(run_guard "$R7")"
 if [ "$rc7" -eq 0 ]; then
-  pass "case 7: CONTROL benign local ref -> exit 0 (pattern is specific)"
+  pass "case 7: CONTROL benign local ref -> exit 0 (junk rule is specific)"
 else
   fail "case 7: CONTROL benign local ref -> expected exit 0, got $rc7"
 fi
 
 # ---------------------------------------------------------------------------
 # Case 8: CONTROL — origin with only a benign head -> exit 0
-# Delete-and-trace: proves the remote arm is pattern-specific, not "any remote
-# ref = escape". Drop the pattern guard on the remote arm and this flips to 1.
+# Delete-and-trace: proves the remote arm's junk rule is specific, not "any remote
+# ref = escape". Drop the is_junk_ref guard on the remote arm and this flips to 1.
 # ---------------------------------------------------------------------------
 R8="$(setup_repo)"
 ORIGIN8="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
@@ -395,7 +395,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 12: PRE-RUN REFUSAL (ref arm) — a b1-pattern local ref already present when
+# Case 12: PRE-RUN REFUSAL (ref arm) — a (b1) junk-rule local ref already present when
 # the snapshot is taken is exit 1: it is a PRIOR run's residue (the #1244 cross-run
 # collision shape), and baselining it would launder it into "legitimate" for the
 # whole run. Also asserts NO file is written — the refusal must not leave a
@@ -550,7 +550,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 20: #1244 DEMONSTRATED RED, half 1 — a probe-invented, PATTERN-SLIPPING branch
+# Case 20: #1244 DEMONSTRATED RED, half 1 — a probe-invented, JUNK-RULE-SLIPPING branch
 # (`rogue`) with a clean working tree, checked WITHOUT --baseline: exit 0, plus the
 # stderr advisory.
 #
@@ -572,7 +572,7 @@ git -C "$R20" branch rogue 2>/dev/null           # slips refs/heads/redteam-* an
 ERR20="$(artifact_path stderr.txt)"
 rc20="$(run_guard_err "$ERR20" --repo "$R20")"
 if [ "$rc20" -ne 0 ]; then
-  fail "case 20: pattern-slipping ref without --baseline -> expected exit 0 (the recorded miss), got $rc20"
+  fail "case 20: junk-rule-slipping ref without --baseline -> expected exit 0 (the recorded miss), got $rc20"
 elif ! grep -q 'advisory' "$ERR20"; then
   fail "case 20: no-baseline check mode must emit the stderr advisory; stderr was: $(cat "$ERR20")"
 elif [ "$(grep -c 'advisory' "$ERR20")" -ne 1 ]; then
@@ -589,7 +589,7 @@ fi
 
 # ---------------------------------------------------------------------------
 # Case 21: #1244 DEMONSTRATED RED, half 2 — the SAME fixture as case 20 with
-# --baseline: exit 1. Name-agnostic detection; `rogue` matches no junk pattern, so
+# --baseline: exit 1. Name-agnostic detection; `rogue` fails the junk rule, so
 # only the ref-diff can see it.
 # ---------------------------------------------------------------------------
 R21="$(setup_repo)"
@@ -696,7 +696,7 @@ fi
 
 # ---------------------------------------------------------------------------
 # Case 27: ORDERING — an infra fault must never be PREEMPTED by an escape
-# conclusion. This fixture would escape on its own merits (a b1-pattern junk ref
+# conclusion. This fixture would escape on its own merits (a (b1) junk ref
 # fires check (b1) -> 1) AND names a missing --baseline. Because the guard validates
 # the baseline at arg-parse time, ahead of every check, the answer is 2.
 # Non-vacuity: case 26 cannot pin this — its repo has nothing to escape on, so it
@@ -729,7 +729,7 @@ fi
 # has refs to invert. Delete-and-trace: drop the `-s` check from the guard and
 # this case reds at exit 1 with that inverted removed-every-ref message (a
 # truncated-write infra fault laundered into an escape). ORDERING is NOT pinned
-# here — `rogue` slips the (b1) junk pattern, so this fixture would exit 0 on its
+# here — `rogue` slips the (b1) junk rule, so this fixture would exit 0 on its
 # own merits. Case 30 is the ordering twin, with an escaping fixture.
 # ---------------------------------------------------------------------------
 R28="$(setup_repo)"
@@ -788,7 +788,7 @@ fi
 # Case 30: ORDERING PIN — a ZERO-BYTE --baseline on a repo that WOULD escape.
 # Case 27 pins the same law for a MISSING baseline; case 28 pins the zero-byte
 # refusal itself but cannot pin ordering, because its `rogue` branch slips the (b1)
-# junk pattern and so never reaches an escape. This fixture carries a
+# junk rule and so never reaches an escape. This fixture carries a
 # `refs/heads/redteam-*` branch, which (b1) DOES match, so the two answers diverge:
 # arg-parse validation first -> 2, check (b1) first -> 1.
 # This case is green at HEAD; it is a PIN, not a red-at-base case. Non-vacuity by
@@ -1054,15 +1054,17 @@ fi
 
 # RR6: a remote-tracking ref with a junk-shaped top-level name is never junk.
 # Only the origin-side head (check b2) speaks for origin. Here origin holds no
-# such head, so the plain run exits 0.
+# such head, so the plain run exits 0. redteam-y hits the redteam-* name arm and
+# x-sandbox-y hits the *-sandbox-* name arm, so each arm sees a tracking ref.
 RRF="$(setup_repo)"
 setup_origin "$RRF" >/dev/null
 git -C "$RRF" update-ref refs/remotes/origin/redteam-y "$(git -C "$RRF" rev-parse HEAD)"
+git -C "$RRF" update-ref refs/remotes/origin/x-sandbox-y "$(git -C "$RRF" rev-parse HEAD)"
 rcRRF="$(run_guard "$RRF")"
 if [ "$rcRRF" -eq 0 ]; then
-  pass "RR6: remote-tracking refs/remotes/origin/redteam-y alone -> exit 0"
+  pass "RR6: remote-tracking refs/remotes/origin/redteam-y and x-sandbox-y alone -> exit 0"
 else
-  fail "RR6: remote-tracking ref alone -> expected exit 0, got $rcRRF"
+  fail "RR6: remote-tracking refs alone -> expected exit 0, got $rcRRF"
 fi
 
 # ---------------------------------------------------------------------------

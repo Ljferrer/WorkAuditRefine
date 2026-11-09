@@ -108,12 +108,12 @@
 #
 # ponytail: with --baseline the ref half AND the ignored-file half are both exact
 # baseline diffs, not heuristics — three detection ceilings remain.
-#   1. b2 origin-side: a probe pushing an invented (non-pattern) ref name to
+#   1. b2 origin-side: a probe pushing an invented (non-junk) ref name to
 #      origin still slips, because the ref-diff half is deliberately LOCAL — a
 #      pre-run `ls-remote` would put network flake inside a floor script.
-#   2. Refs that predate the first baselined run: a pattern-slipping ref already
+#   2. Refs that predate the first baselined run: a junk-rule-slipping ref already
 #      present when the snapshot is taken is baselined as legitimate. Snapshot
-#      mode cannot see it and the pre-run refusal cannot pattern-match it.
+#      mode cannot see it and the pre-run refusal cannot match it by name.
 #   3. Gitignored leak paths WITHOUT a --baseline, and pre-existing ignored
 #      residue. Check (d) now DETECTS a gitignored leak — a probe writing into
 #      `node_modules/`, `*.log`, `screenshots/`, `.claude/teams/`, or
