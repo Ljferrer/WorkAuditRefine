@@ -1384,12 +1384,10 @@ expect_deny_teach "GF29: git grep -E foo → denied (the pattern must ride -e)" 
 # an option; the guard sees it in the revision position and denies.
 expect_deny_teach "GF30: git grep -F -e -e '-O vim' → denied (a dash-led quote outside an -e value)" \
   "$(q_cmd "git grep -F -e -e '-O vim'")" "only as the value of git grep -e"
-# GF31 is a labelled token-shape row (constraint 8's exception): git log has
-# no -e, so no git-valid form of the shape exists.
-expect_deny_teach "GF31: git log -e '-p x' → denied (a dash-led quote outside git grep)" \
-  "$(q_cmd "git log -e '-p x'")" "only as the value of git grep -e"
+expect_deny_teach "GF31: git blame -e '--porcelain' hooks/f → denied (a git-valid dash-led quote outside git grep)" \
+  "$(q_cmd "git blame -e '--porcelain' hooks/f")" "only as the value of git grep -e"
 expect_deny_lacks "GF32: a dash-led quote deny hides the mask word" \
-  "$(q_cmd "git log -e '-p x'")" "QUOTEDVALUE"
+  "$(q_cmd "git blame -e '--porcelain' hooks/f")" "QUOTEDVALUE"
 
 # git_runs <command>: copied from audit-tree-fingerprint.test.sh. The command
 # runs under real git in a scratch repo and exits 0, or 1 with no `error:` or
@@ -1438,6 +1436,13 @@ if git_runs "git branch -d x"; then
   printf 'ok %d - GF18 git_runs: git branch -d x is git-valid\n' "$n"
 else
   printf 'FAIL %d - GF18 git_runs: git refused git branch -d x: %s\n' "$n" "$(head -c 200 "$_GFR/gr.err")"; fails=$((fails + 1))
+fi
+# GF31 and GF32 name a git-valid command: blame -e is --show-email.
+n=$((n + 1))
+if git_runs "git blame -e '--porcelain' hooks/f"; then
+  printf 'ok %d - GF31 git_runs: git blame -e '"'"'--porcelain'"'"' hooks/f is git-valid\n' "$n"
+else
+  printf 'FAIL %d - GF31 git_runs: git refused git blame -e '"'"'--porcelain'"'"' hooks/f: %s\n' "$n" "$(head -c 200 "$_GFR/gr.err")"; fails=$((fails + 1))
 fi
 
 # ---------------------------------------------------------------------------
