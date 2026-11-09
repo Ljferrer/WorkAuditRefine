@@ -200,13 +200,16 @@ exclude_line() {
 # with `git add -A` would otherwise track it, and the tracked blob collides with
 # _refinery's own untracked marker, aborting the refiner merge as a spurious
 # conflict. The exclude lives in the common dir, so one write covers every
-# worktree (task, refinery, and the main checkout) at once.
+# worktree (task, refinery, and the main checkout) at once. It adds `.war/` the
+# same way, so a worker's scratch files under <worktree>/.war/ (for example
+# .war/commit-msg.txt) are never staged (plan 2026-11-08 PIN-10).
 write_marker() {
   printf 'WAR task worktree — provisioned by provision-worktrees.sh (do not delete).\nbranch=%s\n' \
     "${2:-}" > "$1/.war-task"
   common="$(git -C "$1" rev-parse --git-common-dir 2>/dev/null)" || return 0
   case "$common" in /*) ;; *) common="$1/$common" ;; esac   # resolve relative
   exclude_line "$common/info/exclude" '.war-task'
+  exclude_line "$common/info/exclude" '.war/'
 }
 
 # --- ownership --------------------------------------------------------------
