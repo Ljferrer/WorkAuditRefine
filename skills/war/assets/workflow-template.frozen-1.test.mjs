@@ -51,19 +51,66 @@ test('frozen intrinsics: the keyRegistry row tests pass with the built-in protot
   assert.match(r.stdout, /^# fail 0$/m, 'no test failed under frozen prototypes')
 })
 
-// Static scan for the defect class over both scripts that run in the Workflow sandbox: an assignment to
-// a property whose name exists on a frozen built-in prototype. No name is excluded: neither script
-// assigns one today (length, size, name and constructor included), so the set stays the full union.
-const PROTO_NAMES = new Set([Object, Set, Map, WeakMap, WeakSet, Array, Promise, RegExp, Function].flatMap(C => Object.getOwnPropertyNames(C.prototype)))
-const ASSIGN = /(?:\.([A-Za-z_$][\w$]*)|\[\s*['"`]([^'"`\]]+)['"`]\s*\])\s*(?:=(?![=>])|\+=|-=|\*=|\/=|%=|\|\|=|&&=|\?\?=|\|=|&=)/g
-const protoAssignments = text => text.split('\n').flatMap((l, i) => /^\s*\/\//.test(l) ? [] : [...l.matchAll(ASSIGN)].map(m => m[1] ?? m[2]).filter(n => PROTO_NAMES.has(n)).map(n => `${i + 1}: .${n} = in ${l.trim().slice(0, 120)}`))
+// Static scan for the defect class over both scripts that run in the Workflow sandbox: an assignment,
+// compound assignment or ++/-- on a property whose name exists on a built-in prototype the sandbox
+// freezes (or may freeze). The name list takes every own property name of the Object, Set, Map,
+// WeakMap, WeakSet, Array, Promise, RegExp, Function, Error, String, Number, Boolean, Date and Symbol
+// prototypes and of the Iterator prototype. The scan reads names only, so Error is listed here even
+// though freezing Error.prototype breaks node. No name is excluded: neither script uses one today.
+const PROTOS = [Object, Set, Map, WeakMap, WeakSet, Array, Promise, RegExp, Function, Error, String, Number, Boolean, Date, Symbol].map(C => C.prototype)
+  .concat(Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]())))
+const PROTO_NAMES = new Set(PROTOS.flatMap(p => Object.getOwnPropertyNames(p)))
+// A legal assignment the scan flags (an own property on a plain object, such as o.size = 1) joins this
+// list: { file, text, reason }, where file is the path as scanned and text is the reported text after
+// the line number. Empty today.
+const PROTO_ASSIGN_EXEMPT = []
+// KEY is .name or ['name']; \s* runs across newlines, so an operator on the next line is still seen.
+const KEY = String.raw`(?:\.\s*([A-Za-z_$][\w$]*)|\[\s*['"${'`'}]([^'"${'`'}\]]+)['"${'`'}]\s*\])`
+const OPS = String.raw`\*\*=|\*=|\/=|%=|\+=|-=|<<=|>>>=|>>=|&&=|&=|\^=|\|\|=|\|=|\?\?=|=(?![=>])`
+const SCANS = [
+  new RegExp(KEY + String.raw`\s*(?:${OPS})`, 'g'),
+  new RegExp(KEY + String.raw`\s*(?:\+\+|--)`, 'g'),
+  /(?:\+\+|--)\s*[A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*?\s*\.\s*([A-Za-z_$][\w$]*)(?![\w$]|\s*[.[])/g,
+]
+// Whole-line // comments are blanked (their newline kept, so line numbers hold); a // inside code or a
+// string is left alone. Each hit reports its line and the matched text, its receiver name in front.
+const protoAssignments = (text, file = '', exempt = PROTO_ASSIGN_EXEMPT) => {
+  const code = text.split('\n').map(l => /^\s*\/\//.test(l) ? '' : l).join('\n')
+  const hits = []
+  for (const re of SCANS) for (const m of code.matchAll(re)) {
+    if (!PROTO_NAMES.has(m[1] ?? m[2])) continue
+    const recv = re === SCANS[2] ? '' : (code.slice(0, m.index).match(/[A-Za-z_$][\w$]*$/) || [''])[0]
+    const hit = { line: code.slice(0, m.index).split('\n').length, text: (recv + m[0]).replace(/\s+/g, ' ').trim() }
+    if (!exempt.some(e => e.file === file && e.text === hit.text)) hits.push(hit)
+  }
+  return hits.sort((a, b) => a.line - b.line).map(h => `${h.line}: ${h.text}`)
+}
 
 test('frozen intrinsics: no sandbox script assigns a property named on a frozen built-in prototype', () => {
+  assert.ok(PROTO_NAMES.has('add') && PROTO_NAMES.has('toFixed') && PROTO_NAMES.has('message') && PROTO_NAMES.has('drop'), 'presence guard: the name list holds Set, Number, Error and Iterator prototype names')
+  for (const e of PROTO_ASSIGN_EXEMPT) assert.ok(e.file && e.text && e.reason, `exemption ${JSON.stringify(e)} names its file, text and reason`)
   for (const rel of ['workflow-template.js', '../../red-team/assets/workflow-scaffold.js']) {
     const text = readFileSync(join(here, rel), 'utf8')
     assert.ok(text.length > 1000, `presence guard: ${rel} was read`)
-    assert.deepEqual(protoAssignments(text), [], `${rel} assigns a property a frozen prototype owns; define it with Object.defineProperty`)
+    assert.deepEqual(protoAssignments(text, rel), [], `${rel} assigns a property a frozen built-in prototype owns: define it with Object.defineProperty, or, if the assignment is legal (a plain object), add a PROTO_ASSIGN_EXEMPT entry with its reason`)
   }
-  // mutation control: a planted plain assignment is reported, and a comparison is not
-  assert.deepEqual(protoAssignments('const s = new Set()\ns.add = x\nif (s.size === 0) s.delete == y\n'), ['2: .add = in s.add = x'], 'the scan reports a planted s.add = x and nothing else')
+  // mutation controls: each row names its source and the exact report
+  const rows = [
+    ['const s = new Set()\ns.add = x\nif (s.size === 0) s.delete == y\n', ['2: s.add ='], 'plain assignment; a comparison is not a hit'],
+    ["s['add'] = x", ["1: s['add'] ="], 'bracket key'],
+    ['s.add ||= x', ['1: s.add ||='], 'compound ||='],
+    ...['**=', '<<=', '>>=', '>>>=', '^='].map(op => [`s.size ${op} 2`, [`1: s.size ${op}`], `compound ${op}`]),
+    ['s.size++', ['1: s.size++'], 'postfix ++'],
+    ['s.size--', ['1: s.size--'], 'postfix --'],
+    ['++s.size', ['1: ++s.size'], 'prefix ++'],
+    ['--a.b.size', ['1: --a.b.size'], 'prefix -- on the last segment'],
+    ['s.add\n  = f', ['1: s.add ='], 'the operator on the next line'],
+    ['  // s.add = x', [], 'a whole-line comment is skipped'],
+    ["const u = 'http://h'; s.add = x", ['1: s.add ='], 'a // inside a string is not a comment'],
+    ['s.size >= 2 && s.size <= 3 && s.size !== 1 && s.size == 0', [], 'comparisons are not hits'],
+  ]
+  for (const [text, want, why] of rows) assert.deepEqual(protoAssignments(text, 'ctl.js'), want, `control (${why}): ${JSON.stringify(text)}`)
+  const ex = [{ file: 'ctl.js', text: 'o.size =', reason: 'control: o is a plain object' }]
+  assert.deepEqual(protoAssignments('o.size = 1\np.size = 2', 'ctl.js', ex), ['2: p.size ='], 'an exempt hit is skipped and a non-exempt one still reports')
+  assert.deepEqual(protoAssignments('o.size = 1', 'other.js', ex), ['1: o.size ='], 'an exemption binds only its own file')
 })
