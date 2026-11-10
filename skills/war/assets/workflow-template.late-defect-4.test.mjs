@@ -52,6 +52,8 @@ import {
   mergeRangeRevert,
   ACE_FILE,
   unprefixed,
+  NEW_SEAT_DEFAULTS,
+  probeAt,
 } from './workflow-template.test-harness.mjs'
 
 const labelOf = c => c.opts.label || ''
@@ -565,4 +567,166 @@ test('late-defect: probe — the aceReentry re-audit probes against its own pre-
   assert.equal(probedAt(mutant.calls, 'ace00002').length, 0, 'the mutant probes nothing at the re-entry tip')
   assert.ok(((demotionOf(mutant.out, 'second') || {}).demoteReason || '').startsWith('demote:absorb-regressed'), 'the mutant forward-reverts the re-entry absorb')
   assert.equal(lateFixOf(mutant.calls).length, 0, 'and the blocker gets no late fix')
+})
+
+// ---- (f) plan 2026-11-08-engine-findings-ace-and-late-fix T3.1 ----
+// D11: an ace gate red with no head_sha and no ids is unjudged, so it re-dispatches as a segment.
+// D35: a judged red gets one more gate run before the revert (a re-ask for ids, or a fresh re-run).
+// D24: a moved tip without the trailers its prompt asked for is logged. D34: an empty ace reply with
+// an unmoved tip re-dispatches once. D36: a tip probe that misses only a tree field is re-asked once.
+const UNJUDGED = { gate_green: false, gate_output: 'INCOMPLETE, not a failure: pytest was still running' }
+const aceGreen = p => ({ gate_green: true, head_sha: shaIn(p, /at the ace tip ([0-9a-f]{7,40})/) })
+const gateLabelsAt = (calls, label) => calls.filter(kindOf('ace-gate')).map(labelOf).filter(l => l.startsWith(label))
+const redLogged = logs => logs.some(l => typeof l === 'string' && /ace-gate t1: (red|RED) at ace tip/.test(l))
+const tidyAced = out => (out.aced || []).some(a => a.finding && a.finding.title === 'tidy import' && a.sha === 'ace00001')
+const reverted = calls => /FORWARD-REVERT/.test(calls.find(isMergeTask).prompt)
+const D11_PREDICATE = "(res.gate_segment === 'incomplete' || (!isSha(res.head_sha) && !debtIds(res.gate_failing_ids).length))"
+const preD11 = () => src.replace(D11_PREDICATE, "res.gate_segment === 'incomplete'")
+// The D35 second run, cut: a judged red reverts on its first reply (the pre-D35 arm).
+const D35_FIRST = 'const first = await aceGateJudge(r, aceTipSha, g)\n    if (first) return first\n'
+const preD35 = () => src.replace(D35_FIRST, D35_FIRST + '    return { green: false, died: null }\n')
+
+test('ace gate: an unjudged reply re-dispatches, never RED — a later green keeps the ace', async () => {
+  const run = source => runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': baseSeq(UNJUDGED, aceGreen) }, source)
+  const { out, calls, logs } = await run()
+  assert.deepEqual(gateLabelsAt(calls, 'ace-gate:t1:a1'), ['ace-gate:t1:a1', 'ace-gate:t1:a1:segment-2'], 'the unjudged reply re-dispatches once as a segment continuation')
+  const cont = calls.find(c => labelOf(c) === 'ace-gate:t1:a1:segment-2')
+  assert.ok(unprefixed(cont.prompt).startsWith('SEGMENTED-GATE CONTINUATION (ace-gate:t1:a1)') && cont.prompt.includes('unjudged (a red with no head_sha and no gate_failing_ids)'), 'the continuation names the unjudged arm')
+  assert.ok(!redLogged(logs), 'the unjudged reply is never logged RED')
+  assert.ok(tidyAced(out), 'the later green keeps the ace')
+  assert.ok(!reverted(calls), 'nothing is forward-reverted')
+  // Red at base: with the pre-D11 predicate the unjudged reply is a judged red.
+  assert.ok(src.includes(D11_PREDICATE), 'the mutation target is the live D11 predicate')
+  const mutant = await run(preD11())
+  assert.ok(redLogged(mutant.logs), 'the mutant reads the unjudged reply as a red')
+  assert.deepEqual(gateLabelsAt(mutant.calls, 'ace-gate:t1:a1'), ['ace-gate:t1:a1', 'ace-gate:t1:a1:rerun'], 'and re-runs it as a red, never as a segment')
+})
+
+test('ace gate: an unjudged reply at every attempt takes died', async () => {
+  const args = () => ACE_ARGS({ run: { ...ACE_ARGS().run, roundLimit: 2 } })
+  const run = source => runPhase(args(), recordSplit(), { 'ace-gate': UNJUDGED }, source)
+  const { out, calls, logs } = await run()
+  assert.equal(gateLabelsAt(calls, 'ace-gate:t1:a1').length, 3, 'the first check plus exactly roundLimit (2) re-dispatches')
+  assert.ok(!tidyAced(out), 'nothing is aced at a tip no gate judged')
+  assert.ok(reverted(calls), 'the ace tip forward-reverts (the died route)')
+  assert.ok(logged(logs, 'ace-gate t1: segmented-gate budget exhausted'), 'the spent bound is logged')
+  assert.ok(logged(logs, 'failed absorb', 'never finished within roundLimit 2'), 'the row reaches the sweep naming the unfinished gate')
+  assert.ok(!redLogged(logs), 'never logged RED')
+  // Red at base: the pre-D11 predicate logs the unjudged reply RED.
+  assert.ok(redLogged((await run(preD11())).logs), 'the mutant logs RED')
+})
+
+test('ace gate: a judged red still reverts once its re-run reproduces — an ids red and a provision-failure red', async () => {
+  // Arm 1: an ids red with head_sha; the new id is not red at the pre-ace tip, so the gate re-runs once.
+  const ids = await runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': aceRed(['test_split_offsets']), 'ace-base-gate': baseRed([DOCKER]) })
+  assert.deepEqual(gateLabelsAt(ids.calls, 'ace-gate:t1:a1'), ['ace-gate:t1:a1', 'ace-gate:t1:a1:rerun'], 'ids red: exactly one fresh re-run')
+  assert.ok(unprefixed(ids.calls.find(c => labelOf(c) === 'ace-gate:t1:a1:rerun').prompt).startsWith('ACE GATE RE-RUN (D35)'), 'ids red: the re-run prompt names itself')
+  assert.ok(!tidyAced(ids.out) && reverted(ids.calls), 'ids red: the reproduced red forward-reverts')
+  assert.ok(logged(ids.logs, 'ace-gate t1: RED at ace tip ace00001', 'the D35 re-run: docker build failed'), 'ids red: the revert log carries both outputs')
+  // Arm 2: a provision-failure red (head_sha, provision_failed, no ids, the step in gate_output).
+  const provArgs = () => ACE_ARGS({ run: { ...ACE_ARGS().run, provision: ['pnpm install --frozen-lockfile'] } })
+  const provRed = p => ({ gate_green: false, head_sha: shaIn(p, /at the ace tip ([0-9a-f]{7,40})/), provision_failed: true, gate_output: 'pnpm install --frozen-lockfile exited 1' })
+  const prov = await runPhase(provArgs(), recordSplit(), { 'ace-gate': provRed })
+  const first = prov.calls.find(c => labelOf(c) === 'ace-gate:t1:a1')
+  assert.ok(first.prompt.includes('a failing provision step is NOT green: return { gate_green: false, head_sha: ace00001, gate_output: <the failed step>, provision_failed: true }'), 'provision: the prompt asks a judged provision red')
+  assert.deepEqual(gateLabelsAt(prov.calls, 'ace-gate:t1:a1'), ['ace-gate:t1:a1', 'ace-gate:t1:a1:rerun'], 'provision: exactly one fresh re-run and no re-ask for ids')
+  assert.equal(prov.calls.filter(kindOf('ace-base-gate')).length, 0, 'provision: no ids, so no base run')
+  assert.ok(!tidyAced(prov.out) && reverted(prov.calls), 'provision: the reproduced red forward-reverts')
+  assert.ok(logged(prov.logs, 'RED at ace tip ace00001 — pnpm install --frozen-lockfile exited 1'), 'provision: the log names the failed step')
+})
+
+test('ace gate: a judged red re-runs once before the revert — a flaky red proceeds, a reproduced red reverts, a head_sha-only red is re-asked for ids', async () => {
+  // Arm 1: red, then green on the re-run: proceeds with the flaky log.
+  const flakyRun = source => runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': baseSeq(aceRed(['test_lock_timeout']), aceGreen) }, source)
+  const flaky = await flakyRun()
+  assert.deepEqual(gateLabelsAt(flaky.calls, 'ace-gate:t1:a1'), ['ace-gate:t1:a1', 'ace-gate:t1:a1:rerun'], 'flaky: one re-run')
+  assert.ok(logged(flaky.logs, 'ace-gate t1: the first red did not reproduce (flaky) — proceeding'), 'flaky: logged')
+  assert.ok(tidyAced(flaky.out) && !reverted(flaky.calls), 'flaky: the ace stands')
+  // Red at base: without the D35 run the first red reverts a good ace.
+  assert.ok(src.includes(D35_FIRST), 'the mutation target is the live first-judgment return')
+  const cut = await flakyRun(preD35())
+  assert.deepEqual(gateLabelsAt(cut.calls, 'ace-gate:t1:a1'), ['ace-gate:t1:a1'], 'the mutant runs the gate once')
+  assert.ok(!tidyAced(cut.out) && reverted(cut.calls), 'and reverts the good ace')
+  // Arm 2: red, then red: reverts.
+  const twice = await runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': aceRed(['test_lock_timeout']) })
+  assert.equal(gateLabelsAt(twice.calls, 'ace-gate:t1:a1').length, 2, 'reproduced: at most two gate runs per ace tip')
+  assert.ok(!tidyAced(twice.out) && reverted(twice.calls), 'reproduced: the red reverts')
+  // Arm 3: a red with head_sha and no ids is re-asked once for its ids; here they were red at the pre-ace tip too.
+  const noIds = p => ({ gate_green: false, head_sha: shaIn(p, /at the ace tip ([0-9a-f]{7,40})/), gate_output: '2 failed' })
+  const reaskRun = source => runPhase(ACE_ARGS(), recordSplit(), { 'ace-gate': baseSeq(noIds, aceRed([DOCKER])), 'ace-base-gate': baseRed([DOCKER]) }, source)
+  const reask = await reaskRun()
+  assert.deepEqual(gateLabelsAt(reask.calls, 'ace-gate:t1:a1'), ['ace-gate:t1:a1', 'ace-gate:t1:a1:ids'], 're-ask: one dispatch asking for the ids')
+  const ask = unprefixed(reask.calls.find(c => labelOf(c) === 'ace-gate:t1:a1:ids').prompt)
+  assert.ok(ask.startsWith('ACE GATE RE-ASK (D35): the prior red at ace00001 named no gate_failing_ids.'), 're-ask: the prompt names the missing ids')
+  assert.ok(logged(reask.logs, 'no gate_failing_ids, so the gate is re-asked once for them (D35)'), 're-ask: logged')
+  assert.ok(tidyAced(reask.out), 're-ask: the returned ids were red at the pre-ace tip, so the ace proceeds over them')
+  // Red at base: without the re-ask branch the head_sha-only red is re-run, never asked for its ids.
+  const REASK = "const reask = g.gate_green === false && g.provision_failed !== true && isSha(g.head_sha) && !debtIds(g.gate_failing_ids).length"
+  assert.ok(src.includes(REASK), 'the mutation target is the live re-ask test')
+  const noAsk = await reaskRun(src.replace(REASK, 'const reask = false'))
+  assert.deepEqual(gateLabelsAt(noAsk.calls, 'ace-gate:t1:a1'), ['ace-gate:t1:a1', 'ace-gate:t1:a1:rerun'], 'the mutant re-runs without asking for ids')
+})
+
+test('ace re-entry: a moved tip without its trailers is logged by name and still charged', async () => {
+  const bare = probeAt('reentry', (p, o, w) => ({ ...NEW_SEAT_DEFAULTS['tip-probe'](p, o, w), tip_trailers: { aceSubset: '', aceCharge: '' } }))
+  const run = source => runPhase(ACE_ARGS(), reentryImpl(), { 'tip-probe': bare }, source)
+  const { out, calls, logs } = await run()
+  const GAP = 'lacks Ace-Subset (expected "Ace-Subset: t1:reentry:a2:skills/second.js") and Ace-Charge (expected "Ace-Charge: t1:2"), which its prompt asked for'
+  assert.ok(logged(logs, 'ace-reentry t1: the moved tip ', GAP, "a relaunch's ABSORB-CHARGE READ will not count this commit"), 'the log names each missing trailer, the sha and the expected value')
+  assert.ok(!logged(logs, 'ace t1: the moved tip '), 'the batch probe carried no tip_trailers, so nothing is logged for it')
+  assert.ok(calls.find(kindOf('tip-probe')).prompt.includes('Also return tip_trailers: { aceSubset, aceCharge }'), 'the tip probe asks for the trailers')
+  assert.deepEqual(calls.filter(kindOf('ace-gate')).map(labelOf), ['ace-gate:t1:a1', 'ace-gate:t1:a2'], 'absorbRounds still increments: the re-entry gate runs at slot 2')
+  assert.equal(calls.filter(c => isAuditor(c) && /^audit:t1:/.test(labelOf(c))).length, 3, 'the re-audit still dispatches at the re-entry tip')
+  assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'second'), 'the re-entry absorb still aces')
+  // Red at base: without the re-entry log call the moved tip is charged in silence.
+  const site = "trailerGapLog('ace-reentry ' + r.task.id, reProbe,"
+  assert.ok(src.includes(site), 'the mutation target is the live re-entry log call')
+  const mutant = await run(src.replace(site, "(() => {})('ace-reentry ' + r.task.id, reProbe,"))
+  assert.ok(!logged(mutant.logs, GAP), 'the mutant logs nothing')
+})
+
+test('ace dispatch: an empty reply with an unmoved tip re-dispatches once', async () => {
+  // deaths: how many leading polish dispatches die before the worker answers.
+  const deadFirst = (deaths, base) => { let n = 0; return (p, o) => { if (labelOf({ opts: o }) === 'ace:polish:t1:a1' && n++ < deaths) throw new Error('socket hang up'); return base(p, o) } }
+  const polishCalls = calls => calls.filter(c => labelOf(c) === 'ace:polish:t1:a1')
+  const run = (deaths, source) => runPhase(ACE_ARGS(), deadFirst(deaths, recordSplit()), {}, source)
+  const once = await run(1)
+  assert.equal(polishCalls(once.calls).length, 2, 'the empty reply re-dispatches the same prompt once')
+  assert.equal(polishCalls(once.calls)[1].prompt, polishCalls(once.calls)[0].prompt, 'the same prompt')
+  assert.ok(logged(once.logs, 'ace t1: the polish dispatch returned nothing and left no commit — re-dispatching once (D34).'), 'the retry is logged')
+  assert.deepEqual(gateLabelsAt(once.calls, 'ace-gate:t1:a'), ['ace-gate:t1:a1'], 'charged once: the retry costs no absorb slot')
+  assert.ok(tidyAced(once.out), 'the second reply moves the tip and is aced')
+  // Control: two empty replies route the rows to the sweep after exactly two dispatches.
+  const twice = await run(2)
+  assert.equal(polishCalls(twice.calls).length, 2, 'exactly two dispatches')
+  assert.equal(twice.calls.filter(kindOf('ace-gate')).length, 0, 'nothing to gate')
+  assert.ok(!tidyAced(twice.out) && logged(twice.logs, 'Re-entry routing', 'tidy import', 'failed absorb'), 'the rows route to the sweep as a failed absorb')
+  // Red at base: without the retry the first empty reply sends the rows to the sweep.
+  const RETRY = "if (deathOf(w) && tipClass(probe) === 'unchanged' && probe.count === 0) {"
+  assert.ok(src.includes(RETRY), 'the mutation target is the live retry test')
+  const mutant = await run(1, src.replace(RETRY, 'if (false) {'))
+  assert.equal(polishCalls(mutant.calls).length, 1, 'the mutant dispatches once')
+  assert.ok(!tidyAced(mutant.out), 'and aces nothing')
+})
+
+test('tip probe: a reply without approved_tree is re-asked once', async () => {
+  const probeSeq = (...shapes) => { let n = 0; return probeAt('polish', (p, o, w) => shapes[Math.min(n++, shapes.length - 1)](NEW_SEAT_DEFAULTS['tip-probe'](p, o, w))) }
+  const dropTree = ({ approved_tree, ...rest }) => rest
+  const probes = calls => calls.filter(c => labelOf(c) === 'tip-probe:polish:t1:a1')
+  const run = (seats, source) => runPhase(ACE_ARGS(), recordSplit(), { 'tip-probe': seats }, source)
+  const fixed = await run(probeSeq(dropTree, x => x))
+  assert.equal(probes(fixed.calls).length, 2, 'one re-ask')
+  assert.ok(unprefixed(probes(fixed.calls)[1].prompt).startsWith('TIP PROBE RE-ASK: your prior reply had no usable approved_tree.'), 'the re-ask names the missing field')
+  assert.ok(logged(fixed.logs, 'tip-probe:polish:t1:a1: the tip probe returned no approved_tree — re-asking once, naming the field (D36).'), 'the re-ask is logged')
+  assert.ok(tidyAced(fixed.out) && !reverted(fixed.calls), 'a complete second reply classes moved: the ace stands')
+  const partial = await run(probeSeq(dropTree))
+  assert.equal(probes(partial.calls).length, 2, 'a second partial reply gets no third ask')
+  assert.ok(logged(partial.logs, 'tip-probe:polish:t1:a1: the tip probe returned no usable Git read (PIN-5).'), 'a second partial reply is unusable')
+  assert.ok(!tidyAced(partial.out), 'and nothing is aced')
+  // Red at base: without the retry a reply missing only approved_tree reads as no Git read.
+  const SITE = 'probeApproved: approvedShaOf(r), label, partialRetry: true })'
+  assert.ok(src.includes(SITE), 'the mutation target is the live retry opt-in')
+  const mutant = await run(probeSeq(dropTree, x => x), src.replace(SITE, 'probeApproved: approvedShaOf(r), label })'))
+  assert.equal(probes(mutant.calls).length, 1, 'the mutant asks once')
+  assert.ok(!tidyAced(mutant.out), 'and loses the good ace')
 })

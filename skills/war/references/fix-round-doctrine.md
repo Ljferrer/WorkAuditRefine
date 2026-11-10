@@ -20,6 +20,19 @@ The fixer's rules for a fix round or an ace commit. A seat's finding names one s
 
 Operator ruling on PR #2577: the ADVISORY POLISH, PHASE-CLOSE COHERENCE SWEEP and TERMINAL PASS prompts also carry `FIX_ROUND_SCOPE_CLAUSE`. Those workers fix each sibling site of a listed finding's defect class, and list any other defect under `Ignore for now:`. `fixRoundFenceClause` names the files another task, plan or the release slot owns, and a sibling site there goes on that list. All three lists reach the phase report's `notes`. ADVISORY POLISH runs beside its wave peers, so `POLISH_FILES_CLAUSE` keeps its sibling fixes to its task's own files and the listed rows' files. Its list of other siblings reaches the phase report for a ruling.
 
+## Ace commit messages
+
+Plan 2026-11-08-engine-findings-ace-and-late-fix D24 (#2669): an ace-family commit (the ACE BISECTION SUBSET, ACE RE-ENTRY BATCH, ADVISORY POLISH (--ace) and TERMINAL PASS prompts) is ONE commit. Its message ends with `Ace-Subset:` (subset and re-entry only) and `Ace-Charge:` (every ace-family commit) in one final trailer block. A commit without them has a wrong commit message: the engine logs the missing trailer, and a relaunch's ABSORB-CHARGE READ does not count the commit.
+
+Two causes recur in the field:
+
+- `Co-Authored-By` in its own paragraph after the trailer block. git parses trailers only from the last paragraph, so it reads the attribution alone and drops both ace trailers. Put the attribution line inside the trailer block, never after it.
+- An `Ace-Subset:` value that names files the commit did not touch, or leaves out a file it did. The trailer names exactly the files the commit touches.
+
+Before you push, check the trailers parse: `git show -s --format='%(trailers:key=Ace-Charge,valueonly)' HEAD` prints the value (and the `Ace-Subset` key likewise when the prompt asks for it). Amend an unpushed commit that lacks one. Report a pushed one in `blocked_reason`, naming the missing trailer, and never force-push.
+
+The engine records a finding aced only when the commit reaches its file. A listed finding whose file the commit never changes goes to the phase-close sweep as a failed absorb, so fix each listed finding in its own file.
+
 ## Editing the rules
 
 Edit the `## The rules` section here first, then the mirrored block in `workflow-template.js` (the shared constant the fix-applying builds interpolate). The fixture reds on any byte drift between the section and a rendered fix-applying prompt, and on a build that drops the block.
