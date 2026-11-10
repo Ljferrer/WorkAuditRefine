@@ -642,7 +642,8 @@ const SEED_AND_RED_ROWS = [
     old: ['a red with no ids or no matching `head_sha`', 'keeps the forward-revert',
       'forward-reverts only when that second run is a judged red again'],
     new: ['is unjudged (D11): it re-dispatches as a segment', 'is re-asked once for its ids (D35)',
-      '`provision_failed: true` red, which is never re-asked for ids', 'a second run that is a judged red again, dies, or carries no usable echo forward-reverts the ace tip'] },
+      '`provision_failed: true` red, which is never re-asked for ids', 'a second run that is a judged red again, dies, or carries no usable echo forward-reverts the ace tip',
+      'a first reply that dies, or is green with no usable `head_sha` echo, is no judged red: it forward-reverts the ace tip at once, with no D35 re-run'] },
   { name: 'schemas.md GateCheck fail-open sentence', file: 'skills/war/references/schemas.md',
     extract: (r) => lineStarting(r, "The task gate (and the task's `Done when:` command) run at an ace-family commit"),
     old: ['a red gate with a new id forward-reverts the ace tip, the approved'],
@@ -674,5 +675,8 @@ test('seed and red arm docs — the engine still carries the arms the rows descr
     "(res.gate_segment === 'incomplete' || (!isSha(res.head_sha) && !debtIds(res.gate_failing_ids).length))",
     'const reask = g.gate_green === false && g.provision_failed !== true && isSha(g.head_sha) && !debtIds(g.gate_failing_ids).length',
     'const second = await aceGateJudge(r, aceTipSha, g2)',
+    'if (first) return first',
+    'if (gateDied) return { green: false, died: gateDied }',
+    'if (!g || g.gate_green !== false) {',
   ]) assert.ok(src.includes(anchor), `the engine no longer carries ${JSON.stringify(anchor)} — re-read the engine and correct the reference rows`);
 });
