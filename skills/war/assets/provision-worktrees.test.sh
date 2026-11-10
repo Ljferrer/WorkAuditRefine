@@ -792,6 +792,34 @@ expect "teardown-phase: phase worktree A dir removed" \
   "no" "$([ -d "$WTA" ] && echo yes || echo no)"
 
 # ---------------------------------------------------------------------------
+# Case (T4.2b) teardown-phase <slug> <N> also reaps a run-scoped late-fix
+# worktree (branch war/<slug>/<runIdShort>/p<N>-latefix-<k>), and keeps a
+# late-fix worktree of another phase.
+# ---------------------------------------------------------------------------
+RT2B="$(new_repo)"
+git -C "$RT2B" branch integration/myplan/phase-2 HEAD
+TIPT2B="$(git -C "$RT2B" rev-parse integration/myplan/phase-2)"
+RD2B="$(mk_run_dir "$RT2B" run-bbc)"
+WTLF2="$RD2B/worktrees/latefix2"
+WTLF3="$RD2B/worktrees/latefix3"
+run_in "$RT2B" ensure-worktree "$WTLF2" war/myplan/run-2026/p2-latefix-1 "$TIPT2B" >/dev/null 2>&1
+run_in "$RT2B" ensure-worktree "$WTLF3" war/myplan/run-2026/p3-latefix-1 "$TIPT2B" >/dev/null 2>&1
+OWN_T42B="$RD2B/owned.txt"
+printf 'integration/myplan/phase-2\n' > "$OWN_T42B"
+expect "T4.2b setup: phase-2 late-fix worktree present before teardown" \
+  "war/myplan/run-2026/p2-latefix-1" "$(wt_on_branch "$RT2B" "$WTLF2")"
+expect "T4.2b setup: phase-3 late-fix worktree present before teardown" \
+  "war/myplan/run-2026/p3-latefix-1" "$(wt_on_branch "$RT2B" "$WTLF3")"
+code="$(run_in "$RT2B" teardown-phase --owned-file "$OWN_T42B" --run-dir "$RD2B" myplan 2)"
+expect "teardown-phase (late-fix) exits 0" 0 "$code"
+expect "teardown-phase: run-scoped p2 late-fix worktree gone from list" \
+  "" "$(wt_on_branch "$RT2B" "$WTLF2")"
+expect "teardown-phase: run-scoped p2 late-fix worktree dir removed" \
+  "no" "$([ -d "$WTLF2" ] && echo yes || echo no)"
+expect "teardown-phase: p3 late-fix worktree kept" \
+  "war/myplan/run-2026/p3-latefix-1" "$(wt_on_branch "$RT2B" "$WTLF3")"
+
+# ---------------------------------------------------------------------------
 # Case (T4.3) KEEP-ON-ESCALATION: teardown-task --keep <path> <branch> leaves
 # the worktree AND the branch completely intact (for inspection). Nothing is
 # removed or deleted.
