@@ -1,6 +1,6 @@
 ---
 name: fix-the-finding-class-not-the-site-and-prove-every-new-guard-red-before-commit
-description: "Treat an audit finding's fix text as a floor: sweep every sibling site of the same rule, give each new guard an independent oracle and a proven-red mutation, bind restated values with a pin, and extract on the second copy — or the next review round finds the mirror case."
+description: "Treat an audit fix as a floor: sweep every sibling site, prove each new guard red with an independent oracle, and pin restated values"
 metadata: 
   node_type: memory
   type: project
