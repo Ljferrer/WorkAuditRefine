@@ -147,3 +147,56 @@ test('termination kills descendants, drains active jobs, and never reports a com
   assert.equal(existsSync(join(root, 'should-not-run')), false)
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
 })
+
+const pad = n => `# ${'x'.repeat(n)}\n`
+const order = root => readFileSync(join(root, 'order'), 'utf8').trim().split('\n')
+
+test('with no recorded times, shell suites start largest file first, ties in path order', t => {
+  const { root, put, run } = fixture(t)
+  put('a.test.sh', 'echo a >> order\n' + pad(10))
+  put('b.test.sh', 'echo b >> order\n' + pad(300))
+  put('c.test.sh', 'echo c >> order\n' + pad(10))
+  put('nested/d.test.sh', 'echo d >> order\n' + pad(100))
+  const result = run({ WAR_GATE_SHELL_JOBS: '1' })
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  assert.deepEqual(order(root), ['b', 'd', 'a', 'c'])
+})
+
+test('shell suites start slowest first by the last run, and a new suite starts before them', t => {
+  const { root, put, run } = fixture(t)
+  assert.equal(spawnSync('git', ['init', '-q', root]).status, 0)
+  const times = join(root, '.git', 'war-gate-times.json')
+  // slow is the smallest file, so size order alone would start it last.
+  put('slow.test.sh', 'echo slow >> order; sleep 0.6\n')
+  put('mid.test.sh', 'echo mid >> order; sleep 0.3\n' + pad(50))
+  put('fast.test.sh', 'echo fast >> order\n' + pad(100))
+  let result = run({ WAR_GATE_SHELL_JOBS: '1' })
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  assert.deepEqual(order(root), ['fast', 'mid', 'slow'], 'the first run has no record, so size order')
+  const recorded = JSON.parse(readFileSync(times, 'utf8'))
+  assert.deepEqual(Object.keys(recorded).sort(), ['./fast.test.sh', './mid.test.sh', './slow.test.sh'])
+  assert.ok(recorded['./slow.test.sh'] > recorded['./mid.test.sh'] && recorded['./mid.test.sh'] > recorded['./fast.test.sh'])
+  rmSync(join(root, 'order'))
+  put('new.test.sh', 'echo new >> order\n')
+  result = run({ WAR_GATE_SHELL_JOBS: '1' })
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  assert.deepEqual(order(root), ['new', 'slow', 'mid', 'fast'])
+  // A suite that no longer exists drops out of the record; a broken record falls back to size order.
+  rmSync(join(root, 'mid.test.sh'))
+  writeFileSync(times, '{ not json')
+  rmSync(join(root, 'order'))
+  result = run({ WAR_GATE_SHELL_JOBS: '1' })
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  assert.deepEqual(order(root), ['fast', 'slow', 'new'])
+  assert.deepEqual(Object.keys(JSON.parse(readFileSync(times, 'utf8'))).sort(), ['./fast.test.sh', './new.test.sh', './slow.test.sh'])
+})
+
+test('both pools default to 4 when the knobs are unset', t => {
+  const { root, env } = fixture(t)
+  const clean = { ...env }
+  delete clean.WAR_GATE_SHELL_JOBS
+  delete clean.WAR_GATE_NODE_JOBS
+  const result = spawnSync(process.execPath, [runner], { cwd: root, env: clean, encoding: 'utf8', timeout: 20000 })
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  assert.match(result.stdout, /^Gate workers: 4 Node files \+ 4 shell suites$/m)
+})
