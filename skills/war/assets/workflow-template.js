@@ -2895,11 +2895,17 @@ const netZeroScript = (revertWorktree, revertApproved, clashSha, revertBranch) =
   pt`if [ "$(git -C ${revertWorktree} rev-list --count ${revertApproved}..HEAD)" = 2 ] && [ "$(git -C ${revertWorktree} rev-parse --verify -q HEAD~1)" = "$(git -C ${revertWorktree} rev-parse --verify -q ` + clashSha
   + pt`^{commit})" ] && [ "$(git -C ${revertWorktree} rev-parse --verify -q HEAD^{tree})" = "$(git -C ${revertWorktree} rev-parse --verify -q ${revertApproved}^{tree})" ]; then git -C ${revertWorktree} checkout -q -B ${revertBranch} ${revertApproved} && echo NET-ZERO-DROPPED; else echo NET-ZERO-KEPT; fi`
 // ---- POLISH CLAIMS (D19, #2578, ADR 0061) ----
-// polishClaims: file → { r, sha } for the current wave (cleared at each wave start). The first
+// polishClaims: file → { r, sha, count } for the current wave (cleared at each wave start). The first
 // same-wave polish commit to touch a file no task of the wave lists claims it, in tip-probe return
-// order (claimPolishFiles). A claim ends when the claimant's own commit is reverted: a range revert
-// that undoes a claiming commit no panel approved. An ended claim moves to releasedClaims, so a later
-// claimant of that file also marks the reverted claimant for the net-zero merge-slot step.
+// order (claimPolishFiles). A claim ends only when the merge slot can drop the claiming commit and
+// its revert (the net-zero step): the task's ace ladder has ended, the range revert still registered
+// on the task has the claiming commit as its tip, that commit is the only commit of its range, and no
+// panel approved it. releaseClaims reads that state once, at the end of the ace stage. An in-loop
+// revert before a bisection subset or a re-entry worker (aceRevertDispatch) ends no claim: the claiming
+// commit and its revert stay on the branch below the later work and replay at the merge slot, so the
+// file stays claimed for the wave and a later peer commit on it still clashes.
+// An ended claim moves to releasedClaims, so a later claimant of that file also marks the reverted
+// claimant for the net-zero merge-slot step.
 // keepClaims marks a claim whose commit a panel approved. Every later revert starts at an approved
 // sha at or above that commit, so the commit stays on the branch and releaseClaims never ends the
 // claim, even after a later ace moves the approved sha.
@@ -2907,14 +2913,15 @@ const polishClaims = new Map()
 const releasedClaims = new Map()
 const keepClaims = (r, sha) => { for (const c of polishClaims.values()) if (c.r === r && c.sha === sha) c.approved = true }
 const releaseClaims = r => {
-  const gone = [...polishClaims].filter(([, c]) => c.r === r && !c.approved && c.sha !== approvedShaOf(r))
+  const final = rangeRevertOf(r)
+  const gone = final ? [...polishClaims].filter(([, c]) => c.r === r && !c.approved && c.count === 1 && c.sha === final.tip) : []
   for (const [file, c] of gone) { polishClaims.delete(file); releasedClaims.set(file, c) }
   if (gone.length) log('polish claim: task ' + r.task.id + ' releases ' + gone.map(([file]) => file).join(', ') + ' — its own commit is reverted (D19).')
 }
 // registerRangeRevert: the merge-slot revert input on r — the pair (<approved>, the pre-revert tip).
 // The tip is null when no Git read placed it (a dead or unusable tip probe); the clause reads HEAD from
-// Git either way. The revert ends r's polish claims (releaseClaims).
-const registerRangeRevert = (r, tip) => { r.aceReverted = { approved: approvedShaOf(r), tip: isSha(tip) ? tip : null }; releaseClaims(r) }
+// Git either way. It ends no polish claim: aceReentry can take the range over and revert it in-loop.
+const registerRangeRevert = (r, tip) => { r.aceReverted = { approved: approvedShaOf(r), tip: isSha(tip) ? tip : null } }
 const rangeRevertOf = r => r && r.aceReverted && typeof r.aceReverted === 'object' && isSha(r.aceReverted.approved) ? r.aceReverted : null
 // Fix-round doctrine (#2097, D24/PIN-27; #2127 ruling): ONE shared block, interpolated into the
 // enumerated fix-applying builds — the FIX_NEEDED fix prompt, the ACE BISECTION SUBSET prompt, the
@@ -4626,7 +4633,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-revert', label: 'ace-revert:' + revertSite + ':' + r.task.id + ':a' + r.task.absorbRounds, schema: ACE_REVERT, ...spawn('refiner') })
     if (deathOf(rv)) return { tip: null, why: deathOf(rv) }
     if (!rv || rv.ok !== true || !isSha(rv.tip_sha)) return { tip: null, why: 'the ' + revertSite + ' range revert returned no usable reverted tip' + (rv && rv.detail ? ' (' + rv.detail + ')' : '') }
-    releaseClaims(r)
     return { tip: rv.tip_sha, why: null }
   }
   // The task-site tip probe (#2485 D2): one read of r.task.branch after an ace dispatch, carried on r
@@ -5394,7 +5400,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (hits.length) return hits
         const mine = files.filter(file => !polishOwn.has(file) && !polishFence.includes(file) && !polishClaims.has(file))
         for (const file of mine) {
-          polishClaims.set(file, { r, sha: probe.tip_sha })
+          polishClaims.set(file, { r, sha: probe.tip_sha, count: probe.count })
           // a reverted claimant's pair now replays onto this claim too, so it takes the net-zero step
           const prev = releasedClaims.get(file)
           if (prev && prev.r !== r && !prev.r.claimClash) prev.r.claimClash = { sha: prev.sha, files: [file], owners: [r.task.id] }
@@ -5527,6 +5533,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // r.reentryQueue — the ladder re-opens for them here, after the batch/bisection resolved,
           // while absorbRounds < run.absorbRounds (the absorb budget is the sole bound, D5).
           if (r.reentryQueue && r.reentryQueue.length) await aceReentry(r)
+          // the ladder has ended: a claim ends only if the still-registered revert is its own commit (D19)
+          releaseClaims(r)
         } else {
           // A dead or unusable tip probe (PIN-5): the branch tip is unread, so the merge slot reverts
           // whatever sits above the approved tip (its HEAD read from Git; an unmoved tip skips) and the

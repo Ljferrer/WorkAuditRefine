@@ -26,9 +26,14 @@ return order. The first same-wave polish commit to touch a file that no task of 
 that no fence names, claims that file for the wave: first commit wins. A later polish commit that
 touches a claimed file or a file a wave peer lists is forward-reverted as before. It is not re-audited,
 and its rows go to the phase-close sweep queue. Later peers see each claimed file in their
-`FIX-ROUND FENCE` line. A claim ends when the claimant's own commit is reverted: a range revert that
-undoes a claiming commit no panel approved. An approved claiming commit keeps its claim for the wave,
-even after a later ace commit moves the approved sha. `POLISH_FILES_CLAUSE` states the widened file limit.
+`FIX-ROUND FENCE` line. A claim ends only when the merge slot can drop the claiming commit and its
+revert. That holds when the task's ace ladder has ended, the range revert still registered on the task
+has the claiming commit as its tip, that commit is the only commit of its range, and no panel approved
+it. An in-loop revert before a bisection subset or a re-entry worker ends no claim: the claiming commit
+and its revert stay on the branch below the later work and replay at the merge slot, so the file stays
+claimed for the wave and a later peer commit on it still clashes. A reverted range of more than one
+commit ends no claim either. An approved claiming commit keeps its claim for the wave, even after a
+later ace commit moves the approved sha. `POLISH_FILES_CLAUSE` states the widened file limit.
 
 **The net-zero clash range.** A clash records a claim-clash on the task, beside its registered range
 revert. At the merge slot, only that task's pin-transfer prompt gains one step after its own
@@ -37,8 +42,9 @@ commit and its revert, with `<tip>^{tree}` equal to `<approved>^{tree}`. When it
 moves back to the approved sha (no content changes), so the rebase runs only through the approved sha
 and the net-zero pair never replays. Any other range runs every step as written. The revert commit
 exists only after the `FORWARD-REVERT` step, so the refiner checks the tree equality, never the engine.
-A reverted claimant whose file a later peer claims takes the same step, because its own pair now
-replays onto that peer's line. Every other task's dispatch is byte-unchanged.
+A claimant whose claim ended, and whose file a later peer then claims, takes the same step, because
+its own pair now replays onto that peer's line. The claim-end rule above keeps that pair the whole
+range above the approved sha, so the step can drop it. Every other task's dispatch is byte-unchanged.
 
 **This qualifies ADR 0054's whole-range revert at the merge slot.** The whole range above the approved
 sha is still reverted, and the revert is still the backstop. For a net-zero clash range, the merge

@@ -15652,9 +15652,12 @@ test('fix-round fence: the sweep fixes a fenced polish row once its owner merges
 
 // Polish claims (plan 2026-11-08-engine-findings T5.1, D19, ADR 0061). CLAIM_ARGS runs two same-wave
 // tasks, t1 (docs/a.md) and t2 (docs/b.md); claimImpl fixes the polish return order.
+// claimPinOf: a task's pin-transfer prompt. claimFenceOf: the FIX-ROUND FENCE line of its polish prompt.
+const claimPinOf = (calls, id) => (calls.find(c => c.opts.dispatchKind === 'pin-transfer' && c.opts.label === 'pin-transfer:' + id) || {}).prompt || ''
+const claimFenceOf = (calls, id) => ((calls.find(c => new RegExp('^ace:polish:' + id + ':').test(c.opts.label || '')) || {}).prompt || '').split('\n').find(l => l.startsWith('FIX-ROUND FENCE:')) || ''
 test('polish claim: first commit wins — a later same-wave commit on the claimed file is reverted and its rows reach the phase-close queue', async () => {
   const touch = { t1: ['docs/a.md', 'docs/shared.md'], t2: ['docs/b.md', 'docs/shared.md'] }
-  const pinOf = (calls, id) => (calls.find(c => c.opts.dispatchKind === 'pin-transfer' && c.opts.label === 'pin-transfer:' + id) || {}).prompt || ''
+  const pinOf = claimPinOf
   const { out, calls, logs } = await runPhase(CLAIM_ARGS(), claimImpl({ touch }), {}, src)
   assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), 'presence guard: both tasks land')
   assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 claims docs/shared.md for the wave')), 't1 returns first and claims the unclaimed file')
@@ -15694,7 +15697,7 @@ test('polish claim: a wave-owned file reverts on the first return', async () => 
 
 test('polish claim: a claimed file reaches a later peer fence line', async () => {
   const touch = { t1: ['docs/a.md', 'docs/shared.md'], t2: ['docs/b.md'] }
-  const fenceOf = (calls, id) => ((calls.find(c => new RegExp('^ace:polish:' + id + ':').test(c.opts.label || '')) || {}).prompt || '').split('\n').find(l => l.startsWith('FIX-ROUND FENCE:')) || ''
+  const fenceOf = claimFenceOf
   const { calls, logs } = await runPhase(CLAIM_ARGS(), claimImpl({ touch, lateWork: true }), {}, src)
   assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 claims docs/shared.md')), 'presence guard: t1 claims first')
   assert.ok(fenceOf(calls, 't2').split(': ').pop().split(', ').includes('docs/shared.md'), 'the later peer t2 fence names the claimed file')
@@ -15709,7 +15712,7 @@ test('polish claim: a claimed file reaches a later peer fence line', async () =>
 test('polish claim: a reverted claimant releases its claim', async () => {
   const touch = { t1: ['docs/a.md', 'docs/shared.md'], t2: ['docs/b.md', 'docs/shared.md'] }
   const seats = { 'ace-gate': (p, o) => /^ace-gate:t1:/.test(o.label || '') ? aceJudgedRed()(p) : NEW_SEAT_DEFAULTS['ace-gate'](p) }
-  const pinOf = (calls, id) => (calls.find(c => c.opts.dispatchKind === 'pin-transfer' && c.opts.label === 'pin-transfer:' + id) || {}).prompt || ''
+  const pinOf = claimPinOf
   const { out, calls, logs } = await runPhase(CLAIM_ARGS(), claimImpl({ touch }), seats, src)
   assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 claims docs/shared.md')), 'presence guard: t1 claims first')
   assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 releases docs/shared.md')), 'the red gate reverts t1 and releases the claim')
@@ -15717,9 +15720,8 @@ test('polish claim: a reverted claimant releases its claim', async () => {
   assert.ok((out.aced || []).some(a => a && a.sha === 'b2b2b2b2') && !pinOf(calls, 't2').includes('FORWARD-REVERT'), 't2 keeps its polish and is not reverted')
   assert.match(pinOf(calls, 't1'), /NET-ZERO CLASH RANGE \(polish claim\): this task's polish commit a1a1a1a1 touched docs\/shared\.md, which task t2 claims or lists/, 'the released claimant takes the net-zero step, since its pair now replays onto t2')
   // Red at base: a claim that outlives its reverted commit reverts the later peer.
-  const RELEASE = 'const gone = [...polishClaims].filter(([, c]) => c.r === r && !c.approved && c.sha !== approvedShaOf(r))'
-  assert.ok(src.includes(RELEASE), 'the mutation target is the live release')
-  const mutant = await runPhase(CLAIM_ARGS(), claimImpl({ touch }), seats, src.replace(RELEASE, 'const gone = []'))
+  assert.ok(src.includes(CLAIM_RELEASE), 'the mutation target is the live release')
+  const mutant = await runPhase(CLAIM_ARGS(), claimImpl({ touch }), seats, src.replace(CLAIM_RELEASE, 'const gone = []'))
   assert.ok(!(mutant.out.aced || []).some(a => a && a.sha === 'b2b2b2b2'), 'the mutant reverts the later peer')
   // An approved claimant keeps its claim when a later ace moves the approved sha. The t1 polish
   // a1a1a1a1 is approved, the re-entry c3c3c3c1 is approved, and the re-entry c3c3c3c2 regresses, so a
@@ -15741,7 +15743,7 @@ test('polish claim: a reverted claimant releases its claim', async () => {
       return base(prompt, opts)
     }
   }
-  const fenceOf = (calls, id) => ((calls.find(c => new RegExp('^ace:polish:' + id + ':').test(c.opts.label || '')) || {}).prompt || '').split('\n').find(l => l.startsWith('FIX-ROUND FENCE:')) || ''
+  const fenceOf = claimFenceOf
   const idx = (calls, re) => calls.findIndex(c => re.test(c.opts.label || ''))
   const kept = await runPhase(CLAIM_ARGS(), keptImpl(), {}, src)
   assert.ok(kept.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 claims docs/shared.md')), 'kept claim, presence guard: t1 claims first')
@@ -15754,14 +15756,104 @@ test('polish claim: a reverted claimant releases its claim', async () => {
   assert.ok(kept.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t2 — ') && l.includes('docs/shared.md (task t1)')), 'a t2 commit on the claimed file still clashes')
   assert.ok(!(kept.out.aced || []).some(a => a && a.sha === 'b2b2b2b2') && !kept.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t2 claims docs/shared.md')), 't2 never takes the claim')
   assert.ok(!pinOf(kept.calls, 't1').includes('NET-ZERO'), 'the claimant takes no net-zero step')
-  // Red at base: each half of the kept rule, removed alone, releases the approved claim.
+  // Red at base: the release rule of round 1, which compared the claim sha to the moved approved sha
+  // at each range revert, releases the approved claim here.
+  const round1 = claimRound1Release(src)
+  const m = await runPhase(CLAIM_ARGS(), keptImpl(), {}, round1)
+  assert.ok(m.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 releases docs/shared.md')), 'the round-1 rule releases the approved claim')
+  assert.ok(!fenceOf(m.calls, 't2').includes('docs/shared.md') && m.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t2 claims docs/shared.md')), 'the round-1 rule lets t2 claim the file')
+})
+
+// The live release filter and the source edits that undo one part of the release rule.
+const CLAIM_RELEASE = 'const gone = final ? [...polishClaims].filter(([, c]) => c.r === r && !c.approved && c.count === 1 && c.sha === final.tip) : []'
+const CLAIM_REGISTER = "const registerRangeRevert = (r, tip) => { r.aceReverted = { approved: approvedShaOf(r), tip: isSha(tip) ? tip : null } }"
+const CLAIM_REVERT_RETURN = '    return { tip: rv.tip_sha, why: null }\n'
+const claimEdit = (source, from, to) => {
+  assert.equal(source.split(from).length, 2, 'the mutation target occurs once: ' + from)
+  return source.replace(from, to)
+}
+// A release at every range-revert registration: the rule both round-2 seats suggested.
+const claimReleaseAtRegister = source => claimEdit(source, CLAIM_REGISTER, CLAIM_REGISTER.slice(0, -2) + '; releaseClaims(r) }')
+// A release at each successful in-loop revert, with no final-range test: the engine before this fix.
+const claimReleaseInLoop = source => claimEdit(
+  claimEdit(source, CLAIM_RELEASE, 'const gone = [...polishClaims].filter(([, c]) => c.r === r && !c.approved && c.sha !== approvedShaOf(r))'),
+  CLAIM_REVERT_RETURN, '    releaseClaims(r)\n' + CLAIM_REVERT_RETURN)
+// The round-1 rule: the old filter, run at each registration.
+const claimRound1Release = source => claimReleaseAtRegister(claimEdit(source, CLAIM_RELEASE, 'const gone = [...polishClaims].filter(([, c]) => c.r === r && c.sha !== approvedShaOf(r))'))
+
+// A claim ends only when the merge slot can drop the claiming commit and its revert. In each arm t1
+// claims docs/shared.md at a1a1a1a1, the t1 ladder ends, and then t2 polishes docs/shared.md.
+test('polish claim: a claim ends only when the merge slot can drop its pair', async () => {
+  const touch = { t1: ['docs/a.md', 'docs/shared.md'], t2: ['docs/b.md', 'docs/shared.md'] }
+  const row = (title, file) => nit({ title, file, disposition: 'absorb' })
+  const regress = (file, more = []) => ({ seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'regressed', file, rationale: 'broke' }, ...more] })
+  const commit = (sha, file) => ({ task_id: 't1', status: 'implemented', head_sha: sha, tests: { unit: 1 }, ace_diff_files: [file] })
+  const implOf = (audits, workers) => {
+    const base = claimImpl({ touch, lateWork: true })
+    let n = 0
+    return (prompt, opts) => {
+      const label = opts.label || ''
+      if (/^audit:t1:/.test(label)) return audits[n++] || approveWith(label, [])
+      const key = Object.keys(workers).find(k => label.startsWith(k))
+      return key ? workers[key] : base(prompt, opts)
+    }
+  }
+  const probeFor = (prefix, fn) => ({ 'tip-probe': (p, o, w) => (o.label || '').startsWith(prefix) ? fn(p, o, w) : NEW_SEAT_DEFAULTS['tip-probe'](p, o, w) })
+  const two = [row('t1 polish row', 'docs/a.md'), row('other row', 'docs/a2.md')]
+  const has = (run, start, ...parts) => run.logs.some(l => typeof l === 'string' && l.startsWith(start) && parts.every(x => l.includes(x)))
+  const reverted = (run, site) => run.calls.some(c => isAceRevert(c) && (c.opts.label || '').startsWith('ace-revert:' + site + ':t1:'))
+  const aced = (run, sha) => (run.out.aced || []).some(a => a && a.sha === sha)
+  const dropConjunct = text => source => claimEdit(source, CLAIM_RELEASE, CLAIM_RELEASE.replace(text, ''))
   const KEEP = '            keepClaims(r, aceSha)\n'
-  assert.ok(src.includes(KEEP), 'the mutation target is the live keep call')
-  for (const [name, bad] of [['the keep call', src.replace(KEEP, '')], ['the kept filter', src.replace('c.r === r && !c.approved && c.sha', 'c.r === r && c.sha')]]) {
-    assert.notEqual(bad, src, name + ': the mutation applies')
-    const m = await runPhase(CLAIM_ARGS(), keptImpl(), {}, bad)
-    assert.ok(m.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 releases docs/shared.md')), name + ': the mutant releases the approved claim')
-    assert.ok(!fenceOf(m.calls, 't2').includes('docs/shared.md') && m.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t2 claims docs/shared.md')), name + ': the mutant lets t2 claim the file')
+  const arms = [
+    { name: 'an approved bisection subset above an in-loop revert',
+      audits: [approveWith('audit:t1:correctness', two), regress('docs/a.md'), approveWith('audit:t1:correctness', [])],
+      workers: { 'ace:subset:t1:': commit('c3c3c3c1', 'docs/a2.md') },
+      presence: run => reverted(run, 'subset') && aced(run, 'c3c3c3c1') && !claimPinOf(run.calls, 't1').includes('FORWARD-REVERT'),
+      mutants: [['a release at the in-loop revert', claimReleaseInLoop]] },
+    { name: 'a regressed bisection subset above an in-loop revert',
+      audits: [approveWith('audit:t1:correctness', two), regress('docs/a.md'), regress('zz.js')],
+      workers: { 'ace:subset:t1:': commit('c3c3c3c1', 'docs/a2.md') },
+      presence: run => reverted(run, 'subset') && !aced(run, 'c3c3c3c1') && claimPinOf(run.calls, 't1').includes('FORWARD-REVERT'),
+      mutants: [['a release at the in-loop revert', claimReleaseInLoop], ['no final-tip test', dropConjunct(' && c.sha === final.tip')]] },
+    { name: 'a re-entry that takes the registered polish range over',
+      audits: [approveWith('audit:t1:correctness', [row('t1 polish row', 'docs/a.md')]), regress('zz.js', [row('second', 'docs/a.md')]), approveWith('audit:t1:correctness', [])],
+      workers: { 'ace:reentry:t1:': commit('c3c3c3c1', 'docs/a.md') },
+      presence: run => reverted(run, 'reentry') && aced(run, 'c3c3c3c1') && !claimPinOf(run.calls, 't1').includes('FORWARD-REVERT'),
+      mutants: [['a release at the registration', claimReleaseAtRegister], ['a release at the in-loop revert', claimReleaseInLoop]] },
+    { name: 'a reverted polish range of two commits',
+      audits: [approveWith('audit:t1:correctness', [row('t1 polish row', 'docs/a.md')])],
+      workers: {},
+      seats: { 'ace-gate': (p, o) => /^ace-gate:t1:/.test(o.label || '') ? aceJudgedRed()(p) : NEW_SEAT_DEFAULTS['ace-gate'](p),
+        ...probeFor('tip-probe:polish:t1:', movedProbe('a1a1a1a1', { files: touch.t1, count: 2 })) },
+      presence: run => !reverted(run, 'subset') && !reverted(run, 'reentry') && claimPinOf(run.calls, 't1').includes('FORWARD-REVERT'),
+      mutants: [['no single-commit test', dropConjunct(' && c.count === 1')]] },
+    { name: 'an approved claiming commit that a stray-tree probe names as the failed tip',
+      audits: [approveWith('audit:t1:correctness', [row('t1 polish row', 'docs/a.md')]), approveWith('audit:t1:correctness', [row('second', 'docs/a.md')])],
+      workers: { 'ace:reentry:t1:': { task_id: 't1', status: 'blocked', blocked_reason: 'nothing to commit' } },
+      seats: probeFor('tip-probe:reentry:t1:', p => {
+        const { approved } = probeShas(p)
+        return { tip_sha: 'a1a1a1a1', tip_tree: fixtureTree('stray'), pre_sha: 'a1a1a1a1', pre_tree: fixtureTree(approved), approved_tree: fixtureTree(approved), count: 0, pre_is_ancestor: true, files: [] }
+      }),
+      presence: run => aced(run, 'a1a1a1a1') && has(run, 'ace-reentry t1: the unchanged tip a1a1a1a1 does not carry the approved tree') && claimPinOf(run.calls, 't1').includes('FORWARD-REVERT'),
+      mutants: [['no keep call', source => claimEdit(source, KEEP, '')], ['no approved test', dropConjunct(' && !c.approved')]] },
+  ]
+  for (const arm of arms) {
+    const go = source => runPhase(CLAIM_ARGS(), implOf(arm.audits, arm.workers), arm.seats || {}, source)
+    const run = await go(src)
+    assert.ok(has(run, 'polish claim: task t1 claims docs/shared.md') && run.calls.some(c => c.opts.label === 'tip-probe:polish:t1:a1'), arm.name + ', presence guard: t1 claims first')
+    assert.ok(arm.presence(run), arm.name + ', presence guard: the arm reaches its revert shape')
+    assert.ok(!has(run, 'polish claim: task t1 releases'), arm.name + ': the claim is not released')
+    assert.ok(claimFenceOf(run.calls, 't2').split(': ').pop().split(', ').includes('docs/shared.md'), arm.name + ': the t2 fence still names the claimed file')
+    assert.ok(has(run, 'polish claim: task t2 — ', 'docs/shared.md (task t1)'), arm.name + ': a t2 commit on the claimed file clashes')
+    assert.ok(!aced(run, 'b2b2b2b2') && !has(run, 'polish claim: task t2 claims docs/shared.md'), arm.name + ': t2 never takes the claim')
+    assert.ok(!claimPinOf(run.calls, 't1').includes('NET-ZERO'), arm.name + ': the claimant takes no net-zero step')
+    assert.ok(run.out.landed.includes('t1') && run.out.landed.includes('t2'), arm.name + ': both tasks land')
+    for (const [what, mutate] of arm.mutants) {
+      const bad = await go(mutate(src))
+      assert.ok(has(bad, 'polish claim: task t1 releases docs/shared.md'), arm.name + ', ' + what + ': the mutant releases the claim')
+      assert.ok(!claimFenceOf(bad.calls, 't2').includes('docs/shared.md') && has(bad, 'polish claim: task t2 claims docs/shared.md'), arm.name + ', ' + what + ': the mutant lets t2 claim the file')
+    }
   }
 })
 
