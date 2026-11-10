@@ -618,6 +618,12 @@ const SEED_AND_RED_ROWS = [
     extract: (r) => lineStarting(r, '- 2026-11-09 · Amendment: the relaunch seed has a third source'),
     old: [],
     new: ['read once more by one `charge-probe` dispatch', 'the keys each map carried and the shape of each return that had no map'] },
+  // The 2026-09-03 policy bullet itself: it must stop teaching the retired 0-on-absence seed.
+  { name: 'ADR 0013 relaunch seed policy bullet', file: 'docs/adr/0013-commanders-intent-and-disposition-routing.md',
+    extract: (r) => between(r, '- **The trailer and the relaunch seed.**', '- **Exhaustion routes to the sweep'),
+    old: ['0 with a loud log on error or absence', 'each return\'s shape'],
+    new: ['read once more by one `charge-probe` dispatch (D40, #2676)', 'only a task still unseeded seeds 0 with a loud log',
+      'the map keys and the shape of each return that had no map'] },
   // The card sentence and the barrier prompt sentence are twins: both rows pin the same phrase.
   { name: 'refiner card barrier item, failing read', file: REFINER_CARD,
     extract: (r) => lineStarting(r, '1. **Phase git-topology barrier'),
@@ -633,9 +639,11 @@ const SEED_AND_RED_ROWS = [
     new: ['one charge-probe re-read, then 0'] },
   { name: 'schemas.md Ace base gate paragraph', file: 'skills/war/references/schemas.md',
     extract: (r) => lineStarting(r, '**Ace base gate**'),
-    old: ['a red with no ids or no matching `head_sha`', 'keeps the forward-revert'],
+    old: ['a red with no ids or no matching `head_sha`', 'keeps the forward-revert',
+      'forward-reverts only when that second run is a judged red again'],
     new: ['is unjudged (D11): it re-dispatches as a segment', 'is re-asked once for its ids (D35)',
-      '`provision_failed: true` red, which is never re-asked for ids', 'forward-reverts only when that second run is a judged red again'] },
+      '`provision_failed: true` red, which is never re-asked for ids', 'a second run that is a judged red again, dies, or carries no usable echo forward-reverts the ace tip',
+      'a first reply that dies, or is green with no usable `head_sha` echo, is no judged red: it forward-reverts the ace tip at once, with no D35 re-run'] },
   { name: 'schemas.md GateCheck fail-open sentence', file: 'skills/war/references/schemas.md',
     extract: (r) => lineStarting(r, "The task gate (and the task's `Done when:` command) run at an ace-family commit"),
     old: ['a red gate with a new id forward-reverts the ace tip, the approved'],
@@ -667,5 +675,8 @@ test('seed and red arm docs — the engine still carries the arms the rows descr
     "(res.gate_segment === 'incomplete' || (!isSha(res.head_sha) && !debtIds(res.gate_failing_ids).length))",
     'const reask = g.gate_green === false && g.provision_failed !== true && isSha(g.head_sha) && !debtIds(g.gate_failing_ids).length',
     'const second = await aceGateJudge(r, aceTipSha, g2)',
+    'if (first) return first',
+    'if (gateDied) return { green: false, died: gateDied }',
+    'if (!g || g.gate_green !== false) {',
   ]) assert.ok(src.includes(anchor), `the engine no longer carries ${JSON.stringify(anchor)} — re-read the engine and correct the reference rows`);
 });

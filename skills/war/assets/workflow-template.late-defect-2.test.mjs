@@ -37,6 +37,17 @@ import {
   EVIDENCE_SEAT,
   REA_ON,
   REA_RESOLVED_PATH,
+  seatOf,
+  nit,
+  buildSeqImpl,
+  SWEEP_ARGS,
+  p4Base,
+  queuedAbsorb,
+  terminalImpl,
+  terminalCalls,
+  carriedOf,
+  readFileSync,
+  here,
 } from './workflow-template.test-harness.mjs'
 
 const labelOf = c => c.opts.label || ''
@@ -55,7 +66,7 @@ test('late-defect: gate-audit f65e7e37 replay — a Major with a full suggested_
   const prov = calls.find(c => c.opts.dispatchKind === 'late-fix-worktree')
   assert.ok(prov, 'the refiner cut a late-fix worktree')
   assert.equal(labelOf(prov), 'late-fix-worktree:p3-latefix-1')
-  assert.match(prov.prompt, /provision-worktrees\.sh ensure-worktree \/abs\/repo\/\.claude\/worktrees\/run-2026\/p3-latefix-1 war\/wtprov-a\/p3-latefix-1 "\$\(git -C \/abs\/repo\/\.claude\/worktrees\/run-2026\/_refinery rev-parse integration\/wtprov-a\/phase-3\)"/, 'cut at the integrated tip')
+  assert.match(prov.prompt, /provision-worktrees\.sh ensure-worktree \/abs\/repo\/\.claude\/worktrees\/run-2026\/p3-latefix-1 war\/wtprov-a\/run-2026\/p3-latefix-1 "\$\(git -C \/abs\/repo\/\.claude\/worktrees\/run-2026\/_refinery rev-parse integration\/wtprov-a\/phase-3\)"/, 'cut at the integrated tip')
   const workers = lateWorkers(calls)
   assert.equal(workers.length, 1, 'one late-fix round')
   const w = workers[0]
@@ -70,8 +81,8 @@ test('late-defect: gate-audit f65e7e37 replay — a Major with a full suggested_
   assert.ok(reaudit, 'the origin task roster re-audits the late-fix sha')
   assert.ok(reaudit.prompt.includes('abcdef1'), 'at the new tip')
   const merge = calls.find(c => labelOf(c) === 'merge:p3-latefix-1')
-  assert.ok(merge && merge.prompt.includes('git merge --ff-only war/wtprov-a/p3-latefix-1; if it is not a fast-forward, return conflict and do not merge.'), 'the refiner fast-forwards the late-fix branch in _refinery, so no merge commit hides its Late-Fix trailer')
-  assert.ok(!/git merge war\/wtprov-a\/p3-latefix-1\b/.test(merge.prompt), 'no plain git merge of the late-fix branch')
+  assert.ok(merge && merge.prompt.includes('git merge --ff-only war/wtprov-a/run-2026/p3-latefix-1; if it is not a fast-forward, return conflict and do not merge.'), 'the refiner fast-forwards the late-fix branch in _refinery, so no merge commit hides its Late-Fix trailer')
+  assert.ok(!/git merge war\/wtprov-a\/run-2026\/p3-latefix-1\b/.test(merge.prompt), 'no plain git merge of the late-fix branch')
   assert.ok(merge.prompt.includes('if any line carries no t1:<n> value, return conflict naming that commit and do not merge.'), 'every fast-forwarded commit must carry the origin Late-Fix trailer, so resume never meets a bare one')
   assert.ok(merge.prompt.indexOf('Before step (b), run git -C /abs/repo/.claude/worktrees/run-2026/p3-latefix-1 log ') < merge.prompt.indexOf('(b) MERGE in _refinery'), 'the trailer check runs before the fast-forward')
   assert.ok(merge.prompt.includes('Run the gate (make gate'), 'the gate runs before the merge')
@@ -276,7 +287,7 @@ test('late-defect: hold — on the final phase a spent late fix holds held:escal
   assert.equal(held[0].task, 't1')
   assert.equal(held[0].fixRounds, 3, 'the hold carries the spent fixRounds')
   assert.match(held[0].detail, /the fix budget is spent/)
-  assert.match(held[0].detail, /war\/wtprov-a\/p3-latefix-1 stays unmerged, the pre-fix tip lands/)
+  assert.match(held[0].detail, /war\/wtprov-a\/run-2026\/p3-latefix-1 stays unmerged, the pre-fix tip lands/)
   assert.deepEqual(lateWorkers(calls).map(labelOf), ['late-fix:t1:r1', 'late-fix:t1:r2', 'late-fix:t1:r3'], 'one round per budget slot, never past run.roundLimit')
   assert.ok(lateWorkers(calls)[1].prompt.includes('PRIOR ROUND: round 1 at abcdef1') && lateWorkers(calls)[1].prompt.includes('fix incomplete'), 'the next round sees the blocker')
   assert.ok(!calls.some(c => labelOf(c) === 'merge:p3-latefix-1'), 'an unapproved branch is never merged')
@@ -477,7 +488,7 @@ test('late-defect: charge — the late-fix merge trailer check spelling, run thr
   const g = (...a) => { const r = spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8', env }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
   try {
     g('init', '-q', '-b', 'integration/wtprov-a/phase-3'); g('commit', '-q', '--allow-empty', '-m', 'base')
-    g('checkout', '-q', '-b', 'war/wtprov-a/p3-latefix-1'); g('commit', '-q', '--allow-empty', '-m', 'late fix\n\nLate-Fix: t1:1')
+    g('checkout', '-q', '-b', 'war/wtprov-a/run-2026/p3-latefix-1'); g('commit', '-q', '--allow-empty', '-m', 'late fix\n\nLate-Fix: t1:1')
     const fix = g('rev-parse', 'HEAD')
     g('commit', '-q', '--allow-empty', '-m', 'split')
     const bare = g('rev-parse', 'HEAD')
@@ -634,4 +645,291 @@ test('late-defect: hold — the docs name the pass, the hold, carriedTasks and t
   assert.match(schemasMd, /`late-defect`[^\n]*land-decision\.mjs/, 'the hold points at the export for the reason list')
   assert.match(refinerMd, /dispatchKind: late-fix-worktree/, 'the refiner card names the late-fix worktree kind')
   assert.ok(src.includes("dispatchKind: 'late-fix-worktree'"), 'the dispatched provision carries the same kind')
+})
+
+// ---- plan 2026-11-08-engine-findings-ace-and-late-fix, Task 4.1 (D13-D15, D17, D18, D37-D39, D42) ----
+const lfProvOf = calls => (calls.find(c => c.opts.dispatchKind === 'late-fix-worktree') || {}).prompt || ''
+
+test('late-fix pass: the branch carries the run id', async () => {
+  const a = await runPhase(LATE_FIX_ARGS(), lateFixImpl())
+  const b = await runPhase(LATE_FIX_ARGS({ runId: 'run-2027-b' }), lateFixImpl())
+  const c = await runPhase(LATE_FIX_ARGS({ runId: 'abcdef0123456789' }), lateFixImpl())
+  assert.ok(lfProvOf(a.calls).includes(' war/wtprov-a/run-2026/p3-latefix-1 '), 'the first 8 characters of the run id scope the branch')
+  assert.ok(lfProvOf(b.calls).includes(' war/wtprov-a/run-2027/p3-latefix-1 '), 'a second launch cuts another branch')
+  assert.ok(lfProvOf(c.calls).includes(' war/wtprov-a/abcdef01/p3-latefix-1 '), 'a long run id keeps 8 characters')
+  assert.ok(lateWorkers(b.calls)[0].prompt.includes('(branch war/wtprov-a/run-2027/p3-latefix-1,'), 'the worker prompt names the same branch')
+  assert.equal(labelOf(lateWorkers(b.calls)[0]), 'late-fix:t1:r1', 'the labels keep the p<N>-latefix-<k> id')
+  const md = readFileSync(join(here, '../references/late-fix-pass.md'), 'utf8')
+  assert.ok(md.includes('first 8 characters of the run id') && !md.includes('run-2026'), 'late-fix-pass.md names the run id, never a literal')
+  // Red at base: without the run segment two launches cut one branch.
+  const SEG = "(runIdShort ? runIdShort + '/' : '')"
+  assert.ok(src.includes(SEG), 'the mutation target is the live run segment')
+  const m1 = await runPhase(LATE_FIX_ARGS(), lateFixImpl(), {}, src.replace(SEG, "''"))
+  const m2 = await runPhase(LATE_FIX_ARGS({ runId: 'run-2027-b' }), lateFixImpl(), {}, src.replace(SEG, "''"))
+  assert.ok(lfProvOf(m1.calls).includes(' war/wtprov-a/p3-latefix-1 ') && lfProvOf(m2.calls).includes(' war/wtprov-a/p3-latefix-1 '), 'the mutant cuts the same branch on both launches')
+})
+
+test('late-fix pass: an empty branch is never fixed', async () => {
+  const RULE = 'If it prints no line at all, return conflict ("empty late-fix branch") and do not merge.'
+  // The refiner obeys its prompt: an empty range with the rule returns conflict, else it fast-forwards.
+  const obey = () => { const base = lateFixImpl(); return (p, o) => labelOf({ opts: o }) === 'merge:p3-latefix-1'
+    ? { mode: 'merge-task', status: p.includes(RULE) ? 'conflict' : 'merged', integration_sha: '3'.repeat(40) } : base(p, o) }
+  const cond = ES_PHASE.endState[0]
+  const tasks = [LATE_TASK({ requiresTest: false })]
+  const esObey = () => { const base = obey(); return (p, o) => labelOf({ opts: o }) === 'gate-audit:phase-3:end-state'
+    ? { ...gaSeat(o.label, [GA_MAJOR({ plan_ref: cond })]), endStateAttestations: [{ condition: cond, status: 'unmet', evidence: 'e' }] } : base(p, o) }
+  const lateFixedOf = out => ((out.handoff || {}).endState || []).filter(r => /fixed by the late-fix pass/.test(r.note || ''))
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS({ phase: ES_PHASE, tasks }), esObey())
+  const merge = calls.find(c => labelOf(c) === 'merge:p3-latefix-1')
+  assert.ok(merge && merge.prompt.includes(RULE), 'the merge prompt refuses an empty range')
+  assert.equal(lateFixedOf(out).length, 0, 'lateFixed.length === 0: the handoff endState reads no late fix')
+  assert.equal(out.handoff.endState[0].status, 'unmet', 'the blocker stays unmet')
+  assert.ok(!logs.some(l => /late-fix pass: FIXED/.test(l)), 'never logged fixed')
+  assert.match(lateHolds(out)[0].detail, /the late-fix merge returned conflict/, 'the defect holds on the final phase')
+  // The trailer-check command, run through bash on a real repo, prints no line for an empty range.
+  const m = merge.prompt.match(/Before step \(b\), run (git -C \S+ log --format='[^']+' \S+);/)
+  const dir = mkdtempSync(join(tmpdir(), 'late-fix-empty-'))
+  const env = { ...process.env, HOME: dir, GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'F', GIT_AUTHOR_EMAIL: 'f@example.invalid', GIT_COMMITTER_NAME: 'F', GIT_COMMITTER_EMAIL: 'f@example.invalid' }
+  const g = (...a) => { const r = spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8', env }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  try {
+    g('init', '-q', '-b', 'integration/wtprov-a/phase-3'); g('commit', '-q', '--allow-empty', '-m', 'base')
+    g('branch', 'war/wtprov-a/run-2026/p3-latefix-1')
+    const r = spawnSync('bash', ['-c', m[1].replace('/abs/repo/.claude/worktrees/run-2026/p3-latefix-1', dir)], { encoding: 'utf8', env })
+    assert.equal(r.status, 0, r.stderr)
+    assert.equal(r.stdout, '', 'an empty range prints no line, so the rule fires')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+  // Red at base: without the rule the refiner fast-forwards the empty branch and the row reads fixed.
+  const LINE = ' If it prints no line at all, return conflict ("empty late-fix branch") and do not merge.'
+  assert.ok(src.includes(LINE), 'the mutation target is the live rule')
+  const mutant = await runPhase(PROVISION_ARGS({ phase: ES_PHASE, tasks }), esObey(), {}, src.replace(LINE, ''))
+  assert.equal(lateFixedOf(mutant.out).length, 1, 'the mutant records the empty branch fixed')
+})
+
+test('late-fix pass: escalate stops the defect and keeps its reason', async () => {
+  const WHY = 'a decision fork: the breadth list or the gate command'
+  const escImpl = () => { const base = lateFixImpl(); return (p, o) => /^audit:p\d+-latefix-/.test(labelOf({ opts: o }))
+    ? { seat: o.label, lens: 'correctness', verdict: 'escalate', escalate_reason: WHY, findings: [], confidence: 'high' } : base(p, o) }
+  const carried = await runPhase(LATE_FIX_ARGS({ finalPhase: false }), escImpl())
+  assert.equal(lateWorkers(carried.calls).length, 1, 'the defect stops at the escalating round')
+  assert.equal(carried.out.carriedTasks.length, 1)
+  assert.ok(carried.out.carriedTasks[0].carriedFrom.reason.includes(WHY), 'the non-final carry names the reason')
+  assert.ok(carried.out.carriedTasks[0].carriedFrom.reason.includes('a late-fix re-audit seat escalated at abcdef1'), 'and the round sha')
+  const held = await runPhase(LATE_FIX_ARGS(), escImpl())
+  assert.equal(held.out.landDecision, 'held:escalation')
+  assert.equal(lateWorkers(held.calls).length, 1)
+  assert.ok(lateHolds(held.out)[0].detail.includes(WHY), 'the final-phase late-defect hold names the reason')
+  // Red at base: without the stop the pass spends the budget and the reason is lost.
+  const STOP = '      if (lfEsc) { stop = lfEsc; break }\n'
+  assert.ok(src.includes(STOP), 'the mutation target is the live stop')
+  const mutant = await runPhase(LATE_FIX_ARGS(), escImpl(), {}, src.replace(STOP, ''))
+  assert.equal(lateWorkers(mutant.calls).length, 6, 'the mutant spends run.roundLimit rounds')
+  assert.ok(!lateHolds(mutant.out)[0].detail.includes(WHY), 'and the hold drops the reason')
+})
+
+test('sweep panel: an escalate seat reason reaches the polish-rejected row', async () => {
+  const WHY = 'the sweep crosses a plan boundary'
+  const impl = () => { const base = p4Base({ queued: [queuedAbsorb()] }); return (p, o) => /^audit:p3-polish:/.test(labelOf({ opts: o }))
+    ? { seat: o.label, lens: 'correctness', verdict: 'escalate', escalate_reason: WHY, findings: [], confidence: 'high' } : base(p, o) }
+  const { out, logs } = await runPhase(SWEEP_ARGS(), impl())
+  const row = (out.auditLog || []).find(e => e && e.verdict === 'polish-rejected')
+  assert.ok(row, 'presence guard: the panel rejected the sweep')
+  assert.ok(typeof row.escalate_reason === 'string' && row.escalate_reason.includes(WHY), 'the polish-rejected row carries the escalate reason')
+  assert.ok(logs.some(l => /^phase-close sweep DISCARDED/.test(l) && l.includes('escalate — ') && l.includes(WHY)), 'the discard log names it')
+  // Red at base: without the read neither the row nor the log carries it.
+  const READ = 'sweepEscalate = escalateReasonOf(pSeats)'
+  assert.ok(src.includes(READ), 'the mutation target is the live read')
+  const mutant = await runPhase(SWEEP_ARGS(), impl(), {}, src.replace(READ, 'sweepEscalate = null'))
+  assert.ok(!('escalate_reason' in (mutant.out.auditLog || []).find(e => e && e.verdict === 'polish-rejected')), 'the mutant row has no reason')
+  assert.ok(!mutant.logs.some(l => l.includes(WHY)), 'and no log names it')
+})
+
+test('seeded task: carried fixRounds seed the budget', async () => {
+  const P4 = { id: 4, title: 'P4', integrationBranch: 'integration/wtprov-a/phase-4', workingBranch: 'dev/wtprov-a' }
+  const T9 = { id: 't9', issue: 109, title: 'Task nine', planSlice: 'slice 9', roster: [{ lens: 'test-fidelity' }], files: ['src/z.js'] }
+  const ROW = fixRounds => ({ ...GA_MAJOR(), task: 't1', seat: 'gate-audit:t1:execution-evidence', findingClass: 'behavior', fixRounds,
+    planSlug: 'wtprov-a', roster: [{ lens: 'correctness' }], carriedFrom: { phase: 3, reason: 'the fix budget is spent' } })
+  // The seed's audit never clears: each fix makes a new sha and a new blocker.
+  const blocks = () => { let n = 0; return (p, o) => {
+    const label = labelOf({ opts: o })
+    if (seatOf(o) === 'war-worker' && /^fix:seed-1:/.test(label)) return { task_id: 'seed-1', status: 'implemented', head_sha: 'f1ced00' + (++n), tests: { unit: 1 } }
+    if (/^audit:seed-1:/.test(label)) {
+      const sha = (p.match(/AUDIT PIN: the worker reports commit ([0-9a-f]+)/) || [])[1] || 'deadbeef'
+      return { seat: label, lens: 'correctness', audit_sha: sha, verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'blocker at ' + sha, file: 'src/a.test.js', rationale: 'r', suggested_fix: 'fix it' }] }
+    }
+    return defaultImpl(p, o)
+  } }
+  const run = (n, source) => runPhase(PROVISION_ARGS({ phase: P4, tasks: [{ ...T9 }], seededTasks: [ROW(n)], finalPhase: false }), blocks(), {}, source)
+  const four = await run(4)
+  assert.deepEqual(four.calls.filter(c => /^fix:seed-1:/.test(labelOf(c))).map(labelOf), ['fix:seed-1:r5', 'fix:seed-1:r6'], 'a row at fixRounds 4 starts at 4: two rounds left under run.roundLimit 6')
+  assert.ok(four.logs.some(l => /^seeded task seed-1: .*fixRounds starts at 4 \(D17\)\.$/.test(l)), 'the seed is logged')
+  assert.equal(four.out.carriedTasks[0].fixRounds, 6, 'the cap rule carries the spent count')
+  const six = await run(6)
+  assert.deepEqual(six.calls.filter(c => /^fix:seed-1:/.test(labelOf(c))), [], 'a row at run.roundLimit dispatches no fix round')
+  assert.ok(six.calls.some(c => /^audit:seed-1:/.test(labelOf(c))), 'its first audit still runs')
+  assert.equal(six.out.carriedTasks.length, 1, 'and it reaches the seed cap rule on that first check')
+  assert.match(six.out.carriedTasks[0].carriedFrom.reason, /seeded task seed-1 ran out of fix rounds \(fixRounds 6\)/)
+  // Red at base: a loop that starts at 0 spends six fresh rounds.
+  const START = 'let round = task.seed ? spentOf(task.fixRounds) : 0,'
+  assert.ok(src.includes(START), 'the mutation target is the live start')
+  const mutant = await run(4, src.replace(START, 'let round = 0,'))
+  assert.equal(mutant.calls.filter(c => /^fix:seed-1:/.test(labelOf(c))).length, 6, 'the mutant ignores the carried budget')
+})
+
+test('late-fix pass: a merged sibling file joins the fence', async () => {
+  const tasks = [LATE_TASK(), LATE_TASK({ id: 't2', issue: 102, files: ['src/d.js'] })]
+  const only = () => { const base = lateFixImpl(); return (p, o) => /^gate-audit:t2:/.test(labelOf({ opts: o }))
+    ? { seat: o.label, lens: 'execution-evidence', verdict: 'approve', findings: [], confidence: 'high' } : base(p, o) }
+  const fenceOf = calls => (lateWorkers(calls)[0].prompt.split('\n').find(l => l.startsWith('FIX-ROUND FENCE:')) || '')
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks }), only())
+  assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), 'presence guard: both tasks merged')
+  assert.deepEqual(lateWorkers(calls).map(labelOf), ['late-fix:t1:r1'], 'one late fix, on t1')
+  assert.ok(fenceOf(calls).includes('src/d.js'), 'the merged sibling t2 file is fenced')
+  assert.ok(!fenceOf(calls).includes('src/a.js'), 'the origin t1 file stays open')
+  // Red at base: the old fence leaves the sibling file open.
+  const USE = 'fixRoundFenceClause(lfFence)'
+  assert.ok(src.includes(USE), 'the mutation target is the live fence')
+  const mutant = await runPhase(PROVISION_ARGS({ tasks }), only(), {}, src.replace(USE, 'fixRoundFenceClause(fence)'))
+  assert.ok(!fenceOf(mutant.calls).includes('src/d.js'), 'the mutant leaves src/d.js open')
+})
+
+test('sweep exclusion: a task-owned hit carries on a non-final phase, demotes on the final one, and a campaign hit names its class', async () => {
+  const twoTasks = over => SWEEP_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], files: ['./docs/x.md'] }], ...over })
+  const t2Red = () => buildSeqImpl({ 'merge:t2': [{ mode: 'merge-task', status: 'gate_failed', gate_output: 'red' }] }, p4Base({ queued: [queuedAbsorb()] }))
+  // Arm 1: a task of this run owns the file on a non-final phase, so the row carries to the next sweep.
+  const nonFinal = await runPhase(twoTasks({ finalPhase: false }), t2Red())
+  assert.ok(nonFinal.out.landed.includes('t1') && !nonFinal.out.landed.includes('t2'), 'presence guard: t2 never merged')
+  const c = carriedOf(nonFinal.out, 'dangling link')
+  assert.ok(c, 'the row carries on carriedPhaseClose')
+  assert.equal(c.carriedFrom.reason, 'exclusion-set — docs/x.md is owned by task t2 this phase; carried to the next phase\'s sweep')
+  assert.ok(!demotionOf(nonFinal.out, 'dangling link'), 'and never demotes')
+  // Arm 2: the same hit on the final phase demotes as today.
+  const final = await runPhase(twoTasks(), t2Red())
+  assert.equal(demotionOf(final.out, 'dangling link').demoteReason, 'demote:exclusion-set — sweep exclusion set: docs/x.md is owned by task t2 this phase; the sweep never touches it')
+  assert.ok(!carriedOf(final.out, 'dangling link'), 'the final phase never carries')
+  // Arm 3: a campaign owner demotes on any phase, naming findingClass and autoFixable.
+  const camp = await runPhase(SWEEP_ARGS({ finalPhase: false, sweepExclude: [{ slug: 'other-plan', files: ['docs/x.md'] }] }), p4Base({ queued: [queuedAbsorb()] }))
+  const d = demotionOf(camp.out, 'dangling link')
+  assert.ok(d && d.demoteReason.startsWith('demote:exclusion-set — sweep exclusion set: docs/x.md is owned by plan other-plan this phase'), 'a campaign hit still demotes')
+  assert.match(d.demoteReason, /\(findingClass \S+, autoFixable true\)$/, 'naming the row class and autoFixable')
+  assert.ok(!carriedOf(camp.out, 'dangling link'), 'a campaign hit never carries')
+  // Red at base: without the split the task-owned hit demotes on a non-final phase.
+  const SPLIT = "if (owner.startsWith('task ') && !finalPhase) return carryPhaseClose("
+  assert.ok(src.includes(SPLIT), 'the mutation target is the live split')
+  const mutant = await runPhase(twoTasks({ finalPhase: false }), t2Red(), {}, src.replace(SPLIT, 'if (false) return carryPhaseClose('))
+  assert.ok(demotionOf(mutant.out, 'dangling link') && !carriedOf(mutant.out, 'dangling link'), 'the mutant demotes it')
+})
+
+test('terminal pass: a row the terminal commit never touched is not recorded aced', async () => {
+  const y = { severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }
+  const w = { severity: 'Minor', title: 'second absorb', file: 'docs/w.md', rationale: 'a stale link', disposition: 'absorb' }
+  const tWorker = files => ({ task_id: 'p3-polish', status: 'implemented', head_sha: '7e4a1a10', tests: { unit: 1 }, ...(files ? { ace_diff_files: files } : {}) })
+  const acedAt = (out, title) => (out.aced || []).some(a => a.finding && a.finding.title === title && a.sha === '7e4a1a10')
+  const run = (args, files, source) => runPhase(args, terminalImpl({ polishFindings: [y, w], terminalWorker: tWorker(files) }), {}, source)
+  // Arm 1: the report overlaps the footprint and misses docs/w.md.
+  const final = await run(SWEEP_ARGS(), ['docs/y.md'])
+  assert.ok(terminalCalls(final.calls)[0].prompt.includes('Also return `ace_diff_files`'), 'the terminal prompt asks for ace_diff_files')
+  assert.ok(acedAt(final.out, 'polish-panel absorb'), 'the touched row is aced')
+  assert.ok(!acedAt(final.out, 'second absorb'), 'the untouched row is not')
+  assert.equal(demotionOf(final.out, 'second absorb').demoteReason, 'demote:terminal-pass — the terminal commit never touched docs/w.md (at 7e4a1a10) on the final phase; no later round')
+  assert.ok(final.logs.some(l => l.includes('"second absorb"') && l.includes('the terminal commit never touched docs/w.md') && l.includes('not recorded aced')), 'logged')
+  const nonFinal = await run(SWEEP_ARGS({ finalPhase: false }), ['docs/y.md'])
+  assert.match(carriedOf(nonFinal.out, 'second absorb').carriedFrom.reason, /the terminal commit never touched docs\/w\.md at 7e4a1a10/, 'a non-final phase carries it')
+  // Arm 2: an absent list records every row aced, as today.
+  const absent = await run(SWEEP_ARGS(), null)
+  assert.ok(acedAt(absent.out, 'polish-panel absorb') && acedAt(absent.out, 'second absorb'), 'no report: every row aced')
+  // Red at base: without the shared rule the untouched row is recorded aced.
+  const RULE = 'const terminalMissed = unlandedBy(tw, terminalRows)'
+  assert.ok(src.includes(RULE), 'the mutation target is the live rule')
+  const mutant = await run(SWEEP_ARGS(), ['docs/y.md'], src.replace(RULE, 'const terminalMissed = () => false'))
+  assert.ok(acedAt(mutant.out, 'second absorb'), 'the mutant records the untouched row aced')
+  assert.equal(src.split('= unlandedBy(').length - 1, 2, 'two callers: the sweep and the terminal arm share the rule')
+})
+
+test('diff-probe: a malformed reply is re-asked once, then ABSENT', async () => {
+  const seq = replies => { const q = [...replies]; return { 'diff-probe': (p, o) => o.label === 'diff-probe:t1' ? q.shift() : { detail: 'harness default — no probe' } } }
+  const probesOf = calls => calls.filter(c => c.opts.label === 'diff-probe:t1')
+  const RETRY = 'return the list in `diff_files` only; `detail` is for a git error.'
+  const run = (replies, source) => runPhase(LATE_FIX_ARGS(), defaultImpl, seq(replies), source)
+  // Arm 1: an empty array beside path lines in detail, twice.
+  const emptyArr = { diff_files: [], detail: 'a/b.js\nc/d.js' }
+  const a1 = await run([emptyArr, emptyArr])
+  assert.equal(probesOf(a1.calls).length, 2, 're-asked once')
+  assert.ok(probesOf(a1.calls)[1].prompt.includes(RETRY) && !probesOf(a1.calls)[0].prompt.includes(RETRY), 'the retry alone carries the diff_files-only sentence')
+  assert.ok(a1.logs.some(l => l === 'diff-probe:t1 second reply is malformed too (an empty diff_files beside a non-blank detail) — the probe is ABSENT (D39, fail-open).'), 'a second malformed reply is ABSENT, its shape logged')
+  const fixedUp = await run([emptyArr, { diff_files: ['a/b.js', 'c/d.js'] }])
+  assert.ok(fixedUp.logs.some(l => l.startsWith('diff-probe:t1 recorded 2 changed file(s)')), 'a good second reply records the list')
+  // Arm 2: path lines in detail with no array.
+  const noArr = { detail: 'a/b.js\nc/d.js' }
+  const a2 = await run([noArr, noArr])
+  assert.equal(probesOf(a2.calls).length, 2)
+  assert.ok(a2.logs.some(l => l.includes('second reply is malformed too (no diff_files beside path lines in detail)')), 'the second shape is named')
+  // Arm 3: { diff_files: [] } alone is an empty footprint, no retry; a git error is not re-asked either.
+  const a3 = await run([{ diff_files: [] }])
+  assert.equal(probesOf(a3.calls).length, 1, 'no retry')
+  assert.ok(a3.logs.some(l => l.startsWith('diff-probe:t1 recorded 0 changed file(s)')), 'an empty footprint')
+  const gitErr = await run([{ detail: 'fatal: bad revision' }])
+  assert.equal(probesOf(gitErr.calls).length, 1, 'a git error is not re-asked')
+  // Red at base: without the shape check the malformed reply is read as an empty footprint.
+  const CHECK = '    if (shape) {\n'
+  assert.ok(src.includes(CHECK), 'the mutation target is the live check')
+  const mutant = await run([emptyArr, emptyArr], src.replace(CHECK, '    if (false) {\n'))
+  assert.equal(probesOf(mutant.calls).length, 1, 'the mutant never re-asks')
+  assert.ok(mutant.logs.some(l => l.startsWith('diff-probe:t1 recorded 0 changed file(s)')), 'and reads the path list as nothing')
+})
+
+test('late-fix pass: a row already fixed at the tip resolves in one round', async () => {
+  const TIP = 'abc0de1'
+  const AT_TIP = { task_id: 't1', status: 'blocked', blocked_reason: 'ALREADY-FIXED: src/a.test.js already runs in the gate breadth list', head_sha: TIP }
+  const impl = ({ rejects = 0 } = {}) => { const base = lateFixImpl({ rejects }); let n = 0
+    return (p, o) => /^late-fix:/.test(labelOf({ opts: o })) && ++n === 1 ? AT_TIP : base(p, o) }
+  const EMPTY = { 'diff-probe': (p, o) => o.label === 'diff-probe:p3-latefix-1' ? { diff_files: [] } : { detail: 'harness default — no probe' } }
+  const lfRows = out => out.auditLog.filter(e => e.lateFix).map(e => [e.verdict, e.fixRounds])
+  // Arm 1: the re-audit at the unchanged tip approves.
+  const ok = await runPhase(LATE_FIX_ARGS(), impl(), EMPTY)
+  assert.ok(lateWorkers(ok.calls)[0].prompt.includes('blocked_reason starting ALREADY-FIXED:'), 'the worker prompt names the signal')
+  assert.deepEqual(lateWorkers(ok.calls).map(labelOf), ['late-fix:t1:r1'], 'one round')
+  assert.ok(ok.calls.find(c => labelOf(c) === 'audit:p3-latefix-1:correctness').prompt.includes(TIP), 'the roster re-audits the unchanged tip')
+  assert.deepEqual(lfRows(ok.out), [['late-fix:at-tip', 0]], 'fixRounds unchanged: the round charge is given back')
+  assert.deepEqual(lateHolds(ok.out), [], 'no late-defect')
+  assert.equal(ok.out.landDecision, 'landed')
+  assert.ok(!ok.calls.some(c => labelOf(c) === 'merge:p3-latefix-1'), 'nothing to merge')
+  assert.ok(ok.logs.some(l => l.includes('is already fixed at the tip ' + TIP) && l.includes('no fixRounds charge')), 'logged')
+  // Arm 2: a rejecting re-audit charges the round, and the next round sees why.
+  const no = await runPhase(LATE_FIX_ARGS(), impl({ rejects: 1 }), EMPTY)
+  assert.deepEqual(lfRows(no.out), [['late-fix:rejected', 1], ['late-fix:approve', 2]], 'the at-tip round stays charged')
+  assert.ok(lateWorkers(no.calls)[1].prompt.includes('the worker said the tip already fixes it, and the re-audit did not approve'), 'PRIOR ROUND names the rejection')
+  // Arm 3: an escalate seat on the at-tip re-audit stops the defect at that round, reason kept.
+  const WHY = 'a decision fork: the tip fixes the row by a route the plan never named'
+  // Every worker round answers at-tip here, so the commit-arm stop can never fire in its place.
+  const escImpl = () => { const base = lateFixImpl(); return (p, o) => /^late-fix:/.test(labelOf({ opts: o })) ? AT_TIP : /^audit:p\d+-latefix-/.test(labelOf({ opts: o }))
+    ? { seat: o.label, lens: 'correctness', verdict: 'escalate', escalate_reason: WHY, findings: [], confidence: 'high' } : base(p, o) }
+  const carried = await runPhase(LATE_FIX_ARGS({ finalPhase: false }), escImpl(), EMPTY)
+  assert.deepEqual(lateWorkers(carried.calls).map(labelOf), ['late-fix:t1:r1'], 'the defect stops at the escalating at-tip round')
+  assert.equal(carried.out.carriedTasks.length, 1)
+  assert.ok(carried.out.carriedTasks[0].carriedFrom.reason.includes(WHY), 'the non-final carry names the reason')
+  assert.ok(carried.out.carriedTasks[0].carriedFrom.reason.includes('a late-fix re-audit seat escalated at ' + TIP), 'and the tip sha')
+  assert.equal(carried.out.carriedTasks[0].fixRounds, 1, 'the escalating round stays charged')
+  assert.deepEqual(lfRows(carried.out), [['late-fix:rejected', 1]], 'no at-tip fix is recorded')
+  const held = await runPhase(LATE_FIX_ARGS(), escImpl(), EMPTY)
+  assert.equal(held.out.landDecision, 'held:escalation')
+  assert.equal(lateWorkers(held.calls).length, 1)
+  assert.ok(lateHolds(held.out)[0].detail.includes(WHY), 'the final-phase late-defect hold names the reason')
+  // Red at base: without the at-tip stop the pass spends the budget and the reason is lost.
+  const T_STOP = '        if (tEsc) { stop = tEsc; break }\n'
+  assert.ok(src.includes(T_STOP), 'the mutation target is the live at-tip stop')
+  const tMutant = await runPhase(LATE_FIX_ARGS(), escImpl(), EMPTY, src.replace(T_STOP, ''))
+  assert.equal(lateWorkers(tMutant.calls).length, 6, 'the mutant spends run.roundLimit rounds')
+  assert.ok(!lateHolds(tMutant.out)[0].detail.includes(WHY), 'and the hold drops the reason')
+  // Guard: a probe that finds a change never takes the at-tip arm.
+  const changed = await runPhase(LATE_FIX_ARGS(), impl(), { 'diff-probe': (p, o) => o.label === 'diff-probe:p3-latefix-1' ? { diff_files: ['src/a.js'] } : { detail: 'x' } })
+  assert.ok(changed.logs.some(l => l.includes('but the probe found 1 changed file(s)')), 'a non-empty range is a charged no-commit round')
+  assert.ok(!lfRows(changed.out).some(r => r[0] === 'late-fix:at-tip'))
+  // Red at base: without the arm the claim costs a round and a second worker.
+  const ARM = 'if (atTip && tipDiff && tipDiff.size === 0) {'
+  assert.ok(src.includes(ARM), 'the mutation target is the live arm')
+  const mutant = await runPhase(LATE_FIX_ARGS(), impl(), EMPTY, src.replace(ARM, 'if (false) {'))
+  assert.equal(lateWorkers(mutant.calls).length, 2, 'the mutant dispatches a second worker')
+  assert.ok(!lfRows(mutant.out).some(r => r[0] === 'late-fix:at-tip'), 'and records no at-tip fix')
 })

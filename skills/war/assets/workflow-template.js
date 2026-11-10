@@ -116,8 +116,8 @@ const WORKER_RESULT = { type: 'object', required: ['task_id', 'status'], propert
   // `git diff` its prompt names (`--no-renames` on the ace arms). On the ace arms it is a CROSS-CHECK
   // against the tip probe's git-derived file list (#2485 D7), as files_changed is: a disagreeing worker
   // list re-runs the FULL panel. OPTIONAL, so every non-ace worker result stays byte-identical to today.
-  // The ONE consumer that reads it as a source is the sweep's landed-row check (sweepTouched):
-  // ace_diff_files preferred, files_changed a fallback SOURCE when ace_diff_files is absent or empty.
+  // The consumers that read it as a source are the sweep's and the terminal pass's landed-row check
+  // (unlandedBy, D38): ace_diff_files preferred, files_changed a fallback SOURCE when it is absent or empty.
   ace_diff_files: { type: 'array' },
   notes: { type: 'string' }, blocked_reason: { type: 'string' } } }
 
@@ -1546,8 +1546,10 @@ for (const [i, s] of (A.seededTasks || []).entries()) {
   let id = s.seedId || 'seed-' + (i + 1), host = tasks.find(t => t.id === s.task), roster = s.roster || host && host.roster || defaultRoster.length && defaultRoster
   while (tasks.some(t => t.id === id)) id += '-1'
   if (!roster) throw new Error('workflow-template: args.seededTasks[' + i + '] has no roster, and no audit.roster to fall back to (D9)')
-  tasks.push({ id, title: 'carried defect: ' + s.title, roster: [...roster], files: file ? [file] : [], requiresTest: true, seed: s, planSlice: 'Fix ' + text })
-  log('seeded task ' + id + ': ' + text + (s.roster || host ? '' : ' (roster: audit.roster)') + ' (PIN-9).')
+  // D17 (#2661.6): the carried fixRounds seed the budget, so a row at run.roundLimit meets the cap rule on its first check.
+  const seeded = Number.isInteger(s.fixRounds) && s.fixRounds > 0 ? s.fixRounds : 0
+  tasks.push({ id, title: 'carried defect: ' + s.title, roster: [...roster], files: file ? [file] : [], requiresTest: true, seed: s, fixRounds: seeded, planSlice: 'Fix ' + text })
+  log('seeded task ' + id + ': ' + text + (s.roster || host ? '' : ' (roster: audit.roster)') + ' (PIN-9); fixRounds starts at ' + seeded + ' (D17).')
 }
 // seedCapped: the seeded tasks that ran out of fix rounds; resolved by the late-fix cap rule before the land decision.
 const seedCapped = []
@@ -1781,16 +1783,32 @@ const diffFilesOf = t => { const v = diffFilesByTask.get(t && t.id); return v in
 const aceRelSet = arr => new Set((Array.isArray(arr) ? arr : []).map(aceRelPath).filter(p => typeof p === 'string' && p.length > 0))
 // The diff probe dispatch, shared by the wave side (one per task, registered in diffFilesByTask) and
 // the late-fix pass (one per round, never registered, #2622). Returns the git-derived file Set, or
-// null when the probe is absent (fail-open, logged).
+// null when the probe is absent (fail-open, logged). D39 (#2696): a reply that put the list in
+// `detail` (an empty diff_files beside a non-blank detail, or no diff_files beside a detail whose
+// lines all look like paths) is re-asked once; a second such reply reads ABSENT, its shape logged.
+// A plain { diff_files: [] } stays an empty footprint: a no-op branch is real.
+const pathLines = d => { const ls = String(d).split('\n').map(s => s.trim()).filter(Boolean); return ls.length > 0 && ls.every(s => !/\s/.test(s) && /[/.]/.test(s)) }
+const probeShapeOf = p => !p || typeof p !== 'object' || blankText(p.detail) ? null
+  : Array.isArray(p.diff_files) ? (p.diff_files.length ? null : 'an empty diff_files beside a non-blank detail')
+  : pathLines(p.detail) ? 'no diff_files beside path lines in detail' : null
 const probeDiff = async (task, probeBase, tip) => {
   const L = 'diff-probe:' + task.id
   let probe = null
-  try {
-    probe = await dispatchSite(
+  const ask = retry => dispatchSite(
       pt`DIFF PROBE for WAR task ${task.id} (a read-only git read, no merge, no push, no rebase, no gate). `
       + pt`In the task worktree ${task.worktree} (branch ${task.branch}) run EXACTLY: git -C ${shq(task.worktree)} diff --name-only ${shq(probeBase)}...${tip} — the three dots diff from the merge-base of ${probeBase} and the task tip. `
-      + pt`Return { diff_files: [<one repo-relative path per line of that output, verbatim>] } — the GIT-derived changed-file list of the task branch; never the worker's own file report. Idempotent: re-running on a resume yields the same list. On any git error return { detail: "<the error>" } with NO diff_files — the engine keeps its old default for this task (fail-open); never block.`,
+      + pt`Return { diff_files: [<one repo-relative path per line of that output, verbatim>] } — the GIT-derived changed-file list of the task branch; never the worker's own file report. Idempotent: re-running on a resume yields the same list. On any git error return { detail: "<the error>" } with NO diff_files — the engine keeps its old default for this task (fail-open); never block.`
+      + (retry ? ' Your last reply was malformed (' + retry + pt`): return the list in \`diff_files\` only; \`detail\` is for a git error.` : ''),
       { phase: 'Audit', label: L, dispatchKind: 'diff-probe', schema: DIFF_PROBE_RESULT, ...helperOpts(task.worktree, probeBase, tip) })
+  try {
+    probe = await ask(null)
+    const shape = probeShapeOf(probe)
+    if (shape) {
+      log(L + ' reply is malformed (' + shape + ') — re-asked once for diff_files only (D39).')
+      probe = await ask(shape)
+      const again = probeShapeOf(probe)
+      if (again) { log(L + ' second reply is malformed too (' + again + ') — the probe is ABSENT (D39, fail-open).'); return null }
+    }
   } catch (err) {
     // A non-infra throw (dispatchSite rethrows those): still fail-open here — the probe is absent.
     log(L + ' dispatch threw — ' + ((err && err.message) || String(err)) + '; the probe is ABSENT for this task (fail-open).')
@@ -4461,6 +4479,21 @@ const queueLateRow = (f, task, seat, sha, why) => {
 const queueLateFix = (v, task, seat) => {
   for (const f of v.findings || []) if (f.severity === 'Critical' || f.severity === 'Major') queueLateRow(f, task, seat, auditShaOrSentinel(v.audit_sha), 'a blocker with a fix, never a straight hold (PIN-5)')
 }
+// Shared ace-diff-files charge (#1913, D3/PIN-18): every ace-family worker prompt, and the terminal
+// pass (D38), asks for the git-derived changed-file list of its single commit. Since #2485 D7 it is a
+// cross-check against the tip probe's own Git read on the ace arms, never the delta-scale source; the
+// terminal merged arm reads it as the landed-row source (unlandedBy).
+const ACE_DIFF_FILES_CLAUSE = pt`\nAlso return \`ace_diff_files\`: the exact output of \`git diff --no-renames --name-only HEAD^ HEAD\` run after your ONE commit — the git-derived changed-file list of that commit, one repo-relative path per array entry. It cross-checks the engine's own Git read of your commit (that read scales the re-audit: a diff confined to the findings' own files re-runs only the seats that raised them), so report it from git, never from memory. A list that disagrees with that read re-runs the full panel.`
+// unlandedBy (D38, #2691): the landed-row rule the sweep and terminal merged arms share. The commit's
+// report (ace_diff_files, else files_changed as a fallback SOURCE) is touched; when it overlaps the
+// rows' file footprint, a row whose file it never touched did not land. `some`, not `every`: a commit
+// may touch files outside the footprint. An absent or empty report returns false for every row.
+const unlandedBy = (report, rows) => {
+  const touched = aceRelSet(report && Array.isArray(report.ace_diff_files) && report.ace_diff_files.length ? report.ace_diff_files : report && report.files_changed)
+  const foot = aceRelSet(rows.map(f => f.file))
+  const overlap = [...touched].some(p => foot.has(p))
+  return f => overlap && typeof f.file === 'string' && f.file.length > 0 && !touched.has(aceRelPath(f.file))
+}
 
 let guard = 0
 while (done.size < tasks.length && guard++ < tasks.length + 2) {
@@ -4597,10 +4630,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   const aceEvidence = (probe, w) => ({ files: probe.files, pre: probe.pre_sha, count: probe.count,
     preTree: probe.pre_tree, approvedTree: probe.approved_tree,
     claimed: [['ace_diff_files', w && w.ace_diff_files], ['files_changed', w && w.files_changed]] })
-  // Shared ace-diff-files charge (#1913, D3/PIN-18): every ace-family worker prompt asks for the
-  // git-derived changed-file list of its single commit. Since #2485 D7 it is a cross-check against the
-  // tip probe's own Git read, never the delta-scale source.
-  const ACE_DIFF_FILES_CLAUSE = pt`\nAlso return \`ace_diff_files\`: the exact output of \`git diff --no-renames --name-only HEAD^ HEAD\` run after your ONE commit — the git-derived changed-file list of that commit, one repo-relative path per array entry. It cross-checks the engine's own Git read of your commit (that read scales the re-audit: a diff confined to the findings' own files re-runs only the seats that raised them), so report it from git, never from memory. A list that disagrees with that read re-runs the full panel.`
   // ---- PIN-12: THE GATE RUNS AT THE ACE TIP BEFORE ANY RE-AUDIT OR TRANSFER ----
   // A read-only refiner runs the task gate (and the task's Done when: command) at the ace tip. Only a
   // green gate lets the round proceed to its re-audit, so no approval — re-run or transferred — is ever
@@ -5564,7 +5593,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         diffFilesByTask.set(task.id, await probeDiff(task, probeBase, tip))
       }
 
-      let round = 0, verdict = null, seats = [], expected = 0, blocked = null, escalateReason = null, died = null, spent = false
+      // A seeded task starts at its carried fixRounds (D17); every other task starts at 0.
+      let round = task.seed ? spentOf(task.fixRounds) : 0, verdict = null, seats = [], expected = 0, blocked = null, escalateReason = null, died = null, spent = false
       const workerTests = impl && impl.tests ? impl.tests : null
       // D2: the worker's committed tip — the pin each audit seat's audit_sha must match
       let pin = impl && impl.head_sha
@@ -7262,7 +7292,10 @@ const tipWorktreeProvision = (provWhat, provWorktree, provBranch) =>
 // trailer `Late-Fix: <task id>:<n>` (n = the origin's fixRounds after this round's charge; no chain
 // clause), the origin roster re-audits the new sha, and on unanimous approve the refiner fast-forwards
 // the branch in _refinery after the gate and a check that every fast-forwarded commit carries the
-// origin's Late-Fix trailer (a bare commit returns conflict, so resume never meets it unexplained). Each round's re-audit Minor/Nit rows walk the shared
+// origin's Late-Fix trailer (a bare commit returns conflict, so resume never meets it unexplained; an
+// empty range returns conflict too, D14). The branch carries the run id (D13); merged siblings' files
+// join the fence (D18); an escalate seat stops the defect (D15); a tip that already fixes the row
+// resolves in one re-audit, uncharged (D42). Each round's re-audit Minor/Nit rows walk the shared
 // disposition ladder under the origin task's id (routeReauditMinors with noReentry, the merge-slot
 // precedent): an ask parks, a follow-up files, a note notes, a cosmetic or classless absorb rides the sweep and a behavior absorb carries or files (PIN-21), and
 // remintBlock corroborates a re-raise across rounds; routeGateAuditRows ran before this pass, so
@@ -7288,6 +7321,8 @@ const lateOriginOf = f => {
 // phase can mint a fresh seed under the same id.
 const carryTaskOf = t => t.seed ? t.seed.task : t.id
 let lateFixSeq = 0
+// D42: the blocked_reason prefix a late-fix worker returns when the tip already fixes its row.
+const LATE_FIX_AT_TIP = 'ALREADY-FIXED:'
 const lateFixPass = async () => {
   if (!lateFixQueue.length) return
   const holding = escalated.filter(e => e && HARD_ESCALATION_REASONS.includes(e.reason)).map(e => e.reason + ':' + e.task)
@@ -7308,7 +7343,12 @@ const lateFixPass = async () => {
     origin.fixRounds = spentOf(origin.fixRounds)
     const lfOriginId = origin.id
     const id = 'p' + ph.id + '-latefix-' + (++lateFixSeq)
-    const lfBranch = 'war/' + (planSlug || '<plan-slug>') + '/' + id
+    // D13 (#2661.1): the run id's first 8 characters scope the branch, so two launches of one phase
+    // never cut the same late-fix branch; the old form when runId is absent.
+    const runIdShort = runId ? String(runId).slice(0, 8) : null
+    const lfBranch = 'war/' + (planSlug || '<plan-slug>') + '/' + (runIdShort ? runIdShort + '/' : '') + id
+    // D18 (#2661.7): every merged sibling's owned files join the fence; the origin's own stay open.
+    const lfFence = [...new Set([...fence, ...tasks.filter(t => t !== origin && succeeded.has(t.id)).flatMap(t => Array.isArray(t.files) ? t.files : []).map(aceRelPath)])]
     const lfWorktree = (worktreeRoot || '<worktreeRoot>') + '/' + (runId || '<runId>') + '/' + id
     const lfTask = { id, issue: origin.issue, title: 'late fix for task ' + origin.id, branch: lfBranch, worktree: lfWorktree, roster: origin.roster, manifestTask: origin,
       planSlice: 'fix the late defect "' + (f.title ?? '') + '" of task ' + origin.id + ': ' + (f.suggested_fix ?? '') }
@@ -7322,7 +7362,10 @@ const lateFixPass = async () => {
     const lfRecord = [...liveTaskRecords].find(r => r.task === origin) || { task: origin }
     const lfNoReentry = 'born at the late-fix re-audit of ' + id + ' for task ' + origin.id + ' — past the wave side, so re-entry can never dispatch; the phase-close sweep is the vehicle'
     let stop = holding.length ? 'the phase already holds (' + holding.join(', ') + '), so the late-fix pass never ran' : null
-    let lfPrior = '', fixed = false, cut = false
+    let lfPrior = '', fixed = false, cut = false, atTipFixed = false
+    // D15 (#2661.3): an escalate seat stops the defect at that round; its reason rides the stop.
+    // The at-tip re-audit and the commit re-audit both read it here.
+    const lfEscStop = (seats, sha) => { const why = escalateReasonOf(seats); return why ? 'a late-fix re-audit seat escalated at ' + sha + ' (' + why + ')' : null }
     const lfCopies = []
     for (const s of lateSrcOf.get(f) || [f]) if (!lfCopies.some(c => c.rationale === s.rationale && c.suggested_fix === s.suggested_fix)) lfCopies.push(s)
     if (!stop && origin.fixRounds < roundLimit) {
@@ -7343,7 +7386,8 @@ const lateFixPass = async () => {
         + pt`Task ${lfOriginId}'s plan slice: ${origin.planSlice ?? '(no slice)'}\n`
         + FIX_ROUND_DOCTRINE_CLAUSE
         + FIX_ROUND_SCOPE_CLAUSE
-        + fixRoundFenceClause(fence)
+        + 'If the integrated tip already fixes the defect, make NO commit: return status blocked, blocked_reason starting ' + LATE_FIX_AT_TIP + ', and head_sha the unchanged tip (git rev-parse HEAD); the roster re-audits that tip.\n'
+        + fixRoundFenceClause(lfFence)
         + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(origin),
         { agentType: NS + 'war-worker', phase: 'Work', label: 'late-fix:' + lfOriginId + ':r' + lfRound, schema: WORKER_RESULT, ...spawnWorker('fix') })
       // each round charges the origin task's budget (PIN-8)
@@ -7354,6 +7398,31 @@ const lateFixPass = async () => {
       // A resolved null stops it the same way, labeled env-died (#2555 D11).
       const wDied = deathOf(w) || nullDied(w, 'late-fix:' + lfOriginId + ':r' + lfRound)
       if (wDied) { stop = 'the late-fix worker died (' + wDied + ')'; break }
+      // D42 (#2773): a no-commit reply that names the row fixed at the tip gets one re-audit of that
+      // tip. A git probe must show an empty range first. Approve drops the row, gives back this
+      // round's charge and records it on lateFixed (atTip); reject keeps the charged round.
+      const atTip = typeof blockedReason(w) === 'string' && blockedReason(w).startsWith(LATE_FIX_AT_TIP) && isSha(w.head_sha)
+      const tipDiff = atTip ? await probeDiff(lfTask, ph.integrationBranch, w.head_sha) : null
+      if (atTip && tipDiff && tipDiff.size === 0) {
+        const { seats: tSeats, expected: tExpected, died: tDied } = await auditRound(lfTask, null, null, w.head_sha)
+        const tipOk = !tDied && allApprove(tSeats, tExpected)
+        auditLog.push({ task: origin.id, verdict: tDied ? 'env-died' : tipOk ? 'late-fix:at-tip' : 'late-fix:rejected', lateFix: id, sha: w.head_sha, fixRounds: tipOk ? lfRound - 1 : lfRound,
+          findings: tSeats.flatMap(s => s.findings || []), requested: tExpected, returned: tSeats.length, ...(tDied ? { blocked: tDied } : {}) })
+        if (tDied) { stop = 'the late-fix re-audit died (' + tDied + ')'; break }
+        routeReauditMinors(lfRecord, tSeats, { noReentry: lfNoReentry, diff: diffFilesOf(origin) })
+        const tEsc = lfEscStop(tSeats, w.head_sha)
+        if (tEsc) { stop = tEsc; break }
+        if (tipOk) {
+          origin.fixRounds = lfRound - 1
+          atTipFixed = true
+          lateFixed.push({ id, srcs: lateSrcOf.get(f) || [f], atTip: true })
+          log('late-fix pass: "' + (f.title ?? '') + '" is already fixed at the tip ' + w.head_sha + ' — the re-audit approved; the row drops, no fixRounds charge (task ' + origin.id + ' fixRounds ' + origin.fixRounds + ', D42).')
+          break
+        }
+        lfPrior = 'round ' + lfRound + ' at ' + w.head_sha + ' — the worker said the tip already fixes it, and the re-audit did not approve: ' + blockingOf(tSeats).map(b => '[' + b.severity + '] ' + (b.title ?? '')).join('; ')
+        continue
+      }
+      if (atTip) log(id + ': the worker said the tip already fixes the row, but the probe ' + (tipDiff ? 'found ' + tipDiff.size + ' changed file(s)' : 'is absent') + ' — a charged round with no reviewable commit (D42).')
       const wWhy = blockedReason(w) || (isSha(w.head_sha) ? null : 'the worker reported no head_sha')
       if (wWhy) { lfPrior = 'round ' + lfRound + ' made no reviewable commit: ' + wWhy; continue }
       const { seats, expected, died } = await auditRound(lfTask, null, w.tests || null, w.head_sha)
@@ -7366,6 +7435,8 @@ const lateFixPass = async () => {
       const lfDiff = await probeDiff(lfTask, ph.integrationBranch, w.head_sha)
       if (!lfDiff) log(id + ': no late-fix probe, so task ' + origin.id + '\'s probe, if any, judges in-diff.')
       routeReauditMinors(lfRecord, seats, { noReentry: lfNoReentry, diff: lfDiff && new Set([...(diffFilesOf(origin) || []), ...lfDiff]) })
+      const lfEsc = lfEscStop(seats, w.head_sha)
+      if (lfEsc) { stop = lfEsc; break }
       if (!ok) {
         lfPrior = 'round ' + lfRound + ' at ' + w.head_sha + ' — the re-audit did not approve: ' + blockingOf(seats).map(b => '[' + b.severity + '] ' + (b.title ?? '') + (b.suggested_fix ? ' → ' + b.suggested_fix : '')).join('; ')
         continue
@@ -7377,7 +7448,7 @@ const lateFixPass = async () => {
         + reattachClause(refineryLandPath)
         + pt`  (a) REBASE in the LATE-FIX worktree: git -C ${lfWorktree} rebase ${ph.integrationBranch} (normally a no-op).\n`
         + PROVISION_RERUN_CLAUSE
-        + pt`  Before step (b), run git -C ${lfWorktree} log --format='%H %(trailers:key=Late-Fix,valueonly,separator=%x2C)' ${ph.integrationBranch}..${lfBranch}; if any line carries no ${lfOriginId}:<n> value, return conflict naming that commit and do not merge.\n`
+        + pt`  Before step (b), run git -C ${lfWorktree} log --format='%H %(trailers:key=Late-Fix,valueonly,separator=%x2C)' ${ph.integrationBranch}..${lfBranch}; if any line carries no ${lfOriginId}:<n> value, return conflict naming that commit and do not merge. If it prints no line at all, return conflict ("empty late-fix branch") and do not merge.\n`
         + pt`  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge --ff-only ${lfBranch}; if it is not a fast-forward, return conflict and do not merge. Push.\n`
         + pt`Run the gate (${plan.gate}) after the rebase in the late-fix worktree, with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Skip assert-test-in-diff.sh, assert-packaging-in-diff.sh and assert-done-when.sh (task-field-gated; the late-fix pseudo-task has no task fields). On gate failure return gate_failed (no classification); on conflict return conflict; never force.`
         + pt` Before step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${lfBranch} (BARE; exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }; exit 2 → status 'error') and assert-budget-raise-cited.sh ${ph.integrationBranch} ${lfBranch} (exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }; exit 2 → status 'error'); never merge on a non-zero exit.`
@@ -7400,6 +7471,7 @@ const lateFixPass = async () => {
       log('late-fix pass: FIXED "' + (f.title ?? '') + '" — ' + lfBranch + ' merged (task ' + origin.id + ' fixRounds ' + origin.fixRounds + ').')
       continue
     }
+    if (atTipFixed) continue
     const detail = 'late defect [' + f.severity + '] "' + (f.title ?? '') + '" (' + (f.seat ?? '?') + ') on task ' + origin.id + ' — '
       + (stop || 'the fix budget is spent (fixRounds ' + origin.fixRounds + ', run.roundLimit ' + roundLimit + ')' + (lfPrior ? '; last: ' + lfPrior : ''))
       + (cut ? '; ' + lfBranch + ' stays unmerged, the pre-fix tip lands' : '')
@@ -7531,6 +7603,16 @@ let polishStatus = 'skipped'
 // same map before it commits (a campaign- or task-owned file is refused there too). Both prompts
 // also render its keys as the fix-round fence (fixRoundFenceClause).
 const sweepExcl = new Map()
+// exclusionHit (D37, #2687): the sweep-time drain and the terminal filter split a hit by owner kind.
+// A task of this run ('task <id>') carries on carriedPhaseClose on a non-final phase, so the next
+// phase's sweep takes it; on the final phase it demotes. A campaign ('plan <slug>') hit demotes and
+// names the row's findingClass and autoFixable value, so the Lead's ruling reads the content.
+const exclusionHit = (f, owner, site, actor) => {
+  const file = aceRelPath(f.file)
+  if (owner.startsWith('task ') && !finalPhase) return carryPhaseClose(f, 'exclusion-set — ' + file + ' is owned by ' + owner + ' this phase; carried to the next phase\'s sweep')
+  demote(f, 'follow-up', 'demote:exclusion-set — ' + site + ': ' + file + ' is owned by ' + owner + ' this phase; ' + actor + ' never touches it'
+    + (owner.startsWith('plan ') ? ' (findingClass ' + (f.findingClass || 'unclassified') + ', autoFixable ' + (f.autoFixable === true) + ')' : ''))
+}
 if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
   // Carry arm (D3b, PIN-5 — replaces the ADR 0013 held-phase demotion): a held phase never
   // dispatches the sweep — the queue rides carriedPhaseClose for the relaunch and demotes NOTHING.
@@ -7575,7 +7657,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       if (owner === null) { kept.push(f); continue }
       queuedKeys.delete(remintKey(f))
       if (owner === 'the release slot') demote(f, 'follow-up', 'demote:release-slot — sweep exclusion set: ' + aceRelPath(f.file) + ' is owned by the release slot; the sweep never touches it')
-      else demote(f, 'follow-up', 'demote:exclusion-set — sweep exclusion set: ' + aceRelPath(f.file) + ' is owned by ' + owner + ' this phase; the sweep never touches it')
+      else exclusionHit(f, owner, 'sweep exclusion set', 'the sweep')
     }
     phaseCloseQueue.push(...kept)
   }
@@ -7694,14 +7776,16 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     let sweepMinors = []
     // Polish-panel seat death (D21, PIN-25): the sweep is discarded with the site-named cause (the
     // drain-cause stamp below carries it) — never a panel rejection, never a hold.
-    let sweepPanelDeath = null
+    let sweepPanelDeath = null, sweepEscalate = null
     if (!sweepWhy) {
       // Corrective round 1 by definition (PIN-5): the sweep panel threads no round, so no seat carries a backward-chain clause.
       const { seats: pSeats, expected: pExpected, died: pDied } = await auditRound(polishTask, null, sweep && sweep.tests ? sweep.tests : null, sweep && sweep.head_sha, citationSoundnessClause(phaseCloseQueue))
       sweepPanelDeath = pDied
       sweepApproved = allApprove(pSeats, pExpected)
       sweepMinors = minorsOf(pSeats).map(f => ({ task: polishTask.id, ...f }))
-      auditLog.push({ task: polishTask.id, verdict: pDied ? 'env-died' : sweepApproved ? 'approve' : 'polish-rejected', findings: pSeats.flatMap(s => s.findings || []), requested: pExpected, returned: pSeats.length, ...(pDied ? { blocked: pDied } : {}) })
+      // D15 (#2661.3): an escalate seat's reason rides the polish-rejected row and the discard log.
+      sweepEscalate = escalateReasonOf(pSeats)
+      auditLog.push({ task: polishTask.id, verdict: pDied ? 'env-died' : sweepApproved ? 'approve' : 'polish-rejected', findings: pSeats.flatMap(s => s.findings || []), requested: pExpected, returned: pSeats.length, ...(pDied ? { blocked: pDied } : {}), ...(sweepEscalate ? { escalate_reason: sweepEscalate } : {}) })
       // Behavior rows (late-defects D21, PIN-21): a polish-panel behavior row that is not an explicit ask
       // or follow-up was raised after the late-fix pass, so it leaves both arms below — carriedTasks
       // (non-final) or filed (final), or a parked ask with no fix on a named file (#2624). An ask still parks and a follow-up still files on those arms; a
@@ -7750,12 +7834,11 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // file the sweep never touched is NOT recorded aced — it joins the terminal queue instead
       // (the recordAcedTouched touched-file rule, ADAPTED — its `every`/subset gate would be vacuous
       // here because the sweep legitimately touches files outside the queue footprint, so this one
-      // intersects with `some`). An absent/empty report keeps the ruling.
-      const sweepTouched = new Set((Array.isArray(sweep.ace_diff_files) && sweep.ace_diff_files.length ? sweep.ace_diff_files : (Array.isArray(sweep.files_changed) ? sweep.files_changed : [])).map(aceRelPath).filter(p => typeof p === 'string' && p.length > 0))
-      const queueFootprint = new Set(phaseCloseQueue.map(f => aceRelPath(f.file)).filter(p => typeof p === 'string' && p.length > 0))
-      const sweepOverlap = sweepTouched.size > 0 && [...sweepTouched].some(p => queueFootprint.has(p))
+      // intersects with `some`). An absent/empty report keeps the ruling. unlandedBy is the one rule
+      // (the sweepTouched rule), shared with the terminal merged arm (D38).
+      const sweepMissed = unlandedBy(sweep, phaseCloseQueue)
       for (const f of phaseCloseQueue.splice(0)) {
-        if (sweepOverlap && typeof f.file === 'string' && f.file && !sweepTouched.has(aceRelPath(f.file))) {
+        if (sweepMissed(f)) {
           log('terminal pass: queued absorb "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — the sweep commit at ' + polishSha + ' never touched ' + aceRelPath(f.file) + '; not recorded aced, it joins the terminal queue.')
           terminalQueue.push(f)
           continue
@@ -7809,7 +7892,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           // pass consults the same phase-scoped map — a campaign- or task-owned file is refused here.
           const owner = sweepExcl.get(aceRelPath(f.file))
           log('terminal pass: REFUSED "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — ' + aceRelPath(f.file) + ' is owned by ' + owner + ' this phase (sweep exclusion set, PIN-3); never committed by the pass.')
-          demote(f, 'follow-up', 'demote:exclusion-set — terminal pass: ' + aceRelPath(f.file) + ' is owned by ' + owner + ' this phase; the pass never touches it')
+          exclusionHit(f, owner, 'terminal pass', 'the pass')
         }
         else terminalRows.push(f)
       }
@@ -7854,9 +7937,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           // citationStamp (#1873-class): a citation absorb the sweep never touched rides this pass, so
           // the terminal commit message carries the same stamp its recordAced arm records below.
           + terminalRows.map(queuedFindingRow).join('\n') + pt`\n`
-          // No ace_diff_files clause here: the terminal arm has no consumer for it (the merged arm
-          // records every terminalRow aced on the one seat's re-approval; the sweep arm's sweepTouched
-          // is the only landed-row check) — a prompt never asks for a field nothing reads.
+          // D38 (#2691): the merged arm reads ace_diff_files through unlandedBy, as the sweep arm does.
+          + ACE_DIFF_FILES_CLAUSE + pt`\n`
           // Backward chain (PIN-6): the terminal pass carries the fixer block at corrective round 1 by definition.
           + chainFixClause(polishTask, correctiveRoundOf('terminal', polishTask), 'terminal pass', [])
           + FIX_ROUND_DOCTRINE_CLAUSE
@@ -7956,10 +8038,23 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
             // a dead terminal merge (D21) names its site here
             const tmrWhy = deathOf(tmr) || (tmr && tmr.status) || 'no result'
             if (tmr && tmr.status === 'merged') {
-              log('terminal pass: phase ' + ph.id + ' MERGED at ' + terminalSha + ' — the land proceeds on the terminal tip; ' + terminalRows.length + ' absorb(s) recorded aced.')
+              log('terminal pass: phase ' + ph.id + ' MERGED at ' + terminalSha + ' — the land proceeds on the terminal tip; ' + terminalRows.length + ' absorb(s) on the terminal queue.')
               sweepDebtLog('terminal pass merge:p' + ph.id + '-terminal', tmr)
-              // #1873-class: the terminal path keeps the citation stamp too
-              for (const f of terminalRows) recordAced(f, terminalSha, { terminal: true, ...citationExtra(f) })
+              // D38 (#2691): the sweep's landed-row rule (unlandedBy). A row whose file the terminal commit
+              // never touched, when its report overlaps the footprint, is not recorded aced: it carries on a
+              // non-final phase and demotes demote:terminal-pass on the final one. No report ⇒ every row aced.
+              const terminalMissed = unlandedBy(tw, terminalRows)
+              for (const f of terminalRows) {
+                if (terminalMissed(f)) {
+                  const why = 'the terminal commit never touched ' + aceRelPath(f.file)
+                  log('terminal pass: "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — ' + why + ' at ' + terminalSha + '; not recorded aced, it ' + (finalPhase ? 'demotes' : 'carries') + '.')
+                  if (!finalPhase) carryPhaseClose(f, 'carried from phase ' + ph.id + ' terminal pass (' + why + ' at ' + terminalSha + ')')
+                  else demote(f, 'follow-up', 'demote:terminal-pass — ' + why + ' (at ' + terminalSha + ') on the final phase; no later round')
+                  continue
+                }
+                // #1873-class: the terminal path keeps the citation stamp too
+                recordAced(f, terminalSha, { terminal: true, ...citationExtra(f) })
+              }
             } else {
               log('terminal pass: phase ' + ph.id + ' — the terminal commit ' + terminalSha + ' did not merge (' + tmrWhy + '); left on ' + polishBranch + ' unmerged (reaping is a human act); the pass is spent — ' + (finalPhase ? 'rows demote' : 'rows carry') + '.')
               // A red gate on the terminal range reverts the whole range too (#2485 D3).
@@ -7990,7 +8085,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       const pmrDeath = deathOf(pmr)
       // a dead polish merge (D21) names its site here
       const pmrStatus = pmrDeath || (pmr && pmr.status) || 'no result'
-      log(`phase-close sweep DISCARDED (${sweepWhy || (sweepPanelDeath || (sweepApproved ? `polish merge returned ${pmrStatus}` : 'the panel did not re-approve'))}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue ${(finalPhase || sweepApproved) ? 'demotes to follow-up' : 'carries on carriedPhaseClose'}${sweepApproved ? ' (the panel approved the branch)' : ''}.`)
+      log(`phase-close sweep DISCARDED (${sweepWhy || (sweepPanelDeath || (sweepApproved ? `polish merge returned ${pmrStatus}` : 'the panel did not re-approve' + (sweepEscalate ? ': escalate — ' + sweepEscalate : '')))}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue ${(finalPhase || sweepApproved) ? 'demotes to follow-up' : 'carries on carriedPhaseClose'}${sweepApproved ? ' (the panel approved the branch)' : ''}.`)
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
       // Dispatch-death drains stamp the drain cause (d): the env-died throw (sweepDeath), a dead
       // dispatch that returned nothing, a dead panel seat or a dead polish merge (pmrDeath); a live
@@ -8408,6 +8503,10 @@ if (wrapUpDecision && memoryLocalRoot) {
 // element shape at every read: array-normalize the container, drop non-object elements. Hoisted
 // above BOTH consumer blocks (the filing block's braces close before the handoff assembly opens).
 const mergedRowsOf = m => (Array.isArray(m.merged) ? m.merged : []).filter(x => x && typeof x === 'object')
+// wordingDiffers: two rows differ in title (under normTitle) or in trimmed rationale. The stamp-time
+// unfold and the pre-filing collapse both read it, so a VERIFY FIRST row never decides for a row
+// whose wording the filer did not judge.
+const wordingDiffers = (a, b) => normTitle(a.title) !== normTitle(b.title) || String(a.rationale ?? '').trim() !== String(b.rationale ?? '').trim()
 // findingClassOf (ADR 0058 floor, D26 fix round): the `findingClass` key of a filed row or a merged[] row, as a
 // spreadable object — present only for a FINDING_CLASSES member. The pre-filing collapse and the handoff
 // followUps projection both spread it, so a `behavior` row folded under another row keeps its class on
@@ -8460,6 +8559,24 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       if (set instanceof Set && set.has(aceRelPath(m.file))) { m.siblingTouch = { task, sha }; break }
     }
   }
+  // Unfold at the stamp (operator ruling 2026-11-10): a stamped row can already carry merged[] rows
+  // (a D25 near re-mint writes them at intake). The filer judges only the row's own rationale, so
+  // each merged[] row whose wording differs leaves merged[] and becomes its own row, with its own
+  // VERIFY FIRST line. The D4 reconcile above differs: it decides by file and line window, which a
+  // merged[] row shares with its row.
+  const unfolded = []
+  for (const m of minorsFiled) {
+    unfolded.push(m)
+    const own = m.siblingTouch ? mergedRowsOf(m).filter(x => wordingDiffers(m, x)) : []
+    if (!own.length) continue
+    m.merged = mergedRowsOf(m).filter(x => !own.includes(x))
+    for (const { seat: ref, ...x } of own) {
+      const { merged: _rest, suggested_fix: _fix, ...rep } = m
+      unfolded.push({ ...rep, ...x, seats: ref ? [ref] : seatsListOf(m) })
+      log('file-followups: "' + (x.title ?? '(untitled finding)') + '" (task ' + m.task + ', ' + m.file + ') leaves the merged[] list of the VERIFY FIRST row "' + (m.title ?? '(untitled finding)') + '": its title or rationale differs, so it keeps its own route.')
+    }
+  }
+  minorsFiled.splice(0, minorsFiled.length, ...unfolded)
 }
 if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDecision === 'held:land-failed') && minorsFiled.length > 0) {
   // ---- FOLLOW-UP CONSOLIDATION (Task 2.1, #1566; D8 seat discrimination + merged[] fidelity, Phase 5
@@ -8493,6 +8610,15 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       && (Number.isFinite(c.line) && Number.isFinite(f.line)
         ? Math.abs(c.line - f.line) <= FOLLOWUP_LINE_WINDOW
         : c.line == null && f.line == null && normTitle(c.title) === normTitle(f.title))) : null
+    // Unfold (operator ruling 2026-11-10, phase 3): a siblingTouch representative can leave the fix
+    // route through verified_fixed, and the filer judges only its own rationale. So a row whose title
+    // or rationale differs from it stays its own row, keeps its own VERIFY FIRST line, and files
+    // unless the filer verifies it too. It never becomes a note by association.
+    if (hit && hit.siblingTouch && wordingDiffers(hit, f)) {
+      log('file-followups consolidation: "' + (f.title ?? '(untitled finding)') + '" (task ' + f.task + ', ' + f.file + ') is NOT merged into the VERIFY FIRST row "' + (hit.title ?? '(untitled finding)') + '": its title or rationale differs, so it keeps its own route.')
+      collapsed.push(f)
+      continue
+    }
     if (hit) {
       // the shared seats-list merge (snipe: simplicity) — never a hand copy here
       mergeSeat(hit, f)
