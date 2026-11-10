@@ -20832,8 +20832,8 @@ test('file-followups: a VERIFY FIRST row unfolds the merged[] rows it carried be
   // t1's batch row regresses and files. Then t1's post-merge gate-audit seat raises `reword` one line
   // away: a D25 near re-mint, so the engine writes it onto the filed row's merged[] list at intake,
   // before the stamp and the collapse. The filer verifies only row 1.
-  const run = (reword, filing, source) => {
-    const base = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [T31_REGRESSED]), T31_MAJOR] }, p4Base({ seatsOf: l => l.startsWith('gate-audit:t1') ? { seat: l, lens: 'execution-evidence', verdict: 'approve', findings: [reword], confidence: 'high', audit_sha: 'beefcafe12' } : null }))
+  const run = (reword, filing, source, rep = T31_REGRESSED) => {
+    const base = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [rep]), T31_MAJOR] }, p4Base({ seatsOf: l => l.startsWith('gate-audit:t1') ? { seat: l, lens: 'execution-evidence', verdict: 'approve', findings: [reword], confidence: 'high', audit_sha: 'beefcafe12' } : null }))
     return runPhase(T31_TWO(), (p, o) => o.dispatchKind === 'file-followups' ? filing : base(p, o),
       { 'diff-probe': (p, o) => o.label === 'diff-probe:t2' ? { diff_files: ['skills/war/assets/x.js'] } : NEW_SEAT_DEFAULTS['diff-probe'] }, source)
   }
@@ -20860,6 +20860,39 @@ test('file-followups: a VERIFY FIRST row unfolds the merged[] rows it carried be
   assert.ok(kept && kept.issue === 502 && kept.merged === undefined, 'it files as its own row')
   assert.ok(kept.line === 11 && kept.seat === undefined, 'it carries its own line, never the representative\'s line or raw seat')
   assert.ok(t31Logged(logs, '"stale cache read"', 'leaves the merged[] list of the VERIFY FIRST row "regressed row"'), 'the unfold is logged')
+  // Arm 1b: the representative and the raiser differ in class and severity, and the representative
+  // carries a drain cause. A seat-supplied drainCause is stripped at intake (normalizeFinding), so the
+  // DRAINED transform stamps one onto the representative just before the stamp-time unfold.
+  const UNFOLD_LOOP = 'for (const m of minorsFiled) {\n    unfolded.push(m)'
+  assert.ok(src.includes(UNFOLD_LOOP), 'the drain-cause seam is the live unfold loop')
+  const DC = { dispatch: 'polish:phase-1', why: 'env-died — 529 Overloaded' }
+  const DRAINED = s => s.replace(UNFOLD_LOOP, 'for (const m of minorsFiled) {\n    if (m.title === ' + JSON.stringify(T31_REGRESSED.title) + ') m.drainCause = ' + JSON.stringify(DC) + '\n    unfolded.push(m)')
+  const repC = nit({ title: T31_REGRESSED.title, line: 10, findingClass: 'cosmetic' })
+  const raiser = nit({ title: 'stale cache read', line: 11, severity: 'Minor', findingClass: 'behavior', rationale: other.rationale })
+  const classed = (source = src) => run(raiser, SPLIT, DRAINED(source), repC)
+  const rc = await classed()
+  const rowOf = res => demotionOf(res.out, raiser.title)
+  const r1 = rowOf(rc)
+  assert.ok(r1 && r1.issue === 502, 'presence guard: the classed raiser unfolds and files')
+  assert.ok(repNote(rc.out).length === 1 && repNote(rc.out)[0].findingClass === 'cosmetic' && repNote(rc.out)[0].drainCause && repNote(rc.out)[0].drainCause.dispatch === DC.dispatch, 'presence guard: the representative keeps its own class and drain cause')
+  assert.equal(r1.findingClass, 'behavior', 'the unfolded row carries the raiser\'s findingClass, never the representative\'s')
+  assert.equal(r1.severity, 'Minor', 'the unfolded row carries the raiser\'s severity, never the representative\'s')
+  assert.equal(r1.drainCause, undefined, 'the unfolded row carries no drainCause')
+  const rendered = res => rowsOf(res.calls)
+  assert.ok(rendered(rc)[0].includes(' · drain cause: polish:phase-1 died — '), 'presence guard: the representative\'s rendered row has its drain cause cell')
+  assert.ok(rendered(rc)[1].includes('title: "stale cache read"') && !rendered(rc)[1].includes('drain cause:'), 'the unfolded row\'s rendered filing row has no drain cause cell')
+  // Red without the fix: the D25 merged[] entry drops its class or severity, or the unfold keeps drainCause.
+  const FC_SPREAD = ", ...(FINDING_CLASSES.includes(f.findingClass) ? { findingClass: f.findingClass } : {}) })"
+  assert.ok(src.includes(FC_SPREAD), 'the mutation target is the live findingClass spread on the D25 merged.push')
+  assert.notEqual(rowOf(await classed(src.replace(FC_SPREAD, ' })'))).findingClass, 'behavior', 'the class mutant loses the raiser\'s findingClass')
+  const SEV_SPREAD = ", ...(f.severity ? { severity: f.severity } : {})"
+  assert.ok(src.includes(SEV_SPREAD), 'the mutation target is the live severity spread on the D25 merged.push')
+  assert.equal(rowOf(await classed(src.replace(SEV_SPREAD, ''))).severity, 'Nit', 'the severity mutant takes the representative\'s severity')
+  const DC_STRIP = 'findingClass: _fc, drainCause: _dc, ...rep } = m'
+  assert.ok(src.includes(DC_STRIP), 'the mutation target is the live drainCause strip in the unfold')
+  const dcMutant = await classed(src.replace(DC_STRIP, 'findingClass: _fc, ...rep } = m'))
+  assert.ok(rowOf(dcMutant).drainCause && rowOf(dcMutant).drainCause.dispatch === DC.dispatch, 'the strip mutant carries the representative\'s drainCause onto the unfolded row')
+  assert.ok(rendered(dcMutant)[1].includes('drain cause:'), 'and its rendered filing row shows the drain cause cell')
   // Arm 2: the same title under normTitle and a different rationale still unfolds.
   const sameTitle = nit({ title: 'Regressed row!', line: 11, rationale: 'a second defect: the cache is read before the refresh' })
   const r2 = await run(sameTitle, SPLIT)
