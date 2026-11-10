@@ -22,18 +22,16 @@ metadata:
 
 # Red-team adjudication is the authoritative version source when it overrides the plan body
 
-**What happened (audit-fidelity Phase 3 / Task 4):** the plan drafted "Bump to v0.7.0"; the red-team report (docs/red-team/2026-06-25-audit-fidelity.md, Version adjudication row) adjudicated it down to v0.6.5 over the stacked v0.6.4 base; the task instruction confirmed v0.6.5 and the worker bumped to v0.6.5 — rated plan-faithful. (The plan's Task 4 Step 1 literal has since been patched to v0.6.5; only its "Baseline-drift" note records the v0.7.0 draft.)
+**Status.** The rule is now standing doctrine: the Version-precedence rule in `agents/war-auditor.md`. This lesson is its origin story.
 
-## Why a stale plan literal is a Nit, not a defect
-
-The plan body's stale literal is documentation drift, not a work error. The auditor should:
-1. Locate the red-team report for the same plan slug.
-2. Check for version override language ("patch over", "v0.X.Y as base", "adjudicated to").
-3. If the worker matches the adjudicated (not literal) version, mark as Nit only.
-4. If the worker matches neither the literal NOR the adjudication, escalate as a defect.
+**What happened.** In audit-fidelity phase 3, the plan said "Bump to v0.7.0". The red-team report (`docs/red-team/2026-06-25-audit-fidelity.md`, Version adjudication row) cut it to v0.6.5 over the stacked v0.6.4 base, and the worker bumped to v0.6.5. That was plan-faithful.
 
 ## Durable rule
 
-**In a stacked-release pipeline: plan literal < red-team adjudication < task instruction.** A worker following the task instruction (or red-team adjudication) rather than the plan body's hardcoded version string is correct. Auditors must consult `docs/red-team/<plan-slug>.md` before scoring version mismatches as defects.
+**In a stacked-release pipeline: plan literal < red-team adjudication < task instruction.**
+A stale plan literal is documentation drift, a Nit at most.
+Before scoring a version mismatch as a defect, read `docs/red-team/<plan-slug>.md` for override language ("patch over", "adjudicated to").
+A worker that matches the adjudicated version is correct.
+A worker that matches neither the literal nor the adjudication is a defect.
 
-See also [[stacked-release-plan-version-literal-lags-operator-target]] for the general case where only the task instruction differs (no red-team intermediate). This note covers the three-level chain.
+See also [[stacked-release-plan-version-literal-lags-operator-target]] for the case where only the task instruction differs. Related: [[release-status-is-replace-slot-not-empty-field]], [[release-bump-slots-canonical-no-badge]].

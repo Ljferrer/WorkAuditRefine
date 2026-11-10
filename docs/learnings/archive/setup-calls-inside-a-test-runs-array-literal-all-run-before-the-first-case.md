@@ -40,3 +40,5 @@ How to avoid it:
 - Apply the delete-the-feature test: if the assertion still passes with the feature removed, it is vacuous.
 
 Related: [[weak-test-assertion-passes-without-feature-being-exercised]].
+
+> archived 2026-11-10: merged into [[weak-test-assertion-passes-without-feature-being-exercised]] — moved to archive

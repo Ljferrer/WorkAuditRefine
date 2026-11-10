@@ -40,7 +40,7 @@ metadata:
 **What stayed stale.** The cascading-impact seat found three prose lists that name the tiers. No test
 reads them.
 
-1. `docs/adr/0050-preset-tiers-order-by-model-capability.md`: the Decision tier list ("eight tiers")
+1. `docs/adr/0050-preset-tiers-order-by-model-capability.md`: the Decision tier list
    and the economy paragraph's inherit list.
 2. `README.md`: the sentence that says which tiers `thorough` pins and which tiers `economy` leaves out.
 3. `skills/war/references/design.md`: the clause that says which tiers `agentMatrix()` and
@@ -54,14 +54,15 @@ tip.
 
 **How to apply.** When you add a tier, grep the name of the previous tier (for example `snipe`) across
 `README.md`, `docs/adr/0050-preset-tiers-order-by-model-capability.md`,
-`skills/war/references/design.md` and `skills/war-room/SKILL.md`. Also grep for a snapshot count word
-such as "eight tiers". The README preset sentence and the ADR sit under a de-mirror row that bans model
-and effort words, so name the tier and nothing else.
+`skills/war/references/design.md` and `skills/war-room/SKILL.md`. Also grep for any tier count word.
+The README preset sentence and the ADR sit under a de-mirror row that bans model and effort words, so
+name the tier and nothing else.
 
 **Locate-cue (verify still present before acting).** ADR 0050 Decision list (search `refiner recovery`),
-`README.md` (search `and the trial tier`), `skills/war/references/design.md` (search `enumerated by
-neither helper`). Grounded at the phase-1 integration tip via the run-scoped `_refinery` worktree
-(rung 2). The stale instances were resolved before land, so this is a checklist, not a live defect.
+the `README.md` presets paragraph that begins "The three presets move the whole profile at once" (search
+`the trial tier`), and `skills/war/references/design.md` (search `enumerated by neither helper`; that
+clause now also names the helper tier and `SKILL_SEATS`). The stale instances were resolved before land,
+so this is a checklist, not a live defect.
 
 Related: [[new-run-config-knob-needs-war-room-whitelist-touch]],
 [[default-flip-must-audit-all-doc-surfaces]].

@@ -61,3 +61,5 @@ It did not cover a lost exit code after a full success. Plan 2026-11-08 D2 (#265
 Locate cue: verify still present before acting. Found the phantom and already-landed arms in `cmd_land_advance` (`skills/war/assets/provision-worktrees.sh`) at landed tip `280aaa82`, read through the run's `_refinery` worktree. Re-verified `landConfirmArm` in `skills/war/assets/workflow-template.js` and the Land confirm paragraph in `skills/war/references/refiner-recovery.md` at landed tip f8ea3b11 (plan 2026-11-08 phase 1). This local copy was synced to the repo copy that late-fix 7aed5190 wrote.
 
 Related: [[land-local-follower-ref-can-lag-sync-before-next-phase]], [[land-advance-push-first-cas-rejected-token]], [[reland-loop-contender-less-transient-vs-real-divergence]], [[an-in-run-repo-lesson-edit-leaves-the-same-slug-local-copy-stale]].
+
+> archived 2026-11-10: resolved: the gap is fixed in the engine and doctrine — moved to archive

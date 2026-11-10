@@ -56,3 +56,5 @@ Absence note: referent not found @ phase 2 landed tip fc9cb08c. `agents/war-work
 Verify the rule is present before you rely on it.
 
 Related: [[fix-round-uncommitted-leftover-is-stashed-by-pin-transfer-and-never-lands]] (the refiner-side path to the same shared stash), [[audit-tree-fingerprint-d8-row-can-red-under-gate-load-and-discard-a-docs-only-polish]] (the load that made the gate slow).
+
+> archived 2026-11-10: resolved: the gap is fixed in the engine and doctrine — moved to archive

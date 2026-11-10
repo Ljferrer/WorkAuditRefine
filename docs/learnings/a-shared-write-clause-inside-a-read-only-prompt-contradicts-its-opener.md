@@ -37,8 +37,8 @@ A refiner that obeys the opener literally can skip the re-run.
 It then gates an unprovisioned tree, which is the exact risk the clause exists to close.
 Three audit seats raised it in round 1, and a fix round reworded the opener before land.
 
-**At the landed tip.** The `aceGateGreen` prompt in `skills/war/assets/workflow-template.js` now says "change nothing beyond the provision re-run and its restore".
-A grep for `READ-ONLY:` across `skills/` and `agents/` found only this one site at the pin.
+**At the landed tip.** The `aceGateGreen` prompt in `skills/war/assets/workflow-template.js` now says "change nothing beyond the provision re-run, its restore and the git-excluded gate log".
+At tip 426c70a8, a grep for `READ-ONLY:` openers across `skills/` and `agents/` found only this one site; that is a point-in-time count, not a guarantee.
 
 **How to apply.** If you interpolate a shared clause into a new prompt, read that prompt's opener and any restriction sentence.
 If the clause orders a write the opener forbids, name the clause as the exception in the opener.

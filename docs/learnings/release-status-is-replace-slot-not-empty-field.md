@@ -1,6 +1,6 @@
 ---
 name: release-status-is-replace-slot-not-empty-field
-description: "README ## Status = replace-in-place, never empty — and the discipline scopes the whole…"
+description: "README ## Status = replace-in-place, never empty; diff the whole section, not one paragraph"
 metadata: 
   node_type: memory
   slug: release-status-is-replace-slot-not-empty-field
@@ -45,64 +45,12 @@ metadata:
 
 # README `## Status` is a replace-in-place release slot, not an empty field
 
-**Local recurrence copy** of the repo-root lesson at `docs/learnings/release-status-is-replace-slot-not-empty-field.md`
-(same slug) — the repo copy carries no nested `metadata.provenance` (it predates the
-provenance-tagging discipline), which makes it user-authored/untagged and not directly editable by
-a servitor (D1); this file carries the original content plus the new recurrence below, and a future
-Gate-2 promotion of this file overwrites the same-slug repo file.
+**Rule.** `README.md ## Status` holds exactly one current-release paragraph. The release operation is always "overwrite the whole paragraph with the new version's note", never append below and never treat it as a blank to fill. The slot is always non-empty after the first release, so a plan slice saying "populate an EMPTY Status" is wrong on every later release.
 
-Durable rule: `README.md ## Status` holds exactly ONE current-release paragraph. The correct
-release operation is always "overwrite the whole paragraph with the new version's note" —
-never append below, never treat as a blank to fill. The slot is *always* non-empty by the
-next release, so a plan slice saying "populate an EMPTY Status" is factually wrong on every
-release after the first (first observed in the 0.5.0 release; practiced correctly in every
-release since).
+**Why:** a "populate empty" framing hands the worker a false premise, and a mirrored-slot overwrite silently replaces a real prior value. Verify the baseline yourself instead of trusting the "empty" wording.
 
-**Why:** a "populate empty" framing hands the worker a false premise, and a mirrored-slot
-overwrite silently replaces a real prior value — verify the baseline yourself instead of
-trusting the "empty" wording.
-**How to apply:** for any single-current-value slot (Status paragraph, version string, a
-"latest" pointer), read plan text saying "populate" as **"replace and verify baseline"**.
-Full slot enumeration lives in [[release-bump-slots-canonical-no-badge]].
+**How to apply:** for any single-current-value slot (Status paragraph, version string, a "latest" pointer), read plan text saying "populate" as **"replace and verify baseline"**. Full slot enumeration lives in [[release-bump-slots-canonical-no-badge]].
 
-## Recurrence 1 (2026-08-18, plan `2026-08-06-references-pointer-integrity`, phase 2 "Release",
-task #1544, epic #1529) — the replace-in-place discipline scopes the whole SECTION (headline
-paragraph + its `- **…**` bullet list), not the paragraph alone, and a half-replacement can
-self-contradict its own new headline
+**Recurrence 1 (2026-08-18, task #1544, fixed before land in `e68ee16`).** A release worker replaced only the Status headline and left the prior release's bullet list under it, and one stale bullet contradicted the new headline. No check caught it, only the Lead reading the diff. README Status no longer carries a bullet block, but the generic rule stands: diff the whole `## Status` region (heading through the next `## `), not just the paragraph you touched.
 
-A new sub-mechanism: the release-0.17.13 worker swapped only the `## Status` headline paragraph
-and left the PRIOR release's four `- **…**` bullets in place beneath the new version heading.
-Primary evidence (Lead's own read): `git diff e45a460 9b5f1bf -- README.md` was exactly 1
-insertion / 1 deletion — a headline-only swap, structurally incapable of having touched the
-bullet block at all. Consequences: (a) the prior release's bullet body survived under the new
-version heading — a replace-in-place violation at *section* granularity, even though the
-paragraph itself was correctly replaced; (b) a self-contradiction inside one section — a
-surviving stale bullet asserted "This sentence-pair is the release's only production-behavior
-change" while the new headline claimed zero production-behavior change for the current release.
-Caught by the Lead reading the one-line diff by hand, not by any check, End state, gate, or
-suite — **no mechanical backstop in this repo reads README's bullet block at all**, the same
-underlying coverage gap [[readme-markdown-links-excluded-from-reference-link-integrity-sweep]]
-records for README's links (README sits outside every mechanical sweep). Fixed by a follow-up
-commit (`e68ee16`) before land.
-
-**Verification note (landed-tip grounding):** this servitor's cwd is the main checkout on
-`master`, at a different, already-merged plan's tip (release 0.17.11); the
-`dev/2026-08-06-references-pointer-integrity` branch this fact landed on has no live worktree
-(`.git/worktrees/` is empty in this checkout) and no ref present (absent from both
-`refs/heads/` and `packed-refs`) — landed-tip-grounding rungs 1-3 all fail, and rung 3 is a dead
-end with no Bash available to check it out. This recurrence is recorded per the Lead's report
-(diff stat + commit SHAs), not independently re-derived by this servitor. Because the defect was
-already fixed in a follow-up commit before land, it is recorded here as a **generic pattern**,
-not as a currently-live instance of the README diff — never cite `e45a460..9b5f1bf` as a
-present-tense defect.
-
-**Sharpened rule:** when auditing or authoring a release `## Status` edit, diff the WHOLE
-`## Status` region (from the heading through the next `## `), not just the paragraph you
-intentionally touched — a worker can correctly rewrite the headline while a line-scoped diff (or
-a skimming author) never notices the old bullets rode along untouched beneath it, and stale
-bullets from a prior release can directly contradict the new headline's own claim.
-
-Related: [[release-blurb-overstates-guard-semantics]] (sibling blurb-prose family — precision of
-a claim within the paragraph, not stale-content survival across the whole section);
-[[audit-log-finding-can-be-stale-by-land-time]] (same "fixed before land" evidentiary shape —
-record the pattern, not the resolved instance).
+Related: [[release-blurb-overstates-guard-semantics]] (precision of a claim within the paragraph); [[audit-log-finding-can-be-stale-by-land-time]] (same "fixed before land" shape — record the pattern, not the resolved instance); [[readme-markdown-links-excluded-from-reference-link-integrity-sweep]] (README sits outside the mechanical sweeps); [[retire-token-needs-clean-surface-gate-test]].

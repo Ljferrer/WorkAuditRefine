@@ -46,14 +46,14 @@ passes to the script.
 
 ## Why it matters / the gotcha
 
-- This is the **intended** pattern for any value the template can't compute statically — defer to
-  the agent, don't fake it. Reach for it when adding new script-invoking prompts.
-- The current code threads it through a shell var (`"$TIP"`, captured in step 3) sitting next to
-  fully-resolved absolute paths (`${t.worktree}`, `${t.branch}`). This works because the prompt
-  explicitly tells the agent to set `TIP` first. The earlier bare-angle-bracket form
-  (`<integration-tip>`) was ambiguous — a placeholder adrift among resolved values risks the agent
-  passing the literal string. If you add such a deferred value, phrase the per-task line to
-  reference a named, agent-captured token (a `$VAR` set in an earlier step), never a bare
-  angle-bracket placeholder.
-- Corollary: the per-phase **gate** is likewise a shell command run *by agents*, never by this
-  script — same no-shell constraint.
+- This is the intended pattern for any value the template cannot compute statically: defer to
+  the agent, never fake it. Never use a bare angle-bracket placeholder (`<integration-tip>`) among
+  resolved values; the agent can pass the literal string.
+- Caveat: an agent shell does not carry a variable across Bash calls (#2038, the comment above
+  `ABSORB_CHARGE_READ`). An unset `$TIP` can resolve to a plausible wrong value. Prefer an inline
+  `$(git ... rev-parse ...)` in the command itself, as `tipWorktreeProvision` does, or one bash call
+  that sets and uses the variable. Name the integration branch literally.
+- Corollary: the per-phase gate is likewise a shell command run by agents, never by this script.
+
+Locate-cue: `const ensures` in the Provision barrier and `const tipWorktreeProvision` in
+`skills/war/assets/workflow-template.js`.

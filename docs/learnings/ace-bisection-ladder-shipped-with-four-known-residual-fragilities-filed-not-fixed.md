@@ -1,6 +1,6 @@
 ---
 name: ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed
-description: "Before touching `aceBisect`, read its filed issues: the ladder shipped with follow-up-routed fragilities and some stay open."
+description: "RESOLVED: every filed aceBisect fragility is closed; check its issues before touching it, and trailers stay log-only"
 metadata: 
   promoted: dev/2026-08-19-realized-absorb-rate@phase-1
   node_type: memory
@@ -39,42 +39,13 @@ metadata:
   modified: 2026-08-26T22:42:10.252Z
 ---
 
-# The `aceBisect` ladder shipped with filed-not-fixed fragilities; check what is still open before touching it
+# The `aceBisect` ladder shipped with filed-not-fixed fragilities
 
-**Rule:** the bisection ladder in `skills/war/assets/workflow-template.js` (`aceBisect`) landed with
-audit findings routed `follow-up` and filed as issues, not fixed. A task touching `aceBisect` must
-read the filed issues for current status first, and treat every still-open item as a known
-constraint, not a fresh discovery.
+**RESOLVED (instance) — kept as concept anchor.** All issues filed against the ladder (#1481, #1560, #1561, #1562, #1563, #1790, #1813) are closed. Subset dispatches now go through `dispatchSite` inside `aceDispatchProbed`, so a harness death no longer turns a mergeable task into a hard `held:workflow-error`. The `roundLimit - 2` floor-retry reserve is gone; the ladder spends its own `absorbRounds` meter (ADR 0013 amendment), never `fixRounds`.
 
-**Current state of the original five (verified against `aceBisect` on master):**
+**Rule:** before touching `aceBisect` in `skills/war/assets/workflow-template.js`, check its filed issues for current status, and treat any still-open item as a known constraint, not a fresh discovery. One residual stays by design: the `Ace-Subset`/`Ace-Charge` trailers are prompt-mandated, and `trailerGapLog` only logs a missing trailer; nothing enforces it.
 
-1. Trailer prefix ambiguity and final-paragraph isolation (#1560): fixed in prompt text. The subset
-   dispatch prompt mandates EXACT whole-string equality on the `Ace-Subset:` value and requires the
-   trailer as the commit's own final paragraph. Still prompt-mandated, not engine-enforced: nothing
-   re-reads `%(trailers:)` on the returned `head_sha`. Issue still open.
-2. Culprit attribution by exact file string (#1561): fixed. The `aceRelPath` helper normalizes
-   both sides of `culpritFiles.has(...)`, and it is hoisted above `aceGroups` so the grouping key
-   and the trailer file set use the same form (#1813). Issue still open.
-3. Unwrapped subset and batch dispatches: STILL OPEN (#1481 corroboration). The `const sw = await
-   dispatch(` subset call and the `const ace = await dispatch(` batch call go through `dispatch`
-   (the semaphore seam), not `dispatchAgent` (the try/catch that stamps `warDispatchDeath`). A
-   harness death mid-ladder still turns a mergeable task into a HARD `held:workflow-error`.
-4. Shared `fixRounds` starvation (#1562): mitigated. Subset commits stop at the floor-retry reserve
-   (`if (r.task.fixRounds >= roundLimit - 2)`), holding two slots for the merge-floor retry loop.
-   Residual: the batch ace keeps its own `< roundLimit` gate, and `run.roundLimit <= 3` makes the
-   ladder inert from its first iteration. Issue still open.
-5. Failing-subset re-audit Minor/Nit findings dropped (#1563): fixed via `minorsOf` routing inside
-   the loop. Its `parkAsk` object-identity residual is also fixed: `parkAsk` now dedups by
-   `askContentKey` and records corroborators (#1790).
-
-The doc cascade (ADR 0013, `CONTEXT.md`, `skills/war/SKILL.md`, `references/design.md`) now
-narrates the floor-retry reserve; that residual is closed.
-
-Recurrences: 2 (phase 4 release addendum; engine-reliability phase 7 addendum).
-
-**Locate-cue:** `aceBisect` in `workflow-template.js`: the `culpritFiles`/`culprits` split, the
-`roundLimit - 2` reserve check, the `trailer` const, and the `dispatch(` calls inside the
-`while (queue.length)` loop.
+**Locate-cue:** `aceBisect` in `workflow-template.js`: the `culpritFiles`/`isCulprit` split, the `absorbRounds` budget stop, the `trailer` const, and the `aceDispatchProbed(... dispatchSite(` subset call.
 
 ## Related
 

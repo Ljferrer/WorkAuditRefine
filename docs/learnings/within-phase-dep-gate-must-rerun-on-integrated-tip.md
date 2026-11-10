@@ -15,19 +15,9 @@ metadata:
 
 # Within-phase task ordering: gate must re-run after all dependent tasks are integrated
 
-**RESOLVED/MECHANIZED:** the engine now enforces this — on an intra-phase-dep phase the full gate
-re-runs once at the final integration tip (`integratedTipGate` in
-`skills/war/assets/workflow-template.js`, mirrored in `agents/war-refiner.md`), superseding the
-per-branch gates for the dep-crossing tasks. The auto re-run covers only same-repo dep edges; the
-rule below still applies to manual and plan-level gating.
+**RESOLVED/MECHANIZED:** on an intra-phase-dep phase the engine re-runs the full gate once at the final integration tip (`integratedTipGate` in `skills/war/assets/workflow-template.js`, mirrored in `agents/war-refiner.md`). That run supersedes the per-branch gates for the dep-crossing tasks. It covers only same-repo dep edges; the rule below still applies to manual and plan-level gating.
 
-**Why:** a task referencing code an earlier within-phase task writes can gate green on its own
-branch while the cross-reference points at code not yet in its base — a false green: the task's
-own diff is correct, but the cross-references are untested against the real artifact.
-
-Instance (phase-3/t6): `war-refiner.md` referenced `_refinery`/`land-advance`/`land_stale` wiring
-that a sibling task added to `workflow-template.js` but that was absent from the audited base;
-the auditor correctly graded it "within-phase build-order gap, not a defect" and approved.
+**Why:** a task that references code an earlier within-phase task writes can gate green on its own branch while the reference points at code not yet in its base. Its own diff is correct, but the cross-references are untested against the real artifact. Instance: phase-3/t6, where `war-refiner.md` cited `_refinery`/`land_stale` wiring a sibling task added.
 
 ## Rule
 
@@ -35,8 +25,6 @@ For within-phase dependencies (Task N references Task M's output):
 1. Both tasks land into the shared integration branch first.
 2. The full gate (all runners) re-runs on the integrated tip.
 3. Only the integrated-tip gate result is authoritative for land/release decisions.
-
-Do not rely on per-task branch gate results when tasks within the same phase are inter-dependent.
 
 Same-wave tasks share the frozen phase base, so undeclared same-file coupling still rebase-conflicts at merge: declare the dep, or split the tasks across phases.
 
