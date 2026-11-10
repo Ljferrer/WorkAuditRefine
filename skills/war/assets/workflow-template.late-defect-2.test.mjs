@@ -768,11 +768,21 @@ test('seeded task: carried fixRounds seed the budget', async () => {
   assert.ok(six.calls.some(c => /^audit:seed-1:/.test(labelOf(c))), 'its first audit still runs')
   assert.equal(six.out.carriedTasks.length, 1, 'and it reaches the seed cap rule on that first check')
   assert.match(six.out.carriedTasks[0].carriedFrom.reason, /seeded task seed-1 ran out of fix rounds \(fixRounds 6\)/)
+  // A row past run.roundLimit clamps to it: one audit runs and the seed cap rule carries the row, logged.
+  const eight = await run(8)
+  assert.equal(eight.calls.filter(c => /^audit:seed-1:/.test(labelOf(c))).length, 1, 'a row at fixRounds 8 under run.roundLimit 6 runs one audit')
+  assert.deepEqual(eight.calls.filter(c => /^fix:seed-1:/.test(labelOf(c))), [], 'and no fix round')
+  assert.equal(eight.out.carriedTasks.length, 1, 'the seed cap rule carries the row')
+  assert.match(eight.out.carriedTasks[0].carriedFrom.reason, /seeded task seed-1 ran out of fix rounds/)
+  assert.ok(eight.logs.some(l => l.includes('seeded task seed-1: carried fixRounds 8 passes run.roundLimit 6')), 'the clamp is logged with the task id, the carried count and the limit')
   // Red at base: a loop that starts at 0 spends six fresh rounds.
-  const START = 'let round = task.seed ? spentOf(task.fixRounds) : 0,'
+  const START = 'let round = task.seed ? Math.min(spentOf(task.fixRounds), roundLimit) : 0,'
   assert.ok(src.includes(START), 'the mutation target is the live start')
   const mutant = await run(4, src.replace(START, 'let round = 0,'))
   assert.equal(mutant.calls.filter(c => /^fix:seed-1:/.test(labelOf(c))).length, 6, 'the mutant ignores the carried budget')
+  // Red at base: without the clamp a row past the limit never reaches its first audit.
+  const unclamped = await run(8, src.replace(START, 'let round = task.seed ? spentOf(task.fixRounds) : 0,'))
+  assert.equal(unclamped.calls.filter(c => /^audit:seed-1:/.test(labelOf(c))).length, 0, 'the unclamped mutant runs no audit')
 })
 
 test('late-fix pass: a merged sibling file joins the fence', async () => {
@@ -790,6 +800,19 @@ test('late-fix pass: a merged sibling file joins the fence', async () => {
   assert.ok(src.includes(USE), 'the mutation target is the live fence')
   const mutant = await runPhase(PROVISION_ARGS({ tasks }), only(), {}, src.replace(USE, 'fixRoundFenceClause(fence)'))
   assert.ok(!fenceOf(mutant.calls).includes('src/d.js'), 'the mutant leaves src/d.js open')
+  // A sibling that also lists the defect's file (src/a.test.js) or the origin's own file never fences
+  // them, and its other file stays fenced.
+  const shared = [LATE_TASK(), LATE_TASK({ id: 't2', issue: 102, files: ['src/d.js', 'src/a.test.js', 'src/a.js'] })]
+  const s = await runPhase(PROVISION_ARGS({ tasks: shared }), only())
+  assert.deepEqual(lateWorkers(s.calls).map(labelOf), ['late-fix:t1:r1'], 'presence guard: one late fix, on t1')
+  assert.ok(fenceOf(s.calls).includes('src/d.js'), 'the other sibling file stays fenced')
+  assert.ok(!fenceOf(s.calls).includes('src/a.test.js'), 'the defect file stays open')
+  assert.ok(!fenceOf(s.calls).includes('src/a.js,') && !/src\/a\.js$/.test(fenceOf(s.calls)), 'the origin file stays open')
+  // Red at base: without the open set the sibling copy fences the defect file.
+  const OPEN = '.map(aceRelPath).filter(p => !lfOpen.has(p))])]'
+  assert.ok(src.includes(OPEN), 'the mutation target is the live open set')
+  const m2 = await runPhase(PROVISION_ARGS({ tasks: shared }), only(), {}, src.replace(OPEN, '.map(aceRelPath)])]'))
+  assert.ok(fenceOf(m2.calls).includes('src/a.test.js'), 'the mutant fences the defect file')
 })
 
 test('sweep exclusion: a task-owned hit carries on a non-final phase, demotes on the final one, and a campaign hit names its class', async () => {

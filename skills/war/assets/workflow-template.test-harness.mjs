@@ -3004,6 +3004,34 @@ const chainCode = () => src.replace(/^\s*\/\/.*$/gm, '')   // comment-stripped s
 const polishAceImpl = () => buildSeqImpl(
   { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]), approveWith('audit:t1:correctness', [])] },
   aceBase([nit()]))
+// Polish claims (plan 2026-11-08-engine-findings T5.1, D19, ADR 0061): two same-wave tasks, each
+// approved once with one absorb nit on its own file, then clean. `touch` names the files each polish
+// commit touches. `late` delays that task's polish return (or, with lateWork, its work worker) by 40 ms,
+// so the return order is fixed. `work` and `polish` may supply a head_sha thunk per task (real git).
+const CLAIM_TASK = (id, files, extra = {}) => ({ id, issue: id === 't1' ? 101 : 102, title: 'Task ' + id, planSlice: 'slice ' + id, files, roster: [{ lens: 'correctness' }], ...extra })
+const CLAIM_ARGS = (over = {}) => SWEEP_ARGS({ tasks: [CLAIM_TASK('t1', ['docs/a.md']), CLAIM_TASK('t2', ['docs/b.md'])], ...over })
+const claimImpl = ({ touch = {}, late = 't2', lateWork = false, work = {}, polish = {}, ownFile = { t1: 'docs/a.md', t2: 'docs/b.md' } } = {}) => {
+  const audits = {}
+  const sleep = ms => new Promise(res => setTimeout(res, ms))
+  return async (prompt, opts) => {
+    const label = opts.label || ''
+    const id = (label.match(/:(t[12])(?::|$)/) || [])[1]
+    if (seatOf(opts) === 'war-worker' && opts.phase === 'Work' && id) {
+      if (lateWork && id === late) await sleep(40)
+      return { task_id: id, status: 'implemented', head_sha: work[id] ? work[id]() : (id === 't1' ? 'deadbee1' : 'deadbee2'), tests: { unit: 1 } }
+    }
+    const p = label.match(/^ace:polish:(t[12]):/)
+    if (p) {
+      if (!lateWork && p[1] === late) await sleep(40)
+      return { task_id: p[1], status: 'implemented', head_sha: polish[p[1]] ? polish[p[1]]() : (p[1] === 't1' ? 'a1a1a1a1' : 'b2b2b2b2'), tests: { unit: 1 }, ace_diff_files: touch[p[1]] || [] }
+    }
+    if (/^audit:t[12]:/.test(label)) {
+      const n = audits[id] = (audits[id] || 0) + 1
+      return approveWith(label, n === 1 ? [nit({ title: id + ' polish row', file: ownFile[id], disposition: 'absorb' })] : [])
+    }
+    return sweepBase([])(prompt, opts)
+  }
+}
 // The seven fix-applying builds: the head string the delete-and-trace control anchors on, the variant
 // name the site passes, the fixture that reaches it, and the capture predicate (label-keyed).
 const CHAIN_FIX_BUILDS = [
@@ -3224,6 +3252,45 @@ const realGitPinConfirm = (dir, p) => {
 // #2485 D8/D10: the engine's two-step --no-ff task merge, spelled as the merge prompt spells it, with the
 // exact WAR-Task trailer naming the engine's task branch. NEVER-MOVE (D11): a source already an
 // ancestor of HEAD is merged — no second merge commit (the reconcile replay of an existing merge).
+// netZeroClash (plan 2026-11-08-engine-findings T5.1, D19 d): a real repo with two same-wave task
+// worktrees. t1 and t2 each commit their own file, then each polish commit sets docs/shared.md to its
+// line, t1 first (claimImpl), so t1 claims the file and t2's commit clashes. `edit` is t2's line. The
+// engine runs the phase and the t2 pin-transfer prompt is captured. Then real git merges t1 (and, with
+// moveTip, one more commit lands on integration), runs the prompt's FORWARD-REVERT script and, when the
+// prompt carries one, its NET-ZERO script in the t2 worktree, rebases t2 onto integration as step (2)
+// says, and merges it when the rebase is clean. The caller removes `root`.
+const netZeroClash = async ({ edit, moveTip = false, source = src }) => {
+  const root = mkdtempSync(join(tmpdir(), 'war-net-zero-'))
+  const repo = join(root, 'repo'), wt = { t1: join(root, 'wt1'), t2: join(root, 'wt2') }
+  mkdirSync(join(repo, 'docs'), { recursive: true })
+  const { run, git } = realGitTools(repo)
+  const at = (dir, ...a) => { const r = spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  const commit = (dir, file, text) => { writeFileSync(join(dir, file), text); at(dir, 'add', file); at(dir, 'commit', '-q', '-m', file + ': ' + text.trim()); return at(dir, 'rev-parse', 'HEAD') }
+  git('init', '-q', '-b', 'integration'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+  for (const [f, t] of [['shared.md', 'line 1\n'], ['a.md', 'a\n'], ['b.md', 'b\n']]) writeFileSync(join(repo, 'docs', f), t)
+  git('add', 'docs'); git('commit', '-q', '-m', 'base')
+  const approved = {}
+  for (const id of ['t1', 't2']) { git('worktree', 'add', '-q', '-b', id, wt[id], 'integration'); approved[id] = commit(wt[id], 'docs/' + (id === 't1' ? 'a' : 'b') + '.md', id + ' approved\n') }
+  let pinP = null
+  const tasks = ['t1', 't2'].map(id => CLAIM_TASK(id, ['docs/' + (id === 't1' ? 'a' : 'b') + '.md'], { branch: id, worktree: wt[id] }))
+  const { out } = await runPhase(SWEEP_ARGS({ tasks }), claimImpl({
+    touch: { t1: ['docs/shared.md'], t2: ['docs/shared.md'] },
+    work: { t1: () => approved.t1, t2: () => approved.t2 },
+    polish: { t1: () => commit(wt.t1, 'docs/shared.md', 'T1 line\n'), t2: () => commit(wt.t2, 'docs/shared.md', edit) },
+  }), { 'pin-transfer': (p, o) => { if (o.label === 'pin-transfer:t2') pinP = p; return { status: 'error' } } }, source)
+  assert.ok(pinP, 'the t2 pin-transfer probe was dispatched (presence guard)')
+  gitTaskMerge(run, 't1', 't1')
+  if (moveTip) commit(repo, 'docs/c.md', 'a later integration commit\n')
+  const scriptAfter = head => (pinP.includes(head) ? pinP.split(head)[1].match(/run exactly:\s*`([^`]+)`/) || [] : [])[1]
+  const bash = script => spawnSync('bash', ['-c', script], { encoding: 'utf8' })
+  const revert = bash(scriptAfter('FORWARD-REVERT (--ace)'))
+  const netZero = scriptAfter('NET-ZERO CLASH RANGE') ? bash(scriptAfter('NET-ZERO CLASH RANGE')) : null
+  const rebase = spawnSync('git', ['-C', wt.t2, 'rebase', '-q', 'integration'], { encoding: 'utf8' })
+  if (rebase.status !== 0) spawnSync('git', ['-C', wt.t2, 'rebase', '--abort'], { encoding: 'utf8' })
+  else gitTaskMerge(run, 't2', 't2')
+  const read = f => readFileSync(join(repo, 'docs', f), 'utf8')
+  return { root, out, pinP, approved, revert, netZero, rebase, shared: read('shared.md'), b: read('b.md'), git }
+}
 const gitTaskMerge = (run, source, branch) => {
   if (run('merge-base', '--is-ancestor', source, 'HEAD').status === 0) return
   for (const args of [['-c', 'core.hooksPath=/dev/null', 'merge', '--no-ff', '--no-commit', source],
@@ -4208,4 +4275,8 @@ export {
   withoutSweepDebt,
   TWIN_TASKS,
   NON_INFRA_THROW,
+  CLAIM_TASK,
+  CLAIM_ARGS,
+  claimImpl,
+  netZeroClash,
 }
