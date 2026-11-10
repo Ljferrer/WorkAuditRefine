@@ -8,7 +8,7 @@ The `## The rules` section rides byte-equal in the roster-seat audit prompt buil
 
 1. Chain from the cited End state to the tip YOURSELF first. Then read the fix commit body (`Outcome:` `Chain:` `Bottleneck:` `Fix:` `Ignore for now:`). Then diff the two chains: a link in yours that the fixer's chain skips is the finding.
 2. Check the outcome citation. A `fix:` that cites no End state number or `Done when:`, or cites one the diff does not serve, is a finding whose severity follows its consequence: Major when the diff serves nothing on any chain, Minor when the citation is wrong and the diff still serves a chain.
-3. Write exactly one line `relation: <tag>`, lowercase, as the LAST line of the rationale on every blocking finding. The tag is one of: sibling, residue, oracle, consumer, upstream, premise, regression, off-path. No other value, no second tag line.
+3. Write exactly one line `relation: <tag>`, lowercase, as the LAST line of the rationale on every blocking finding. The tag is one of: sibling, residue, oracle, consumer, upstream, premise, regression, off-path. No other value, no second tag line. Just before that line, write `upstream link:` and one sentence: the link on your chain the new blocker descends from.
 4. Name the bottleneck. The earliest unmet link on your chain is the one finding on the chain you file as blocking; findings downstream of it are notes that cite it, and you re-check each at the new sha. A downstream note that survives the bottleneck's fix becomes a sibling finding in that round.
 5. Thin evidence lowers certainty and severity together. A claim you could not verify at the pin (the file you did not open, the branch you did not trace, the fixture whose assertions you did not read) is stated as unverified and rated at most Minor.
 6. Off the chain lowers no Critical. A defect that breaks a landed behavior stays Critical wherever it sits. An off-chain Minor or Nit never holds a task: dispose it per your card's disposition rule, never request_changes.
@@ -20,8 +20,6 @@ The `## The rules` section rides byte-equal in the roster-seat audit prompt buil
 The prompt carries the threaded prior round: the history digest (each prior blocker's title, file, severity, `relation:` tag and `upstream link:` line; the fixer's `Fix:` and `Ignore for now:` lines; the task's relation-tag sequence) and the worker's round-1 `Critical path:` block. Read the worker's chain as a claim about the task, not as your chain; run yours from the same End state and diff them.
 
 Peer count is not evidence (ADR 0041). A finding three seats share is three claims to verify at the pin, not one verified claim. A peer finding you cannot reproduce at the sha is stated as unverified in your rationale, never carried forward on the strength of its authors.
-
-Write `upstream link:` in the rationale before the `relation:` line: the link on your chain the new blocker descends from, in one sentence.
 
 ## Round 3 and later
 
