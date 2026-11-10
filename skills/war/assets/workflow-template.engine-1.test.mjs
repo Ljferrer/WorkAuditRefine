@@ -8847,11 +8847,12 @@ const T31_MAJOR = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 
 const T31_REGRESSED = nit({ title: 'regressed row', line: 10 })
 const T31_TWO = () => SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
   { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }] }] })
-// The sibling run: t1's batch ace regresses on x.js; t2's git-derived diff holds x.js; the filer answers `filing`.
-const t31SiblingRun = (filing, source) => {
+// The sibling run: t1's batch ace regresses on x.js; probeTask's git-derived diff holds x.js (t2, the
+// sibling, unless named); the filer answers `filing`.
+const t31SiblingRun = (filing, source, probeTask = 't2') => {
   const base = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [T31_REGRESSED]), T31_MAJOR] }, p4Base())
   return runPhase(T31_TWO(), (p, o) => o.dispatchKind === 'file-followups' ? filing : base(p, o),
-    { 'diff-probe': (p, o) => o.label === 'diff-probe:t2' ? { diff_files: ['skills/war/assets/x.js'] } : NEW_SEAT_DEFAULTS['diff-probe'] }, source)
+    { 'diff-probe': (p, o) => o.label === 'diff-probe:' + probeTask ? { diff_files: ['skills/war/assets/x.js'] } : NEW_SEAT_DEFAULTS['diff-probe'] }, source)
 }
 
 test('D3 — both-surfaces directive registry: every correctness-critical directive is on its standing card AND its dispatched prompt(s)', async () => {
@@ -20549,6 +20550,17 @@ test('file-followups: a regressed row touched by a merged sibling is verified be
   const mutant = await t31SiblingRun({ filed: [], clusters: [], verified_fixed: [{ n: 1, evidence }] }, src.replace(STAMP, '{ break }'))
   assert.ok(!filingPromptOf(mutant.calls).includes('VERIFY FIRST'), 'the mutant prompt has no VERIFY FIRST block')
   assert.ok(demotionOf(mutant.out, T31_REGRESSED.title), 'and the mutant keeps the row filed')
+  // Arm 3: the origin task's own diff set holds x.js and t2's holds nothing — never a sibling touch.
+  const own = await t31SiblingRun({ filed: [{ n: 1, issue: 501 }], clusters: [{ ordinals: [1], issue: 501 }] }, undefined, 't1')
+  assert.ok(!filingPromptOf(own.calls).includes('VERIFY FIRST'), 'the origin task own diff lists no VERIFY FIRST row')
+  const ownRow = demotionOf(own.out, T31_REGRESSED.title)
+  assert.ok(ownRow && ownRow.siblingTouch === undefined, 'and the row carries no siblingTouch')
+  // Red at base: without the origin-task guard the row's own task stamps it.
+  const ORIGIN = 'task !== m.task ? diffFilesByTask.get(task) : null'
+  assert.ok(src.includes(ORIGIN), 'the mutation target is the live origin-task guard')
+  const ownMutant = await t31SiblingRun({ filed: [{ n: 1, issue: 501 }], clusters: [{ ordinals: [1], issue: 501 }] }, src.replace(ORIGIN, 'diffFilesByTask.get(task)'), 't1')
+  assert.equal(((demotionOf(ownMutant.out, T31_REGRESSED.title) || {}).siblingTouch || {}).task, 't1', 'the mutant stamps the row with its own task')
+  assert.ok(filingPromptOf(ownMutant.calls).includes('VERIFY FIRST'), 'and the mutant prompt lists it under VERIFY FIRST')
 })
 
 // D12 / D40: the absorb-budget seed. T31_ONE: the one task t1-1, whose bare id is never "1.1".
