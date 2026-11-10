@@ -330,6 +330,12 @@ work/audit or continue agent reconciliation, never trust a previous machine's lo
 reflog as completion. The runtime tests exercise real Git mutations and local remotes; a live
 refiner's faithful execution of this procedure remains part of the agent contract.
 
+## File-followups filing
+
+Evicted byte-identical from the card's `## File-followups dispatch` opening sentence (plan 2026-11-08-engine-findings-ace-and-late-fix D33, an ADR 0042 eviction that funds the card's pointer here): After the land decision resolves (`landed`/`held:escalation`/`held:land-failed` — a failed land never un-runs the filing).
+
+Sibling-merge rows (D33, #2686). A `demote:absorb-regressed` row whose file a merged sibling task's diff changed may already be fixed at the landed tip. The engine stamps such a row and lists it under the filing prompt's VERIFY FIRST block, with the sibling task and its landed sha. For each listed row, read its file at the landed tip before you file it. When the defect its rationale names is gone, return the row in `verified_fixed: [{ n, evidence }]` (the evidence names the file and line you read), and give it no `filed` entry and no cluster. The engine moves each returned row to `notes` as `reconciled:sibling-merge`, with your evidence and the sibling's sha, and logs it. File every row you do not return, as today. The field is optional and fail-open: an absent or malformed list files every row.
+
 ## Exact Git diff identity
 
 Read before producing `content_id`, `pre_content_id` or `post_content_id`. Stable patch IDs

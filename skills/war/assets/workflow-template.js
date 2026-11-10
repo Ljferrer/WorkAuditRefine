@@ -330,18 +330,19 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
 // failing ids also red at the pre-ace tip, so every ace-family commit is gated BEFORE its re-audit.
 // The GREEN arm requires head_sha at the validator (if/then): a terse green reply is re-asked at the
 // tool layer, never reverted. The red arm's head_sha stays optional at the validator; the base
-// proceed-over (aceGateGreen) needs it. Fail-CLOSED on the evidence (absent/malformed ⇒ not green) and
-// fail-OPEN on the task (a red gate with a new id forward-reverts the ace tip and the approved pre-ace
-// tip still merges, PIN-2).
+// proceed-over (aceGateJudge) needs it. Fail-CLOSED on the evidence (absent/malformed ⇒ not green) and
+// fail-OPEN on the task (a red gate with a new id forward-reverts the ace tip, after its one D35
+// re-run, and the approved pre-ace tip still merges, PIN-2). provision_failed (D11): a red whose failed
+// step is a provision step; it is never re-asked for ids (D35).
 // gate_segment (#2326): the MERGE_RESULT marker's ace twin. The literal 'incomplete' rides
 // gate_green:false when the backgrounded gate job died before it wrote exit_code:, so an unfinished gate never reads as a failed one.
-// aceGateGreen re-dispatches on that pair, bounded by roundLimit. A gate_green:true reply with a
+// aceSegments re-dispatches on that pair, or on an unjudged red (no head_sha, no ids, D11), bounded by roundLimit. A gate_green:true reply with a
 // stray marker is a green reply.
-// gate_failing_ids (late-defects D10, PIN-10): the red arm's failing test ids, which aceGateGreen
+// gate_failing_ids (late-defects D10, PIN-10): the red arm's failing test ids, which aceGateJudge
 // compares with the same check run at the pre-ace tip (the `ace-base-gate` dispatch).
 const GATE_CHECK = { type: 'object', required: ['gate_green'], properties: {
   gate_green: { type: 'boolean' }, head_sha: { type: 'string' }, gate_output: { type: 'string' }, gate_failing_ids: { type: 'array' },
-  gate_segment: { enum: ['incomplete'] }, segment_note: { type: 'string' }, gate_log_path: { type: 'string' } },
+  gate_segment: { enum: ['incomplete'] }, segment_note: { type: 'string' }, gate_log_path: { type: 'string' }, provision_failed: { type: 'boolean' } },
   if: { properties: { gate_green: { const: true } } },
   then: { required: ['gate_green', 'head_sha'] } }
 
@@ -441,6 +442,9 @@ const ENDSTATE_CHECK_RESULT = { type: 'object', properties: {
 const FOLLOWUP_FILING_RESULT = { type: 'object', properties: {
   filed: { type: 'array', items: { type: 'object', properties: {
     n: { type: 'number' }, issue: {} } } },
+  // verified_fixed (D33, #2686): optional, fail-open — the VERIFY FIRST rows the filer read as fixed
+  // at the landed tip; each moves to notes as reconciled:sibling-merge instead of filing.
+  verified_fixed: { type: 'array', items: { type: 'object', properties: { n: { type: 'number' }, evidence: { type: 'string' } } } },
   // clusters[] manifest (Task 2.1, #1566): the agent's own clustering record — ordinals are the
   // 1-based POST-COLLAPSE row numbers it grouped into one filed issue. Advisory like `filed`: the
   // engine asserts partition (every ordinal in exactly one cluster — clustering only merges the
@@ -2055,6 +2059,9 @@ const demote = (f, to, why, opts) => {
   log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
   f.engineFiled = true
   f.demoteReason = why
+  // D4 (PIN-4): a regressed row records how many aced records existed when it demoted, so the
+  // reconcile pass before the file-followups consolidation reads only the aces that came after it.
+  if (typeof why === 'string' && why.startsWith('demote:absorb-regressed')) f.acedAt = aced.length
   ;(to === 'note' ? notes : minorsFiled).push(f)
 }
 // --ace release-slot STRING backstop only (D4). The sandbox can't read files, so the ORCHESTRATOR's
@@ -2904,6 +2911,9 @@ const POLISH_FILES_CLAUSE = pt`FIX-ROUND FILES: fix a sibling site only in this 
 const fixRoundFenceClause = paths => paths.length
   ? pt`FIX-ROUND FENCE: another task, plan or the release slot owns these files, so never edit them, and list a sibling site in one under \`Ignore for now:\`: ` + [...paths].sort().join(', ') + '\n'
   : ''
+// ACE_TRAILER_CHECK (D24 a, PIN-25): the pre-push trailer check on the four ace-family prompts
+// (subset, re-entry, polish, terminal); its standing home is fix-round-doctrine.md § Ace commit messages.
+const ACE_TRAILER_CHECK = pt`Before you push, check each asked trailer parses: \`git show -s --format='%(trailers:key=Ace-Charge,valueonly)' HEAD\` prints its value (Ace-Subset likewise). Amend an unpushed commit that lacks one; report a pushed one in blocked_reason, naming the missing trailer.`
 // ---- TIP PROBE (#2485 D2, PIN-2) ----
 // After EVERY ace dispatch, dead or not, one read-only refiner reads the branch the ace wrote to (the
 // task branch, or the polish branch at the terminal site) from Git. `blocked` never means no commit,
@@ -2914,18 +2924,42 @@ const fixRoundFenceClause = paths => paths.length
 // lets aceScope confirm the pre-dispatch tip carries the approved tree before it narrows the panel.
 const TIP_PROBE = { type: 'object', properties: {
   tip_sha: { type: 'string' }, tip_tree: { type: 'string' }, pre_sha: { type: 'string' }, pre_tree: { type: 'string' }, approved_tree: { type: 'string' },
-  count: { type: 'integer' }, pre_is_ancestor: { type: 'boolean' }, files: { type: 'array', items: { type: 'string' } } } }
+  count: { type: 'integer' }, pre_is_ancestor: { type: 'boolean' }, files: { type: 'array', items: { type: 'string' } },
+  // D24 (b): optional, so usableTipProbe and every older reply are unchanged
+  tip_trailers: { type: 'object', properties: { aceSubset: { type: 'string' }, aceCharge: { type: 'string' } } } } }
 const usableTipProbe = p => !!p && isSha(p.tip_sha) && isSha(p.tip_tree) && isSha(p.pre_sha) && isSha(p.approved_tree) &&
   Number.isInteger(p.count) && p.count >= 0 && typeof p.pre_is_ancestor === 'boolean' && Array.isArray(p.files) && p.files.every(f => typeof f === 'string')
-const tipProbe = async ({ probeId, probeSite, probeWorktree, probeBranch, probePre, probeApproved, label }) => {
-  const p = await dispatchSite(
+// CHARGE_PROBE (D40, #2676): the charge-probe reply, the third absorb-budget seed source.
+const CHARGE_PROBE = { type: 'object', properties: { absorbCharges: { type: 'object' } } }
+// TIP_TREE_FIELDS (D36, #2690): the tree fields a partial reply can miss while its shas are usable.
+const TIP_TREE_FIELDS = ['tip_tree', 'pre_tree', 'approved_tree']
+const tipProbe = async ({ probeId, probeSite, probeWorktree, probeBranch, probePre, probeApproved, label, partialRetry }) => {
+  const body =
     pt`TIP PROBE (read-only) for ${probeId} after its ${probeSite} ace dispatch, in the worktree ${probeWorktree} (branch ${probeBranch}). Read Git only: never commit, revert, push, rebase or run the gate, and never use a worker report.\n`
-    + pt`PRE=${probePre} (the pre-dispatch tip) and APPROVED=${probeApproved} (the last approved tip). Let TIP=\`git -C ${probeWorktree} rev-parse --verify refs/heads/${probeBranch}^{commit}\`. Return tip_sha=TIP, tip_tree=TIP^{tree}, pre_sha=\`rev-parse --verify PRE^{commit}\`, pre_tree=PRE^{tree}, approved_tree=APPROVED^{tree}, and pre_is_ancestor: true ONLY when \`git -C ${probeWorktree} merge-base --is-ancestor PRE TIP\` exits 0. When pre_is_ancestor is true, also return count=\`git rev-list --count PRE..TIP\` and files=\`git diff --no-renames --name-only PRE TIP\` (one repo-relative path per entry); otherwise count 0 and files []. Every SHA is a full 40-hex Git object name. Any Git error: return {} — never an invented value.`,
-    { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'tip-probe', label, schema: TIP_PROBE, ...spawn('refiner') })
+    + pt`PRE=${probePre} (the pre-dispatch tip) and APPROVED=${probeApproved} (the last approved tip). Let TIP=\`git -C ${probeWorktree} rev-parse --verify refs/heads/${probeBranch}^{commit}\`. Return tip_sha=TIP, tip_tree=TIP^{tree}, pre_sha=\`rev-parse --verify PRE^{commit}\`, pre_tree=PRE^{tree}, approved_tree=APPROVED^{tree}, and pre_is_ancestor: true ONLY when \`git -C ${probeWorktree} merge-base --is-ancestor PRE TIP\` exits 0. When pre_is_ancestor is true, also return count=\`git rev-list --count PRE..TIP\` and files=\`git diff --no-renames --name-only PRE TIP\` (one repo-relative path per entry); otherwise count 0 and files []. Also return tip_trailers: { aceSubset, aceCharge }, each the trimmed \`git -C ${probeWorktree} show -s --format='%(trailers:key=Ace-Subset,valueonly)' TIP\` (Ace-Charge for aceCharge), '' when absent. Every SHA is a full 40-hex Git object name. Any Git error: return {} — never an invented value.`
+  const opts = { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'tip-probe', label, schema: TIP_PROBE, ...spawn('refiner') }
+  let p = await dispatchSite(body, opts)
+  // D36: a reply whose shas are usable and that misses only a tree field is re-asked ONCE, naming the
+  // field. A second partial reply is unusable as before; usableTipProbe and tipClass do not change.
+  const missing = partialRetry && p && !deathOf(p) && !usableTipProbe(p) && isSha(p.tip_sha) && isSha(p.pre_sha)
+    ? TIP_TREE_FIELDS.filter(k => !isSha(p[k])) : []
+  if (missing.length && usableTipProbe({ ...p, tip_tree: p.tip_sha, approved_tree: p.tip_sha })) {
+    log(label + ': the tip probe returned no ' + missing.join(', ') + ' — re-asking once, naming the field (D36).')
+    p = await dispatchSite(pt`TIP PROBE RE-ASK: your prior reply had no usable ${missing.join(', ')}. Return every field below, ${missing.join(', ')} included.\n` + body, opts)
+  }
   // dispatchDied already logged the site-named death
   if (deathOf(p)) return null
   if (!usableTipProbe(p)) { log(label + ': the tip probe returned no usable Git read (PIN-5).'); return null }
   return p
+}
+// trailerGapLog (D24 c): a moved ace tip whose tip_trailers lacks a trailer its prompt asked for is
+// logged by name, sha and expected value. A log only: the charge, re-audit and revert paths are
+// unchanged. An absent tip_trailers is no read, so nothing is logged.
+const trailerGapLog = (who, probe, want) => {
+  const t = probe && probe.tip_trailers
+  if (!t || typeof t !== 'object') return
+  const gaps = want.filter(([, key]) => !(typeof t[key] === 'string' && t[key].trim()))
+  if (gaps.length) log(who + ': the moved tip ' + probe.tip_sha + ' lacks ' + gaps.map(([name, , value]) => name + ' (expected "' + name + ': ' + value + '")').join(' and ') + ', which its prompt asked for. The charge and re-audit proceed' + (gaps.some(([, key]) => key === 'aceCharge') ? '; a relaunch\'s ABSORB-CHARGE READ will not count this commit' : '') + ' (D24).')
 }
 // tipClass: 'unusable' (null probe) · 'non-descendant' (the pre-dispatch tip is not an ancestor) ·
 // 'unchanged' (no commit above the pre-dispatch tip, or the approved tree) · 'moved' (a net change).
@@ -4060,7 +4094,12 @@ if (tasks.length) {
   // agent shell does not carry a variable across calls, so an unset TIP reads as HEAD..<branch> —
   // empty in the task worktree — and returns a plausible 0 (#2038). The command is one bash call, so
   // its own variables never cross calls.
-  const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — ${recovery ? 'one of the two git reads allowed beside the named subcommands; the recovery LATE-FIX CHARGE READ is the other' : 'the ONE git read allowed beside the named subcommands'}): after each task's ensure-worktree, run this one bash command with its two angle-bracket placeholders filled: \`W="<that task's worktree>"; B="<that task's branch>"; tip=$(git -C "$W" rev-parse "$B") && range="${ph.integrationBranch}..$B" && if git -C "$W" merge-base --is-ancestor "$tip" ${ph.integrationBranch}; then ms=$(git -C "$W" rev-list --first-parent --merges "$tip..${ph.integrationBranch}") && for m in $ms; do if [ "$(git -C "$W" rev-parse "$m^2")" = "$tip" ] && [ "$(git -C "$W" show -s --format='%(trailers:key=WAR-Task,valueonly)' "$m")" = "$B" ]; then range="$m^1..$m^2"; break; fi; done; fi && git -C "$W" log --format='%(trailers:key=Ace-Charge,valueonly)' "$range"\` (the integration branch by name, never a shell variable from an earlier call; an unmerged branch reads ${ph.integrationBranch}..<branch>, and a merged branch reads M^1..M^2 of its first-parent WAR-Task merge commit M, because ${ph.integrationBranch}..<branch> is empty once the branch is merged) and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's (a charge naming another task id never counts) — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
+  // ABSORB_CHARGE_READ (D40, #2676): the read itself, one const the barrier clause and the charge-probe
+  // prompt both interpolate, so the two spellings cannot drift (the git-4 absorbReadOf replay reads either).
+  const ABSORB_CHARGE_READ = pt`run this one bash command with its two angle-bracket placeholders filled: \`W="<that task's worktree>"; B="<that task's branch>"; tip=$(git -C "$W" rev-parse "$B") && range="${ph.integrationBranch}..$B" && if git -C "$W" merge-base --is-ancestor "$tip" ${ph.integrationBranch}; then ms=$(git -C "$W" rev-list --first-parent --merges "$tip..${ph.integrationBranch}") && for m in $ms; do if [ "$(git -C "$W" rev-parse "$m^2")" = "$tip" ] && [ "$(git -C "$W" show -s --format='%(trailers:key=WAR-Task,valueonly)' "$m")" = "$B" ]; then range="$m^1..$m^2"; break; fi; done; fi && git -C "$W" log --format='%(trailers:key=Ace-Charge,valueonly)' "$range"\` (the integration branch by name, never a shell variable from an earlier call; an unmerged branch reads ${ph.integrationBranch}..<branch>, and a merged branch reads M^1..M^2 of its first-parent WAR-Task merge commit M, because ${ph.integrationBranch}..<branch> is empty once the branch is merged) and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's (a charge naming another task id never counts) — the task-id segment is the exact task id, never the worktree or branch name (a \`p<phase>-\` prefix on it still matches; never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts).`
+  // D12 (#2373 item 5): the map is keyed by each task's exact id, listed here.
+  const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — ${recovery ? 'one of the two git reads allowed beside the named subcommands; the recovery LATE-FIX CHARGE READ is the other' : 'the ONE git read allowed beside the named subcommands'}): after each task's ensure-worktree, ` + ABSORB_CHARGE_READ
+    + pt` Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task, each keyed by the exact task id string: ${JSON.stringify(tasks.map(t => t.id))}. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
   // Recovery skips require Git-resident task provenance; the helper owns the graph proof.
   const deriveSkipClause = recovery
     ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: BEFORE each task's ensure-worktree, run task-integrated.sh <branch> <integration> <working> in the repo named by that task's entry below. Use these repository-local arguments, never the superproject working branch inside a submodule.\nRECOVERY TASK PROOFS: ${JSON.stringify(tasks.map(t => ({ task: t.id, repo: t.taskType === 'submodule' ? t.targetRepo : (mainCheckout || '.'), branch: t.branch, integration: ph.integrationBranch, working: workingBranchFor(t) })))}\nThis read-only helper is authoritative for preMerged: exit 0 with TASK_INTEGRATED proves ancestry, a first-parent merge commit in the phase whose parsed WAR-Task trailer equals the task branch and whose second parent equals the task tip (worker commits need no trailer, and a task whose commits net to zero still proves), task content at that merge commit across the paths it changed (M^1..M^2), every later first-parent change to those paths coming from a merge commit whose WAR-Task trailer names another task or a one-parent commit whose Late-Fix trailer names this task, and stable input refs; report that task id in preMerged and skip its ensure-worktree. Exit 1 with NO_TASK_PROOF (including a zero-commit, sibling-only, fast-forward-only, unmerged or unattributed-change branch, or one whose only merge commit names another task) means ordinary ensure-worktree and work/audit, never completed; preserve the marker in the transcript. Exit 2 or any unrecognized failure halts provisioning with the exact command and stderr. A shared positive commit count is not ownership proof (#2196); never substitute the old ancestor/count shortcut. Existing non-integrated branches keep their commits, never reset; ensure-worktree owns any fast-forward.\n`
@@ -4243,35 +4282,57 @@ if (tasks.length) {
   // r.task.absorbRounds seeds from the barrier's absorbCharges map — the highest `Ace-Charge`
   // trailer index git holds on the task branch (git > any in-memory count, ADR 0008). Both id
   // dialects match (the preMergedIdOf normalization). A Lead override (args.absorbCharges, read
-  // unconditionally — never gated on args.recovery) wins over the barrier read, logged. Absent map, missing entry, or a
-  // malformed value ⇒ 0 with a loud log naming the task — never silent, never a hold.
+  // unconditionally — never gated on args.recovery) wins over the barrier read, logged. A task both maps
+  // leave unseeded is read once more by the charge probe (D40). Still unseeded ⇒ 0 with a loud log naming
+  // the task, the keys each map carried and the shape of each return with no map (D12) — never silent, never a hold.
   const chargesOf = m => (m && typeof m === 'object' && !Array.isArray(m)) ? m : null
   const chargeMaps = [['args.absorbCharges', chargesOf(A.absorbCharges)], ['barrier absorbCharges', chargesOf(barrierOut.absorbCharges)]]
   // A malformed WHOLE override map (an array, a string, a number) is never a silent skip: log its
   // shape and fall through to the barrier read (a Lead override typo must not read as "none threaded").
   if (A.absorbCharges && !chargesOf(A.absorbCharges)) log('absorb-budget: args.absorbCharges is not an object map (' + (Array.isArray(A.absorbCharges) ? 'array' : typeof A.absorbCharges) + ') — ignored; the barrier absorbCharges read is used instead.')
-  for (const t of tasks) {
-    // pre-merged / stale-remote tasks never run the ace ladder — no 0-seed warning for them
-    if (done.has(t.id)) continue
-    let seeded = false
-    // per-source cause for the 0-seed log: a map present but lacking the task, or a matched entry that failed the integer check
+  // chargeShapeOf (D12): the shape of a return that carried no usable map — `absorbCharges` absent,
+  // or the type of the non-map value — so "no absorbCharges map" never stands alone in the log.
+  const chargeShapeOf = o => deathOf(o) ? 'the dispatch died' : !o || typeof o !== 'object' || o.absorbCharges === undefined ? 'absorbCharges absent'
+    : Array.isArray(o.absorbCharges) ? 'array' : o.absorbCharges === null ? 'null' : typeof o.absorbCharges
+  // seedTask: the one seed arm every source runs through. Returns null once seeded, else the per-source
+  // causes for the 0-seed log (a map lacking the task names the keys it carried, D12).
+  const seedTask = (t, maps) => {
     const causes = []
-    for (const [srcName, m] of chargeMaps) {
+    for (const [srcName, m] of maps) {
       if (!m) continue
       const key = Object.keys(m).find(k => preMergedIdOf(k) === preMergedIdOf(t.id))
       const n = key === undefined ? undefined : m[key]
       if (Number.isInteger(n) && n >= 0) {
         t.absorbRounds = n
         log('absorb-budget: task ' + t.id + ' resumes at absorbRounds ' + n + ' (' + srcName + ' — the highest Ace-Charge trailer index on the task branch).')
-        seeded = true
-        break
+        return null
       }
       if (key !== undefined) log('absorb-budget: ' + srcName + ' entry for task ' + t.id + ' is malformed (' + JSON.stringify(n) + ') — ignored.')
-      causes.push(srcName + (key !== undefined ? ' entry for the task was malformed' : ' map lacks the task'))
+      causes.push(srcName + (key !== undefined ? ' entry for the task was malformed' : ' map lacks the task (keys: ' + JSON.stringify(Object.keys(m)) + ')'))
     }
-    if (!seeded) {
+    return causes
+  }
+  const unseeded = []
+  for (const t of tasks) {
+    // pre-merged / stale-remote tasks never run the ace ladder — no 0-seed warning for them
+    if (done.has(t.id)) continue
+    const causes = seedTask(t, chargeMaps)
+    if (causes) unseeded.push([t, chargeMaps[1][1] ? causes : causes.concat('barrier returned no absorbCharges map (' + chargeShapeOf(barrierOut) + ')')])
+  }
+  // CHARGE PROBE (D40, #2676): a running task neither map seeded is read from Git ONCE more, by one
+  // read-only refiner for the phase (the tip-probe pattern, no card twin). Its reply is the third
+  // source; a dead or malformed reply keeps the 0 seed and the log names its shape. Never a hold.
+  if (unseeded.length) {
+    const probe = await dispatchSite(
+      pt`CHARGE PROBE (read-only) for WAR phase ${ph.id}: the provision barrier returned no usable absorbCharges entry for the tasks below. Read Git only: never commit, revert, push or rebase. For each task, ` + ABSORB_CHARGE_READ
+      + pt` Return { absorbCharges: { "<task id>": <highest n, or 0> } }, keyed by the exact task id; omit a task whose read fails. TASKS: ${JSON.stringify(unseeded.map(([t]) => ({ task: t.id, worktree: t.worktree, branch: t.branch })))}`,
+      { agentType: NS + 'war-refiner', phase: 'Provision', dispatchKind: 'charge-probe', label: 'charge-probe:phase-' + ph.id, schema: CHARGE_PROBE, ...spawn('refiner') })
+    const pm = deathOf(probe) ? null : chargesOf(probe && probe.absorbCharges)
+    for (const [t, causes] of unseeded) {
+      const more = seedTask(t, [['charge-probe absorbCharges', pm]])
+      if (!more) continue
       t.absorbRounds = 0
-      log('absorb-budget: NO usable absorbCharges entry for task ' + t.id + ' (' + (causes.length ? causes.join('; ') : 'barrier returned no absorbCharges map') + ') — seeding absorbRounds 0.')
+      log('absorb-budget: NO usable absorbCharges entry for task ' + t.id + ' (' + causes.concat(pm ? more : ['charge-probe returned no absorbCharges map (' + chargeShapeOf(probe) + ')']).join('; ') + ') — seeding absorbRounds 0.')
     }
   }
 }
@@ -4505,7 +4566,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // to the merge slot (null when the probe died or was unusable).
   const aceTipProbe = async (r, site, pre) => {
     const label = 'tip-probe:' + site + ':' + r.task.id + ':a' + (r.task.absorbRounds + 1)
-    const p = await tipProbe({ probeId: 'WAR task ' + r.task.id, probeSite: site, probeWorktree: r.task.worktree, probeBranch: r.task.branch, probePre: pre, probeApproved: approvedShaOf(r), label })
+    const p = await tipProbe({ probeId: 'WAR task ' + r.task.id, probeSite: site, probeWorktree: r.task.worktree, probeBranch: r.task.branch, probePre: pre, probeApproved: approvedShaOf(r), label, partialRetry: true })
     // The echoed pre_sha is EVIDENCE, not decoration (the #1935 echoed-sha precedent): the delta-scaled
     // seats diff ev.pre..tip themselves, so a probe that echoes a pre_sha other than the engine's own
     // PRE is unusable — the tip is unread and the PIN-5 range-revert arms apply. pinMismatch compares
@@ -4514,6 +4575,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     if (p && pinMismatch(p.pre_sha, pre)) { log(label + ': the tip probe echoed pre_sha ' + p.pre_sha + ', not the engine\'s PRE ' + pre + ' — the branch tip is unread (PIN-5).'); r.tipProbe = null; return null }
     r.tipProbe = p
     return p
+  }
+  // aceDispatchProbed (D34, #2688): the one rule the polish, subset and re-entry arms share. Each
+  // dispatches its ace worker and probes the tip here. A dead reply whose probe classes unchanged with
+  // count 0 left no commit, so the same prompt re-dispatches ONCE, uncharged; a second empty reply takes
+  // the arm's non-moved route (the sweep). A dead reply that moved the tip keeps the PIN-3 path.
+  const aceDispatchProbed = async (r, site, pre, send) => {
+    let w = await send()
+    let probe = await aceTipProbe(r, site, pre)
+    if (deathOf(w) && tipClass(probe) === 'unchanged' && probe.count === 0) {
+      log('ace ' + r.task.id + ': the ' + site + ' dispatch returned nothing and left no commit — re-dispatching once (D34).')
+      w = await send()
+      probe = await aceTipProbe(r, site, pre)
+    }
+    return { w, probe }
   }
   // aceEvidence: the delta-scale input (#2485 D7) — the tip probe's git-derived file list and range,
   // plus the PRE and approved trees aceScope compares before it narrows the panel (the delta-scaled
@@ -4532,7 +4607,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // accounted at a SHA the gate never passed, except over failing ids also red at the pre-ace tip (the
   // ACE BASE GATE below). Fail-CLOSED on evidence: an absent, malformed or dead result is NOT green.
   // Fail-OPEN on the task (PIN-2): a red gate with a new id forward-reverts the ace tip and the
-  // approved pre-ace tip merges; it is never a fix loop and never a hold. Returns { green, died }:
+  // approved pre-ace tip merges; it is never a fix loop and never a hold. A judged red first gets one
+  // more gate run (D35: a re-ask for its ids, or a fresh re-run), and an unjudged red (no head_sha, no
+  // ids, D11) is a segment, never a red. Returns { green, died }:
   // a dispatch death (D21) is neither green nor red — `died` names the site and the caller abandons
   // the current subset with the existing abandon reason (the gate never judged the tip).
   // A gate that outruns one tool call (#2326, #2329, #2617) is also neither: the refiner backgrounds it, polls it in the same turn, and only if that job dies returns
@@ -4544,19 +4621,22 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // pre-ace tip (r.preAceSha, cached per sha in aceBaseGates, so subsets and re-entry reuse it). Ids
   // that are all red there too count as green for the revert decision, logged as a proceed-over, when
   // the red echoes head_sha at the ace tip. A new id, a red with no ids or no matching echo, or a dead
-  // or unusable base check keeps the red arm. The base check backgrounds a long gate like the ace gate
+  // or unusable base check keeps the red arm (its D35 second run, then the revert). The base check backgrounds a long gate like the ace gate
   // (aceSegments), and a segment reply, even a spent one, names no base ids. A backgrounded base check
   // names its throwaway worktree in segment_note. The shared continuation threads that note, and the
   // base check's own body tells a continuation to reuse and remove that worktree, so the read-only ace
   // gate check, whose continuation shares aceSegments, never carries a removal order.
   const aceBaseGates = new Map()
-  const aceIsSegment = res => !!res && res.gate_green === false && res.gate_segment === 'incomplete'
+  // D11 (#2329 item 1, #2655 item 2): an UNJUDGED red, gate_green: false with no usable head_sha and
+  // no gate_failing_ids, is a segment too. Its readers: the aceSegments loop (re-dispatch under
+  // roundLimit), the ace-base-gate .then filter (no base ids) and the ace gate's spent-bound arm (died).
+  const aceIsSegment = res => !!res && res.gate_green === false && (res.gate_segment === 'incomplete' || (!isSha(res.head_sha) && !debtIds(res.gate_failing_ids).length))
   const aceBgRule = backgroundGateRule(pt`{ gate_green: false, gate_segment: 'incomplete', gate_log_path: '<the path>', segment_note: '<the step you reached>' }`)
   // aceSegments: the segmented dispatch the ace gate check and its base check share (#2326/#2329).
   const aceSegments = async (body, opts, capture) => segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), aceIsSegment, async (prior, segment) => {
     log(opts.label + ': segmented gate (' + (prior.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
     return admitGateResult(await dispatchSite(
-      pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior ace gate check returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(prior.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST. If that log is complete, its exit_code is the gate result: do not rerun the gate, finish any Done when: command and return. Prior segment_note: ${prior.segment_note || 'none'}.\n` + body,
+      pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior ace gate check returned mid-gate (gate_segment: 'incomplete') or unjudged (a red with no head_sha and no gate_failing_ids). Prior gate_log_path: ${gateLogPathOf(prior.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST. If that log is complete, its exit_code is the gate result: do not rerun the gate, finish any Done when: command and return. Prior segment_note: ${prior.segment_note || 'none'}.\n` + body,
       { ...opts, label: opts.label + ':segment-' + segment }), capture)
   })
   const aceBaseIds = r => {
@@ -4574,21 +4654,47 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     return aceBaseGates.get(preAceSha)
   }
   const aceGateGreen = async (r, aceTipSha) => {
-    const capture = newGateCapture(r.task.worktree, 'ace-' + r.task.id)
-    const body =
+    const bodyOf = capture =>
       pt`ACE GATE CHECK for WAR task ${r.task.id} at the ace tip ${aceTipSha}. READ-ONLY: run the gate, change nothing beyond the provision re-run, its restore and the git-excluded gate log — never commit, revert, push or rebase.\n`
       + pt`In the ALREADY-PROVISIONED task worktree ${r.task.worktree} (branch ${r.task.branch}), first confirm \`git -C ${r.task.worktree} rev-parse HEAD\` is ${aceTipSha}; a moved HEAD is NOT green.\n`
-      + PROVISION_RERUN_CLAUSE + (provisionList.length ? pt`At this ace gate a failing provision step is NOT green: return { gate_green: false } with that step in gate_output.\n` : '')
+      + PROVISION_RERUN_CLAUSE + (provisionList.length ? pt`At this ace gate a failing provision step is NOT green: return { gate_green: false, head_sha: ${aceTipSha}, gate_output: <the failed step>, provision_failed: true }.\n` : '')
       + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
       + pt`Run it from inside that worktree with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Return { gate_green: true, head_sha: ${aceTipSha} } ONLY when the gate and any Done when: command are FULLY green; on a real failure return { gate_green: false, head_sha: ${aceTipSha}, gate_failing_ids: [<each failing test id>] } with the failing tail in gate_output. This gate licenses the pin transfer at this sha — no approval is ever accounted at a sha the gate never passed, except over ids also red at the pre-ace tip.\n`
       + capture.clause + pt`\n`
       + aceBgRule
-    const g = await aceSegments(body, { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
-      label: 'ace-gate:' + r.task.id + ':a' + r.task.absorbRounds, schema: GATE_CHECK, ...spawn('refiner') }, capture)
+    const opts = { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
+      label: 'ace-gate:' + r.task.id + ':a' + r.task.absorbRounds, schema: GATE_CHECK, ...spawn('refiner') }
+    const run = (lead, suffix) => { const capture = newGateCapture(r.task.worktree, 'ace-' + r.task.id); return aceSegments(lead + bodyOf(capture), { ...opts, label: opts.label + suffix }, capture) }
+    const g = await run('', '')
+    const first = await aceGateJudge(r, aceTipSha, g)
+    if (first) return first
+    // D35 (#2689): a judged red gets one more gate run before the revert, through aceSegments, so the
+    // D11 segment loop still applies. A red with head_sha and no ids (never a provision_failed red) is
+    // re-asked for its ids; any other judged red re-runs once in a fresh TMPDIR.
+    const reask = g.gate_green === false && g.provision_failed !== true && isSha(g.head_sha) && !debtIds(g.gate_failing_ids).length
+    const why1 = aceGateWhy(g)
+    log('ace-gate ' + r.task.id + ': red at ace tip ' + aceTipSha + ' — ' + why1 + (reask ? '; no gate_failing_ids, so the gate is re-asked once for them (D35).' : '; one fresh re-run before any revert (D35).'))
+    const g2 = await run(reask
+      ? pt`ACE GATE RE-ASK (D35): the prior red at ${aceTipSha} named no gate_failing_ids. Run the gate again and return the id of each failing test.\n`
+      : pt`ACE GATE RE-RUN (D35): the prior gate run at ${aceTipSha} was red. Run it once more from scratch in a new TMPDIR before any revert.\n`, reask ? ':ids' : ':rerun')
+    const second = await aceGateJudge(r, aceTipSha, g2)
+    if (second && second.green && g2 && g2.gate_green === true) log('ace-gate ' + r.task.id + ': the first red did not reproduce (flaky) — proceeding.')
+    if (second) return second
+    log('ace-gate ' + r.task.id + ': RED at ace tip ' + aceTipSha + ' — ' + why1 + '; the D35 re-run: ' + aceGateWhy(g2) + '. No re-audit runs (PIN-12); the ace tip is forward-reverted (PIN-2).')
+    return { green: false, died: null }
+  }
+  // aceGateWhy: the reason text for a reply that did not license the ace tip.
+  const aceGateWhy = g => !g || g.gate_green !== true
+    ? ((g && g.gate_output) || 'no usable gate_green evidence returned')
+    : !isSha(g.head_sha)
+      ? 'gate_green was true but no usable head_sha was echoed — nothing places the gate at this ace tip'
+      : 'gate_green was true but the echoed head_sha ' + g.head_sha + ' names a different commit — the gate did not run at this ace tip'
+  // aceGateJudge: one ace gate reply → { green, died }, or null for a judged red (D35 decides its fate).
+  const aceGateJudge = async (r, aceTipSha, g) => {
     const gateDied = deathOf(g)
     if (gateDied) return { green: false, died: gateDied }
     if (aceIsSegment(g)) {
-      log('ace-gate ' + r.task.id + ': segmented-gate budget exhausted after ' + roundLimit + ' re-dispatch(es) at ace tip ' + aceTipSha + ' — the gate never finished, so nothing judged this tip.')
+      log('ace-gate ' + r.task.id + ': segmented-gate budget exhausted after ' + roundLimit + ' re-dispatch(es) at ace tip ' + aceTipSha + ' — the gate never finished (or never judged the tip), so nothing judged this tip.')
       return { green: false, died: 'the ace gate at ' + aceTipSha + ' never finished within roundLimit ' + roundLimit }
     }
     // #1935: the echoed head_sha is EVIDENCE, not decoration — compare it. The prompt above asks the
@@ -4601,20 +4707,19 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     // validator already re-asked for). pinMismatch stays fail-open by contract (D2) — isSha carries
     // the presence half here, never a pinMismatch change.
     if (g && g.gate_green === true && isSha(g.head_sha) && !pinMismatch(g.head_sha, aceTipSha)) return { green: true, died: null }
-    const gateWhy = !g || g.gate_green !== true
-      ? ((g && g.gate_output) || 'no usable gate_green evidence returned')
-      : !isSha(g.head_sha)
-        ? 'gate_green was true but no usable head_sha was echoed — nothing places the gate at this ace tip'
-        : 'gate_green was true but the echoed head_sha ' + g.head_sha + ' names a different commit — the gate did not run at this ace tip'
-    const ids = g && g.gate_green === false ? debtIds(g.gate_failing_ids) : []
+    // A green reply with no usable echo is no judged red: it reverts at once, never re-run (D35).
+    if (!g || g.gate_green !== false) {
+      log('ace-gate ' + r.task.id + ': RED at ace tip ' + aceTipSha + ' — ' + aceGateWhy(g) + '. No re-audit runs (PIN-12); the ace tip is forward-reverted (PIN-2).')
+      return { green: false, died: null }
+    }
+    const ids = debtIds(g.gate_failing_ids)
     const baseIds = ids.length && isSha(r.preAceSha) ? await aceBaseIds(r) : []
     // The proceed-over licenses aceTipSha like the green arm, so it needs the same head_sha echo.
     if (ids.length && isSha(g.head_sha) && !pinMismatch(g.head_sha, aceTipSha) && ids.every(id => baseIds.includes(id))) {
       log('ace-gate ' + r.task.id + ': proceeds over [' + ids + '], red at the pre-ace tip ' + r.preAceSha + ' too (PIN-10).')
       return { green: true, died: null }
     }
-    log('ace-gate ' + r.task.id + ': RED at ace tip ' + aceTipSha + ' — ' + gateWhy + '. No re-audit runs (PIN-12); the ace tip is forward-reverted (PIN-2).')
-    return { green: false, died: null }
+    return null
   }
   // ---- DELTA-SCALED RE-AUDIT + SEAT-APPROVAL TRANSFER (D3, PIN-10, PIN-18) ----
   // The scale input is the tip probe's GIT-derived file list over the ace range (#2485 D7), never a
@@ -4836,11 +4941,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
       // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
       const chainRound = correctiveRoundOf('ace', r.task)
-      const sw = await dispatchSite(
+      // Dead or not, blocked or not, the tip probe reads the branch next (#2485 D2): only a moved tip
+      // is a subset commit. aceDispatchProbed owns the one D34 re-dispatch of an empty reply.
+      const { w: sw, probe: subProbe } = await aceDispatchProbed(r, 'subset', preSub, () => dispatchSite(
         pt`ACE BISECTION SUBSET for WAR task ${r.task.id} (a regressed --ace batch re-applied in subsets). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match (a subset's trailer value can be a strict prefix of a later, wider sibling's); on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
         + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-        + pt`Apply the smallest mechanical fix for EACH finding below and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer lines \`Ace-Subset: ${trailer}\` and \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (The panel re-audits the new sha; a regression is forward-reverted.) ${FIX_GATE_RULE}\n`
+        + pt`Apply the smallest mechanical fix for EACH finding below and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer lines \`Ace-Subset: ${trailer}\` and \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} ${ACE_TRAILER_CHECK} (The panel re-audits the new sha; a regression is forward-reverted.) ${FIX_GATE_RULE}\n`
         // pt-tagged prompt-feeding rows (subset prompt, top-level-catch): f.severity is construction-
         // guaranteed (sub.findings ⊆ aceable); the shared aceFindingRow builder is absence-tolerant.
         + sub.findings.map(aceFindingRow).join('\n') + '\n'
@@ -4848,12 +4955,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + chainFixClause(r.task, chainRound, 'ace subset', sub.findings.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...aceSpawn(r) })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...aceSpawn(r) }))
       // A subset worker death (D21) reads through deathOf FIRST — the site-named cause becomes the
-      // abandon reason below, never a hold and never a content verdict. Dead or not, blocked or not,
-      // the tip probe reads the branch next (#2485 D2): only a moved tip is a subset commit.
+      // abandon reason below, never a hold and never a content verdict.
       const swWhy = deathOf(sw) || nullDied(sw, aceLabel(r, 'subset')) || blockedReason(sw)
-      const subProbe = await aceTipProbe(r, 'subset', preSub)
       const subClass = tipClass(subProbe)
       if (subClass !== 'moved') {
         // No usable commit — uncharged; the ladder abandons here (never holds): this subset and every
@@ -4868,6 +4973,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           for (const f of q.findings) routeToSweep(f, 'failed absorb — ' + why + '; bisection abandoned, remaining subsets route to the sweep')
         break
       }
+      trailerGapLog('ace-bisect ' + r.task.id, subProbe, [['Ace-Subset', 'aceSubset', trailer], ['Ace-Charge', 'aceCharge', aceCharge]])
       // each subset COMMIT charges one absorb slot (D4/D5) — never fixRounds
       r.task.absorbRounds++
       // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
@@ -4997,21 +5103,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
       // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
       const chainRound = correctiveRoundOf('ace', r.task)
-      const rw = await dispatchSite(
+      // dead or not, blocked or not (#2485 D2); aceDispatchProbed owns the one D34 re-dispatch
+      const { w: rw, probe: reProbe } = await aceDispatchProbed(r, 'reentry', preRe, () => dispatchSite(
         pt`ACE RE-ENTRY BATCH for WAR task ${r.task.id} (fresh absorb findings born at a re-audit — the ladder re-opens, budget-bounded). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + pt`PREFLIGHT (resume idempotency): scan the range (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${reentryRange}\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match; on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
         + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-        + pt`Apply the smallest mechanical fix for EACH finding below and make EXACTLY ONE commit citing each finding's title + rationale (an absorb-by-citation row's cited row-id + match rationale included), its message ENDING with the trailer lines \`Ace-Subset: ${trailer}\` and \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (The panel re-audits the new sha; a regression is forward-reverted.) ${FIX_GATE_RULE}\n`
+        + pt`Apply the smallest mechanical fix for EACH finding below and make EXACTLY ONE commit citing each finding's title + rationale (an absorb-by-citation row's cited row-id + match rationale included), its message ENDING with the trailer lines \`Ace-Subset: ${trailer}\` and \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} ${ACE_TRAILER_CHECK} (The panel re-audits the new sha; a regression is forward-reverted.) ${FIX_GATE_RULE}\n`
         + batch.map(aceFindingRow).join('\n') + '\n'
         + FIX_ROUND_DOCTRINE_CLAUSE
         + chainFixClause(r.task, chainRound, 'ace re-entry', batch.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...aceSpawn(r) })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...aceSpawn(r) }))
       // a re-entry worker death (D21) takes the existing abandon arm, site-named
       const rwWhy = deathOf(rw) || nullDied(rw, aceLabel(r, 'reentry')) || blockedReason(rw)
-      // dead or not, blocked or not (#2485 D2)
-      const reProbe = await aceTipProbe(r, 'reentry', preRe)
       const reClass = tipClass(reProbe)
       if (reClass !== 'moved') {
         // No usable commit — uncharged; abandon (never hold): this batch and the queue route to the
@@ -5027,6 +5132,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
         break
       }
+      trailerGapLog('ace-reentry ' + r.task.id, reProbe, [['Ace-Subset', 'aceSubset', trailer], ['Ace-Charge', 'aceCharge', aceCharge]])
       // each re-entry COMMIT charges one absorb slot (D5) — never fixRounds
       r.task.absorbRounds++
       // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
@@ -5219,7 +5325,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         const aceCharge = aceChargeOf(r)
         // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
         const chainRound = correctiveRoundOf('ace', r.task)
-        const ace = await dispatchSite(
+        // The tip probe (#2485 D2, PIN-2): dead or not, blocked or not, the branch is read from Git
+        // before anything is charged or judged — `blocked` never means no commit, and the worker's
+        // head_sha is never the source. The batch's pre-dispatch tip is the approved tip.
+        const preAce = r.preAceSha = approvedShaOf(r)
+        const { w: ace, probe: aceProbe } = await aceDispatchProbed(r, 'polish', preAce, () => dispatchSite(
           pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. ` + provisionedLine(r.task)
           // Prompt truth (D6): fix prompts carry the gate command + the task's
           // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
@@ -5229,24 +5339,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // minorsOf/absorb → Minor/Nit only, bare); the shared aceFindingRow builder is absence-tolerant
           // (and renders a citation-resolved row's row-id + match rationale, D6).
           + aceable.map(aceFindingRow).join('\n') + '\n'
-          + pt`Make ONE commit only, its message ENDING with the trailer line \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (The panel re-audits it at the new sha; on regression it is forward-reverted.) Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}. ${FIX_GATE_RULE}`
+          + pt`Make ONE commit only, its message ENDING with the trailer line \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} ${ACE_TRAILER_CHECK} (The panel re-audits it at the new sha; on regression it is forward-reverted.) Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}. ${FIX_GATE_RULE}`
           + chainFixClause(r.task, chainRound, 'ace advisory polish', aceable.map(relationTagOf))
           + FIX_ROUND_DOCTRINE_CLAUSE
           + FIX_ROUND_SCOPE_CLAUSE
           + fixRoundFenceClause(polishFence)
           + POLISH_FILES_CLAUSE
           + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...aceSpawn(r) })
+          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...aceSpawn(r) }))
         recordIgnoreList('advisory polish', r.task.id, ace)
         // an ace worker death (D21) or a resolved null (#2555 D11) takes the existing failed-attempt arm, site-named
         const aceWhy = deathOf(ace) || nullDied(ace, aceLabel(r, 'polish')) || blockedReason(ace)
-        // The tip probe (#2485 D2, PIN-2): dead or not, blocked or not, the branch is read from Git
-        // before anything is charged or judged — `blocked` never means no commit, and the worker's
-        // head_sha is never the source. The batch's pre-dispatch tip is the approved tip.
-        const preAce = r.preAceSha = approvedShaOf(r)
-        const aceProbe = await aceTipProbe(r, 'polish', preAce)
         const aceClass = tipClass(aceProbe)
         if (aceClass === 'moved') {
+          trailerGapLog('ace ' + r.task.id, aceProbe, [['Ace-Charge', 'aceCharge', aceCharge]])
           // A descendant tip with a net change is an implemented ace (#2485 D3), whatever the worker
           // reported: charge it, record its fix lines, and re-audit at the probed tip.
           if (aceWhy) log('ace ' + r.task.id + ': the ace worker reported "' + aceWhy + '", but the tip probe found ' + aceProbe.count + ' commit(s) above ' + preAce + ' at ' + aceProbe.tip_sha + ' — re-audited as an implemented ace (PIN-3), never left unjudged.')
@@ -7744,7 +7850,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           + intentClause
           + pt`Gate: ${plan.gate}\n`
           + sweepWorkerDebtClause()
-          + pt`Apply the smallest mechanical fix for EACH finding below and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Charge: ${terminalCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (One re-audit seat judges the new sha; a regression is forward-reverted.) Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${polishBranch}. ${FIX_GATE_RULE}\n`
+          + pt`Apply the smallest mechanical fix for EACH finding below and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Charge: ${terminalCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} ${ACE_TRAILER_CHECK} (One re-audit seat judges the new sha; a regression is forward-reverted.) Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${polishBranch}. ${FIX_GATE_RULE}\n`
           // citationStamp (#1873-class): a citation absorb the sweep never touched rides this pass, so
           // the terminal commit message carries the same stamp its recordAced arm records below.
           + terminalRows.map(queuedFindingRow).join('\n') + pt`\n`
@@ -7795,6 +7901,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           // the probed tip, never the worker's head_sha (PIN-2)
           const terminalSha = tProbe.tip_sha
           if (twWhy) log('terminal pass: phase ' + ph.id + ' — the terminal worker reported "' + twWhy + '", but the tip probe found ' + tProbe.count + ' commit(s) at ' + terminalSha + ' — judged by the one terminal seat (PIN-3), never orphaned.')
+          trailerGapLog('terminal pass: phase ' + ph.id, tProbe, [['Ace-Charge', 'aceCharge', terminalCharge]])
           // the terminal COMMIT charges the polish pseudo-task's counter — telemetry only (D3a)
           polishTask.absorbRounds++
           log('terminal pass: phase ' + ph.id + ' committed at ' + terminalSha + ' (Ace-Charge ' + terminalCharge + '; polish task absorbRounds now ' + polishTask.absorbRounds + ', telemetry only).')
@@ -8319,6 +8426,41 @@ const foldedFixOf = f => ({ ...(!noFixText(f.suggested_fix) ? { suggested_fix: f
 const drainCauseOf = m => (m && m.drainCause && typeof m.drainCause === 'object' && typeof m.drainCause.dispatch === 'string')
   ? { dispatch: m.drainCause.dispatch, why: String(m.drainCause.why ?? '') }
   : null
+// ---- FOLLOW-UP RECONCILE (D4, PIN-4) and the sibling-merge stamp (D33, PIN-34) ----
+// The D4 invariant: an `aced` record is written only after an approval (the batch, aceBisect subset and
+// aceReentry sites move r.aceSha to that sha first) or a merge (the sweep, the terminal pass), and every
+// range revert starts at approvedShaOf, so no aced record is undone later and a reverted round writes
+// none. So a demote:absorb-regressed row that a LATER aced record covers (aced past its acedAt stamp,
+// the same file within ±FOLLOWUP_LINE_WINDOW lines, or the same normTitle when a line is absent) was
+// fixed before land: it moves to notes as reconciled:aced-later, logged with the aced sha, never filed.
+if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDecision === 'held:land-failed') && minorsFiled.length > 0) {
+  // A recovery-carried row (its acedAt indexes the prior run's aced array) or an already-filed row
+  // skips the reconcile and the VERIFY FIRST stamp: it files or reuses its issue as before.
+  const regressedRow = m => typeof m.demoteReason === 'string' && m.demoteReason.startsWith('demote:absorb-regressed') && !!m.file
+    && m.recovered !== true && typeof m.issue !== 'number'
+  const kept = []
+  for (const m of minorsFiled) {
+    const later = regressedRow(m) && Number.isInteger(m.acedAt) ? aced.slice(m.acedAt).find(a => {
+      const g = a && a.finding
+      return g && g.file && aceRelPath(g.file) === aceRelPath(m.file) && (Number.isFinite(g.line) && Number.isFinite(m.line)
+        ? Math.abs(g.line - m.line) <= FOLLOWUP_LINE_WINDOW : normTitle(g.title) === normTitle(m.title))
+    }) : null
+    if (!later) { kept.push(m); continue }
+    log('file-followups reconcile: [' + m.severity + '] "' + (m.title ?? '(untitled finding)') + '" (task ' + m.task + ', ' + m.file + ') was aced later at ' + later.sha + ' by "' + (later.finding.title ?? '(untitled finding)') + '" — moved to notes as reconciled:aced-later, never filed (D4).')
+    notes.push({ ...m, demoteReason: 'reconciled:aced-later', regressedReason: m.demoteReason, acedSha: later.sha })
+  }
+  minorsFiled.splice(0, minorsFiled.length, ...kept)
+  // D33 (#2686): a regressed row whose file a merged SIBLING's git-derived diff set holds (never the
+  // origin task's) is stamped siblingTouch { task, sha }, the sibling's landed sha; the filing prompt
+  // lists it under VERIFY FIRST. Runs after the D4 reconcile and before the collapse.
+  for (const m of minorsFiled) {
+    if (!regressedRow(m)) continue
+    for (const [task, sha] of landedShaByTask) {
+      const set = task !== m.task ? diffFilesByTask.get(task) : null
+      if (set instanceof Set && set.has(aceRelPath(m.file))) { m.siblingTouch = { task, sha }; break }
+    }
+  }
+}
 if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDecision === 'held:land-failed') && minorsFiled.length > 0) {
   // ---- FOLLOW-UP CONSOLIDATION (Task 2.1, #1566; D8 seat discrimination + merged[] fidelity, Phase 5
   // Task 1): deterministic pre-filing collapse of minorsFiled, in place (the handoff assembly below
@@ -8406,6 +8548,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
     ? ((DEMOTE_REASONS.find(p => typeof m.demoteReason === 'string' && m.demoteReason.startsWith(p))) || 'demote:unclassified')
     : m.floorSkipped === true ? 'demote:floor-skipped'
     : 'seat-filed (barrier: ' + (typeof m.barrier === 'string' && m.barrier ? m.barrier : 'none') + ')'
+  const verifyFirst = minorsFiled.some(m => m.siblingTouch)
   let filingOut = null
   try {
     filingOut = await dispatchSite(
@@ -8438,7 +8581,16 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // down the seatRefOf fallback instead. merged[] (D8) renders per row so the filing agent
       // carries each merged-away title+rationale into the issue body.
       + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; const dc = drainCauseOf(m); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''} · seats: ${seatsListOf(m).join(', ')}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}${typeof m.demoteReason === 'string' && m.demoteReason ? pt` · engine demote reason: ${m.demoteReason}` : ''}${dc ? pt` · drain cause: ${dc.dispatch} died — ${dc.why}` : ''} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}${typeof m.issue === 'number' ? pt` · already filed #${m.issue ?? ''} (reuse it: no new issue, no comment)` : ''}` }).join('\n') + '\n'
-      + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
+      // D33 (#2686): the VERIFY FIRST block, only when a row carries siblingTouch (refiner-recovery.md
+      // § File-followups filing is its standing home).
+      + (verifyFirst ? pt`VERIFY FIRST: a merged sibling task changed the file of each row below after its absorb regressed. Before filing one, read its file at the landed tip; when the defect its rationale names is gone, return it in verified_fixed: [{ n, evidence }] (evidence: the file and line you read) and give it no filed entry and no cluster. Otherwise file it.\n`
+        + minorsFiled.map((m, i) => m.siblingTouch ? pt`  row ${i + 1}: task ${m.siblingTouch.task ?? '<task>'} merged at ${m.siblingTouch.sha ?? 'unrecorded'}` : null).filter(Boolean).join('\n') + '\n' : '')
+      // A VERIFY FIRST prompt names verified_fixed in its return shape and scopes the cluster rule
+      // past those ordinals (agents/war-refiner.md § Return carries the optional field).
+      + (verifyFirst
+        ? pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }], verified_fixed: [{ n, evidence }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above not returned in verified_fixed in exactly ONE cluster's ordinals array (merge rows only, never split one).`
+        : pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one).`)
+      + pt` A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
     // Fail-open (D2): a THROWN filing dispatch must never convert a resolved land decision into
@@ -8458,6 +8610,13 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   // `issue: m.issue ?? null` (byte-unchanged below) then renders the stamped values. A row that
   // already carried a numeric issue before the dispatch (a #2700 prior-return carry) keeps it.
   const filedRows = (filingOut && Array.isArray(filingOut.filed)) ? filingOut.filed : null
+  // D33: verified_fixed ordinals, read only for a VERIFY FIRST row (siblingTouch); a row that also
+  // got an issue stays filed. Optional and fail-open: an absent or malformed list files every row.
+  const verifiedFixed = new Map()
+  for (const v of (filingOut && Array.isArray(filingOut.verified_fixed)) ? filingOut.verified_fixed : []) {
+    if (v && Number.isInteger(v.n) && v.n >= 1 && v.n <= minorsFiled.length && minorsFiled[v.n - 1].siblingTouch)
+      verifiedFixed.set(v.n, typeof v.evidence === 'string' && v.evidence ? v.evidence : '(no evidence returned)')
+  }
   if (filedRows) {
     const preFiled = minorsFiled.map(m => typeof m.issue === 'number')
     for (const row of filedRows) {
@@ -8478,7 +8637,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
     else {
       const seen = new Map()
       for (const cl of clusters) for (const o of (cl && Array.isArray(cl.ordinals)) ? cl.ordinals : []) seen.set(o, (seen.get(o) || 0) + 1)
-      for (let n = 1; n <= minorsFiled.length; n++) if ((seen.get(n) || 0) !== 1) problems.push('ordinal ' + n + ' appears in ' + (seen.get(n) || 0) + ' clusters (must be exactly one)')
+      for (let n = 1; n <= minorsFiled.length; n++) if (!(verifiedFixed.has(n) && typeof minorsFiled[n - 1].issue !== 'number') && (seen.get(n) || 0) !== 1) problems.push('ordinal ' + n + ' appears in ' + (seen.get(n) || 0) + ' clusters (must be exactly one)')
       for (const o of seen.keys()) if (!Number.isInteger(o) || o < 1 || o > minorsFiled.length) problems.push('unknown ordinal ' + JSON.stringify(o))
     }
     const distinctIssues = new Set(filedRows.filter(r => r && typeof r.issue === 'number').map(r => r.issue)).size
@@ -8486,6 +8645,18 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
     if (problems.length) log('file-followups clusters manifest violation: ' + problems.join('; ') + ' — fail-open (stamped rows stand; landDecision untouched; the Checkpoint floor is the catch).')
   } else {
     log('file-followups: dead dispatch or non-conforming return — every unmatched handoff.followUps entry stays issue: null (fail-open, D2).')
+  }
+  // D33: each verified row with no issue moves to notes as reconciled:sibling-merge, with the filer's
+  // evidence and the sibling's sha, logged. It is kept, never dropped.
+  if (verifiedFixed.size) {
+    const keep = minorsFiled.filter((m, i) => {
+      const evidence = verifiedFixed.get(i + 1)
+      if (evidence === undefined || typeof m.issue === 'number') return true
+      log('file-followups: [' + m.severity + '] "' + (m.title ?? '(untitled finding)') + '" (task ' + m.task + ', ' + m.file + ') verified fixed by task ' + m.siblingTouch.task + "'s merge at " + m.siblingTouch.sha + ' (' + evidence + ') — moved to notes as reconciled:sibling-merge, never filed (D33).')
+      notes.push({ ...m, demoteReason: 'reconciled:sibling-merge', regressedReason: m.demoteReason, evidence, siblingSha: m.siblingTouch.sha })
+      return false
+    })
+    minorsFiled.splice(0, minorsFiled.length, ...keep)
   }
 }
 

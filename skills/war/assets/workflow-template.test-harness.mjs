@@ -229,6 +229,10 @@ const NEW_SEAT_DEFAULTS = {
   // every pre-Phase-4 fixture routes exactly as it did. A fixture that wants the floor answers the
   // seat with { diff_files: [...] } through `seats`.
   'diff-probe': { detail: 'harness default — no probe' },
+  // charge-probe (D40, #2676): the one read-only refiner re-read of an unseeded task's Ace-Charge
+  // trailers. The neutral default is the diff-probe no-map shape, so every existing fixture keeps its
+  // 0-seed arm; a fixture that wants a seed answers the seat with { absorbCharges: {...} } through `seats`.
+  'charge-probe': { detail: 'harness default — no probe' },
 }
 // runPhase(args, agentImpl, seats): `seats` drives the two #1913 refiner seats — a value, or a
 // (prompt, opts) function. They are answered from `seats`, never from agentImpl, precisely because the
@@ -240,13 +244,18 @@ const answerNewSeat = (seats, prompt, opts, world) => {
   const r = o ?? NEW_SEAT_DEFAULTS[opts.dispatchKind]
   return typeof r === 'function' ? r(prompt, opts, world) : r
 }
+// aceJudgedRed (plan 2026-11-08-engine-findings T3.1, D11): the red an ace gate prompt asks a real
+// failure to return — head_sha echoing the dispatched ace tip, plus the failing ids. A bare
+// { gate_green: false } is unjudged since D11 (a segment), so the RED-arm fixtures answer this shape.
+const aceJudgedRed = (gate_output = 'FAIL: 1 test failed', ids = ['test_ace_red']) => prompt =>
+  ({ gate_green: false, head_sha: (String(prompt).match(/at the ace tip ([0-9a-f]{7,40})/) || [])[1], gate_failing_ids: ids, gate_output })
 // The #2485 harness Git world: hex test, a deterministic fixture tree per name, the branch a prompt
 // names, and the fixed tip a ref-named PRE resolves to.
 const isHexSha = s => typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s)
 const fixtureTree = name => createHash('sha1').update('tree:' + name).digest('hex')
 const branchOfPrompt = prompt => (String(prompt).match(/\(branch ([^,)\s]+)/) || [])[1] || null
 const FIXTURE_REF_TIP = 'feed0000'.padEnd(40, '0')
-const NEW_SEAT_KINDS = ['ace-gate', 'ace-base-gate', 'pre-ace-probe', 'pin-transfer', 'diff-probe', 'pin-confirm', 'pin-snapshot', 'target-reconcile', 'merge-confirm', 'merge-snapshot', 'merge-reconcile', 'audit-pin', 'tip-probe', 'ace-revert']
+const NEW_SEAT_KINDS = ['ace-gate', 'ace-base-gate', 'pre-ace-probe', 'pin-transfer', 'diff-probe', 'pin-confirm', 'pin-snapshot', 'target-reconcile', 'merge-confirm', 'merge-snapshot', 'merge-reconcile', 'audit-pin', 'tip-probe', 'ace-revert', 'charge-probe']
 
 // Scripted Git proof for neutral flow fixtures; real Git integrity tests supply their own
 // independent resolver and raw responses. This helper never changes worker/auditor responses.
@@ -309,7 +318,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
 
 const seatOf = (opts) => (opts.agentType || '').split(':').pop()
 const defaultImpl = (prompt, opts) => {
-  if (opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin' || opts.dispatchKind === 'tip-probe' || opts.dispatchKind === 'ace-revert' || opts.dispatchKind === 'ace-base-gate' || opts.dispatchKind === 'pre-ace-probe') return answerNewSeat({}, prompt, opts)
+  if (opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin' || opts.dispatchKind === 'tip-probe' || opts.dispatchKind === 'ace-revert' || opts.dispatchKind === 'ace-base-gate' || opts.dispatchKind === 'pre-ace-probe' || opts.dispatchKind === 'charge-probe') return answerNewSeat({}, prompt, opts)
   const seat = seatOf(opts)
   // Provision dispatches now return the ENV_OUTCOME shape: the git-topology barrier
   // (dispatchKind 'provision-barrier') AND the per-task provision-run (dispatchKind 'provision-run')
@@ -2361,6 +2370,8 @@ const BARE_INTERPOLATION_CENSUS = [
   // CITATION_MIN_LENGTH (#2224, D7): a module const, construction-guaranteed — the DISPOSITION
   // WIDENINGS (3) citation sentence must carry the interpolation, never a bare number (the `citation` row).
   'CITATION_MIN_LENGTH',
+  // ACE_TRAILER_CHECK (D24, PIN-25): a module const, the pre-push trailer check on the four ace-family prompts.
+  'ACE_TRAILER_CHECK',
   'PLAN_DEFECT_SENTINEL', 'PREFLIGHT', 'SCRIPT', 'artifactLine', 'authArtifactLine', 'authCriteria',
   'baseDesc', 'batchSha', 'block', 'depSha', 'depth', 'doneWhenLog', 'e.preMergeTip', 'e.taskId',
   // ev.sha left this census (in-band-absorb-default 4.1 polish): the pinned-sha slot renders the
@@ -3413,7 +3424,7 @@ const captureRangeRevertScript = async ({ dir, git, quiet, approved }) => {
       return { tip_sha: tip, tip_tree: git('rev-parse', tip + '^{tree}'), pre_sha: git('rev-parse', pre), pre_tree: git('rev-parse', pre + '^{tree}'), approved_tree: git('rev-parse', approved + '^{tree}'),
         count: Number(git('rev-list', '--count', pre + '..' + tip)), pre_is_ancestor: true, files: git('diff', '--no-renames', '--name-only', pre, tip).split('\n') }
     },
-    'ace-gate': { gate_green: false, gate_output: 'red' },
+    'ace-gate': aceJudgedRed('red'),
     'pin-transfer': p => { scripts.push(rangeRevertScriptOf(p)); return { status: 'error' } },
   })
   assert.equal(scripts.length, 1, 'the pin-transfer probe carried the range revert')
@@ -3541,6 +3552,9 @@ const READER_CENSUS = [
   // late-defects Task 3.1: a merged late fix (a --ff-only merge, so integration_sha is the late-fix tip) moves the tracker.
   ['lateFixPass: lastLandedTip from a merged late fix', /^\s+if \(isSha\(mr\.integration_sha\)\) lastLandedTip = mr\.integration_sha$/, 1],
   ["auditEvidenceOf's fallback (landedShaByTask)", /const g = auditLog\.find\(e => e && e\.task === t && e\.gateEvidence && typeof e\.gateHeadSha|sha: g \? g\.gateHeadSha : \(landedShaByTask\.get\(t\) \?\? 'unrecorded'\)/, 2],
+  // D33 (#2686): the sibling-merge stamp names a merged sibling's landed tip (its merge commit) for
+  // the filer to read at; it licenses nothing and moves no record by itself.
+  ['D33 siblingTouch (landedShaByTask)', /^\s+for \(const \[task, sha\] of landedShaByTask\) \{$/, 1],
 ]
 const readerCensusOf = source => {
   const counts = new Map(READER_CENSUS.map(([name]) => [name, 0])), unclassified = [], ambiguous = []
@@ -3588,7 +3602,7 @@ const readCharges = (cmd, dir, branch) => {
   assert.equal(r.status, 0, r.stderr)
   return r.stdout.split('\n').map(s => s.trim()).filter(Boolean)
 }
-// The prompt's rule: the bare task id segment must equal this task's id; take the HIGHEST n.
+// The prompt's rule: the task-id segment must equal this task's exact id; take the HIGHEST n.
 const highestFor = (values, id) => Math.max(0, ...values.map(v => v.match(/^(.+):(\d+)$/)).filter(m => m && m[1] === id).map(m => Number(m[2])))
 
 // ---- #2485 Task 4.1 — tree-keyed re-provision before any gate (plan 2026-10-28-blocked-ace-and-merge-provenance, D15/D19) ----
@@ -3794,6 +3808,7 @@ export {
   fakeParallel,
   NEW_SEAT_DEFAULTS,
   answerNewSeat,
+  aceJudgedRed,
   isHexSha,
   fixtureTree,
   branchOfPrompt,
