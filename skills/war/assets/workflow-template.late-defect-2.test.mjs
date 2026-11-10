@@ -719,7 +719,7 @@ test('late-fix pass: escalate stops the defect and keeps its reason', async () =
   assert.equal(lateWorkers(held.calls).length, 1)
   assert.ok(lateHolds(held.out)[0].detail.includes(WHY), 'the final-phase late-defect hold names the reason')
   // Red at base: without the stop the pass spends the budget and the reason is lost.
-  const STOP = "      if (lfEsc) { stop = 'a late-fix re-audit seat escalated at ' + w.head_sha + ' (' + lfEsc + ')'; break }\n"
+  const STOP = '      if (lfEsc) { stop = lfEsc; break }\n'
   assert.ok(src.includes(STOP), 'the mutation target is the live stop')
   const mutant = await runPhase(LATE_FIX_ARGS(), escImpl(), {}, src.replace(STOP, ''))
   assert.equal(lateWorkers(mutant.calls).length, 6, 'the mutant spends run.roundLimit rounds')
@@ -900,6 +900,28 @@ test('late-fix pass: a row already fixed at the tip resolves in one round', asyn
   const no = await runPhase(LATE_FIX_ARGS(), impl({ rejects: 1 }), EMPTY)
   assert.deepEqual(lfRows(no.out), [['late-fix:rejected', 1], ['late-fix:approve', 2]], 'the at-tip round stays charged')
   assert.ok(lateWorkers(no.calls)[1].prompt.includes('the worker said the tip already fixes it, and the re-audit did not approve'), 'PRIOR ROUND names the rejection')
+  // Arm 3: an escalate seat on the at-tip re-audit stops the defect at that round, reason kept.
+  const WHY = 'a decision fork: the tip fixes the row by a route the plan never named'
+  // Every worker round answers at-tip here, so the commit-arm stop can never fire in its place.
+  const escImpl = () => { const base = lateFixImpl(); return (p, o) => /^late-fix:/.test(labelOf({ opts: o })) ? AT_TIP : /^audit:p\d+-latefix-/.test(labelOf({ opts: o }))
+    ? { seat: o.label, lens: 'correctness', verdict: 'escalate', escalate_reason: WHY, findings: [], confidence: 'high' } : base(p, o) }
+  const carried = await runPhase(LATE_FIX_ARGS({ finalPhase: false }), escImpl(), EMPTY)
+  assert.deepEqual(lateWorkers(carried.calls).map(labelOf), ['late-fix:t1:r1'], 'the defect stops at the escalating at-tip round')
+  assert.equal(carried.out.carriedTasks.length, 1)
+  assert.ok(carried.out.carriedTasks[0].carriedFrom.reason.includes(WHY), 'the non-final carry names the reason')
+  assert.ok(carried.out.carriedTasks[0].carriedFrom.reason.includes('a late-fix re-audit seat escalated at ' + TIP), 'and the tip sha')
+  assert.equal(carried.out.carriedTasks[0].fixRounds, 1, 'the escalating round stays charged')
+  assert.deepEqual(lfRows(carried.out), [['late-fix:rejected', 1]], 'no at-tip fix is recorded')
+  const held = await runPhase(LATE_FIX_ARGS(), escImpl(), EMPTY)
+  assert.equal(held.out.landDecision, 'held:escalation')
+  assert.equal(lateWorkers(held.calls).length, 1)
+  assert.ok(lateHolds(held.out)[0].detail.includes(WHY), 'the final-phase late-defect hold names the reason')
+  // Red at base: without the at-tip stop the pass spends the budget and the reason is lost.
+  const T_STOP = '        if (tEsc) { stop = tEsc; break }\n'
+  assert.ok(src.includes(T_STOP), 'the mutation target is the live at-tip stop')
+  const tMutant = await runPhase(LATE_FIX_ARGS(), escImpl(), EMPTY, src.replace(T_STOP, ''))
+  assert.equal(lateWorkers(tMutant.calls).length, 6, 'the mutant spends run.roundLimit rounds')
+  assert.ok(!lateHolds(tMutant.out)[0].detail.includes(WHY), 'and the hold drops the reason')
   // Guard: a probe that finds a change never takes the at-tip arm.
   const changed = await runPhase(LATE_FIX_ARGS(), impl(), { 'diff-probe': (p, o) => o.label === 'diff-probe:p3-latefix-1' ? { diff_files: ['src/a.js'] } : { detail: 'x' } })
   assert.ok(changed.logs.some(l => l.includes('but the probe found 1 changed file(s)')), 'a non-empty range is a charged no-commit round')

@@ -7363,6 +7363,9 @@ const lateFixPass = async () => {
     const lfNoReentry = 'born at the late-fix re-audit of ' + id + ' for task ' + origin.id + ' — past the wave side, so re-entry can never dispatch; the phase-close sweep is the vehicle'
     let stop = holding.length ? 'the phase already holds (' + holding.join(', ') + '), so the late-fix pass never ran' : null
     let lfPrior = '', fixed = false, cut = false, atTipFixed = false
+    // D15 (#2661.3): an escalate seat stops the defect at that round; its reason rides the stop.
+    // The at-tip re-audit and the commit re-audit both read it here.
+    const lfEscStop = (seats, sha) => { const why = escalateReasonOf(seats); return why ? 'a late-fix re-audit seat escalated at ' + sha + ' (' + why + ')' : null }
     const lfCopies = []
     for (const s of lateSrcOf.get(f) || [f]) if (!lfCopies.some(c => c.rationale === s.rationale && c.suggested_fix === s.suggested_fix)) lfCopies.push(s)
     if (!stop && origin.fixRounds < roundLimit) {
@@ -7407,6 +7410,8 @@ const lateFixPass = async () => {
           findings: tSeats.flatMap(s => s.findings || []), requested: tExpected, returned: tSeats.length, ...(tDied ? { blocked: tDied } : {}) })
         if (tDied) { stop = 'the late-fix re-audit died (' + tDied + ')'; break }
         routeReauditMinors(lfRecord, tSeats, { noReentry: lfNoReentry, diff: diffFilesOf(origin) })
+        const tEsc = lfEscStop(tSeats, w.head_sha)
+        if (tEsc) { stop = tEsc; break }
         if (tipOk) {
           origin.fixRounds = lfRound - 1
           atTipFixed = true
@@ -7430,9 +7435,8 @@ const lateFixPass = async () => {
       const lfDiff = await probeDiff(lfTask, ph.integrationBranch, w.head_sha)
       if (!lfDiff) log(id + ': no late-fix probe, so task ' + origin.id + '\'s probe, if any, judges in-diff.')
       routeReauditMinors(lfRecord, seats, { noReentry: lfNoReentry, diff: lfDiff && new Set([...(diffFilesOf(origin) || []), ...lfDiff]) })
-      // D15 (#2661.3): an escalate seat stops the defect at this round; its reason rides the stop.
-      const lfEsc = escalateReasonOf(seats)
-      if (lfEsc) { stop = 'a late-fix re-audit seat escalated at ' + w.head_sha + ' (' + lfEsc + ')'; break }
+      const lfEsc = lfEscStop(seats, w.head_sha)
+      if (lfEsc) { stop = lfEsc; break }
       if (!ok) {
         lfPrior = 'round ' + lfRound + ' at ' + w.head_sha + ' — the re-audit did not approve: ' + blockingOf(seats).map(b => '[' + b.severity + '] ' + (b.title ?? '') + (b.suggested_fix ? ' → ' + b.suggested_fix : '')).join('; ')
         continue
