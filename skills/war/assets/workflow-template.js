@@ -2898,12 +2898,16 @@ const netZeroScript = (revertWorktree, revertApproved, clashSha, revertBranch) =
 // polishClaims: file → { r, sha } for the current wave (cleared at each wave start). The first
 // same-wave polish commit to touch a file no task of the wave lists claims it, in tip-probe return
 // order (claimPolishFiles). A claim ends when the claimant's own commit is reverted: a range revert
-// whose approved sha is not the claiming commit. An ended claim moves to releasedClaims, so a later
+// that undoes a claiming commit no panel approved. An ended claim moves to releasedClaims, so a later
 // claimant of that file also marks the reverted claimant for the net-zero merge-slot step.
+// keepClaims marks a claim whose commit a panel approved. Every later revert starts at an approved
+// sha at or above that commit, so the commit stays on the branch and releaseClaims never ends the
+// claim, even after a later ace moves the approved sha.
 const polishClaims = new Map()
 const releasedClaims = new Map()
+const keepClaims = (r, sha) => { for (const c of polishClaims.values()) if (c.r === r && c.sha === sha) c.approved = true }
 const releaseClaims = r => {
-  const gone = [...polishClaims].filter(([, c]) => c.r === r && c.sha !== approvedShaOf(r))
+  const gone = [...polishClaims].filter(([, c]) => c.r === r && !c.approved && c.sha !== approvedShaOf(r))
   for (const [file, c] of gone) { polishClaims.delete(file); releasedClaims.set(file, c) }
   if (gone.length) log('polish claim: task ' + r.task.id + ' releases ' + gone.map(([file]) => file).join(', ') + ' — its own commit is reverted (D19).')
 }
@@ -5483,6 +5487,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             // merge proceeds on the polished tip
             r.seats = reSeats
             r.aceSha = aceSha
+            // the approved polish commit keeps its claims for the wave (D19, ADR 0061)
+            keepClaims(r, aceSha)
             // aced provenance (D3): the findings this ace commit resolved. No splice needed —
             // classify-at-collection never eagerly filed them. A citation-resolved finding's aced
             // record carries the citation (D6).

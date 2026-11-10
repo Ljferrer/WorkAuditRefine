@@ -15717,10 +15717,52 @@ test('polish claim: a reverted claimant releases its claim', async () => {
   assert.ok((out.aced || []).some(a => a && a.sha === 'b2b2b2b2') && !pinOf(calls, 't2').includes('FORWARD-REVERT'), 't2 keeps its polish and is not reverted')
   assert.match(pinOf(calls, 't1'), /NET-ZERO CLASH RANGE \(polish claim\): this task's polish commit a1a1a1a1 touched docs\/shared\.md, which task t2 claims or lists/, 'the released claimant takes the net-zero step, since its pair now replays onto t2')
   // Red at base: a claim that outlives its reverted commit reverts the later peer.
-  const RELEASE = 'const gone = [...polishClaims].filter(([, c]) => c.r === r && c.sha !== approvedShaOf(r))'
+  const RELEASE = 'const gone = [...polishClaims].filter(([, c]) => c.r === r && !c.approved && c.sha !== approvedShaOf(r))'
   assert.ok(src.includes(RELEASE), 'the mutation target is the live release')
   const mutant = await runPhase(CLAIM_ARGS(), claimImpl({ touch }), seats, src.replace(RELEASE, 'const gone = []'))
   assert.ok(!(mutant.out.aced || []).some(a => a && a.sha === 'b2b2b2b2'), 'the mutant reverts the later peer')
+  // An approved claimant keeps its claim when a later ace moves the approved sha. The t1 polish
+  // a1a1a1a1 is approved, the re-entry c3c3c3c1 is approved, and the re-entry c3c3c3c2 regresses, so a
+  // range revert runs while the approved sha is c3c3c3c1. The polish commit is still on the branch.
+  const keptAudits = [
+    approveWith('audit:t1:correctness', [nit({ title: 't1 polish row', file: 'docs/a.md', disposition: 'absorb' })]),
+    approveWith('audit:t1:correctness', [nit({ title: 'second', file: 'docs/a.md', disposition: 'absorb' })]),
+    approveWith('audit:t1:correctness', [nit({ title: 'third', file: 'docs/a.md', disposition: 'absorb' })]),
+    { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'reentry broke it', file: 'zz.js', rationale: 'regressed' }] },
+  ]
+  const keptImpl = () => {
+    const base = claimImpl({ touch, lateWork: true })
+    let n = 0
+    return (prompt, opts) => {
+      const label = opts.label || ''
+      if (/^audit:t1:/.test(label)) return keptAudits[n++] || approveWith(label, [])
+      const re = label.match(/^ace:reentry:t1:a([23])$/)
+      if (re) return { task_id: 't1', status: 'implemented', head_sha: 'c3c3c3c' + (re[1] - 1), tests: { unit: 1 }, ace_diff_files: ['docs/a.md'] }
+      return base(prompt, opts)
+    }
+  }
+  const fenceOf = (calls, id) => ((calls.find(c => new RegExp('^ace:polish:' + id + ':').test(c.opts.label || '')) || {}).prompt || '').split('\n').find(l => l.startsWith('FIX-ROUND FENCE:')) || ''
+  const idx = (calls, re) => calls.findIndex(c => re.test(c.opts.label || ''))
+  const kept = await runPhase(CLAIM_ARGS(), keptImpl(), {}, src)
+  assert.ok(kept.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 claims docs/shared.md')), 'kept claim, presence guard: t1 claims first')
+  assert.ok((kept.out.aced || []).some(a => a && a.sha === 'a1a1a1a1') && (kept.out.aced || []).some(a => a && a.sha === 'c3c3c3c1'), 'presence guard: the t1 polish and the first re-entry are both approved')
+  assert.ok(kept.logs.some(l => typeof l === 'string' && l.includes('re-entry batch regressed on re-audit')), 'presence guard: the second re-entry regresses')
+  assert.match(pinOf(kept.calls, 't1'), /FORWARD-REVERT \(--ace\)/, 'presence guard: the regressed range is registered for revert, so releaseClaims ran')
+  assert.ok(idx(kept.calls, /^ace:reentry:t1:a3$/) !== -1 && idx(kept.calls, /^ace:reentry:t1:a3$/) < idx(kept.calls, /^ace:polish:t2:/), 'presence guard: t2 polishes after the t1 ladder ends')
+  assert.ok(!kept.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 releases')), 'the approved claim is not released')
+  assert.ok(fenceOf(kept.calls, 't2').split(': ').pop().split(', ').includes('docs/shared.md'), 'the later peer t2 fence still names the claimed file')
+  assert.ok(kept.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t2 — ') && l.includes('docs/shared.md (task t1)')), 'a t2 commit on the claimed file still clashes')
+  assert.ok(!(kept.out.aced || []).some(a => a && a.sha === 'b2b2b2b2') && !kept.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t2 claims docs/shared.md')), 't2 never takes the claim')
+  assert.ok(!pinOf(kept.calls, 't1').includes('NET-ZERO'), 'the claimant takes no net-zero step')
+  // Red at base: each half of the kept rule, removed alone, releases the approved claim.
+  const KEEP = '            keepClaims(r, aceSha)\n'
+  assert.ok(src.includes(KEEP), 'the mutation target is the live keep call')
+  for (const [name, bad] of [['the keep call', src.replace(KEEP, '')], ['the kept filter', src.replace('c.r === r && !c.approved && c.sha', 'c.r === r && c.sha')]]) {
+    assert.notEqual(bad, src, name + ': the mutation applies')
+    const m = await runPhase(CLAIM_ARGS(), keptImpl(), {}, bad)
+    assert.ok(m.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 releases docs/shared.md')), name + ': the mutant releases the approved claim')
+    assert.ok(!fenceOf(m.calls, 't2').includes('docs/shared.md') && m.logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t2 claims docs/shared.md')), name + ': the mutant lets t2 claim the file')
+  }
 })
 
 test('backward-chain: fixer rules byte-equal on all seven builds', async () => {

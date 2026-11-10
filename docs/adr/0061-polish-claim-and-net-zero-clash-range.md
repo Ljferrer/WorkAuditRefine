@@ -26,8 +26,9 @@ return order. The first same-wave polish commit to touch a file that no task of 
 that no fence names, claims that file for the wave: first commit wins. A later polish commit that
 touches a claimed file or a file a wave peer lists is forward-reverted as before. It is not re-audited,
 and its rows go to the phase-close sweep queue. Later peers see each claimed file in their
-`FIX-ROUND FENCE` line. A claim ends when the claimant's own commit is reverted: a range revert whose
-approved sha is not the claiming commit. `POLISH_FILES_CLAUSE` states the widened file limit.
+`FIX-ROUND FENCE` line. A claim ends when the claimant's own commit is reverted: a range revert that
+undoes a claiming commit no panel approved. An approved claiming commit keeps its claim for the wave,
+even after a later ace commit moves the approved sha. `POLISH_FILES_CLAUSE` states the widened file limit.
 
 **The net-zero clash range.** A clash records a claim-clash on the task, beside its registered range
 revert. At the merge slot, only that task's pin-transfer prompt gains one step after its own
