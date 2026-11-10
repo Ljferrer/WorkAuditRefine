@@ -481,7 +481,7 @@ so the checklist is the guard:
 
 ## Status
 
-**0.21.43** — the WAR engine now runs under the frozen built-in prototypes of Claude Code's Workflow sandbox (seen in Claude Code 2.1.322): there, `keyRegistry` in `skills/war/assets/workflow-template.js` set a Set's own `add` and `delete` by plain assignment, which threw `Attempted to assign to readonly property.` at engine entry and so made every phase fail at launch, and it now defines those two methods with `Object.defineProperty`. A new test file, `skills/war/assets/workflow-template.frozen-1.test.mjs`, runs a strict-mode phase and the two `keyRegistry` row tests in a child `node` whose built-in prototypes are frozen, and both its tests fail without the fix.
+**0.21.43** — the WAR engine now runs under the frozen built-in prototypes of Claude Code's Workflow sandbox (seen in Claude Code 2.1.322): there, `keyRegistry` in `skills/war/assets/workflow-template.js` set a Set's own `add` and `delete` by plain assignment, which threw `Attempted to assign to readonly property.` at engine entry and so made every phase fail at launch, and it now defines those two methods with `Object.defineProperty`. A new test file, `skills/war/assets/workflow-template.frozen-1.test.mjs`, has three tests, and all three fail without the fix: a strict-mode phase and the two `keyRegistry` row tests run in a child `node` whose built-in prototypes are frozen, and a scan of `workflow-template.js` and `skills/red-team/assets/workflow-scaffold.js` finds no assignment to a property named on those prototypes.
 
 Earlier release notes live in [CHANGELOG.md](CHANGELOG.md).
 
