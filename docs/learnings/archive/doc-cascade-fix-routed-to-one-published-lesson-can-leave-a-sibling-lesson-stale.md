@@ -1,6 +1,6 @@
 ---
 name: doc-cascade-fix-routed-to-one-published-lesson-can-leave-a-sibling-lesson-stale
-description: "When a plan changes a landed mechanism and updates the ONE published lesson its `deps` content…"
+description: "When a plan changes a landed mechanism, grep docs/learnings/ for every lesson that narrates it; routing only the one lesson the author knew leaves a sibling lesson stale"
 metadata:
   node_type: memory
   type: project
@@ -28,11 +28,7 @@ metadata:
 
 # A doc-cascade fix routed to one published lesson can leave a sibling lesson stale
 
-**The instance (2026-08-06-gate2-publication-guard/1.1, Minor, disposition follow-up — recorded
-at auditSha `835d8c8e97e50c6450283c864d7efc5b9ebc1c3e`, gateEvidence:true, Escalations: [];
-checkout-topology note: no live worktree for the phase branch existed at write time — cwd HEAD was
-`master`@`a7a54dab` — this instance is grounded in the pinned gate-audit's own quoted diffs and my
-own direct read of the affected local memory file, not a fresh Read of the branch tip itself):**
+**The instance (2026-08-06-gate2-publication-guard/1.1, Minor, disposition follow-up):**
 Task 1.1 changed the sanctioned Gate-2 pre-push mechanism (added a fail-closed `git fetch origin
 <working>` refresh before the unpushed-range probe, locked by `D22_ORDERED_SPAN`). The plan's
 `deps` content edge routed exactly one published lesson,
@@ -46,15 +42,6 @@ promoted copy — its "The fix" and "Pattern to reuse" paragraphs still prescrib
 range probe with no fetch step), was never named anywhere in the plan and so was never routed —
 its stale prose is now under-specified in exactly the way the phase's own fetch-precondition fix
 proves unsound (an unrefreshed boundary can condemn, and revert, a commit origin already has).
-
-**Why the plan's own audit didn't catch it as a hold:** the task's diff footprint is pinned (End
-state 10: exactly three files touched), so touching the second lesson inside Task 1.1's scope
-would itself have been a footprint violation — the auditor correctly filed this as a `follow-up`
-note, not a hold, and named it "the same class as #1293 itself." The gap is structural, not a
-worker mistake: a plan's `deps` content edge is written against the ONE lesson the author already
-knows describes the mechanism, and nothing in the standard drift-guard/retired-token sweep catches
-an *added* precondition (the Lead's standing retired-token sweep triggers on
-retire/rename/consolidate; this change adds a step, so it never fires).
 
 **The durable pattern:** before finalizing a task's file footprint for a plan that changes a
 landed mechanism (a guard clause, a probe ordering, a fallback rule), grep `docs/learnings/` (or
@@ -84,5 +71,8 @@ after the first polish: a Phase 2 bullet read as current, and a bullet that said
 proceeds when only some do. Rule: when a task changes behavior that lessons narrate, grep
 `docs/learnings/` for the behavior's key terms and list every hit in the polish row, not only the
 rows the audit queued. Re-read each fixed lesson for sentences that now over- or under-state.
+
+Related: [[default-flip-must-audit-all-doc-surfaces]] (the same same-fact-across-surfaces rule for
+docs, tours and ADRs).
 
 > archived 2026-08-30: resolved — moved to archive

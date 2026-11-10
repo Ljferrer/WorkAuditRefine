@@ -6,7 +6,7 @@ metadata:
   type: project
   provenance: code-verified
   slug: hardened-engine-floor-can-land-with-seat-facing-contract-doc-untouched-when-the-card-is-out-of-task-scope
-  phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-7 task 7.1, landed 2694f617c02b8ae0a527086792355331c5cc5a79 on dev/2026-09-06-engine-and-audit-verdict-integrity"
+  phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-7 task 7.1"
   keywords: 
     - PIN-1
     - seat-facing contract
@@ -32,10 +32,7 @@ metadata:
 
 # A new engine refusal floor can land with its seat-facing contract doc still describing the old rule
 
-## What happened (code-verified — landed tip `2694f617c02b8ae0a527086792355331c5cc5a79` on
-`dev/2026-09-06-engine-and-audit-verdict-integrity`, phase 7 "Citations" task 7.1, read via the
-run-scoped `_refinery` worktree whose `HEAD` is directly on this tip:
-`<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/`).
+## What happened (code-verified — phase 7 "Citations" task 7.1 of `2026-09-06-engine-and-audit-verdict-integrity`)
 
 Task 7.1 hardened `citationOf` in `skills/war/assets/workflow-template.js` (search
 `const citationOf`): a cited `row` must now be an exact match or a directional substring of a
@@ -51,8 +48,7 @@ The seat-facing contract a seat actually reads before writing a `citation` field
 "contiguous substring", or `CITATION_MIN_LENGTH`.
 
 This was not an oversight the worker missed once. At least six independent audit seats across
-four different commits within this single task (`a7bec94`, `c0f88d06`, `d1a9d43`, `3f55b04`,
-`20504162`, and the final `3d05c6e8` pin) each raised the identical gap and each was deliberately
+four commits within this single task each raised the identical gap and each was deliberately
 routed `disposition: note` (never `absorb`), citing the same reason every time: **PIN-1** requires
 the standing card and its dispatched-prompt mirror to change in the same commit with a registry
 row, and Task 7.1's `Files:` list contains neither `agents/war-auditor.md` nor
@@ -80,7 +76,7 @@ auto-resolution it used to get, with no doc telling it why.
 ## Locate-cue (verify still present before acting)
 
 `skills/war/references/disposition-eligibility.md`, rule 3 ("Trade-off-ask routing (D5) and
-absorb-by-citation (D6)"), around line 35-45. `agents/war-auditor.md`, the "Disposition
+absorb-by-citation (D6)"). `agents/war-auditor.md`, the "Disposition
 eligibility" callout pointing at that file (search "Disposition eligibility"). The dispatched
 `DISPOSITION WIDENINGS` block in `skills/war/assets/workflow-template.js`. The floor itself:
 `const CITATION_MIN_LENGTH = 24` in the same file.

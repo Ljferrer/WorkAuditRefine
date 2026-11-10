@@ -38,10 +38,10 @@ CONTRACT clause) and `metacharacter` (SEARCH-TOOLING RULE clause) — and the pl
 `grep -ci 'metacharacter' workflow-template.js >= 1`.
 
 Both tokens ALSO appear in explanatory JS comments directly above the `pt`-tagged emission lines
-(verified at the landed tip `06020944b884d2e2860ccf2fe698ef3d5ba4868e`):
-`workflow-template.js` :918 contains the literals "required when" and "however severe", and :904
-contains "metacharacter" — both inside drift-guard/coupling comments (required by this repo's
-both-surfaces mirroring law), not the emitted clauses themselves (which live at :907 and :921).
+(verified at the landed tip `06020944b884d2e2860ccf2fe698ef3d5ba4868e`): the ESCALATE-BOUNDARY
+CONTRACT comment contains the literals "required when" and "however severe", and the
+SEARCH-TOOLING RULE comment contains "metacharacter" — both drift-guard/coupling comments
+(required by this repo's both-surfaces mirroring law), not the emitted clauses themselves.
 So the two greps stay green even if the emitted `pt` clauses were reverted — the file-level floor
 can no longer discriminate an emitted-clause revert from a comment-only file.
 
@@ -62,8 +62,8 @@ OUTPUT (not the source file), so a per-surface revert still reds that test.
 
 ## Locate cue
 
-`skills/war/assets/workflow-template.js` :902-921 (SEARCH-TOOLING RULE / ESCALATE-BOUNDARY
-CONTRACT comments + emitted `pt` clauses, both carrying the pinned literals) — verify still
-present before acting.
+`skills/war/assets/workflow-template.js`, inside `auditPrompt()`: the SEARCH-TOOLING RULE and
+ESCALATE-BOUNDARY CONTRACT comments + emitted `pt` clauses, both carrying the pinned literals —
+verify still present before acting.
 
 > archived 2026-08-25: resolved — moved to archive

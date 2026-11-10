@@ -1,13 +1,13 @@
 ---
 name: adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts
-description: "RESOLVED (adr-doc-truth-sweep/1.1, #1363): An ADR's Consequences bullet can enumerate/count the members of a convention block it introduced, and a later task in the SAME plan can add a new member to that block on the operative surface (e.g. SKILL.md) without any task being assigned to update the ADR's own list/count — invisible to a name-grep because the new member's own pins live on the operative surface, not the ADR"
-metadata: 
+description: "When a task adds a member to a block an ADR lists and counts, recount the ADR by hand; a name-grep misses the drift and no task may own the fix"
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   slug: adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts
   phase: 2026-08-04-interview-and-authoring-contract/1
-  keywords: 
+  keywords:
     - ADR under-attribution
     - Consequences bullet
     - member count stale
@@ -18,72 +18,91 @@ metadata:
     - grep-invisible
     - follow-up disposition
     - plan task ownership gap
-  tags: 
+    - ADR 0025 defining five terms
+    - CONTEXT.md Drift-guard discipline subsection
+    - touched-doc accuracy duty
+    - amendment append compounds drift
+    - schemas.md sibling row
+    - de-mirrored rows
+    - single-finding repair scope
+    - merged corroboration key
+    - frozen phase base
+    - mechanism latitude
+    - same-phase sibling task
+    - own-raiser skip
+    - parkAsk corroborators
+    - IDENTITY + COLLISION row
+    - schemas.md asks row
+  tags:
     - adr
     - doc-honesty
     - phase-close
     - plan-authoring
   created: 2026-08-05
   originSessionId: 67745971-e7bc-4d1f-87e7-038430dd13ab
-  modified: 2026-08-05T12:38:44.579Z
+  modified: 2026-09-07T17:39:31.550Z
 ---
 
 # An ADR's own Consequences count can go stale mid-plan when a later task adds a member to the block it enumerates — and no task owns the fix
 
-## What happened (code-verified at landed tip)
+An ADR can list the members of a convention block in its Decision section and state a count for
+them in its Consequences section. A later task can add a member to that block on the operative
+surface (e.g. `SKILL.md`) with no task assigned to update the ADR's list or count.
 
-Phase 1 of `2026-08-04-interview-and-authoring-contract` (Task 1) added a new "Dated snapshots
-(D12 staleness rule)" convention bullet to `skills/war-strategy/SKILL.md` §2's "Reference the live
-artifact, never a stack-fragile literal" block — confirmed present at the landed tip
-(`378b868a5bab995f86c74ec8aad0d50d11516199` on
-`dev/2026-08-05-2026-08-04-interview-and-authoring-contract`, read via the `_refinery` worktree
-whose `gitdir` physical path contains this plan's slug): `skills/war-strategy/SKILL.md` carries
-`literals are dated snapshots at a stated base` and `re-measure at the task's rebased base`, and
-`war-strategy-structure.test.sh` pins both.
+## What happened
 
-`docs/adr/0030-live-artifacts-over-stack-fragile-literals.md` is the ADR that **introduced** and
-**owns** this exact block: its Decision section enumerates the block's members as a bullet list,
-and its Consequences section separately states a member-count claim about the same block
-(`skills/war-strategy/SKILL.md` §2 gains the "reference the live artifact" convention block —
-[N] rules + the defined-but-not-yet-emitted annotation"). Confirmed at the same landed tip: the
-Decision list has **no** "Dated snapshots" bullet, and the Consequences count is unchanged from
-before this diff — so the ADR's own list and its own count both now undercount the live block by
-one member. No task in this plan is assigned to fix it: the plan's Task 9 (a later, not-yet-landed
-task) owns a *different* ADR — 0044, ratifying the contract itself — and its slice enumerates a
-named subset of decision letters (D2, D4-D6, D15-D16, D18-D19) that does not include D12.
+Phase 1 of `2026-08-04-interview-and-authoring-contract` added a "Dated snapshots (D12 staleness
+rule)" bullet to `skills/war-strategy/SKILL.md` §2's "Reference the live artifact, never a
+stack-fragile literal" block. `war-strategy-structure.test.sh` pins its teeth phrases
+(`literals are dated snapshots at a stated base`, `re-measure at the task's rebased base`).
 
-## Why this is invisible to a name-grep sweep
+`docs/adr/0030-live-artifacts-over-stack-fragile-literals.md` introduced and owns that block. Its
+Decision list had no "Dated snapshots" bullet, and its Consequences count was unchanged. Both now
+undercount the live block by one. No task in the plan owned that ADR.
 
-A repo-wide `grep` for the new convention's own teeth phrases (`literals are dated snapshots`,
-`re-measure at the task's rebased base`) finds only the operative surface (`SKILL.md`) — the ADR
-never quotes those teeth phrases, because its own prose is a summary list ("Construct locators",
-"Dotted paths", etc.) and a bare count word ("six rules"). The ADR's staleness is legible only by
-counting Decision bullets by eye and diffing against the Consequences sentence's claimed count —
-exactly the ADR 0025 doc-cascade check discipline (`under-attribution is invisible to a name-grep`)
-this repo already names for canonical-source/mirror-site pairs, generalized here to a
-list-plus-count self-description.
+## Why a name-grep misses it
+
+A grep for the new member's teeth phrases finds only `SKILL.md`. The ADR never quotes them: its
+prose is a summary list ("Construct locators", "Dotted paths", etc.) and a bare count word ("six
+rules"). The drift shows only when you count Decision bullets by eye against the Consequences count.
+This is the ADR 0025 doc-cascade check (`under-attribution is invisible to a name-grep`), applied
+to a list-plus-count self-description.
 
 ## How to apply
 
-When a task adds a new member to a convention/rule block that some **other** ADR both **enumerates
-as a list** and **states a count for** in its Consequences section:
-1. Grep the block's own home file (not the ADR) for the new member's teeth phrase to confirm it
-   landed — that check passes trivially and proves nothing about the ADR.
-2. Separately open the owning ADR and manually recount its Decision-section bullet list against
-   its own Consequences count sentence — a name-grep will not catch drift here because the two
-   surfaces do not share vocabulary.
-3. If no task in the plan is assigned to update the owning ADR, this is either (a) an intentional
-   scoping choice the plan should state explicitly (ADRs are append-only; an amendment note is the
-   correct repair, never editing the ratified bullet list), or (b) a genuine gap worth a `follow-up`
-   disposition at audit time rather than `absorb` — the fix is cross-file (SKILL.md's block plus the
-   ADR's own amendment) and not mechanical/single-surface.
+When a task adds a member to a block that another ADR both **lists** and **counts**:
+1. Grep the block's home file for the new member's teeth phrase. That check passes trivially and
+   proves nothing about the ADR.
+2. Open the owning ADR and recount its Decision bullets against its Consequences count.
+3. If no task owns the ADR fix, either (a) the plan states the scoping choice (ADRs are
+   append-only; an amendment note is the repair, never an edit to the ratified list), or (b) route
+   the finding `follow-up`, not `absorb`. The fix is cross-file and not mechanical.
+
+## Recurrences
+
+- **The ADR that owns this discipline went stale by its own rule.** `docs/adr/0025-drift-guard-discipline.md`'s
+  Consequences bullet says `CONTEXT.md` gains a `### Drift-guard discipline` subsection "defining
+  five terms". An amendment added a sixth term, and `realized-absorb-rate` Task 3.1 added a seventh
+  (**Touched-doc accuracy duty**). The bullet still read "five". The worker used the lawful channel,
+  an appended amendment clause naming the new term, and audits routed it `note`. Each amendment
+  compounds the drift (five → six → seven), because the append-only guardrail never corrects the
+  frozen count.
+- **Same file, sibling rows.** In `skills/war/references/schemas.md`, a polish fix updated the one
+  `followUps` row a finding named, while two sibling rows describing the same object still named only
+  `seats[]`. See [[fix-the-finding-class-not-the-site-and-prove-every-new-guard-red-before-commit]]:
+  fix every row that describes the same key, not just the cited one.
+- **Same phase, parallel sibling task.** Task 3.1 of `2026-09-06-engine-and-audit-verdict-integrity`
+  added an own-raiser skip to `parkAsk`'s corroborator merge under the plan's mechanism-latitude
+  clause. `schemas.md`'s "IDENTITY + COLLISION" row on `asks` still said a collision always merges
+  onto `corroborators`. Task 3.2, which owned `schemas.md`, was cut from the same frozen phase base
+  before 3.1's commit, and the plan never named the skip. So the doc-owning task was blind to it by
+  design. It was filed as a follow-up.
 
 ## Related
 
 [[absorb-fix-for-attribution-finding-can-itself-invert-mirror-direction]] — a sibling ADR
 under-attribution class where the *fix itself* got a canonical-source/mirror-site direction
-backwards; this lesson is about the *count claim never being touched at all*, a step earlier in the
-same family. Both trace to the ADR 0025 doc-cascade discipline of re-deriving attribution from the
-live artifact rather than trusting either surface's prose.
+backwards; this lesson is about the *count claim never being touched at all*. Both trace to the
+ADR 0025 doc-cascade discipline. Also [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]].
 
 > archived 2026-08-15: resolved — moved to archive

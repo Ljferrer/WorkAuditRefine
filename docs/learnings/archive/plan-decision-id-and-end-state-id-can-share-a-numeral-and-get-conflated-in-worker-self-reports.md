@@ -6,7 +6,7 @@ metadata:
   type: project
   provenance: agent-unverified
   slug: plan-decision-id-and-end-state-id-can-share-a-numeral-and-get-conflated-in-worker-self-reports
-  phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-12 (task 12.2), landed 48a7120616627a35ecf2a05e76e34d15dcf985a3 on dev/2026-09-06-engine-and-audit-verdict-integrity"
+  phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-12 (task 12.2)"
   keywords: 
     - acceptance_criteria_covered
     - decision id
@@ -27,12 +27,11 @@ metadata:
 
 # A plan's decision id and its End-state id can share a numeral, and a worker's self-report can conflate them
 
-**Found (code-verified referent, agent-unverified causal claim — landed tip
-`48a7120616627a35ecf2a05e76e34d15dcf985a3` on `dev/2026-09-06-engine-and-audit-verdict-integrity`;
-the plan itself confirmed at
-`<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md`
-carries 3 occurrences of the literal `D20` and a separate, unrelated `End state` item 20 in the
-Commander's Intent — two genuinely distinct numbering spaces sharing the numeral 20).**
+**Found (code-verified referent, agent-unverified causal claim — at the phase-12 landed tip of
+`dev/2026-09-06-engine-and-audit-verdict-integrity`, the plan
+`docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md` carries 3 occurrences of the literal
+`D20` and a separate, unrelated `End state` item 20 in the Commander's Intent — two genuinely
+distinct numbering spaces sharing the numeral 20).**
 
 Task 12.2's worker reported `acceptance_criteria_covered = [18, 20]`. Phase 12 claims only End
 state 18 in its `END-STATE CHECK` block. End state 20 belongs to a different task entirely (Task

@@ -54,36 +54,11 @@ includes an upstream sibling's *content* — it is explicitly **not** the forbid
 to dodge a same-file collision" (the guard task and the mirror task remain genuinely
 file-disjoint; the deps edge encodes a content dependency, not a file dodge).
 
-## This phase's instance — verify before treating as a live fix
-
-At phase 1 of `2026-07-26-standing-doc-and-remedy-truth-sweep`, red-team's finding 5 (Major,
-`needsDecision`) caught Task 1.2 shipping a new unguarded cross-ADR prose mirror (ADR 0019's
-Amendment restating a fact ADR 0040 §B already carries — ADR 0025 binds). Red-team's own
-resolution assigned the guard to Task 1.6 (which already owned
-`skills/war/assets/skill-doc-contracts.test.mjs`) with the explicit reasoning "the two tasks are
-in the same phase and the same wave, so the mirror and its guard still land together" — **and
-shipped it that way**: at the landed tip (5c46597, verified via the plan's own Build order line
-"one wave, no deps" and the red-team doc's finding 5 resolution), Task 1.2 and Task 1.6 both carry
-`deps: []`. Neither the plan nor the red-team doc records a `deps` edge between them.
-
-This servitor's spawn narrative asserted that a live escalation during Work+Audit caught exactly
-the base-mismatch this pattern predicts (Task 1.6's guard reding against a base still carrying
-ADR 0019's old one-site clause; worker returns `PLAN-DEFECT` after a self-confound pass; Lead
-fixes it with `deps: ["1.2"]`) — **but this could not be confirmed at the landed tip**: the
-checked-in plan/red-team artifacts still show the "same wave, no deps" design as shipped, with no
-back-ported deps edge. Either (a) the live fix was applied only at the run/dispatch level and was
-never reflected back into the versioned plan doc, or (b) the escalation narrative doesn't match
-this phase's actual history as literally as described. Do not cite this phase's task numbers as a
-confirmed instance of the deps-edge fix without independently re-checking the run's actual
-escalation/audit log (not available to this servitor — no ledger/journal artifact was found under
-the phase's worktree tree at land time). The **general rule above is architecture-verified and
-durable regardless** of whether this specific incident's resolution is confirmed.
-
 ## If you hit this
 
 - Guard test lives at `skills/war/assets/skill-doc-contracts.test.mjs` (verify still present
   before acting — the D25 cross-ADR mirror-registry test naming ADR 0019 and ADR 0040 §B was
-  found there at the landed tip, phase 1 of this plan).
+  found there).
 - Proof method for a genuine instance: temp-apply the sibling task's (not-yet-landed) wording
   locally, confirm the guard goes green, then restore — this discriminates "guard is broken" from
   "guard's base is stale."
@@ -96,8 +71,7 @@ per-branch result).
 
 ## Recurrence — phase 7 of `2026-07-28-prompt-surface-simplification` (confirmed instance, held without a deps edge)
 
-Unlike the phase-1 instance above (whose live-fix narrative could not be confirmed at the landed
-tip), this instance is directly code-verified. Phase 7 wave 1 ran Task 7.1
+This instance is directly code-verified. Phase 7 wave 1 ran Task 7.1
 (`skills/war/assets/prompt-surface-budgets.test.mjs`, sole Files entry, `deps: []`) and Task 7.3
 (`skills/war/assets/skill-doc-contracts.test.mjs`, sole Files entry, `deps: []`) in the same wave,
 same frozen phase base, with no `deps` edge between them. Task 7.3 authored a new guard (D29) whose

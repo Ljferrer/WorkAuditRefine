@@ -1,6 +1,6 @@
 ---
 name: war-provision-barrier-needs-local-working-branch-ref
-description: "/war provision barrier needs a LOCAL working-branch ref, not origin-only"
+description: "RESOLVED (partial-phase-recovery-and-branch-hygiene/t1, 2026-07-11): ensure-integration now falls back to a resolvable origin/<base> and dies with a NAMED diagnostic (citing this lesson by slug) instead of the raw held:workflow-error \"not a valid object name\""
 metadata: 
   node_type: memory
   type: project
@@ -14,17 +14,20 @@ metadata:
     - campaign provisioning
     - git branch vs push refs/heads
     - origin-only branch
+    - origin-fallback cut
+    - missing-local-ref diagnostic
   provenance: code-verified
   slug: war-provision-barrier-needs-local-working-branch-ref
-  phase: campaign-2026-07-08-memory-frictions/plan-6
+  phase: campaign-2026-07-08-memory-frictions/plan-6; resolved partial-phase-recovery-and-branch-hygiene/t1 (2026-07-11)
   tags: 
     - war
     - provisioning
     - campaign
     - stack-and-plow
   created: 2026-07-09
+  updated: 2026-07-11
   relates: 
-    - "[[absent-origin-working-branch-baseline-also-forces-manual-land]]"
+    - "[[war-launch-worktree-with-working-branch-checked-out-forces-manual-land]]"
     - "[[provision-barrier-refiner-owned-not-worker-self-create]]"
     - "[[war-launch-worktree-with-working-branch-checked-out-forces-manual-land]]"
     - "[[provision-nonidempotent-orphan-integration-branch-blocks-relaunch]]"
@@ -59,7 +62,19 @@ use `git branch dev/slug-N <tip-sha>` (creates the local ref) **then** `git push
 — get BOTH a local ref (for the provision barrier) and the origin branch (for the refiner's
 push-first CAS land). A direct `git push origin <sha>:refs/heads/dev/slug-N` gives you only the
 origin half and strands provision. This is distinct from
-[[absent-origin-working-branch-baseline-also-forces-manual-land]] (that one is about the *origin*
+[[war-launch-worktree-with-working-branch-checked-out-forces-manual-land]] (that one is about the *origin*
 side being absent at land; this is the *local* side being absent at provision).
 
-> archived 2026-07-15: resolved — moved to archive
+**RESOLVED, 2026-07-11 (partial-phase-recovery-and-branch-hygiene/t1, §4.7 / end state 9).**
+`cmd_ensure_integration`'s create path (verified code-present, `skills/war/assets/
+provision-worktrees.sh`, ~line 355-375 at this phase's landed tip) no longer dies raw on a missing
+local `<base>` ref: with no local ref but a resolvable `origin/<base>`, it now cuts the integration
+branch at the origin tip (warn emitted, exit 0, no follower ff — there is no local ref to move);
+with **neither** resolvable, it dies with a diagnostic that **names this lesson's slug directly**
+in its own message: `"base '$base' has no local ref and could not be resolved on origin — cannot
+cut '$branch'. Create the local working branch, or check the branch name; the provision barrier
+needs a LOCAL working-branch ref (lesson war-provision-barrier-needs-local-working-branch-ref)."`
+The manual repair recipe below (cut a local ref before relaunch) is now only needed for the
+neither-resolvable case; the origin-only case self-heals.
+
+> archived 2026-07-11: resolved — moved to archive

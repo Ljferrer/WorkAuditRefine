@@ -1,14 +1,14 @@
 ---
 name: defined-but-not-yet-emitted-plan-slice-pattern
-description: "Field pre-added before emitter; plan names owning task"
+description: "A field or prose ref may land before its emitter only if the plan names the owning task; without that note auditors misgrade it as dead code"
 metadata:
   node_type: memory
   type: project
   provenance: code-verified
   slug: defined-but-not-yet-emitted-plan-slice-pattern
-  phase: audit-scheduler-integrity/p1 + ace-nit-autofix/phase1-t2+phase2-t3+phase3-t4 + campaign-xbranch-add/T1 + test-floor-pattern-threading/p2t1 + manifest-and-skill/t2 (recurrence 5, 2026-07-12)
+  phase: audit-scheduler-integrity/p1 + ace-nit-autofix/phase1-t2+phase2-t3+phase3-t4 + campaign-xbranch-add/T1 + test-floor-pattern-threading/p2t1 + manifest-and-skill/t2 (recurrence 5, 2026-07-12) + aftermath-class1-gate-evidence/1.3 (recurrence 7, 2026-07-16) + 2026-09-11-backward-chain-doctrine/phase-1 (recurrence 8, 2026-09-12)
   date: 2026-07-01
-  updated: 2026-07-12
+  updated: 2026-09-12
   keywords:
     - defined-but-not-yet-emitted
     - plan slice ownership
@@ -19,6 +19,11 @@ metadata:
     - dangling cross-reference
     - schemas.md run manifest
     - war-review
+    - sibling task same phase
+    - servitor lesson note pairing
+    - relation tag premise
+    - scope adjudication row
+    - later-phase emitter task
   tags:
     - plan-pattern
     - auditor-warning
@@ -26,6 +31,7 @@ metadata:
   related:
     []
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
+  modified: 2026-09-12T08:15:28.499Z
 ---
 
 # Defined-but-not-yet-emitted plan slice pattern
@@ -40,35 +46,16 @@ Recurrence (test-floor-pattern-threading/p2t1, 2026-07-07): the merge-task worke
 `plan.gate` precedent) that lives outside this task's four files. Rated Nit/note, not a defect —
 flagged for phase-coherence confirmation that the threading prose actually exists.
 
-**Recurrence 5 (manifest-and-skill/t2, 2026-07-12, audit-log-sourced — NOT independently
-code-verified this instance):** `skills/war-review/SKILL.md` (Task 1.2) linked
-`../war/references/schemas.md` § "Run manifest" as the manifest field contract, but that section
-is authored by sibling Task 1.3 (same Phase 1, file-disjoint, `deps: []`) and was absent from
-Task 1.2's frozen base. The plan carried the producing cross-link (Task 1.3 explicitly adds a "Run
-manifest" section to schemas.md), so the auditor graded it correct-by-construction (disposition
-`note`, not a hold) per this exact calibration rule, and the phase's post-merge gate-audit
-(`audit_sha` `2c1b4e510f752bb10c0cd43302601079774dca7e`) confirmed the section present at the
-integrated tip. This servitor could not independently re-Grep `schemas.md` for the section at
-write time — its session worktree is a documented, session-stable stale checkout (see
-[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]], four consecutive phases now) —
-so this recurrence rests on the gate-audit's `gateEvidence:true` confirmation, not a direct D3
-check.
+**Recurrence 5 (manifest-and-skill/t2, 2026-07-12):** `war-review/SKILL.md` linked a `schemas.md` § "Run manifest" that sibling Task 1.3 (same phase) authored; graded `note`, present at the integrated tip.
 
-**Recurrence 6 (audit-gate-evidence-fidelity/1.2, 2026-07-12) — independently code-verified, closing Recurrence 5's uncertainty:** Task 1.2's resolution note (in
-`docs/learnings/verbatim-mirror-directive-context-mismatch-at-destination.md`) asserted present-tense
-that sibling Task 1.1 would land the `_refinery land worktree` clause byte-for-byte and a durable
-test asserting exactly 2/1 source counts — while Task 1.1's branch was still at the phase base
-(not yet committed) at review time. Per Commander's Intent End state #8 the plan named Task 1.1 as
-the owning emitter, so this was graded correct-by-construction (disposition `note`, `phaseClose:
-true`, not a hold). Unlike Recurrence 5, this servitor independently code-verified the resolution
-at the true landed task worktree (not just trusted a gate-audit's `gateEvidence:true` claim — see
-[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] Recurrence 4/5 technique): both the
-exact clause and the exact test counts (2 and 1) are present at
-`<repo-root>/.claude/war-worktrees/2026-07-12-audit-gate-evidence-fidelity/p1-1.1/skills/war/assets/workflow-template.js`
-and its `.test.mjs`.
+**Recurrence 6 (audit-gate-evidence-fidelity/1.2, 2026-07-12):** a lesson resolution note asserted a clause and test counts that sibling Task 1.1 had not yet committed; graded `note`, later code-verified at the landed task worktree.
 
-**How to apply (auditing):** a dangling ref at a task tip is a defect ONLY if the plan lacks the cross-link. Confirm the plan names a sibling/downstream owner — for the inverse variant the plan's end-state list is the source of truth for which task owns the doc sweep — grade Nit/non-blocking, and confirm resolution at the integration tip post-merge.
+**Recurrence 7 (aftermath-class1-gate-evidence/1.3, 2026-07-16):** the dangling referent was a lesson body claiming prose that sibling Task 1.1 adds to `skills/aftermath/SKILL.md`; graded `note`, and re-Grepped present at the landed tip.
 
-**Why (doc-surface tail):** the emitter landing does NOT fix prose enumerating the shape — the plan must list EVERY doc surface (canonical contract, summary bullets, mirrors) as in-scope for the emitter task or a named follow-up. Same family: [[wire-key-rename-misses-prose-placeholders]], [[default-flip-must-audit-all-doc-surfaces]].
+**Recurrence 8 (2026-09-11-backward-chain-doctrine/phase-1, 2026-09-12):** new `references/` files described engine behavior that Task 2.1 builds in a later phase; a scope adjudication row named it defined-but-not-yet-emitted, and every "claims do not match today's engine" finding was graded `note`.
 
-> archived 2026-07-12: resolved — moved to archive
+**How to apply (auditing):** a dangling ref at a task tip is a defect ONLY if the plan lacks the cross-link. Confirm the plan names a sibling/downstream owner — for the inverse variant the plan's end-state list is the source of truth for which task owns the doc sweep — grade Nit/non-blocking, and confirm resolution at the integration tip post-merge. This applies equally when the dangling referent is a servitor-authored lesson-note claim about a sibling task's output, not just code or SKILL prose.
+
+**Doc-surface tail:** the emitter landing does not fix prose that enumerates the shape. See [[default-flip-must-audit-all-doc-surfaces]].
+
+> archived 2026-07-12: resolved — moved to archive; recurrence 7 (2026-07-16) confirms the pattern still holds and closed cleanly at land

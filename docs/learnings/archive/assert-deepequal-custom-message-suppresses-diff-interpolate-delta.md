@@ -28,23 +28,6 @@ metadata:
 
 # A fixed custom message on assert.deepEqual hides the diff — compute and interpolate the delta
 
-**What happened (code-verified at the landed tip `224c4d3425fac760a061a795dc978b8784e5df8b` on
-`dev/2026-08-02-structural-test-nonvacuity`):** the new per-row derivation-comment guard in
-`skills/war/assets/prompt-surface-budgets.test.mjs` added a default-deny "discovery floor" —
-`assert.deepEqual(discovered, expectedKeys, <fixed message>)` — meant to RED and *name* any
-budgeted key the row-shape scan failed to discover (End state 5's mandate, twice-stated: "REDing
-and naming any budgeted key the scan failed to discover"). At land time the message argument was a
-static string that never referenced the actual mismatch. Because `assert` suppresses its own
-generated `actual:`/`expected:` diff whenever a caller supplies a message, the only way to recover
-which key was undiscovered was to eyeball the reporter's raw dump of two sorted ten-element
-arrays — the assert still REDs correctly in both directions (confirmed by mutation: reshaping one
-budgeted row to a multi-line object literal REDs the discovery floor), but it degrades diagnostics
-rather than producing a false green. This was caught as a Minor absorb finding and fixed before
-land: the guard now computes `undiscovered`/`extra` via `.filter()` and interpolates both into the
-message (verified at the tip, `skills/war/assets/prompt-surface-budgets.test.mjs` lines ~279-289).
-The sibling census in the same commit family, `skill-doc-contracts.test.mjs`'s `assertCensus`
-helper, already did this correctly — the fix mirrors that idiom.
-
 **The pattern:** RED-ability alone does not certify a guard's diagnostics. `assert.deepEqual`/
 `assert.equal`'s custom-message parameter is an all-or-nothing swap: supplying *any* string, even
 one that adds useful context, throws away the library's own diff entirely. A default-deny

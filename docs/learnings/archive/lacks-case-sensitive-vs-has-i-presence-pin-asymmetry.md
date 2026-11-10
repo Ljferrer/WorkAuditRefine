@@ -93,17 +93,6 @@ already present rather than re-declaring it. The original concrete instance this
 pass — the resolution is the helper's existence and reuse pattern, not necessarily that specific
 call site's migration; verify that instance separately before citing it as fixed too.
 
-**New residual nuance surfaced by the SAME landing, not yet closed:** the phase's gate-audit
-(disposition `follow-up`, Minor) flagged that `lacks_i()`'s distinguishing `-i` flag, while now
-proven load-bearing by a committed positive control (a re-cased fixture asserted to be caught
-case-insensitively and missed by plain `grep -qF`), is proven **through a duplicated inline
-pipeline** (`printf ... | strip_prose | grep -qiF/-qF`) rather than **through the helper function
-itself** — so a future mutation scoped only to `lacks_i()`'s own body (e.g. accidentally dropping
-its `-i`) would leave the committed control green while the helper silently regressed to
-`lacks()`'s behavior. The suggested repair is to route the control through `lacks_i()` itself (e.g.
-a shared stdin-reading inner function both the real call sites and the control invoke) rather than
-re-implementing its pipeline as a parallel literal. Recorded here as the natural continuation of
-this lesson's asymmetry class: closing "does the absence-check exist" can still leave open "is the
-absence-check's own load-bearing flag *itself* regression-proof."
+**Residual:** the committed positive control proves `lacks_i()`'s `-i` flag through a duplicated inline pipeline, not through the helper itself, so route the control through `lacks_i()` (see [[weak-test-assertion-passes-without-feature-being-exercised]]).
 
 > archived 2026-08-30: resolved — moved to archive

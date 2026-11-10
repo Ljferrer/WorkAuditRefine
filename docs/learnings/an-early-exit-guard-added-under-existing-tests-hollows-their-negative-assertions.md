@@ -37,6 +37,8 @@ metadata:
 - Round 1: ES3 case (c) built `missing` as `join(local, 'no-such-dir')`. That path no longer ended in `/memory`, so the anchor refused it before `fs.statSync`. The assertion `!existsSync(missing)` passed with or without a `mkdirSync` mutation. Both audit seats raised it, one as Major. It was the only oracle for the never-mkdir guardrail (PIN-4).
 - Round 2: the fix round repaired ES3. It missed the sibling. The ES4 test still used a bare `tmpDir()` as `local`, so its `!existsSync(join(local, QUERY_LOG))` held because the anchor refused the append, not because the memory-disabled branch writes nothing. A seat raised it as a Minor. Round 3 came back clean.
 
+**Earlier instance.** The fail-closed `--owned-file` gate in `provision-worktrees.sh` `teardown-phase` turned failure-path tests T3c/T3d into gate tests.
+
 **Why the first sweep missed it.** The fixer listed the absent-log assertions but did not ask whether the new guard now refused each one.
 
 **How to apply.**
@@ -44,6 +46,7 @@ metadata:
 - Build the negative fixture so it passes the guard and stays absent for the right reason. For a missing directory, use a path that matches the anchor and does not exist.
 - Delete the feature in your head. For a never-create rule, insert a `mkdirSync` after the guard. The test must go red.
 - Keep one positive case beside the negative. The `RA1` row does this: it asserts a refused append still returns hits, and an anchored one writes a line.
+- Failure-path tests that assert only a generic non-zero become gate tests too. Satisfy the gate prerequisite or split out an explicit gate test, and assert mechanism-specific tokens (exit code plus unique stderr).
 
 Related: [[weak-test-assertion-passes-without-feature-being-exercised]], [[negative-assert-on-a-fixture-that-cannot-carry-the-offender-is-vacuous-and-a-label-count-a-fix-round-also-satisfies]], [[memory-query-local-fence-is-hook-only-and-binds-four-seats-not-everyone]].
 

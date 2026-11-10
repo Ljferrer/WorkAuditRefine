@@ -1,5 +1,6 @@
 ---
-name: ""
+name: plan-rescope-note-supersedes-stale-spec-surgery-list
+description: "A plan's explicit RE-SCOPE NOTE outranks the spec's older surgery list, so a diff that follows the plan and skips spec surgery is a spec-lag Nit, not a plan-faithfulness defect"
 metadata:
   node_type: memory
   type: project
@@ -24,9 +25,9 @@ metadata:
 
 ## What happened
 
-`docs/specs/2026-07-03-catalog-auto-roster-thorough-defaults.md` lines 115-118 instruct Task 1 to
+`docs/specs/2026-07-03-catalog-auto-roster-thorough-defaults.md`'s Task 1 surgery list instructs Task 1 to
 flip `DEFAULTS`/`PRESETS` (the `rosterPolicy`/`thorough` worker-count knobs). But the plan
-(`docs/plans/2026-07-03-catalog-auto-roster-thorough-defaults.md`, RE-SCOPE NOTE at lines 7-21)
+(`docs/plans/2026-07-03-catalog-auto-roster-thorough-defaults.md`, RE-SCOPE NOTE at the top of the plan)
 explicitly adjudicates that D2/D3/D5 already landed via a prior PR (#472) and must be **kept as-is**;
 Task 1 is re-scoped to be additive-only (`resolveWidenSource` + `RESERVED_LENSES` wiring). The worker
 correctly left `DEFAULTS`/`PRESETS` untouched, matching the plan's re-scope, not the spec's original

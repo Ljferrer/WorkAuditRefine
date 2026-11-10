@@ -46,18 +46,9 @@ pattern that admits a test the gate ignores" residual the same doc block documen
 downstream by the execution-evidence pass — so the overclaim directly contradicts the very next
 bullet in the same file.
 
-Flagged during phase test-floor-pattern-threading (p2t2, `skills/war/SKILL.md`, Nit/note,
-non-blocking) against the sentence "...so no custom set can make it exceed the gate." Auditor
-rationale noted the sentence faithfully mirrors an already-ratified `war-config.mjs` `DEFAULTS`
-comment with the same wording — so a rescope must hit **both** surfaces (both-surfaces rule) or the
-mirror re-diverges.
-
-**Absence note:** at write time (phase test-floor-pattern-threading close), this servitor's own
-checkout (branch `claude/resume-war-campaign-945f35`) does not yet contain the `testPattern`
-threading — `overrides.testPattern`, `plan.testPattern`, and the flagged `skills/war/SKILL.md`
-sentence were not found via Grep here; the landed work lives on
-`dev/2026-07-07-target-repo-agnostic-execution`. Verify the sentence's current wording (and its
-`war-config.mjs` DEFAULTS mirror) directly on that branch/tip before editing.
+The flagged sentence ("...so no custom set can make it exceed the gate.") in `skills/war/SKILL.md`
+mirrors a `war-config.mjs` `DEFAULTS` comment with the same wording, so a rescope must hit **both**
+surfaces or the mirror re-diverges.
 
 **Suggested rescope** (from the audit): "...so the gate's unconditional `*.test.sh` discovery is
 always in the floor's match set (floor ⊆ gate for that arm); a mismatched custom token can still

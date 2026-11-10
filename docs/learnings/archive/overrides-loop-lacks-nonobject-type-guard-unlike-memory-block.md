@@ -1,6 +1,6 @@
 ---
 name: overrides-loop-lacks-nonobject-type-guard-unlike-memory-block
-description: "war-config.mjs validate()'s overrides loop has no isObj guard, unlike the memory.* block right above it — a hand-edited overrides: null crashes with an uncaught TypeError instead of a clean validation error"
+description: "RESOLVED: a validate() loop over a config block needs the same isObj guard as its sibling blocks, or a hand-edited null crashes with a TypeError instead of a clean error"
 metadata:
   type: project
   provenance: code-verified
@@ -47,8 +47,11 @@ both correct) and out of that task's plan slice. Routed `note`/Minor by the p1t1
 because the task touches this exact loop and claims to mirror the `memory.*` precedent, whose most
 prominent feature is the guard this loop lacks.
 
-**How to apply:** in a future hardening pass, add `if (!isObj(c.overrides)) { errors.push('overrides must be an object'); }`
-before the loop, mirroring the `memory` block, plus a `validate({overrides: null})` regression case
-(and ideally `validate({overrides: 'x'})`).
+**RESOLVED:** `war-config.mjs` `validate()` now guards overrides with `isObj`, mirroring the
+`memory` block: `if (!isObj(c.overrides)) { errors.push('overrides must be an object') }` runs
+before the loop.
+
+**How to apply:** when a validation loop iterates a config block, guard the block's type first,
+the same way its sibling blocks do.
 
 > archived 2026-07-11: resolved — moved to archive

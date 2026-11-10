@@ -1,6 +1,6 @@
 ---
 name: dockerfile-shell-form-parser-heuristic-ceiling
-description: "assert-packaging-in-diff.sh Dockerfile parser is shell-form-only — ceilings #1 (continuation) and #3 (O(N*M) reparse) FIXED phase 'Floor fixes' 2026-07-12"
+description: "Before grading a narrow-parser gap in assert-packaging-in-diff.sh above Nit, check for a documented ceiling comment and whether a later phase closed it"
 metadata:
   node_type: memory
   type: project
@@ -36,32 +36,15 @@ metadata:
 the first token per physical line. Three related audit-noted ceilings, all originally graded
 Nit/informational:
 
-1. **Line-continuation not joined** (line ~256): a multi-line `COPY \` mis-scoped sources.
-2. **Rename (R) status is diff.renames-default-dependent** (line ~110): outcome-equivalent, not a
-   gap — **still open, unaddressed.**
-3. **O(N×M) re-parse, not memoized** (line ~498): `parse_dockerfile` invoked fresh per
-   `(added-file, Dockerfile)` pair even though its output is a pure function of the Dockerfile
-   alone.
-
-**Status: ceilings #1 and #3 fixed in phase "Floor fixes" (plan
-`docs/plans/2026-07-12-floor-script-correctness.md`, Task 1), landed on
-`dev/2026-07-12-floor-script-correctness`, 2026-07-12.** Per that plan's Commander's Intent:
-`parse_dockerfile` now pre-joins backslash continuations into logical lines before tokenizing
-(closes #1 — a mid-continuation `#` comment and a dangling final-line `\` are both handled per the
-audit's confirmed test fixtures), and the main scan loop was inverted to Dockerfile-outer /
-added-file-inner so each Dockerfile is parsed exactly once (closes #3 — locked by a test counting
-runtime `parse_dockerfile` invocations, not a static call-site count, since a static count-of-1
-survives both pre- and post-inversion and would be a vacuous lock; see
-[[plan-literal-test-spec-can-be-vacuous-strengthen-under-latitude-rule]]). **Ceiling #2 (rename
-status) is untouched — still an open, accepted gap.**
-
-**Provenance caveat:** this checkout's `HEAD` is on an unrelated branch (worktree-lag — see
-[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]), so the fix was **not**
-independently re-Grepped here; sourced from the phase's Commander's Intent plus the unanimous
-gate-audit `approve` verdicts (`audit_sha a38520a6...`, task-1 gate-audit specifically confirming
-the single-call-site + set-equality locks). Before citing exact line numbers or the loop shape,
-re-Read `skills/war/assets/assert-packaging-in-diff.sh` on or after
-`dev/2026-07-12-floor-script-correctness`.
+1. **Line-continuation not joined:** a multi-line `COPY \` mis-scoped sources. Fixed 2026-07-12
+   ("Floor fixes", `docs/plans/2026-07-12-floor-script-correctness.md` Task 1): `parse_dockerfile`
+   now pre-joins backslash continuations into logical lines before tokenizing.
+2. **Rename (R) status is diff.renames-default-dependent:** outcome-equivalent, not a gap. Still
+   open, an accepted gap.
+3. **O(N×M) re-parse, not memoized:** `parse_dockerfile` ran once per `(added-file, Dockerfile)`
+   pair. Fixed in the same phase: the loop is now Dockerfile-outer / added-file-inner, locked by a
+   test that counts runtime `parse_dockerfile` calls (a static call-site count would be vacuous; see
+   [[plan-literal-test-spec-can-be-vacuous-strengthen-under-latitude-rule]]).
 
 **Why durable:** this is the *shape* of finding a Dockerfile/build-manifest heuristic parser will
 keep generating as the packaging floor is extended. The `# ponytail:` ceiling comment convention +

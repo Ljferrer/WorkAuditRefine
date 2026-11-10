@@ -1,6 +1,6 @@
 ---
-name: ""
-description: "envGap flag + classify() demotion enforce env-gap→warn gate-side, not prompt-only"
+name: red-team-env-gap-warn-is-agent-directive-not-code-enforced
+description: "Red-team env-gap→warn is enforced gate-side: classify() demotes any envGap-stamped finding, and only setting the flag stays agent-side"
 metadata: 
   node_type: memory
   slug: red-team-env-gap-warn-is-agent-directive-not-code-enforced
@@ -29,6 +29,9 @@ metadata:
 ---
 
 # Red-team env-gap→warn is now enforced gate-side by a typed `envGap` flag, not prompt-trust alone
+
+The slug is historical: `classify()` now enforces `envGap` gate-side (`lenses.md` Provision step) and
+only the stamp is agent-set. The slug is kept for its 14 inbound links.
 
 **Rule:** the executed-probe guarantee — a failing provision step is an env-gap → `status:"warn"` + a
 note, NEVER a red/fail (Critical/Major) verdict — is enforced at `classify()` in

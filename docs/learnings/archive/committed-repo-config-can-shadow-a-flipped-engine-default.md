@@ -1,6 +1,6 @@
 ---
 name: committed-repo-config-can-shadow-a-flipped-engine-default
-description: "A war-config.mjs DEFAULTS flip (e.g. run.roundLimit 3→6) lands correctly with its drift guard"
+description: "A flipped DEFAULTS value has no effect in a repo whose committed config pins the old value; grep the committed config before calling the flip effective"
 metadata: 
   node_type: memory
   type: project
@@ -30,17 +30,14 @@ metadata:
 
 # A landed engine-default flip can be silently shadowed by this repo's own committed config
 
-**Found (code-verified — landed tip `291943e` on `dev/2026-08-19-realized-absorb-rate`, task 1.2,
-verified in the phase's `_refinery` worktree):** task 1.2 flipped
-`DEFAULTS.run.roundLimit` from `3` to `6` in `skills/war/assets/war-config.mjs`, with the
-hand-mirrored fallback literal in `skills/war/assets/workflow-template.js`
-(`const roundLimit = run.roundLimit ?? 6`) and the drift-guard test in `war-config.test.mjs`
-("drift-guard: roundLimit fallback in workflow-template.js matches DEFAULTS.run.roundLimit") kept
-in lock-step. But this repository's own committed `.claude/war/config.json` — the config this repo
-uses to run its own `/war` phases — explicitly pins `"run": { "roundLimit": 3, ... }`. Explicit
-config always wins over a code default, so **the flip has zero practical effect for any phase run
-in this repo** until someone also bumps the committed pin. The flip is fully correct and tested for
-every *other* repo/consumer that relies on the DEFAULTS fallback with no explicit override.
+**Rule:** explicit config always wins over a code default. When a task changes a `DEFAULTS.*` value
+that has a repo-level override, grep the repo's own committed config for the same key before
+treating the flip as effective locally.
+
+**Instance:** `DEFAULTS.run.roundLimit` was flipped from `3` to `6` in
+`skills/war/assets/war-config.mjs` (with the `workflow-template.js` fallback literal and its
+drift-guard test in lock-step), while this repo's committed `.claude/war/config.json` still pinned
+`"roundLimit": 3`, so the flip had zero effect on this repo's own `/war` runs.
 
 **Why this is a durable, reusable class:** any project that both (a) ships an engine/library with a
 tunable default and (b) self-hosts by committing an explicit config file pinning that same knob
@@ -50,12 +47,10 @@ this, because it never reads the committed config at all. The two are orthogonal
 internal consistency of the *default*, the other is a per-repo *override* that supersedes it
 silently.
 
-**How to catch it:** whenever a plan or task changes a `DEFAULTS.*` value that has an env/repo-level
-override mechanism, grep the repo's own committed config file for the same key before treating the
-flip as effective locally — `grep roundLimit .claude/war/config.json` here. If the committed value
-still pins the old default, either bump it in the same task (if in scope) or file a follow-up
-(this phase filed one, #1564) rather than assuming End-state language like "the new default now
-applies" is true for the self-hosting repo's own runs.
+**How to catch it:** `grep roundLimit .claude/war/config.json` here. If the committed value still
+pins the old default, either bump it in the same task (if in scope) or file a follow-up, rather
+than assuming End-state language like "the new default now applies" is true for the self-hosting
+repo's own runs.
 
 **Locate-cue (verify still present before acting):** `.claude/war/config.json`'s `run.roundLimit`
 key (repo-relative from repo root); `skills/war/assets/war-config.mjs`'s `DEFAULTS.run.roundLimit`;

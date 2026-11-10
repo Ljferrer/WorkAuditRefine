@@ -1,6 +1,6 @@
 ---
 name: count-mirror-guard-duty-split-across-tasks-can-leave-a-third-doc-surface-permanently-unguarded
-description: "When a plan flips a rule-count literal that is mirrored across THREE doc surfaces"
+description: "When a plan flips a count mirrored across three doc surfaces and assigns the OLD-absent guard by naming arm forms to extend, check those forms cover every surface"
 metadata: 
   node_type: memory
   type: project
@@ -47,15 +47,10 @@ with exactly two new `lacks_i` arms (`three authoring rules`, `three drift-guard
 scoped to `$WAR_STRATEGY` (i.e. `skills/war-strategy/SKILL.md`) only, matching the two-mirror
 precedent it was extending.
 
-**Confirmed still true at the landed tip** (`4d93459972a4c4c67b5977064b583cbd41265d31` on
-`dev/2026-08-19-realized-absorb-rate`, read via the `_refinery22` worktree whose `gitdir` names
-this plan's slug): `plan-interview.md` line 118 reads "task carve-outs per the drift-guard rules
-5–8" and `war-pipeline-structure.test.sh`'s `lacks_i` calls at that block (lines 438-441) target
-`"$WAR_STRATEGY"` exclusively — no arm scans `plan-interview.md`. A future revert of just the
-digits in that one row back to "5–7", leaving the row's subject text intact, would stay green in
-**every** suite this repo runs: `war-strategy-structure.test.sh`'s pin is subject-only by design
-(count-blind, per the plan's own instruction), and `war-pipeline-structure.test.sh`'s retired-count
-arms never touch this file.
+A future revert of just the digits in the `plan-interview.md` row back to "5–7", leaving the row's
+subject text intact, would stay green in **every** suite this repo runs: `war-strategy-structure.test.sh`'s
+pin is subject-only by design (count-blind, per the plan's own instruction), and
+`war-pipeline-structure.test.sh`'s retired-count arms never touch this file.
 
 ## Why this is invisible to the End states / gate
 
@@ -64,11 +59,8 @@ Every End state and check named in the plan passed at every audit round (End sta
 genuine enumeration gap in the plan's own task decomposition: the plan named exactly two
 `lacks_i` forms to extend ("the existing `two authoring` / `two drift-guard` precedent"), which
 happens to enumerate only the two `$WAR_STRATEGY` mirrors, silently excluding the third
-(`plan-interview.md`) mirror that the SAME task-1 diff also flipped. Both the audit at Task 3.1,
-the audit at Task 3.2, and the final phase-3-integrated-tip gate-audit independently surfaced this
-gap and all three routed it `disposition: note` (not absorb/follow-up) — judged a conscious edge of
-the plan's count-blind convention, not a worker deviation, since the plan explicitly scoped the
-OLD-absent duty to the two SKILL.md forms.
+(`plan-interview.md`) mirror that the SAME task-1 diff also flipped. All audits routed it `disposition: note`: a conscious edge of the plan's count-blind
+convention, not a worker deviation.
 
 ## How to apply
 

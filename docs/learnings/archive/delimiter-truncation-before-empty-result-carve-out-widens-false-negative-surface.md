@@ -1,13 +1,13 @@
 ---
 name: delimiter-truncation-before-empty-result-carve-out-widens-false-negative-surface
 description: "Truncating at the closing delimiter before the bare-mention carve-out silently widens the scanner's false-negative surface"
-metadata: 
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   slug: delimiter-truncation-before-empty-result-carve-out-widens-false-negative-surface
   phase: 2026-08-06-doc-cli-consistency-corpus/phase-1
-  keywords: 
+  keywords:
     - specCitations
     - carve-out ordering
     - delimiter truncation
@@ -17,7 +17,7 @@ metadata:
     - composite emphasis
     - markdown link text vs target
     - doc-cli-consistency
-  tags: 
+  tags:
     - regex
     - escape-guard
     - audit-calibration
@@ -29,12 +29,10 @@ metadata:
 
 # Truncating at the first delimiter before the empty-result carve-out check can eat a real citation
 
-## What happened (code-verified at the landed tip)
+## What happened
 
-`specCitations()` in `skills/_shared/doc-cli-consistency.test.mjs` (verify still present before
-acting — found at the landed tip `c809b77fee45630b19b195bf80f13743168a7857`, read via the
-`_refinery` worktree whose `gitdir` physical path contains this plan's slug) was changed by
-phase 1 of `2026-08-06-doc-cli-consistency-corpus` (Task 1.1, D5 / constraint 7) to fix
+`specCitations()` in `skills/_shared/doc-cli-consistency.test.mjs` was changed by phase 1 of
+`2026-08-06-doc-cli-consistency-corpus` (Task 1.1, D5 / constraint 7) to fix
 composite-emphasis escapes (`**bold`, `` **`code-span`** ``, bold-link composites) that were
 previously smuggling markdown metacharacters past the carve-out tests. The mandated fix order —
 trim → **truncate the captured run at the first backtick / `]` / `)` delimiter** → conditional
@@ -74,11 +72,5 @@ carve-out-adjacent transformations carefully: prefer re-scanning the truncated-a
 own citation before treating a zero-length prefix as conclusive, or make the path-capture regex
 non-swallowing across known seams (like `` `](  ``) so the truncation point and the "is this
 truly bare" check operate on the same, correctly-scoped span.
-
-## Related
-
-No prior lesson in this store covers carve-out step ordering specifically; if a future plan
-revisits `specCitations`, re-scan the tail after the delimiter or make the capture regex
-non-swallowing across `](` seams rather than treating a zero-length prefix as conclusive.
 
 > archived 2026-08-25: resolved — moved to archive

@@ -5,7 +5,6 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-07-22-cli-main-guard-normalization@phase-1
   slug: byte-convergence-plan-can-mandate-per-file-import-style-variant
   phase: "cli-main-guard-normalization/phase-1 task 1.1 (landed dev/2026-07-22-cli-main-guard-normalization, 2026-07-23)"
   keywords: 

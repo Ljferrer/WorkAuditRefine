@@ -2,7 +2,6 @@
 name: evidence-mcp-hook-checks-tool-names-only-so-foreign-server-suffix-and-output-directory-writes-pass
 description: "The MCP hook keys on the tool suffix plus an output-path segment check, so a foreign server's same-named tool passes and a symlink under an evidence dir is unseen"
 metadata:
-  promoted: dev/2026-10-20-rea-artifact-evidence@phase-3
   node_type: memory
   type: project
   keywords:

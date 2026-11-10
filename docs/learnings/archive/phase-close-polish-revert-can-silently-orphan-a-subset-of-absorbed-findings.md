@@ -1,10 +1,9 @@
 ---
 name: phase-close-polish-revert-can-silently-orphan-a-subset-of-absorbed-findings
-description: "Reverting a phase-close polish commit can permanently orphan a subset of its absorbed findings"
+description: "A wholesale revert of a phase-close polish commit can orphan some of its absorbed findings, so diff the reverted fix-set against the redo's fix-set before treating the queue as drained"
 metadata: 
   node_type: memory
   type: project
-  promoted: dev/2026-08-05-precision-chain-and-loop-breaker@phase-4
   provenance: code-verified
   slug: phase-close-polish-revert-can-silently-orphan-a-subset-of-absorbed-findings
   phase: prompt-surface-simplification/3.1
@@ -24,6 +23,9 @@ metadata:
     - polish-rejected
     - polish-discarded
     - env-died schemas.md gap
+    - stampDrainCause
+    - drain-cause comment
+    - filed follow-up never fixed
   tags: 
     - war
     - phase-close
@@ -31,24 +33,23 @@ metadata:
     - audit-findings
   created: 2026-07-28
   originSessionId: 15ea107f-a540-466b-bb69-7ce45fb6e5a4
-  modified: 2026-08-17T15:24:01.580Z
+  modified: 2026-08-26T20:31:49.018Z
 ---
 
 # Phase-close polish revert can silently orphan a subset of absorbed findings
 
-**Found (code-verified — landed tip `53ef8a7b1eed93a55a7a30dbc9137228f31e5d7b` on
-`dev/2026-07-28-prompt-surface-simplification`):** Task 3.1's phase-close queue held two
-findings. A polish commit `c6015c4` fixed both — a qualifier-lock comment-lag Minor in
+**Found (code-verified):** Task 3.1's phase-close queue held two findings. A polish commit
+fixed both — a qualifier-lock comment-lag Minor in
 `skills/war/assets/workflow-template.test.mjs` and a dangling `SKILL.md` citation Minor in
-`skills/war/references/auditor-teach.md` (line 38, still reading `` `SKILL.md`, submodule
+`skills/war/references/auditor-teach.md` (still reading `` `SKILL.md`, submodule
 co-source-of-truth `` for content phase 2 had already relocated to
-`skills/war/references/submodule-flows.md`). Commit `7e21867` reverted `c6015c4` **wholesale**,
-carrying only git's default revert body (no rationale). The redo, task `p3-polish` /
-commit `39afb54`, re-derived its own two-finding queue from the audit findings **open at redo
-time** — which by then were a tour `.tours/architect-war-system.tour` line-anchor Nit (the
-"≈729" stale snapshot fact) plus the *same* qualifier-lock comment-lag Minor — and drained that
-pair. The `auditor-teach.md` citation fix was never re-applied. Verified directly: the file at
-the landed tip still carries the dangling citation at line 38, with no header caveat.
+`skills/war/references/submodule-flows.md`). A later commit reverted the polish **wholesale**,
+carrying only git's default revert body (no rationale). The redo, task `p3-polish`,
+re-derived its own two-finding queue from the audit findings **open at redo time** — which by
+then were a tour `.tours/architect-war-system.tour` line-anchor Nit (the "≈729" stale snapshot
+fact) plus the *same* qualifier-lock comment-lag Minor — and drained that pair. The
+`auditor-teach.md` citation fix was never re-applied. Verified directly: the file at the landed
+tip still carried the dangling citation, with no header caveat.
 
 **Why this happens:** a phase-close polish worker's charter (ADR 0012, `skills/war/SKILL.md`)
 scopes it to "fix ONLY the queued findings, no ad-hoc seam hunting" — so it is correctly
@@ -76,7 +77,7 @@ defect itself.
 
 **Second occurrence, code-verified at `bd5faa9c8d60d51d800c6e2528437c36bfd6679b`.** Task 5.1's
 polish `a8cbd17` absorbed six findings. Commit `dc72d36` reverted it wholesale with the same
-signature as `7e21867`: body was only git's auto-generated `This reverts commit a8cbd17…`. So
+signature as the phase-3 revert: body was only git's auto-generated `This reverts commit a8cbd17…`. So
 the rationale-free-revert shape is **not a one-off** — treat it as a standing hazard of the
 phase-close flow, not an incident.
 
@@ -99,10 +100,8 @@ guarded file is guard, never obsolescence.
 **reverted commit itself**. Here `a8cbd17` was fully green (1010/1010 JS + 27/27 shell) — so the
 revert had no gate justification of any kind, and re-applying was unambiguous. A revert whose
 target is green is a defect until someone records why. Resolution: `git revert <the-revert>` with
-the rationale in the body (`bd5faa9`), then land manually. At that time the servitor did **not** run on a
-held phase (`servitorResult: null`), so the exactly-once learnings capture fell to the Lead. Since
-#2702 the in-flow Wrap-up also runs on `held:escalation` and `held:land-failed` when `memoryLocalRoot`
-was threaded, so read `servitorResult` before a manual capture.
+the rationale in the body (`bd5faa9`), then land manually. Wrap-up runs on held phases since
+#2702, so read `servitorResult` before a manual learnings capture.
 
 **Standing rule this pair establishes:** a phase-close revert with an auto-generated body is
 never self-justifying. Before accepting one — (1) gate the reverted commit; (2) diff the revert
@@ -152,18 +151,15 @@ catch and a content-only read misses" family.
 ## RECURRENCE — phase 2, plan `2026-08-06-handoff-schemas-contract`, revert caught by its own
 ## redo's audit but the redo never landed (2026-08-17)
 
-**Fourth occurrence.** Grounded via direct `.git/refs` and `.git/logs/refs` reads (no live worktree
-at the exact landed tip was reachable — see the checkout-topology note below) plus the phase's
-gate-audit log, `auditSha`/`gateHeadSha` `71ddc088fb558add6d92aab1ec4ec773b9881cd8`
-(`gateEvidence: true`). Commit `f26e1eb` was an ace-absorb during task 2.1 adding `env-died` beside
-`env-blocked` to `skills/war/references/schemas.md`'s run-manifest task-status enumeration (line
-153). Commit `71ddc08` reverted it wholesale with git's bare auto-generated body — no rationale —
-and **71ddc08 is itself the confirmed phase-2 integration tip** (matches `gateHeadSha`/`auditSha`
-for both task 2.1 and 2.2's gate-audits).
+**Fourth occurrence.** Grounded via `.git/refs` and `.git/logs/refs` reads plus the phase's
+gate-audit log (`gateEvidence: true`). Commit `f26e1eb` was an ace-absorb during task 2.1 adding
+`env-died` beside `env-blocked` to `skills/war/references/schemas.md`'s run-manifest task-status
+enumeration. Commit `71ddc08` reverted it wholesale with git's bare auto-generated body — no
+rationale — and **71ddc08 is itself the confirmed phase-2 integration tip** (matches
+`gateHeadSha`/`auditSha` for both task 2.1 and 2.2's gate-audits).
 
 **What's new this time — the mitigation partially fired, then lost anyway.** The terminal
-phase-close task `p2-polish` (branch `war/2026-08-06-handoff-schemas-contract/p2-polish`, first
-attempt at SHA `2e9f24c6`) had its own diff audited, and that audit correctly re-derived the
+phase-close task `p2-polish` had its own diff audited, and that audit correctly re-derived the
 orphaned absorb as a **Major**, `disposition: absorb, phaseClose: true` finding — i.e. it *did*
 catch the gap the revert created, matching this lesson's "how to catch it" guidance almost exactly
 (grounded the claim in `git log -Senv-died` against the pinned blob, cited the revert SHA and its
@@ -174,25 +170,20 @@ further redo commit landed. Per this repo's `phase-close coherence sweep (fail-o
 absorb findings)` architecture, a discarded/rejected polish is fail-open: the phase proceeds to
 Land regardless, without those fixes. **Net effect:** the same env-died/schemas.md gap this
 lesson's core mechanism describes was re-orphaned a fourth time, despite one audit pass correctly
-diagnosing it using language that echoes this very lesson's guidance.
-
-**Checkout-topology note (why this section is `code-verified` on the commit-graph facts, not on
-the final file content):** the servitor's cwd at write time was a different plan's worktree
-(gitdir `.git/worktrees/survey-batch-roadmap-2026-358f8c`, unrelated slug). `.git/worktrees/*`
-entries matching this plan's slug (`p2-polish4`, `p2-2.112`, `p2-2.22`, `_refinery17`, …) all sit on
-task/integration branches (`war/2026-08-06-handoff-schemas-contract/p2-polish` at `2e9f24c6` — the
-*rejected* attempt; `integration/.../phase-2` at `71ddc088`), none checked out at the actual landed
-`dev/2026-08-06-handoff-schemas-contract` tip `43d757d3464d6f248a4c1e9f4a5f37de8fba37a7`, and no
-Bash capability exists to `git show` a blob from a ref with no live worktree. The reflog for the
-`dev` branch shows the tip advanced `87cb6dcd` (phase-1 close) → `43d757d3` in one recorded
-transition, which post-dates `71ddc088` — so **whether `schemas.md` actually carries `env-died` at
-the true landed tip was not independently re-confirmed here**; the finding is recorded on the
-strength of the `polish-discarded` verdict (empty findings, no merge) being the terminal state this
-run's audit log shows. A future servitor/Lead with a live worktree at `43d757d3` should `grep -c
-env-died skills/war/references/schemas.md` to close this out one way or the other.
+diagnosing it using language that echoes this very lesson's guidance. Whether `schemas.md`
+carries `env-died` at the true landed tip was not independently re-confirmed; check with `grep -c
+env-died skills/war/references/schemas.md`.
 
 **Related:** [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — the
 sibling lesson this recurrence also instantiates (a fresh absorb+phaseClose:true finding on the
 polish task's OWN diff, with no further round); read both together for this incident.
+
+---
+
+**Fifth occurrence (2026-08-26, plan `2026-08-25-engine-reliability-and-filing-fidelity`
+phase 6):** a wholesale revert of a three-Nit polish in `skills/war/assets/workflow-template.js`
+left the `stampDrainCause` block comment's over-attribution unqueued; the redo's audit diagnosed
+the orphaning but disposed it `follow-up` with no further round, so the false comment shipped —
+fold such a fix into the next phase that touches the same file instead of trusting the issue queue.
 
 > archived 2026-08-30: resolved — moved to archive

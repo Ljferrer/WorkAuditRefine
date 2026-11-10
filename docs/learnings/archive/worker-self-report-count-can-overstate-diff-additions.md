@@ -1,6 +1,6 @@
 ---
 name: worker-self-report-count-can-overstate-diff-additions
-description: "Worker done-report counts can overstate diff; verify vs diff count"
+description: "A worker's prose done-report can miscount new test cases/assertions vs the actual diff — trust live PASS/FAIL counters or a direct diff count, not the claimed number"
 metadata: 
   node_type: memory
   type: project
@@ -15,6 +15,8 @@ metadata:
     - audit cross-check
     - diff line count
     - reporting discrepancy
+    - undercount
+    - test block count
   tags: 
     - audit
     - worker-report
@@ -42,4 +44,13 @@ count — so a miscounted done-report is never load-bearing for merge/land, but 
 number into a phase summary, PR body, or memory file would be. Cross-check any reported count
 against a direct diff read or the test's own counter output before repeating it.
 
-> archived 2026-07-13: resolved — moved to archive
+## Recurrence (2026-07-16, structural-test-integrity/1.1)
+
+The direction inverts here — the worker's tests-summary field claimed a 316→320 (+4) count
+against a diff that actually adds 8 `test()` blocks (base 316 → ~324, an under-count, not an
+over-count). Same root pattern: a worker's prose count claim (in either direction) is a claim to
+verify, not a fact to record — the gate/floor pass verdict is driven by live PASS/FAIL counters,
+never the prose count. Rule holds regardless of whether the miscount over- or under-states the
+diff.
+
+> archived 2026-07-11: resolved — moved to archive

@@ -1,47 +1,56 @@
 ---
 name: audit-gate-anti-cheat-spine-pin-equality-benign-advance-verdict-hard
-description: "Anti-cheat spine: pin-equality gate, benign-advance floor, verdict-as-HARD"
-metadata: 
+description: "Anti-cheat spine for the gate audit: a pin-equality check plus a benign-advance floor, and the single home of the four pin_status states (only CONFIRMED can carry HARD evidence)"
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  keywords: 
+  keywords:
     - gate-pin-status
     - pin-equality
+    - pin_status
+    - CONFIRMED
     - benign-advance
     - stale-mismatch
-    - verdict escalate
+    - ERROR pin_status
     - gate-evidence
-    - HARD_ESCALATION_REASONS
     - mapped files
     - first-parent
     - anti-cheat
+    - SOFT never hold
   slug: audit-gate-anti-cheat-spine-pin-equality-benign-advance-verdict-hard
   phase: audit-gate-verdict-fidelity/phase-1
-  tags: 
+  tags:
     - workflow-template
     - gate
     - audit-pipeline
     - pattern
     - adr-0005
-  related: 
+  related:
     - gate-audit-pin-bracket-test-blocked-by-git-guard
     - audit-worktree-pre-impl-tip-stale-verdict
   created: 2026-07-09
   originSessionId: 68b2ca32-fa05-459c-9ddf-f23ca91a5f40
 ---
 
-# Pattern: deterministic anti-cheat spine — pin-equality, benign-advance, verdict-as-second-HARD-trigger
+# Pattern: deterministic anti-cheat spine — pin-equality and benign-advance
 
-Phase 1 of `audit-gate-verdict-fidelity` moved three previously-prose anti-cheat checks into Node/shell:
+Phase 1 of `audit-gate-verdict-fidelity` moved previously-prose anti-cheat checks into Node/shell.
 
-1. **Pin-equality gate (`gate-pin-status.sh`, `pinMismatch()`).** A seat's returned `audit_sha` is compared against its dispatched pin. Four outcomes, never collapsed: CONFIRMED (equal, exit 0), BENIGN-ADVANCE (descendant + none of the task's own `--mapped` files touched in the intervening range, exit 0), STALE-MISMATCH (a mapped file changed or not an ancestor, exit 1), git/ref error (exit 2, never folded into exit 1). The **key discriminator for BENIGN-ADVANCE is "none of the task's OWN changed files touched"** — not "no files changed at all" — so sibling-task commits landing after a seat's pin are provably benign to THAT seat's own claim.
+1. **Pin-equality gate (`gate-pin-status.sh`, `pinMismatch()`).** A seat's returned `audit_sha` is compared against its dispatched pin. The **key discriminator for BENIGN-ADVANCE is "none of the task's OWN changed files touched"** — not "no files changed at all" — so sibling-task commits landing after a seat's pin are provably benign to THAT seat's own claim.
 
-2. **`--mapped`-scoped benign-advance, not repo-wide.** The floor takes an explicit `--mapped <file-list>` of the task's own changed files and only inspects those against the intervening commit range (verify still present before acting — found at `skills/war/assets/gate-pin-status.sh`, invoked with `--mapped` @ phase audit-gate-verdict-fidelity/t1.1). A repo-wide diff would false-flag every gate-audit as stale the moment ANY sibling task lands — the mapped-file scoping is what makes benign-advance usable in a serial merge queue where the tip moves between every task's audit and the final gate-audit re-run.
+2. **`--mapped`-scoped benign-advance, not repo-wide.** The floor takes an explicit `--mapped <file-list>` of the task's own changed files and only inspects those against the intervening commit range (verify still present before acting — `skills/war/assets/gate-pin-status.sh`, invoked with `--mapped`). A repo-wide diff would false-flag every gate-audit as stale the moment ANY sibling task lands — the mapped-file scoping is what makes benign-advance usable in a serial merge queue where the tip moves between every task's audit and the final gate-audit re-run.
 
-3. **Verdict-as-second-HARD-trigger via reused reason code, no enum widening.** `isHardGateEvidence` (and the end-state seat's `isHard`) fires on `verdict === 'escalate'` OR any Critical/Major finding — a finding-LESS escalate verdict now also holds the land. This reuses the *existing* `gate-evidence` reason in `HARD_ESCALATION_REASONS`; **no new member was added** to that canonical array (ADR 0005 — the array is hand-mirrored between `land-decision.mjs` and `workflow-template.js` and both copies must move together with a drift-guard test). Verified: `isHardGateEvidence` at `skills/war/assets/workflow-template.js` line 1100-1101 @ phase audit-gate-verdict-fidelity/t1.3.
+## The `pin_status` states
 
-**Reusable takeaway for future gate/floor work:** when a new HARD-triggering condition is needed, check whether it can ride an *existing* member of a canonical hand-mirrored enum (here `gate-evidence`) before adding a new one — new members require touching both mirrors + the drift-guard test in the same commit, while reusing an existing reason is a same-day, single-surface change.
+This is the single home of the `pin_status` enum. The four outcomes are never collapsed:
+
+- **CONFIRMED** (exit 0): the returned SHA equals the pin. The only state that can carry HARD execution evidence.
+- **BENIGN-ADVANCE** (exit 0): the observed HEAD descends from the pin, and the divergence is only in files the task's `--mapped` test does not read. The seat judges the task's own content from `git show <gate-HEAD>:<path>`, never the advanced working tree.
+- **STALE-MISMATCH** (exit 1): the divergence touches a mapped file, or the pin is not an ancestor. The very thing in question (does the mapped test still look the way it did at gate time) changed, so committed-tree reads cannot rescue it.
+- **ERROR** (exit 2): a git or ref error. Never folded into exit 1. It can surface as the sentinel `(integration_sha unrecorded/malformed)`.
+
+Each non-confirmed state grades SOFT: a Nit or Minor, `disposition: note`, never a land hold. A missing token is SOFT too, for a different reason (nothing to read), and a bare SHA match does not upgrade it to HARD. How a seat handles a missing or unstamped gate log is in [[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]].
 
 [[gate-audit-pin-bracket-test-blocked-by-git-guard]]
 [[audit-worktree-pre-impl-tip-stale-verdict]]

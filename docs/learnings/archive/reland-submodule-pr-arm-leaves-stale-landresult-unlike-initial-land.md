@@ -1,6 +1,6 @@
 ---
 name: reland-submodule-pr-arm-leaves-stale-landresult-unlike-initial-land
-description: "RESOLVED (2026-08-02-war-engine-and-standing-doc-truth/1.2, #1245, landed 2026-08-03): both re-land arms now assign landResult = reLand inside their reLand.status === 'submodule-pr' branches, symmetric with the initial land — the asymmetry this lesson describes is fixed. Body left as-is per the repo's resolved-lesson-stamp convention (see [[resolved-lesson-stamp-freezes-body-so-it-can-contradict-the-new-description]]) — read the description, not the body, for current behavior."
+description: "When a retry path captures its result under a new local name, propagate every field the initial path exposes on the shared outer variable, not just onto a side list"
 metadata: 
   node_type: memory
   type: project
@@ -31,41 +31,27 @@ metadata:
   modified: 2026-08-03T16:55:30.982Z
 ---
 
-# A re-land's submodule-pr arm can leave the outer result stale where the initial land wouldn't
+# A retry path that captures its result under a new name can leave the outer result stale
 
-**The gap (code-verified, found at `skills/war/assets/workflow-template.js`, around the
-`land:phase-<id>:environment-proceed` and `:baseline-proceed` re-land dispatches, phase
-`2026-07-26-dispatch-args-and-floor-coverage/1.1`, landed tip
-`0250694ea5c69e77e2fa2f0543f81c6ccf111978`; verify still present before acting):** on the
-**initial** land, `landResult` *is* the dispatched-agent's `MergeResult` directly, so when it comes
-back `status:'submodule-pr'`, `landResult.pr_number`/`landResult.pr_remote` are populated alongside
-the pushed `escalated` entry (`escalated.push({ ..., pr_number: landResult.pr_number, ... })`,
-around line 1916). On **both** re-land arms (`environment-proceed` around line 1948,
-`baseline-proceed` similarly shaped), the dispatched result is captured into a *different*
-variable (`reLand`), and the `reLand.status === 'submodule-pr'` branch pushes the PR fields onto
-the `escalated` entry from `reLand` — but never runs `landResult = reLand`. `landResult` therefore
-stays whatever the **first** (failed, `gate_failed`) land attempt returned; the PR ref exists only
-on the escalated entry, not on `landResult`.
+**Rule:** when a code path is duplicated across an "initial attempt" / "retry attempt" pair, and the
+initial path aliases a shared outer variable to the dispatched result while the retry path captures
+it under a *new* local name, propagate every field the initial path exposes via the shared variable
+to the shared variable on the retry path too — not just onto a side list (`escalated`, a log entry,
+etc.).
 
-**Why it doesn't bite today:** traced every consumer — `tipSha` falls back to `lastPinned` in both
-cases (identical either way), the servitor gate checks `landResult.status === 'landed'` which is
-unreachable on this arm regardless, and `handoff` is not emitted on `held:submodule-pr` on either
-path. `SKILL.md`'s `held:submodule-pr` runbook reads the PR number "from the ledger," not by
-naming `landResult`. So this is a **live but currently-inert** asymmetry, not a bug with an
-observable symptom yet.
+**Why:** a field present only on the retry's *local* result object is invisible to any consumer that
+reads the shared/outer name. It can work on the initial path and silently return `undefined` on the
+retry path. The gap is easy to reintroduce when a new retry arm is added by mirroring an old one
+without noticing a missing assignment.
 
-**Why it's worth recording anyway:** a future ledger-writer, or Lead-facing prose, that reaches for
-`landResult.pr_number` as "the" way to get the PR ref would work on the initial-land path and
-silently return `undefined` on either re-land path — a plan/code-shape trap that's cheap to avoid
-now (`landResult = reLand` in both new arms would make the paths symmetric with no other
-behavioral change) but easy to reintroduce if a third re-land arm is ever added by mirroring one of
-these two without noticing the missing assignment.
+**Instance:** in `skills/war/assets/workflow-template.js`, the initial land set `landResult` to the
+dispatched `MergeResult`, so a `status:'submodule-pr'` result exposed `landResult.pr_number` /
+`landResult.pr_remote`. The `environment-proceed` and `baseline-proceed` re-land arms captured the
+result as `reLand` and pushed the PR fields onto the `escalated` entry, but never ran
+`landResult = reLand`.
 
-**Pattern to reuse:** when a code path is duplicated across an "initial attempt" / "retry attempt"
-pair and one path aliases a shared outer variable to the dispatched result while the retry path
-captures it under a *new* local name, check whether every field the initial path exposes via the
-shared variable is also propagated to the shared variable on the retry path — not just pushed onto
-a side list (`escalated`, a log entry, etc.). A field present only on the retry's *local* result
-object is invisible to any consumer that reads the shared/outer name.
+**RESOLVED (2026-08-02-war-engine-and-standing-doc-truth/1.2, #1245):** both re-land arms now assign
+`landResult = reLand` inside their `reLand.status === 'submodule-pr'` branches, symmetric with the
+initial land.
 
 > archived 2026-08-15: resolved — moved to archive

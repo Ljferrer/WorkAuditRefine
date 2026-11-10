@@ -39,10 +39,6 @@ This keeps the gate green across the intermediate state while making the
 unfinished seam explicit and trackable. Applies to any cross-file mirror (inline
 JSON, doc tables, schema enums).
 
-Instance resolved: the `'land_stale'` split landed; the drift-guard now asserts
-the canonical `deepEqual([...inline].sort(), [...HARD_ESCALATION_REASONS].sort())`
-with no intermediate pin or TODO.
-
 [[run-provision-config-not-yet-mirrored-into-template]]
 
 > archived 2026-08-30: resolved — moved to archive

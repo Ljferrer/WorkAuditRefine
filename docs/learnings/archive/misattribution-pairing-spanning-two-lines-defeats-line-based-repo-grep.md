@@ -33,29 +33,19 @@ metadata:
 
 # A repo-wide OLD-absent grep is vacuous when the banned pairing wraps across a comment's line break
 
-**What happened (code-verified):** phase "gate-evidence-and-prose-truth" End state 10 required
-correcting a misattribution — `classOf` in `skills/war/assets/workflow-template.js` was wrongly
-described as *performing* the classification-base gate re-run, when the refiner performs the
-re-run and `classOf` merely reads the resulting `gate_failure_class`. The correction needed to be
-"OLD-absent on every surface carrying the old value, not merely NEW-present in the new bullet" (the
-plan's rule 6, /war-strategy §3). A repo-scoped OLD-absent grep across the whole tree was proposed
-as the closure mechanism and **rejected by red-team adjudication (2026-07-15)** for a concrete,
-verified reason: the D14 block comment in `skills/war/assets/skill-doc-contracts.test.mjs` wrapped
-the exact banned pairing across two source lines —
+**The rule:** a single-line grep cannot prove a banned two-token pairing is gone. If the pairing
+wraps across a line break, a `grep -n` (or any single-line-match) sweep for a pattern that needs
+both tokens on one line reports **no match** while the defect stands verbatim in the file. Example
+shape, from a block comment in `skills/war/assets/skill-doc-contracts.test.mjs`:
 
 ```
 // ...the gate-time `gate_failure_class` classifier (`classOf`) keys on
 // re-running the failing gate at the classification base and comparing failing identifiers...
 ```
 
-`classOf` ends one line; `re-running` opens the next. A `grep -n` (or any single-line-match) sweep
-for a pattern that requires both tokens on one line reports **no match** here even while the
-misattribution stands verbatim in the file — the grep is vacuous on the very surface it was
-invented to catch. Confirmed both directions: the pre-fix comment (this exact two-line wrap) and
-the post-fix comment (rewritten as one continuous non-wrapping sentence attributing the re-run to
-the refiner and casting `classOf` as a reader) were both directly read at
-`skills/war/assets/skill-doc-contracts.test.mjs`'s D14 test block (verify still present before
-acting — locate by the `D14 —` test title).
+`classOf` ends one line and `re-running` opens the next, so the grep is vacuous on the very surface
+it was meant to catch. Red-team adjudication rejected a repo-wide OLD-absent grep as a closure
+mechanism for this reason.
 
 **Why durable:** this is not specific to this one misattribution. Any "assert the banned clause is
 gone everywhere" sweep that relies on a single-line-anchored grep across free-form prose/comments
@@ -72,10 +62,9 @@ health.
   text — the repo's own D-series guards already do this (locate-by-marker, then regex the slice) —
   or (b) enumerate every carrying surface explicitly and close each one by its own in-place
   reword/assertion, never by one blanket grep.
-- Prefer the **bullet-/block-scoped negative arm** pattern already used by D14 (extract the
-  `**Daemon reachable**` bullet, then assert no phrasing inside it casts `classOf` as the re-run's
-  agent) over a repo grep — it is immune to the line-wrap trap because the extraction step already
-  joins the block into one string before the regex runs.
+- Prefer a **bullet-/block-scoped negative arm** (extract the bullet, then assert no banned
+  phrasing inside it) over a repo grep — it is immune to the line-wrap trap because the extraction
+  step already joins the block into one string before the regex runs.
 - If a repo-wide grep is still wanted as a completeness *floor* (not the sole gate), pair it with a
   mandatory manual same-scope survey of each enumerated surface, exactly as this plan's `Survey:`
   block convention requires elsewhere — never let the grep's silence alone certify a multi-surface

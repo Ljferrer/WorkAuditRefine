@@ -1,6 +1,6 @@
 ---
 name: grep-c-assertion-count-floor-is-a-fragile-dated-snapshot
-description: "A grep -c End-state count floor is a dated snapshot — base can be miscounted both ways"
+description: "A grep -c End-state count floor is a dated snapshot that counts lines, not items: recount the base, scope the grep to rows, and check each named item separately"
 metadata: 
   node_type: memory
   type: project
@@ -17,11 +17,21 @@ metadata:
     - conversion-time literal
     - stale plan literal
     - land-barrier endstate check
+    - row-scoped predicate
+    - whole-file grep
+    - marker literal in prose
+    - do_verify
+    - shared title prefix
+    - ace-reentry
+    - enumerated named sub-case
+    - fixture coverage gap
   tags: 
     - plan-authoring
     - audit-calibration
     - gate-audit
     - comment-lag
+    - lint-design
+    - fragile-check
   created: 2026-08-17
   originSessionId: 8bae67aa-acfa-461e-acc9-278fc79ba6c1
   modified: 2026-08-17T05:52:30.641Z
@@ -42,11 +52,9 @@ never be satisfied by correct work, and filed a `phaseClose:true` Nit recommendi
 correct the floor to `>= 8` rather than "pad the suite with extra assertion messages to reach
 10 — that is exactly the comment-line false-green the red-team already flagged."
 
-**Re-verified at the actual landed tip** (`c809b77fee45630b19b195bf80f13743168a7857`, read via
-the `_refinery` worktree whose `gitdir` physical path contains this plan's slug — the strongest
-grounding rung, HEAD exactly equal to the landed tip): `grep -c 'must be flagged'
+**Re-verified at the actual landed tip:** `grep -c 'must be flagged'
 skills/_shared/doc-cli-consistency.test.mjs` returns **10**, not 8. Two of those 10 matching
-lines (`284`, `287` at the landed tip) are **comments** ("`-> must be flagged unresolved`" /
+lines are **comments** ("`-> must be flagged unresolved`" /
 "`(both grep forms) -> must be flagged`") near an unrelated verb-scan test, not assertion
 messages — `grep -c` counts every matching *line*, comments included, while the plan's own
 mental model ("two new fixtures, two new assert messages") only tracked assertion lines. So at
@@ -71,9 +79,24 @@ instance.
    weaker evidence than a structural assert (e.g. counting `assert.*'<phrase>'` call sites) and
    should be read as "at least this many lines mention the phrase," not "at least this many
    fixtures were added."
+   - **Authoring corollary:** a check that detects a dropped marker must grep structural rows,
+     never run a whole-file `grep -c`, because prose can mention the marker. A surviving prose
+     mention (e.g. a sentence about "the `[repo]` row") keeps a whole-file count green after every
+     real row is gone. Require the line to look like a table row first:
+     `grep -E '^\|' | grep '\[\[' | grep -c '\[repo\]'`. The model to mirror is
+     `skills/lessons-learned/assets/safe-swap.sh`'s `do_verify`, whose extraction pipe is
+     `grep -E '^\|' "$mem" | grep '\[\[' | grep -v '\[repo\]'`.
 3. When auditing a count-floor finding, re-run the grep at the **actual landed tip**, not just
    the task's own `audit_sha` — a phase-close checkpoint, a later task in the same phase, or a
    fix round can change the count between task-level audit and phase land.
+4. **A floor over a shared title prefix cannot tell which named item is covered.** A
+   `grep -c '<shared-prefix>' <file> >= N` floor over a set of enumerated named items stays green
+   while one named item lacks a fixture, and it admits unrelated fixtures that share the prefix.
+   Example: an End state named three re-entry origins behind `grep -c 'ace-reentry' ... >= 3`.
+   Five `ace-reentry` fixtures existed, so the check stayed green, but the third named origin (a
+   later-round re-audit) never got a fixture. When authoring, prefer one named check per
+   enumerated item (for example `grep -c 'ace-reentry (End state 1, later-round re-audit)'`).
+   When auditing, list the matching titles and map each named item to one.
 
 ## Related
 
@@ -81,5 +104,8 @@ instance.
 fragile-literal-floor family (fixed grep context window instead of a bare count), same root
 cause: a plan-authored numeric/structural check computed against a snapshot that later commits
 can legitimately move past.
+
+[[archive-subcommand-rerender-drops-repo-rows-and-verify-cannot-catch-it]] — the concrete defect
+the row-scoped `[repo]` check was built to close.
 
 > archived 2026-08-30: resolved — moved to archive

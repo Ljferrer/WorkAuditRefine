@@ -1,6 +1,6 @@
 ---
 name: scope-hook-relative-path-loop-hang
-description: "Ancestor walk hangs on rel paths; add prev guard"
+description: "A dirname ancestor walk gated only on [ \"$d\" != \"/\" ] never terminates for a relative path; add a prev progress guard"
 metadata: 
   node_type: memory
   type: project
@@ -41,7 +41,7 @@ The `prev` guard bounds the loop (it stops once `dirname` stops making progress,
 
 ## Why it matters
 
-This is a **plan↔code mismatch where the deviation was the correct call** — the audit explicitly ruled it intent-preserving and faithful, not a violation. It's the kind of "copy the pasted snippet verbatim" trap a worker can fall into: the plan's shape compiled and looked right but had a latent infinite loop. Worth recording because (a) it justifies a deviation from a literal plan paste, and (b) it's a reusable bash gotcha for any ancestor/parent-dir walk in a hook.
+The plan's shape compiled and looked right but had a latent infinite loop. The audit ruled the worker's deviation intent-preserving and faithful, not a violation (the plan slice is the floor, intent the ceiling).
 
 ## Remedy pattern
 
@@ -52,11 +52,5 @@ For any `dirname`-based ancestor walk in shell, never gate solely on `[ "$d" != 
 Plans that paste runnable shell should not assume inputs are absolute; the hook payload's `file_path` can be relative.
 
 Related: [[scope-hook-servitor-pattern-residuals]] (other residuals in the same hook), [[scope-guard-needs-agent-type]] (why the hook keys on `agent_type`).
-
-## Lineage: faithful deviations (other entries)
-
-A faithful deviation is a divergence from the plan's *letter* that preserves (or strengthens) its *intent*, and is ruled intent-preserving by audit rather than flagged as a violation. Other instances:
-
-- **Phase B1 / `structuralFallback` defensive guard** (`skills/_shared/provision.mjs`): the plan asked for a tiny `structuralFallback(repoDir)` that "never throws on a missing dir". The worker added a guard beyond the plan's letter — `if (typeof repoDir !== 'string' || repoDir === '') return []` — so a non-string/empty `repoDir` yields `[]` instead of throwing in the dirname/fs path. This is a **harmless superset** fully consistent with the stated never-throw intent (audited as a Nit, not a deviation-of-concern). The reusable lesson: when a plan specifies a robustness intent ("never throw on X"), hardening the *input* edge in the same spirit is faithful, not scope creep.
 
 > archived 2026-08-30: resolved — moved to archive

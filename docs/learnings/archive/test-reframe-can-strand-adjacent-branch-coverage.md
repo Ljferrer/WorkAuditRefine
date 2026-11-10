@@ -1,6 +1,6 @@
 ---
 name: test-reframe-can-strand-adjacent-branch-coverage
-description: "New short-circuit guard: reframed old test strands old branch"
+description: "When a new short-circuit guard reuses the old path's only fixture, the reframed test stops at the guard and the still-live old branch loses its coverage"
 metadata: 
   node_type: memory
   type: project
@@ -26,9 +26,9 @@ metadata:
 
 When a plan directs inserting a new guard that runs (and can fail/escalate) **before** an existing code path, and also directs repurposing the existing test fixture that used to reach that old path to instead exercise the new guard, check whether that fixture was the **only** test of the old path. The new guard short-circuiting ahead of the old logic means the reframed test now stops at the guard and never reaches the old branch — even though the old branch is byte-unchanged, still live, and still reachable in production whenever the new guard's precondition doesn't trip (e.g. the guard's own gate passes but the old classification later fails for an unrelated reason).
 
-Concrete instance (`provision-worktrees.sh`'s `cmd_land_advance`, this phase): a new pre-push `git ls-remote` guard was added ahead of the push. The old test for "push fails without a `[rejected]` token → `exit 3`" used a broken remote URL fixture. The plan (correctly, and explicitly) reframed that same fixture to prove the new `ls-remote`-failure guard instead — but a broken URL now fails at the `ls-remote` readback and never reaches the push at all, so the old push-error classification branch (still live: reachable when origin **is** reachable via `ls-remote` but the push itself later fails for a non-CAS reason — permission denial, pre-receive hook rejection, mid-flight unreachability) lost its only exerciser. Not a defect (the plan directed the reframe and the branch is unchanged), but it is a **coverage residual** worth naming explicitly rather than silently absorbing into "tests still pass."
+Concrete instance (`provision-worktrees.sh`'s `cmd_land_advance`): a new pre-push `git ls-remote` guard was added ahead of the push, and the plan reframed the old broken-remote-URL fixture to prove it. A broken URL now fails at `ls-remote` and never reaches the push, so the old push-error branch (`exit 3`, still live when origin is reachable but the push fails for a non-CAS reason) lost its only exerciser. Not a defect, but a **coverage residual** worth naming.
 
-A second instance from the same task: two already-landed-branch test cases asserted the correct *outcome* (exit 0, follower reconciled, origin unchanged) but that outcome is identical to the pre-existing no-op-push fallback path — mentally deleting the new already-landed branch still leaves those two cases green. The branch's actual discrimination was pinned by a *different*, genuinely isolating case (a phantom-vs-already-landed sha comparison), not by the cases that read as its "own" tests. This is the same failure shape as [[weak-test-assertion-passes-without-feature-being-exercised]], but the cause here is structural (branch outcome coincides with a sibling path's outcome) rather than a loose assertion.
+A related shape, where a branch's outcome coincides with a sibling path's outcome, is [[weak-test-assertion-passes-without-feature-being-exercised]].
 
 **How to apply during audit/plan review of a guard-insertion task:** for every test case being *reframed* (not newly written) to prove new logic, ask "does deleting the new guard/branch still leave this case green via some other path?" If yes for the reframed case, and the branch it used to cover is still live code, flag as a Nit/Minor coverage residual — decide `absorb` (add a minimal new fixture) vs `note` (byte-unchanged branch, low production risk) rather than silently trusting "tests still pass."
 

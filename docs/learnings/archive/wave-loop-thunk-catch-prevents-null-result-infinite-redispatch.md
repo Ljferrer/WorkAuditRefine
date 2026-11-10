@@ -1,12 +1,12 @@
 ---
 name: wave-loop-thunk-catch-prevents-null-result-infinite-redispatch
-description: "Wave-loop thunks must try/catch to verdict 'escalate'; an uncaught throw NULLs, drops"
+description: "Wrap the whole per-task wave-loop thunk in one try/catch returning verdict 'escalate', or an uncaught throw is nulled, dropped and re-dispatched every wave"
 metadata: 
   node_type: memory
   type: project
   provenance: code-verified
   slug: wave-loop-thunk-catch-prevents-null-result-infinite-redispatch
-  phase: "Engine-routes-contract-surfaces/1.1 (2026-07-12, fixes"
+  phase: "Engine-routes-contract-surfaces/1.1 (2026-07-12)"
   keywords: 
     - wave-loop invariant
     - nextWave
@@ -61,11 +61,6 @@ reproduces the exact "one dispatch must yield exactly one collected result" inva
 just with a smaller blast radius. When adding a new call inside such a thunk (a new prompt build, a
 new normalization step), it lands inside the existing catch-all by construction — no per-call
 try/catch needed, and none should be added (it would just re-narrow the coverage).
-
-**Where this money-shot log line lives**: the invariant is documented as a comment directly above
-the `try {` (thunk entry, not literally beside the `catch`) — plan asked for "a comment at the
-catch"; the auditor judged the thunk-entry placement fully intent-consistent (arguably clearer for
-a reader entering the block) and non-deviating (disposition: note, Nit, no fix required).
 
 Related: [[done-report-path-contract-scoped-to-primary-worker-call-site]] (the
 `normalizeReportedPaths` call this catch now also guards — renamed from

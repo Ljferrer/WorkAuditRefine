@@ -20,7 +20,7 @@ PASSES inside a task worktree; a green run inside a worktree does not prove the 
 **How to apply:** verify the anchor level empirically (`cd ... && pwd`), don't trust a path-count
 in prose; `--exclude-dir=worktrees` is redundant once the root is a clean subtree.
 
-Related: [[scope-hook-test-nonhermetic-inside-war-task-worktree]],
+Related: [[relative-path-test-needs-clean-cwd]],
 [[relative-path-test-needs-clean-cwd]], [[retire-token-needs-clean-surface-gate-test]].
 
 > archived 2026-07-11: resolved — moved to archive

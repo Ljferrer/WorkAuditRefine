@@ -106,7 +106,7 @@ regression.
 ## Recurrence 3 (2026-07-23, campaign `war-campaign-resilience-roadmap`, plan `cli-main-guard-normalization`, phase 2 "Release", task 2.1) — blanket clause across three heterogeneous guard shapes
 
 A fourth distinct instantiation, closest in mechanism to
-[[guard-deny-string-blanket-adjective-mismatches-mixed-flag-shapes]] rather than the
+[[static-guard-deny-message-misnames-which-rule-fired-for-shared-char-class]] rather than the
 trigger-surface-vs-topology Rule above: the `## Status` blurb (`README.md` line 339 at land, tip
 `4a96b14fc5c7d23530d1e3372d664b630dcb9311`) opens "The three run-as-CLI guards that still compared
 `fileURLToPath(import.meta.url)` against a raw `process.argv[1]`" as a single umbrella clause
@@ -133,7 +133,7 @@ mid-phase, which is out of task 2.1's `Files:` list to touch incidentally.
 ## Recurrence 4 (2026-07-24, plan `2026-07-24-runbook-and-standing-record-coherence`, phase 2 "Release", task 2.1) — "every case arm ... byte-unchanged" claims a byte-identity property one arm doesn't hold
 
 A fifth distinct instantiation, closest in mechanism to
-[[guard-deny-string-blanket-adjective-mismatches-mixed-flag-shapes]] (same guard file, same
+[[static-guard-deny-message-misnames-which-rule-fired-for-shared-char-class]] (same guard file, same
 `branch` read-form loop, a different release cycle's touch-up of it) but a different specific
 overclaim: the `## Status` blurb (`README.md` line 340 at land, landed tip
 `3444016a48a3d97b5beb21fc9700bd7fa788272d`) states the auditor `git branch` guard's deny message and
@@ -170,7 +170,7 @@ every allow/deny outcome — byte-unchanged" rather than "every arm ... byte-unc
 will visibly contradict a sentence two clauses earlier that says a string inside one of those arms
 changed.
 
-Related: [[guard-deny-string-blanket-adjective-mismatches-mixed-flag-shapes]] (same guard file,
+Related: [[static-guard-deny-message-misnames-which-rule-fired-for-shared-char-class]] (same guard file,
 same `branch` read-form loop, an earlier release's adjective-vs-enumeration mismatch — together
 these two lessons show this one guard's deny-message precision has now tripped an auditor twice
 across two different plans). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (how
@@ -252,7 +252,7 @@ itself unchanged"), restate the subject explicitly rather than trusting proximit
 established by Y, enforced by X, and itself unchanged by this release —" binds "itself" unambiguously
 to the contract even though X (the just-hardened guard) is the nearer noun.
 
-Related: [[guard-deny-string-blanket-adjective-mismatches-mixed-flag-shapes]],
+Related: [[static-guard-deny-message-misnames-which-rule-fired-for-shared-char-class]],
 [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (worktree-lookup path used to
 ground this recurrence's D3 read).
 
@@ -1069,7 +1069,7 @@ bullet's format.
 
 Related: [[backstop-retirement-grep-false-reds-on-sanctioned-replacement-substring]] (the retirement-
 grep-scoping guidance (c) confirms in a positive instance);
-[[retirement-grep-for-prose-needle-must-be-case-insensitive-or-sentence-initial-capitalization-evades-it]]
+[[prompt-only-clause-grep-guard-must-tolerate-sentence-case]]
 (sibling retirement-grep fragility, case-sensitivity rather than scope);
 [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (gate-audit `auditSha` fallback rung
 used to ground this recurrence's D3 read).
@@ -1333,5 +1333,11 @@ which half did the work); [[stacked-per-branch-releases-make-main-lag-cumulative
 task's sibling Nit on the same paragraph — the `0.18.1 → 0.19.0` window phrase will lag master's
 independently-landed `0.18.2` at merge time — an *expected* instance of that lesson's already-
 documented mechanism, not recorded separately here).
+
+## Recurrence 25 (2026-09-12, plan `2026-09-11-backward-chain-doctrine`, Release task) — universal claim and dropped qualifier
+
+(a) A blurb said the examples bank's relation-tag H2s hold seed entries "with no repo name or number" — false for two WAR-sourced entries citing real issue numbers; fixed by repeating the guard's own two-class split.
+(b) "the examples H2 set" dropped the file's own minus-one qualifier (`## convergence` is the extra H2); fixed to "the examples H2 set less `## convergence`".
+Both were `absorb`, `autoFixable: true`, and confirmed fixed at land.
 
 > archived 2026-08-17: resolved — moved to archive

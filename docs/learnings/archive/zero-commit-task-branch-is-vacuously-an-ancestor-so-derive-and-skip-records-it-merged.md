@@ -1,12 +1,12 @@
 ---
 name: zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged
-description: "RESOLVED (2026-09-06-engine-and-audit-verdict-integrity, #1895): a zero-commit task branch is vacuously an ancestor of the tip, so derive-and-skip falsely recorded it merged; check the commit count"
+description: "RESOLVED (#1895, then ADR 0054): a zero-commit task branch is vacuously an ancestor of the tip, so an ancestor check alone falsely records it merged; prove merges from a merge commit"
 metadata: 
   node_type: memory
   type: project
   provenance: code-verified
   slug: zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged
-  phase: "2026-08-27-in-run-finding-resolution/phases 1-3 (landed dev/2026-08-27-in-run-finding-resolution, tip ec0b920); addendum 2026-08-30-engine-concurrency-and-pin-transfer/phase-2 task 2.2 (landed dev/2026-08-30-engine-concurrency-and-pin-transfer, tip ad440fc0); engine bug #1895"
+  phase: "2026-08-27-in-run-finding-resolution/phases 1-3; addendum 2026-08-30-engine-concurrency-and-pin-transfer/phase-2 task 2.2; engine bug #1895"
   keywords: 
     - derive-and-skip
     - preMerged
@@ -35,27 +35,21 @@ exist anywhere in the window. A gate-audit does not catch it when every needle i
 that really landed.
 
 **Resolved (2026-09-06, #1895):** Task 6.1 of the 2026-09-06-engine-and-audit-verdict-integrity plan
-(D9, PIN-13) adds the `git rev-list --count <base>..<branch>` > 0 conjunct to the `deriveSkipClause` in
-`skills/war/assets/workflow-template.js` (search `SANCTIONED RECOVERY RELAUNCH — derive-then-cut`) beside
-`merge-base --is-ancestor`; a zero-commit branch takes the ordinary ensure-worktree path with a loud
-classification log (fixture `derive-and-skip: zero-commit branch dispatches (#1895/#2006)`). Before that
-landed, the clause gated on the ancestor check alone and the only partial guard sat on the merge-slot
-pin-transfer path: an empty post-rebase diff with zero task commits fails closed as `empty-unmatched`
-(#1931). Residual (Task 6.1's own, beside `deriveSkipClause` and in its commit body): the conjunct's BASE is the
+(D9, PIN-13) added the `git rev-list --count <base>..<branch>` > 0 conjunct to the `deriveSkipClause` in
+`skills/war/assets/workflow-template.js` beside `merge-base --is-ancestor`; a zero-commit branch took the
+ordinary ensure-worktree path with a loud classification log. Its residual: the count's base was the
 integration branch's fork point off the working branch, so a zero-commit branch cut at a later relaunch's
-adopted tip counts its siblings' fast-forwarded commits and is not caught; the manual `rev-list --count`
-check below still applies to a relaunch of a relaunch.
+adopted tip counted its siblings' fast-forwarded commits and was not caught.
 
-**Fix shape (the first half landed with Task 6.1; the phase-level assertion is still a suggestion):** derive-and-skip must also require `git rev-list --count <base>..<branch>` > 0 before deriving
-`preMerged`; a zero-commit branch takes the fresh-run path. Pair it with a phase-level assertion that every
-task the handoff reports `landed` contributed at least one commit to the integration range.
+**Note (2026-10-30, merge-commit rule, #2485):** the derive-and-skip proof is now merge-commit
+provenance (ADR 0054): `task-integrated.sh` proves a task from a first-parent merge commit whose `WAR-Task`
+trailer names it and whose second parent is its tip, so a zero-commit branch has no such commit and is never
+reported merged. That also closes the residual above, and the `rev-list --count` conjunct is no longer the
+proof.
 
-**How to apply on an engine that predates the fix — and to a relaunch of a relaunch after it:**
-- Before trusting any relaunch's `preMerged` set, or any `recovered:pre-merged` audit-log verdict, run
-  `git rev-list --count <base>..<branch>` for each skipped task and diff the window for its `Files:`.
-- Delete stale zero-commit task branches before relaunching; that removes the vacuous input entirely.
-- Reconcile toward git at Checkpoint (ADR 0008): a ledger claim git cannot corroborate is the only detection
-  seen so far.
+**How to apply:**
+- Never prove a task merged from ancestry alone; a zero-commit branch is an ancestor of every tip.
+- Reconcile toward git at Checkpoint (ADR 0008): a ledger claim git cannot corroborate is a red flag.
 - An End state a gate-audit records `unverified` (scoped out of another task's attestation) is not evidence
   the artifact exists.
 
@@ -63,16 +57,7 @@ task the handoff reports `landed` contributed at least one commit to the integra
 four version slots (the CLAUDE.md-named silent no-op release), or an ADR-authoring task whose ADR never
 appears.
 
-Recurrences: 3 in two runs (2026-08-27-in-run-finding-resolution tasks 1.2, 1.3, 2.1;
-2026-08-30-engine-concurrency-and-pin-transfer task 2.2, where a `p2-polish` gate-audit raised an `ask` naming
-the gap, but the discarded terminal polish round drained no queue, see
-[[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]]).
-
-**Note (2026-10-30, merge-commit rule, #2485):** a RESOLVED record, so the text above stays as written. The
-derive-and-skip proof is now merge-commit provenance (ADR 0054): `task-integrated.sh` proves a task from a
-first-parent merge commit whose `WAR-Task` trailer names it and whose second parent is its tip, so a
-zero-commit branch has no such commit and is never reported merged. That also closes the residual above
-(a branch cut at a later relaunch's adopted tip), and the `rev-list --count` conjunct and its manual check
-are no longer the proof.
+Related: [[full-dag-relaunch-of-already-merged-task-content-escalates-empty-unmatched]],
+[[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]].
 
 > archived 2026-10-30: resolved — moved to archive

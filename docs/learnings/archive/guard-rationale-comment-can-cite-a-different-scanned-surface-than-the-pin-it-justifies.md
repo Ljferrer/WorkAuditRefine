@@ -1,6 +1,6 @@
 ---
 name: guard-rationale-comment-can-cite-a-different-scanned-surface-than-the-pin-it-justifies
-description: "A drift-guard test's justifying comment for a new positive/presence pin can claim it is the…"
+description: "A guard comment can justify a new presence pin as the twin of arms that scan a different file; re-derive what each pin scans before trusting the comment"
 metadata: 
   node_type: memory
   type: project
@@ -32,7 +32,7 @@ metadata:
 
 # A new guard's justifying comment can wrongly claim it covers a DIFFERENT surface's vacuity risk
 
-## The pattern (recorded as a pattern, not a live instance — see below)
+## The pattern
 
 During phase 3 of `realized-absorb-rate`, `skills/war-machine/war-pipeline-structure.test.sh` grew
 four `lacks_i` OLD-absent arms scanning `$WAR_STRATEGY` (retired rule-count phrases), immediately
@@ -50,7 +50,7 @@ war-machine drafter-directive addition); only the comment's stated justification
 
 Two independent audit passes in the same phase (task 3.1's audit reviewing the sibling task's
 diff, and task 3.2's own audit) flagged this identically and both routed `disposition: absorb,
-autoFixable: true` — a comment-accuracy defect, not a coverage gap.
+autoFixable: true` — a comment-accuracy defect, not a coverage gap. The comment was corrected before land.
 
 ## Why this is durable and easy to miss
 
@@ -61,17 +61,6 @@ indefinitely. A future maintainer trusting the comment (rather than re-deriving 
 actually scan) could believe a different arm-set is covered than really is — the repo's own
 "anchor references by named construct" discipline exists precisely because rot like this is
 otherwise invisible to a green suite.
-
-## Finding-match note (D3/verify-on-write)
-
-Re-read at the landed tip (`4d93459972a4c4c67b5977064b583cbd41265d31` on
-`dev/2026-08-19-realized-absorb-rate`, via the `_refinery22` worktree whose `gitdir` names this
-plan's slug): the comment was corrected before land — it now reads "Positive presence pins for
-this task's war-machine addition — nothing else guards it (the retired-count arms above scan
-`$WAR_STRATEGY` only, whose non-vacuity is held by the `has_i` loop above plus
-`war-strategy-structure.test.sh`, and `lacks_i` already fails loudly on a missing file)". This
-lesson is recorded as the **generic pattern**, not a live instance — the fix round applied before
-land, per the standing finding-match-check protocol.
 
 ## How to apply
 

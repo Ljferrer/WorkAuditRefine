@@ -1,6 +1,6 @@
 ---
 name: static-guard-deny-message-misnames-which-rule-fired-for-shared-char-class
-description: "A static deny message naming one rule fires for every denial sharing its check"
+description: "A static deny message naming one rule fires for every denial sharing its check; check its rule name or summary word against every cause and member"
 metadata: 
   node_type: memory
   type: project
@@ -14,6 +14,10 @@ metadata:
     - mis-attribution
     - character residue check
     - message design
+    - blanket adjective
+    - attached flag
+    - bare flag
+    - release blurb mirror
   provenance: code-verified
   slug: static-guard-deny-message-misnames-which-rule-fired-for-shared-char-class
   phase: 2026-08-06-gate-audit-finding-routing/2.2
@@ -48,6 +52,15 @@ moved; the message still echoes the actual offending residue (`head -c 20`) so t
 the real character; and the wording is plan-mandated (the Task 2.2 slice specified this exact
 clause at this one site).
 
+## Second instance: one adjective for a mixed flag set
+
+The same guard's `branch` read-form deny string once said "git branch takes only =-attached read
+flags (--contains=<rev>, --merged=<rev>, --points-at=<rev>, --list, -a, -r, --show-current, -v)".
+Five of the eight enumerated flags are bare, so the parenthetical contradicted the summary word.
+The README `## Status` blurb quoted the deny text verbatim and inherited the error. The guard's
+behavior was correct; only the message overclaimed. Resolved: the deny string now shape-splits
+value-carrying flags (`=`-attached) from bare read flags.
+
 ## Durable rule
 
 - When appending a NEW named-failure-mode clause to an EXISTING shared deny message (one message
@@ -60,10 +73,16 @@ clause at this one site).
   strictly a superset claim — true whenever it fires, but not necessarily the PRECISE cause.
   Recognize this pattern rather than reflexively "fixing" it — the plan-mandated wording here was
   a deliberate choice, not an oversight.
+- When a message summarizes an enumerated set with one word, check that word against every
+  member, not just the majority. A blurb that quotes the deny text inherits its error, so fix both
+  copies together.
 
 ## Locate cue
 
 `hooks/validate-auditor-git.sh` :90-91 (the `residue=` allowlist check + the deny message
 appending "the metacharacter rule fired") — verify still present before acting.
+
+Related: [[release-blurb-overstates-guard-semantics]] (sibling family: release-blurb prose
+imprecision about guard semantics, different failure mode — trigger surface, not flag shape).
 
 > archived 2026-08-30: resolved — moved to archive

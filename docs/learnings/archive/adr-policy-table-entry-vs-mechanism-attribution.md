@@ -58,18 +58,6 @@ ADR's own inline per-decision notes (or the source spec's section) rather than t
 grouping — a header written before or after an inline note is a common place for silent
 re-bucketing to drift in, even inside the same document.
 
-Referent not verified in this checkout @ phase red-team-plan-vs-state-grading-and-probe-sandboxing
-(worktree predates that branch's merge; `docs/adr/0013-commanders-intent-and-disposition-routing.md`
-was not read) — verify the status-header wording before citing it as still-current.
-
 [[mirrored-prose-row-parenthetical-inversion]]
-
-## Related but distinct (2026-08-02-redteam-doctrine-and-guards/1.2)
-
-A sibling rot class, not a third recurrence of this exact rule: an ADR's own forward-looking
-Consequences clause ("a declared backstop, built only if X") can go stale when a **separate, later**
-task/phase discharges X and builds the backstop — rather than mechanism attribution being restructured
-*within the same task* as here. See [[adr-consequences-deferred-backstop-goes-stale-when-later-phase-builds-it]]
-for the concrete instance (ADR 0033's ref-diff-snapshot bullet).
 
 > archived 2026-07-11: resolved — moved to archive

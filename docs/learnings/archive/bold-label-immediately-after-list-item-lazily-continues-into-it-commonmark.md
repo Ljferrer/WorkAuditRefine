@@ -17,6 +17,10 @@ metadata:
     - rendering gotcha
     - re-entry
     - route upstream
+    - README Status blurb
+    - release notes paragraph
+    - trailing sentence after bullet list
+    - version-slots.test.mjs
   tags: 
     - war
     - markdown
@@ -24,7 +28,7 @@ metadata:
     - gotcha
   created: 2026-08-06
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-08-15T00:53:28.167Z
+  modified: 2026-08-27T19:38:30.360Z
 ---
 
 # A bold label line right after a Markdown list item lazily continues into that item (CommonMark)
@@ -74,4 +78,39 @@ similarly-shaped list-item + bold-label template in this repo — see also
 caution: a whole-file presence-anywhere blank-line guard (as landed here) is non-vacuous only
 while each file carries exactly one `**Re-entry:**` occurrence — verified true at this tip.
 
-> archived 2026-08-25: resolved — moved to archive
+## Update 2 (in-run-finding-resolution/2.1, still LIVE — not a resolved instance)
+
+A third, distinct, currently-**unfixed** instance: `README.md`'s `## Status` section, at landed
+tip `2af20e5878f0364ac65a7791aa58b770fa909c74` (plan `2026-08-27-in-run-finding-resolution`,
+branch `dev/2026-08-27-in-run-finding-resolution`). Line 369 (the last `## Status` bullet,
+`- **Phase-2 hardening (#1879)** — …`) is immediately followed by line 370 (`Earlier release
+notes live in [CHANGELOG.md](CHANGELOG.md).`) with **no blank line** between them — verified by
+direct read of the landed worktree README.md at that tip. Per the same lazy-continuation rule,
+the sentence renders nested inside the last bullet instead of as its own paragraph. This is a
+different shape than the original confirmed instance (a plain trailing paragraph after a bullet
+block, not a `**Label:**` line), so the pattern's trigger shape is broader than "bold label
+specifically" — any non-block-starting line placed directly after a list item's paragraph
+lazily continues, label or not.
+
+Two things this recurrence adds to the general guidance:
+
+1. **The release-blurb edit path is a recurring vector.** The `## Status` bullet list gets
+   replaced in place on every release (see `## Releasing` checklist in README.md); an editor
+   that swaps N old bullets for M new ones while preserving the trailing sentence is exactly the
+   diff shape that drops the separating blank line (three-dot diff showed paragraph+blank+5
+   bullets+blank+sentence in the base tree collapsing to paragraph+4 bullets+sentence with the
+   blank consumed). Any future Status-blurb edit should explicitly re-check for the blank line
+   after the last bullet, not just before the first.
+2. **No test in this repo guards this shape.** `skills/war/assets/version-slots.test.mjs`
+   (verify still present before acting — `skills/war/assets/version-slots.test.mjs`) only
+   extracts/asserts the single leading bold semver token and the presence of the Status-blurb
+   authoring checklist section; it has no paragraph/blank-line structural assertion, so this
+   class of regression is invisible to the suite that otherwise locks the Status region tightly.
+
+At audit time this was filed `Minor`/`follow-up` (not absorbable in-run — see
+[[release-slot-files-exempt-from-in-run-ace-and-sweep-machinery]] for why a release-slot file's
+own regression can't self-heal via this repo's ace/sweep machinery even when the fix is a single
+character).
+
+> archived 2026-08-17: resolved — moved to archive (general pattern remains live guidance; this
+> Update 2 records a currently-unfixed recurrence, not a further resolution)

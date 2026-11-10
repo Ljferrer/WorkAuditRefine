@@ -1,5 +1,6 @@
 ---
-name: ""
+name: teardown-phase-reap-order-and-delete-fail-loud
+description: "Teardown must reap the _refinery worktree by path before deleting the integration branch, and the branch delete must fail loud, never || warn"
 metadata: 
   node_type: memory
   type: project

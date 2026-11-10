@@ -1,6 +1,6 @@
 ---
 name: curried-inline-mirror-needs-adapter-shim-in-registry-row
-description: "Curried inline fn mirror-registry row needs a call-shape adapter shim"
+description: "A behavioral mirror-registry row for a curried inline function must adapt its call shape to the canonical export's own signature, not call both with identical args"
 metadata: 
   node_type: memory
   type: project
@@ -65,4 +65,4 @@ where they diverge (currying, argument wrapping, extra closed-over free variable
 adapter lambdas to bridge that divergence explicitly; don't assume a shared fixture tuple can be
 spread identically into both calls.
 
-> archived 2026-07-26: resolved — moved to archive
+> archived 2026-07-11: resolved — moved to archive

@@ -86,6 +86,7 @@ metadata:
     - p5-polish worktree
     - reflog HEAD history
     - dev branch ref matches but no live worktree
+    - run-UUID worktree directory
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
   modified: 2026-08-07T00:16:06.428Z
 ---
@@ -153,6 +154,10 @@ prior-phase commit (frozen phase base), so it doubles as a persistence check on 
   with a numeric suffix (`p1-1.11`, `_refinery8`, climbing per land). Never trust a bare name
   lookup under `.git/worktrees/`; confirm via `gitdir` (plan slug in the path) and `HEAD`, and
   re-run the sweep fresh per wrap-up rather than guessing the next suffix.
+- **Run-UUID gotcha:** run worktrees can live under a run-UUID directory
+  (`.claude/war-worktrees/<run-uuid>/<name>/`), so a plan-slug `gitdir` filter can return zero.
+  Zero matches does not mean no worktree: Glob every `*/HEAD` and compare it to the landed tip.
+  The audit log's `gate_log_path` strings also name the run's worktree root.
 
 ## Standing trigger + live residual (Recurrences 14–19, 2026-07-22 → 2026-07-23)
 
@@ -210,8 +215,8 @@ worktree/branch-state trap in the same pipeline stage.
 edge above. Facts confirmed via the sweep technique:
 [[wave-loop-thunk-catch-prevents-null-result-infinite-redispatch]],
 [[entry-validation-unconditional-phase-field-check-comment-overclaims-runtime-path]],
-[[integrated-tip-authoritative-gate-audit-seat-has-no-gate-log-path-field]],
-[[floor-retry-add-test-package-it-worker-stays-base-tier]],
+[[gate-audit-inline-prompts-excluded-from-auditprompt-both-surfaces-coverage]],
+`floor-retry-add-test-package-it-worker-stays-base-tier`,
 [[baseline-debt-dedup-exact-set-not-subset]],
 [[git-common-dir-anchor-idiom-fail-open-gotchas]],
 [[git-probing-hook-requires-fixtures-outside-any-git-repo]],

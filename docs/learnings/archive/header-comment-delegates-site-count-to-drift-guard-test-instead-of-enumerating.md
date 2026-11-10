@@ -5,7 +5,6 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-07-24-recovery-re-merge-dispatch-coherence@phase-2
   slug: header-comment-delegates-site-count-to-drift-guard-test-instead-of-enumerating
   phase: 2026-07-24-recovery-re-merge-dispatch-coherence/2.1 (2026-07-24)
   keywords: 

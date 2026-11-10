@@ -1,6 +1,6 @@
 ---
 name: analyzed-scope-lock-forbids-the-external-read-a-new-lens-instruction-requires
-description: "A new probe instruction that needs an external read must also widen the scope-lock carve-out, not just the prompt body."
+description: "A new probe instruction or doctrine pointer that needs a read outside the probe's scope-lock must also widen the scope-lock carve-out, not just the prompt body"
 metadata: 
   node_type: memory
   type: project
@@ -15,9 +15,18 @@ metadata:
     - workflow-scaffold.js
     - fail-open capping
     - open nothing else on the machine
+    - D14 carve-out
+    - EXCEPT clause
+    - gh issue view exception
+    - doctrine home
+    - doctrineClause
+    - args.doctrineFile
+    - artifact-evidence.md
+    - foreign repo
+    - lenses.md
   provenance: code-verified
   slug: analyzed-scope-lock-forbids-the-external-read-a-new-lens-instruction-requires
-  phase: "authoring-side-verification/phase-2 (Task 2.1 audit finding, D9/PIN-26)"
+  phase: "authoring-side-verification/phase-2 (Task 2.1 audit finding, D9/PIN-26); RESOLVED in 2026-08-25-authoring-doctrine-and-lint-coherence/phase-3 (Task 3.1, End state 12)"
   tags: 
     - red-team
     - prompt-authoring
@@ -25,7 +34,7 @@ metadata:
     - fail-open
   created: 2026-08-25
   originSessionId: dcda690d-99d2-4fba-9d28-2a2a858d4676
-  modified: 2026-08-25T07:01:13.992Z
+  modified: 2026-09-03T09:57:34.167Z
 ---
 
 # A scope-locked probe's own preamble can forbid the exact external read a new instruction asks for
@@ -48,12 +57,25 @@ carve-out on its `analyzed` arm: "EXCEPT: reading a cited issue's `## Evidence a
 via `gh issue view` when your probe prompt directs it (read-only, this repo's issues only)". This
 pairs with the PER-ISSUE EVIDENCE JOIN clause in the `coverage-vs-source` `SPINE` entry.
 
+**Second instance: a doctrine pointer under the plugin root.** A plan made
+`skills/war-strategy/references/artifact-evidence.md` the single home for the `rea:` tag grammar, and
+the `rea-evidence` and `untrusted-content` rows in `skills/red-team/references/lenses.md` pointed at
+it. On a foreign `--repo` that file sits under the plugin root, outside every probe's scope-lock, so
+the pointer alone failed. Fixed (ruling #2397): the Lead threads the file's absolute path as
+`args.doctrineFile`, and `scopeLock` admits that one file read-only on both techniques. A rejected or
+absent path drops the clause, so the read stays forbidden. When a row points at a file under the
+plugin root, check that the Lead threads it and the scope-lock admits it; add a new doctrine pointer
+the same way, not with a bare row.
+
 **Locate-cue:** `workflow-scaffold.js`: the `scopeLock()` function's `analyzed` arm under the
-`D14 carve-out` comment, and the `coverage-vs-source` entry in the `SPINE` array.
+`D14 carve-out` comment, `doctrineClause`, and the `coverage-vs-source` entry in the `SPINE` array;
+`skills/red-team/SKILL.md`, Step 2.
 
 ## Related
 
 [[template-defers-runtime-values-to-agent-via-literal-placeholder]] is the same class: the
 dispatched prompt is the only surface the probe agent ever reads.
+[[agent-card-reference-pointer-is-repo-relative-and-wont-resolve-against-a-foreign-target-repo]]
+covers the card-pointer side.
 
 > archived 2026-10-27: resolved — moved to archive

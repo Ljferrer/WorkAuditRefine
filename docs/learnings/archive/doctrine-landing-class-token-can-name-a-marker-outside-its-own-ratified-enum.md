@@ -2,7 +2,6 @@
 name: doctrine-landing-class-token-can-name-a-marker-outside-its-own-ratified-enum
 description: "Gate on the row marker (‡-marked rows), never on 'landing class is X' with X outside the ratified class enum. Resolved."
 metadata: 
-  promoted: claude/authoring-side-verification-600a79@phase-1
   node_type: memory
   type: project
   provenance: code-verified

@@ -1,10 +1,9 @@
 ---
 name: ptspans-tokenizer-comment-and-string-blind-embedded-args-injects-source-bytes
-description: "assert-args-complete.mjs's ptSpans tokenizer opens a span on any /\\bpt`/g byte-run with no comment or string-literal skipping, so its header claim \"Comments, error messages, and derivation helpers are ... excluded by construction\" is false (exclusion is incidental); under --template re-check of a staged copy, stage-workflow.mjs's EMBEDDED_ARGS prelude (JSON.stringify(args), which never escapes backticks) feeds Lead-assembled prose to the same scanner, so args prose containing a pt-backtick byte-run opens a bogus span"
+description: "A raw-source tokenizer's header claim that comments or strings are \"excluded by construction\" is testable: verify it skips //, /* */, string and regex context. FIXED: assert-args-complete.mjs's ptSpans was comment- and string-blind until ptSpanRanges learned to skip them"
 metadata: 
   node_type: memory
   type: project
-  promoted: dev/2026-08-25-engine-reliability-and-filing-fidelity@phase-3
   keywords: 
     - ptSpans
     - assert-args-complete
@@ -32,38 +31,19 @@ metadata:
 
 # A raw-source tokenizer's "excluded by construction" comment claim can be merely incidental
 
-**Code-verified at the landed tip** (`73120000ff9fb694292b1b892a56c507a9308d7b` on
-`dev/2026-08-25-engine-reliability-and-filing-fidelity`, read via the still-live `p3-polish` task
-worktree whose branch tip `24480ebc54a41a7ba6f601ce46cf7833fe72f835` sits directly on that history —
-`skills/war/assets/assert-args-complete.mjs`). `ptSpans` (the `assert-args-complete.mjs` launch-args
-preflight's span extractor) opens a span on any `` /\bpt`/g `` byte-run in the raw template source and
-tracks only backtick / `${` / `{` / `}` nesting — it models **no comment or string-literal context**.
-The module header nonetheless claims: *"Only pt-tagged template literals are scanned … Comments,
-error messages, and derivation helpers are not prompt bytes and are excluded by construction."* That
-claim is false as stated: those regions are excluded only **incidentally**, because they happen not to
-contain a `` pt` `` byte-run today — not because the tokenizer skips them.
+**Rule:** when writing or reviewing a raw-source-scanning floor, a header comment asserting a class of
+text is "excluded by construction" is a testable claim, not free. Verify the tokenizer actually
+special-cases `//`, `/* */`, quoted-string and regex-literal context before trusting it, or downgrade
+the claim to "excluded today, incidentally" in the doc. The in-repo precedent that already does this
+correctly is `extractTopLevelTemplateLiterals` in `skills/war/assets/prompt-surface-budgets.test.mjs`
+— port its comment/string-skipping loop rather than re-deriving one.
 
-**Concrete exposure:** `skills/war/assets/stage-workflow.mjs` (`insertArgsPrelude`) injects
-`const EMBEDDED_ARGS = ${JSON.stringify(embedded)}` into a `--args`-staged copy of the template.
-`JSON.stringify` escapes neither backticks nor `$`. SKILL.md documents re-running the preflight
-against that staged copy via `--template <the stager's printed staged path>` for injected-stage runs.
-Threaded prose (Commander's Intent, verbatim plan slices, prefetched memory blocks) in this repo
-routinely contains the literal sequence `` `pt` `` (naming the tag itself), which satisfies `` \bpt` ``
-and opens a **bogus span inside a string literal**. The flat `${…}` re-scan over that bogus span can
-then harvest prose interpolations as if they were real prompt sites. Effect is usually fail-**closed**
-(a spurious required field ⇒ a false `exit 1` block on a complete launch) but has a fail-**open**
-corner if the bogus span's terminating backtick is the one that opens a real `pt` site (skipped via
-`re.lastIndex = i`). The shipped-template default path is unaffected (its own default-deny census
-pins the extracted set clean); this is a latent defect on the `--args`/`--template` re-check arm, not
-a live break, filed `disposition: follow-up` and unfixed at land.
-
-**Pattern to remember when writing or reviewing a raw-source-scanning floor:** a comment in the header
-asserting a class of text is "excluded by construction" is a testable claim, not free — verify the
-tokenizer actually special-cases `//`, `/* */`, and quoted-string context before trusting it, or
-downgrade the claim to "excluded today, incidentally" in the doc. The in-repo precedent that already
-does this correctly is `extractTopLevelTemplateLiterals` in
-`skills/war/assets/prompt-surface-budgets.test.mjs` — port its comment/string-skipping loop rather
-than re-deriving one.
+**Instance:** `ptSpans` (the `assert-args-complete.mjs` launch-args preflight's span extractor) opened
+a span on any `` /\bpt`/g `` byte-run in the raw template source and tracked only backtick / `${` /
+`{` / `}` nesting — no comment or string-literal context. The module header nonetheless claimed:
+*"Only pt-tagged template literals are scanned … Comments, error messages, and derivation helpers are
+not prompt bytes and are excluded by construction."* Those regions were excluded only
+**incidentally**, because they happened not to contain a `` pt` `` byte-run.
 
 **Related:** [[template-defers-runtime-values-to-agent-via-literal-placeholder]] (a sibling
 `workflow-template.js` scanning-surface gotcha).
@@ -72,6 +52,9 @@ than re-deriving one.
 
 > FIXED at phase 1 of `2026-11-08-args-floor-and-launch-preflight`: `ptSpanRanges` in
 > `skills/war/assets/assert-args-complete.mjs` now skips strings, comments and regex literals, and
-> an `EMBEDDED_ARGS` prose fixture pins the field set (End states 5 and 6, gate-audit met at
-> ea7f7931). Found at landed tip 608887813aa5 — verify still present before acting. The body above
-> describes the pre-fix defect.
+> an `EMBEDDED_ARGS` prose fixture pins the field set (End states 5 and 6). Verify still present
+> before acting.
+>
+> Pre-fix exposure: `stage-workflow.mjs`'s `EMBEDDED_ARGS` prelude (`JSON.stringify`, which escapes
+> no backticks) let threaded prose naming `` `pt` `` open a bogus span under the `--template` re-check
+> arm, usually a false `exit 1` block, with a rare fail-open corner.

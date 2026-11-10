@@ -1,7 +1,7 @@
 ---
 name: tighten-target-flag-has-three-independent-silent-degradation-paths
-description: "RESOLVED (memory-tooling-hardening/1.1+1.2, #1059 + #1088) at Phase-1 land: --target's two CLI silent-fallback paths now refuse loud (task 1.1) and the bash-only ${VAR:+...} fence is rewritten dialect-safe (task 1.2); cmdTightenPlan's `argv.target ? Number(argv.target) : WARN_BYTES` ternary plus that fence gave --target three distinct silent fallback-to-default paths, load-bearing since #992 made target govern the verdict trigger"
-metadata: 
+description: "RESOLVED (#1059, #1088, #1145): a numeric CLI flag read as `argv.x ? Number(argv.x) : DEFAULT` silently degrades on a bare flag or a bad value, so resolve it with a typeof-gated check at its own boundary that refuses loud (exit 1)"
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
@@ -9,13 +9,13 @@ metadata:
   phase: "war-memory-hardening/phase-1 task 1.1 (landed dev/2026-07-22-war-memory-hardening); RESOLVED memory-tooling-hardening/phase-1 tasks 1.1+1.2 (landed dev/2026-07-24-memory-tooling-hardening, 2026-07-26)"
   created: 2026-07-23
   updated: 2026-07-26
-  tags: 
+  tags:
     - war-memory
     - tighten
     - cli-flags
     - argv-parsing
     - shell-portability
-  keywords: 
+  keywords:
     - tighten-plan
     - "--target"
     - cmdTightenPlan
@@ -25,115 +25,83 @@ metadata:
     - bare flag
     - truthy ternary
     - TIGHTEN_TARGET
-    - word splitting
-    - zsh SH_WORD_SPLIT
-    - bash fence
     - WARN_BYTES fallback
     - silent default
     - RESOLVED
     - refuse loud
     - exit 1
+    - cmdQuery
+    - "--top-k"
+    - "--budget"
+    - preflight
+    - verdict
   originSessionId: 8e99f0a3-aecc-4068-9cd8-79868840feb7
-  modified: 2026-07-27T03:51:36.467Z
-  promoted: dev/2026-07-22-war-memory-hardening@phase-1
+  modified: 2026-07-28T01:04:10.806Z
 ---
 
-**Local recurrence copy** of the repo-root lesson at
-`docs/learnings/tighten-target-flag-has-three-independent-silent-degradation-paths.md` (same slug) —
-the repo copy is not directly editable by a servitor (D1), so this file carries the original content
-plus the `## RESOLVED` section below; a future Gate-2 promotion of this file overwrites the same-slug
-repo file.
+# `tighten-plan --target` had three independent silent fallback-to-default paths — RESOLVED
 
-# `tighten-plan --target` has three independent ways to silently collapse back to the default
+**The rule:** a numeric CLI flag resolved as `argv.x ? Number(argv.x) : DEFAULT` degrades silently
+on a bare flag or a bad value. Resolve it with a `typeof`-gated check at the command's own
+boundary, and refuse loud (stderr diagnostic, exit 1) on anything that is not a positive number.
 
-**What (code-verified — found at `skills/_shared/war-memory.mjs`, `cmdTightenPlan`, ~line 951; verify
-still present before acting):** `const target = argv.target ? Number(argv.target) : WARN_BYTES;`.
-Since #992 (this same phase) made `tightenPlan`'s returned `verdict` the stricter of the projection
-advisory read and `currentBytes >= target`, this line is now load-bearing for the preflight's stop
-condition, not just the cut-goal math — and it has three distinct silent-fallback failure modes,
-none of which raise a diagnostic:
+**History:** before #992, the `/lessons-learned tighten` preflight stop ignored `--target` and read
+the fixed 17,000 B `WARN_BYTES`. #992 made `--target` govern the verdict trigger, so the parse line
+became load-bearing.
 
-1. **Non-numeric value** (`--target abc`) → `Number('abc')` is `NaN` → `currentBytes >= NaN` is
-   always `false` → verdict silently falls back to the pure advisory read (17,000 B), exactly as if
-   `--target` had never been passed.
-2. **Bare flag, no value** (`--target` at end of argv, or followed by another `--flag`) → the
-   CLI's `parseArgv` maps a valueless flag to boolean `true` → `Number(true) === 1` →
-   `currentBytes >= 1` is always `true` → verdict is **always** `'warn'`, which pre-selects the
-   entire eligible list as the default strike-list in the SKILL's step-3 UI. This is the opposite
-   failure direction from (1): silently *more* aggressive, not silently inert.
-3. **Shell-dialect word-splitting**, at the doc layer: `skills/lessons-learned/SKILL.md`'s step-1
-   fence threads the flag as `${TIGHTEN_TARGET:+--target "$TIGHTEN_TARGET"}` inside a ` ```bash `
-   block. Bash splits the `:+` replacement text into two argv words as expected; **zsh does not**
-   — lacking `SH_WORD_SPLIT` by default, it does not word-split the unquoted expansion, so the
-   whole replacement fuses into one argv word (`--target 2000` arrives as a single token), which
-   `parseArgv` keys as `{"target 2000": true}`; `argv.target` itself stays `undefined` — same
-   silent outcome as never setting `$TIGHTEN_TARGET`.
-
-**Why this matters:** all three degrade toward one of two silent states (default 17,000 B advisory,
-or the "verdict always warn" pre-select) with zero diagnostic — an operator who typos `--target`
-gets a plausible-looking result that is not the bound they asked for. Failure direction is always
-fail-safe (never a false "nothing to tighten" when the corpus genuinely needs work, since case 2's
-failure mode over-triggers rather than under-triggers) — this is informational for hardening, not a
-live incident.
-
-**Historical "fix if ever picked up" paragraph — SUPERSEDED, see `## RESOLVED` below.** (Originally:
-"deliberately NOT done in this task ... `const t = Number(argv.target); const target =
-Number.isFinite(t) && t > 0 ? t : WARN_BYTES;` plus a test asserting a bare `--target` falls back to
-`WARN_BYTES`." That prescription is exactly the bare-`Number()` shape the real fix avoids —
-`Number(true) === 1` still passes `isFinite && t > 0`, so it would NOT have closed failure mode 2. Do
-not follow it.)
-
-Related: [[deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold]] (same phase, same
-task family — process-evidence discipline this task also relied on).
+**The three original failure modes** (all diagnostic-free and fail-safe in direction — never a false
+"nothing to tighten"):
+(1) non-numeric `--target abc` → `NaN` comparison always false → silent fall back to the 17,000 B
+advisory; (2) bare `--target` → `parseArgv` yields boolean `true` → `Number(true) === 1` → verdict
+always `'warn'`, silently pre-selecting the entire eligible strike-list (over-aggressive, the
+opposite direction from 1); (3) a shell-dialect problem in `skills/lessons-learned/SKILL.md`'s
+fence, where zsh fused flag and value into one argv word. The shell kernel of mode 3 now lives in
+the zsh-colon-modifiers-and-unsplit-expansions-break-agent-run-shell lesson.
 
 ## RESOLVED (memory-tooling-hardening/1.1 + 1.2, #1059 + #1088, landed dev/2026-07-24-memory-tooling-hardening 2026-07-26)
 
-**Failure modes 1+2 (code-verified — found at `skills/_shared/war-memory.mjs`, `cmdTightenPlan`,
-lines 952-971; verify still present before acting):** the ternary is replaced with a three-way
-`typeof`-gated resolution at the argv boundary, deliberately kept OUT of the shared `parseArgv` (its
-bare-flag→`true` mapping stays load-bearing for `archive --candidates`):
+**Modes 1+2 (code-verified at `skills/_shared/war-memory.mjs`, `cmdTightenPlan`):** the truthy
+ternary is replaced with a three-way `typeof`-gated resolution at the argv boundary:
 
 ```js
 let target = WARN_BYTES; // flag absent -> the advisory default (unchanged path)
 if (argv.target !== undefined) {
   const t = typeof argv.target === 'string' ? Number(argv.target) : NaN;
-  if (Number.isFinite(t) && t > 0) {
-    target = t;
-  } else {
-    process.stderr.write(`war-memory tighten-plan: --target requires a positive byte count (got '${argv.target}')\n`);
-    process.exit(1);
-  }
+  if (Number.isFinite(t) && t > 0) target = t;
+  else { /* exit 1; stderr names the received token, mirroring the requireLocal refusal idiom */ }
 }
 ```
 
-The `typeof argv.target === 'string'` guard is the load-bearing piece: a bare flag makes `parseArgv`
-hand back boolean `true`, and `typeof true === 'string'` is false, so `t` is forced to `NaN` and the
-refusal branch fires — `Number(true) === 1` never gets a chance to pass `isFinite && > 0`. A supplied
-non-numeric/zero/negative token refuses the same way (exit 1, stderr names the received token,
-mirroring the existing `requireLocal` refusal idiom). Absent flag still takes `WARN_BYTES`
-byte-identically.
+The `typeof argv.target === 'string'` guard is the load-bearing piece: a bare flag's boolean
+`true` is forced to `NaN`, so `Number(true) === 1` never reaches `isFinite && > 0` — a bare
+`Number()` rewrite would NOT have closed mode 2. Non-numeric/zero/negative tokens refuse the
+same loud way (exit 1). The fix is deliberately kept OUT of the shared `parseArgv` — its
+bare-flag→`true` mapping stays load-bearing for `archive --candidates`.
 
-**Failure mode 3 (shell dialect) — code-verified:** `skills/lessons-learned/SKILL.md`'s step-1 fence
-no longer threads `${TIGHTEN_TARGET:+...}` at all; `TIGHTEN_TARGET` is retired doc-wide. The
-rewritten fence carries both invocation variants (a flagged `--target <bytes>` line with a
-substitution instruction, and a bare line) with prose directing the agent to run exactly one line —
-no `${VAR:+...}`-shaped token remains anywhere in the file (doc-contract absence lock covers the
-broadened `\$\{[^}]*:\+` shape, not just the narrower `:+--` literal that motivated the fix).
+**Mode 3 (code-verified):** the SKILL.md fence no longer threads `${TIGHTEN_TARGET:+...}`;
+`TIGHTEN_TARGET` is retired doc-wide, with a doc-contract absence lock covering the broadened
+`\$\{[^}]*:\+` shape, not just the narrower `:+--` literal.
 
-**Residual, deliberately not closed:** `--target=2000` (`=`-attached) is still silently ignored —
-`parseArgv` only recognizes space-separated flag values, so `--target=2000` becomes the key
-`target=2000` with value `true` and `argv.target` stays `undefined`, silently taking the 17,000 B
-default. This is a CLI-wide `parseArgv` property (`--local=/x` behaves the same) that the plan's
-Method explicitly froze as a shared blast-radius fence — not reopened by this fix. If ever closed, do
-it at `cmdTightenPlan`'s own boundary (e.g. also refuse when any argv key starts with `target=`),
-never by widening `parseArgv`.
+**Residual, deliberately frozen:** `--target=2000` (`=`-attached) is still silently ignored —
+`parseArgv` only recognizes space-separated values, so `argv.target` stays `undefined` and the
+17,000 B default applies. This is a CLI-wide `parseArgv` property the plan's Method explicitly
+froze as a shared blast-radius fence. If ever closed, do it at `cmdTightenPlan`'s own boundary
+(e.g. refuse any argv key starting with `target=`), never by widening `parseArgv`.
 
 **Extended to siblings (war-memory-cli-correctness/1.1, #1145):** `cmdQuery`'s `--top-k`/`--budget`
 now carry the same three-way `typeof`-gated resolution described above for `--target` — a shape
-copy at `cmdQuery`'s own boundary, not a shared helper (`parseArgv` stays frozen). See
-[[cmdquery-topk-budget-share-tighten-targets-pre-fix-truthy-ternary-shape]] for the RESOLVED
-sibling gotcha and the failure-direction difference that made it worth its own lesson (a bare
-`--top-k` had silently selected ONE lesson and a NaN/zero/negative value emptied the seat
-prefetch, unlike `--target`'s over-select failure mode).
+copy at `cmdQuery`'s own boundary, not a shared helper (`parseArgv` stays frozen). Their failure
+direction was the opposite of `--target`'s: a bare `--top-k` had silently selected ONE lesson, and
+a `NaN` `--top-k` reached `selectForBudget`'s `slice(0, topK)` and silently emptied the seat
+prefetch block, with no signal to the seat. Covered by the `refusal (#1145)` parameterized cases in
+`war-memory.test.mjs` (bare, non-numeric, zero, negative, crossed with `--top-k`/`--budget`) plus
+the no-query-log-on-refusal assertion. See
+[[tighten-target-flag-has-three-independent-silent-degradation-paths]].
+
+**How to apply:** when closing a silent-coercion flag, grep sibling flags in the same file for the
+identical `arg ? Number(arg) : DEFAULT` shape before calling the class closed.
+
+Related: [[deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold]] (same phase, same
+task family — process-evidence discipline this task also relied on).
 
 > archived 2026-07-27: resolved — moved to archive

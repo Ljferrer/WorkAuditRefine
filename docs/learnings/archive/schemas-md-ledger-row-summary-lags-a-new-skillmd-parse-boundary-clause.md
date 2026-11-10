@@ -1,6 +1,6 @@
 ---
 name: schemas-md-ledger-row-summary-lags-a-new-skillmd-parse-boundary-clause
-description: "skills/war/references/schemas.md's ledger.json field-comment rows are informal summaries of…"
+description: "skills/war/references/schemas.md's ledger.json field-comment rows are informal summaries of the canonical parse rule stated in skills/war/SKILL.md's intake bullets — they are not a registered ADR-0025 mirror pair, so adding a new parse-boundary clause to a SKILL.md intake bullet (e.g. backtick-stripping) does not fail any guard when schemas.md's summary row is left naming only the older boundaries"
 metadata: 
   node_type: memory
   type: project

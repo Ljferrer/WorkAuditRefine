@@ -215,3 +215,19 @@ phase 3 of `2026-08-06-handoff-schemas-contract`); the three findings' own file 
 (`README.md:363`, `364`, `367`) are confirmed at the landed tip above. Related:
 [[readme-status-blurb-homes-list-is-editorial-not-exhaustive]] (the substantive defect class these
 three `note` findings share).
+
+## Two more shapes: multi-surface and multi-round polish
+
+**Multi-surface partial convergence.** A polish round can fix the headline file (where a rule
+first landed, often an ADR) while the sibling glossary, schema, or ADR surfaces that state the
+same rule ship stale. This happens even with `verdict: approve` and `autoFixable: true` on every
+finding, so nothing in the audit-log shape shows the drop. Re-read each named surface at the
+landed tip.
+
+**Multi-round polish.** A polish task that runs several audit rounds is not safe just because round
+1's findings landed. Each round can mint findings against its predecessor's diff, and only the last
+round's own findings are unrescuable within the phase.
+
+**Contrast (first recorded case, references-pointer-link-truth `p1-polish`):** findings against
+EARLIER tasks that the polish absorbed did land; only findings against the polish diff itself
+orphaned.

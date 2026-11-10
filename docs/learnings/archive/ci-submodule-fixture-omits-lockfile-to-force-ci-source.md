@@ -1,5 +1,6 @@
 ---
-name: ""
+name: ci-submodule-fixture-omits-lockfile-to-force-ci-source
+description: "The ci-submodule-repo provision fixture has no lockfile on purpose so its golden can only come from reading CI; adding one makes it ambiguous"
 metadata:
   node_type: memory
   slug: ci-submodule-fixture-omits-lockfile-to-force-ci-source
