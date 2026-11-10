@@ -176,7 +176,8 @@ const capImpl = ({ t9 = 'approve' } = {}) => {
 const holdsOf = (out, reason) => (out.escalated || []).filter(e => e && e.reason === reason)
 
 test('late-defect: carry cap — a seeded task out of fix rounds carries again on a non-final phase and holds late-defect on the final phase', async () => {
-  const nonFinal = await runPhase(NEXT([ROW()], { run: { roundLimit: 2 }, finalPhase: false }), capImpl())
+  // fixRounds 0: a carried count seeds the budget (D17), and this arm spends a fresh one.
+  const nonFinal = await runPhase(NEXT([ROW({ fixRounds: 0 })], { run: { roundLimit: 2 }, finalPhase: false }), capImpl())
   assert.deepEqual(nonFinal.calls.filter(c => /^fix:seed-1:/.test(labelOf(c))).map(labelOf), ['fix:seed-1:r1', 'fix:seed-1:r2'], 'presence guard: the seed spends its rounds')
   assert.deepEqual(holdsOf(nonFinal.out, 'audit-blocked'), [], 'no audit-blocked hold for a seeded task')
   assert.equal(nonFinal.out.landDecision, 'landed', 't9 lands')
@@ -226,9 +227,10 @@ test('late-defect: carry cap — a seeded task out of fix rounds carries again o
   // returning implemented, so the floor sub-loop reaches roundLimit and the cap rule takes the seed.
   const floorImpl = (p, o) => seatOf(o) === 'war-refiner' && o.phase === 'Refine' && /^merge:seed-1(:|$)/.test(labelOf({ opts: o }))
     ? { mode: 'merge-task', status: 'no-test' } : defaultImpl(p, o)
+  // fixRounds 0 again: a seed at the cap would leave the floor sub-loop no round to spend (D17).
   const floorArms = source => Promise.all([
-    runPhase(NEXT([ROW()], { run: { roundLimit: 2 }, finalPhase: false }), floorImpl, {}, source),
-    runPhase(NEXT([ROW()], { run: { roundLimit: 2 } }), floorImpl, {}, source),
+    runPhase(NEXT([ROW({ fixRounds: 0 })], { run: { roundLimit: 2 }, finalPhase: false }), floorImpl, {}, source),
+    runPhase(NEXT([ROW({ fixRounds: 0 })], { run: { roundLimit: 2 } }), floorImpl, {}, source),
   ])
   const [fNon, fFinal] = await floorArms()
   assert.deepEqual(fNon.calls.filter(c => /^add-test:seed-1:/.test(labelOf(c))).map(labelOf), ['add-test:seed-1:r1', 'add-test:seed-1:r2'], 'presence guard: the floor sub-loop spends the seed rounds')
