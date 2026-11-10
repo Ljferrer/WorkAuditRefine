@@ -2142,11 +2142,14 @@ const keyRegistry = () => {
   const add = s.add.bind(s)
   const del = s.delete.bind(s)
   s.rows = new Map()
-  s.add = (k, f) => {
+  // Claude Code's Workflow sandbox freezes the built-in prototypes, so a plain s.add = ... throws
+  // 'Attempted to assign to readonly property.' in strict code: define the own methods instead.
+  const own = (name, value) => Object.defineProperty(s, name, { value, writable: true, configurable: true })
+  own('add', (k, f) => {
     if (f && typeof f === 'object') s.rows.set(k, { task: f.task ?? null, file: typeof f.file === 'string' ? aceRelPath(f.file) : null, line: Number.isFinite(f.line) ? f.line : null, title: f.title ?? '', seat: f.seat ?? null, sha: f.sha ?? null })
     return add(k)
-  }
-  s.delete = k => { s.rows.delete(k); return del(k) }
+  })
+  own('delete', k => { s.rows.delete(k); return del(k) })
   return s
 }
 const acedKeys = keyRegistry()
