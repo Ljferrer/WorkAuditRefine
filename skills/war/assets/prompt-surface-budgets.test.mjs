@@ -328,7 +328,8 @@ function defaultBlobSize(sha, path) {
 // Pure check of one row: { key, block, hard, advisory } plus an injected reader (sha, path) →
 // size | 'no-commit' | 'no-path'. Returns { errors, warnings }. Markers in the block:
 //   `measured as <path>`    the blob path is <path>, not the row key (a moved row)
-//   `working copy on <sha>` no blob holds the count, so the blob check is skipped
+//   `working copy on <sha>` no blob holds the count, so the blob check skips the cite at <sha>
+//                           (every other cite in the row is still checked)
 //   `RAISED`, `placeholder retained`  a ruling set the constants, so the arithmetic is skipped
 //   `advisory pinned`       the advisory was set below hard by hand, so only the hard arm is checked
 const DERIVATION_CAPTURE = /post-shrink ([\d,]+) B(?: \([^)\n]*\))? @ ([0-9a-f]{7,40})/g;
@@ -339,18 +340,20 @@ function checkDerivation({ key, block, hard, advisory }, readBlobSize) {
   if (cites.length === 0) return { errors: [`${key}: no post-shrink derivation line to check`], warnings };
   const moved = block.match(/measured as ([\w/-]+(?:\.[\w-]+)*)/);
   const path = moved ? moved[1] : key;
-  if (!/working copy on [0-9a-f]{7,40}/.test(block)) {
-    for (const [cited, sha] of cites) {
-      const got = readBlobSize(sha, path);
-      if (got === 'no-commit') {
-        warnings.push(`WARN prompt-surface-budgets: derivation guard: ${key} cites ${sha}, and ${sha} `
-          + 'is not a commit in this clone — blob check skipped (fail open)');
-      } else if (got === 'no-path') {
-        errors.push(`${key}: ${path} is absent at ${sha}, so the cited ${cited} B measures nothing (#2083) — `
-          + 'fix the sha, or mark the row `measured as <path>` or `working copy on <sha>`');
-      } else if (got !== cited) {
-        errors.push(`${key}: derivation cites ${cited} B at ${sha}, but the ${path} blob holds ${got} B (#2083)`);
-      }
+  // A marker skips only the cite at the sha it names (a short sha matches its long form).
+  const workingCopy = [...block.matchAll(/working copy on ([0-9a-f]{7,40})/g)].map((m) => m[1]);
+  const isWorkingCopy = (sha) => workingCopy.some((w) => w.startsWith(sha) || sha.startsWith(w));
+  for (const [cited, sha] of cites) {
+    if (isWorkingCopy(sha)) continue;
+    const got = readBlobSize(sha, path);
+    if (got === 'no-commit') {
+      warnings.push(`WARN prompt-surface-budgets: derivation guard: ${key} cites ${sha}, and ${sha} `
+        + 'is not a commit in this clone — blob check skipped (fail open)');
+    } else if (got === 'no-path') {
+      errors.push(`${key}: ${path} is absent at ${sha}, so the cited ${cited} B measures nothing (#2083) — `
+        + 'fix the sha, or mark the row `measured as <path>` or `working copy on <sha>`');
+    } else if (got !== cited) {
+      errors.push(`${key}: derivation cites ${cited} B at ${sha}, but the ${path} blob holds ${got} B (#2083)`);
     }
   }
   if (!/\bRAISED\b|placeholder retained/.test(block)) {
@@ -580,6 +583,26 @@ test('derivation guard — working copy on skips the blob check', () => {
     'without the marker the same reader reds');
   assert.equal(checkDerivation(fixtureRow(block, 12288, 11264), readerOf('no-path')).errors.length, 1,
     'the marker keeps the arithmetic');
+});
+
+test('derivation guard — working copy on skips only the cite at its sha', () => {
+  const block = `${GOOD_BLOCK}\npost-shrink 9,000 B @ def5678 earlier.\nworking copy on abc1234: measured before commit.`;
+  const seen = [];
+  const reader = (sha) => { seen.push(sha); return 9001; };
+  const { errors } = checkDerivation(fixtureRow(block, 13312, 11264), reader);
+  assert.deepEqual(seen, ['def5678'], 'only the cite at another sha reaches the reader');
+  assert.equal(errors.length, 1, 'a wrong byte count at another sha still reds');
+  assert.match(errors[0], /cites 9000 B at def5678, but .* blob holds 9001 B/);
+  const longSha = `abc1234${'0'.repeat(33)}`;
+  const arms = [
+    ['a long marker skips a short cite', block.replace('working copy on abc1234', `working copy on ${longSha}`)],
+    ['a short marker skips a long cite', block.replace('@ abc1234', `@ ${longSha}`)],
+  ];
+  for (const [label, armBlock] of arms) {
+    seen.length = 0;
+    checkDerivation(fixtureRow(armBlock, 13312, 11264), reader);
+    assert.deepEqual(seen, ['def5678'], label);
+  }
 });
 
 test('derivation guard — RAISED and placeholder retained skip the arithmetic', () => {
