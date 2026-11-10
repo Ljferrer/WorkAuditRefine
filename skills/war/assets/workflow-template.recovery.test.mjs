@@ -433,6 +433,11 @@ import {
   provisionSiteCensus,
   PROVISION_SITE_CENSUS,
   provisionFailure,
+  PROVISION_TIER_KINDS,
+  tierPhaseCalls,
+  spawnOptsOf,
+  PLUGIN_PROVISION_SCRIPT,
+  scriptPromptCalls,
 } from './workflow-template.test-harness.mjs'
 
 
@@ -1535,4 +1540,153 @@ test('carried-from origin (#2701): a re-carried seeded row keeps its origin phas
   assert.equal(carried('carried nit').carriedFrom.phase, 5, 'the seeded row keeps its origin phase')
   assert.equal(carried('dangling link').carriedFrom.phase, 6, 'a row born in phase 6 carries 6')
   assert.match(carried('carried nit').carriedFrom.reason, /held phase \(held:escalation\)/, 'the reason is the latest hop')
+})
+
+// ===========================================================================
+// Refiner provision and evidence tiers, and the dispatchModels record (plan
+// 2026-11-08-model-routing-and-prompt-byte-budgets Task 3.1; PIN-9, PIN-10, PIN-14, PIN-17, PIN-34, PIN-35).
+// ===========================================================================
+
+// PIN-35: a refiner prompt that names provision-worktrees.sh gives its plugin path first. Delete the path from
+// any one builder (the late-fix and polish worktree prompt, a land CAS step, the barrier) and this reds.
+test('provision script path — every refiner prompt gives the plugin path', async () => {
+  const calls = await scriptPromptCalls()
+  const seen = new Set(calls.map(c => c.opts.dispatchKind || c.opts.label))
+  for (const k of ['provision-barrier', 'late-fix-worktree', 'polish-worktree', 'land:phase-3', 'land:phase-3:environment-proceed', 'land:phase-3:baseline-proceed']) {
+    assert.ok(seen.has(k), `non-vacuity: a ${k} prompt naming the script was rendered (seen: ${[...seen].join(', ')})`)
+  }
+  for (const c of calls) {
+    const at = c.prompt.indexOf(PLUGIN_PROVISION_SCRIPT)
+    assert.ok(at !== -1, `${c.opts.label}: names provision-worktrees.sh but never gives ${PLUGIN_PROVISION_SCRIPT}`)
+    assert.equal(c.prompt.indexOf('provision-worktrees.sh'), at + PLUGIN_PROVISION_SCRIPT.length - 'provision-worktrees.sh'.length,
+      `${c.opts.label}: the first mention of provision-worktrees.sh must be the plugin path, so every bare mention follows it`)
+  }
+})
+
+const PROVISION_TIER = { model: 'haiku', effort: 'low' }
+const EVIDENCE_TIER = { model: 'opus', effort: 'xhigh' }
+const TIERED_REFINER = (over = {}) => ({ refiner: { model: 'sonnet', effort: 'high', ...over } })
+
+// Delete the routing (spawn('refiner') at any one of the four sites) and the kind keeps the routine tier → red.
+test('provision tier — set routes four kinds', async () => {
+  const agents = TIERED_REFINER({ provision: PROVISION_TIER })
+  const calls = await tierPhaseCalls(agents)
+  for (const kind of PROVISION_TIER_KINDS) {
+    const hits = calls.filter(c => c.opts.dispatchKind === kind)
+    assert.ok(hits.length > 0, `non-vacuity: a ${kind} dispatch ran`)
+    for (const c of hits) assert.deepEqual(spawnOptsOf(c.opts), PROVISION_TIER, `${c.opts.label} spawns on agents.refiner.provision`)
+  }
+  const merge = calls.find(c => /^merge:t1$/.test(c.opts.label || ''))
+  assert.ok(merge, 'non-vacuity: a merge dispatch ran')
+  assert.deepEqual(spawnOptsOf(merge.opts), { model: 'sonnet', effort: 'high' }, 'merge stays on the routine refiner tier')
+  const ev = calls.find(c => c.opts.dispatchKind === 'evidence')
+  assert.ok(ev, 'non-vacuity: an evidence dispatch ran')
+  assert.deepEqual(spawnOptsOf(ev.opts), { model: 'sonnet', effort: 'high' }, 'the provision key never routes the evidence dispatch')
+})
+
+// PIN-14: with no provision or evidence key, each routed dispatch spawns exactly as the pre-existing
+// spawn('refiner') helper returns. Make the absent arm return anything else and this reds.
+test("provision tier — absent keeps spawn('refiner')", async () => {
+  for (const agents of [{}, TIERED_REFINER(), TIERED_REFINER({ effort: 'default', recovery: { model: 'fable', effort: 'default' } })]) {
+    const want = inlineHelpers(agents).spawn('refiner')
+    const calls = await tierPhaseCalls(agents)
+    for (const kind of [...PROVISION_TIER_KINDS, 'evidence']) {
+      const hits = calls.filter(c => c.opts.dispatchKind === kind)
+      assert.ok(hits.length > 0, `non-vacuity: a ${kind} dispatch ran`)
+      for (const c of hits) assert.deepEqual(spawnOptsOf(c.opts), want, `${JSON.stringify(agents)}: ${c.opts.label} spawns as spawn('refiner')`)
+    }
+  }
+})
+
+// PIN-9: an intraDep phase's evidence dispatch re-runs the gate and stays on spawn('refiner'); a phase with no
+// same-repo dep edge routes it to agents.refiner.evidence. Drop either arm of the ternary and one half reds.
+test('evidence tier — intraDep keeps refiner', async () => {
+  const agents = TIERED_REFINER({ evidence: EVIDENCE_TIER })
+  const evOf = calls => calls.find(c => c.opts.dispatchKind === 'evidence')
+  const dep = await runPhase(PROVISION_ARGS({ agents }), defaultImpl)
+  assert.ok(evOf(dep.calls), 'non-vacuity: the intraDep phase dispatched evidence')
+  assert.match(evOf(dep.calls).prompt, /INTRA-PHASE-DEP phase/, 'the phase is intraDep (t2 deps t1)')
+  assert.deepEqual(spawnOptsOf(evOf(dep.calls).opts), inlineHelpers(agents).spawn('refiner'), 'intraDep: the evidence dispatch stays on spawn(\'refiner\')')
+  const flat = await runPhase(PROVISION_ARGS({ agents, tasks: SINGLE_TASK }), defaultImpl)
+  assert.ok(evOf(flat.calls), 'non-vacuity: the dep-free phase dispatched evidence')
+  assert.deepEqual(spawnOptsOf(evOf(flat.calls).opts), EVIDENCE_TIER, 'no same-repo dep edge: the evidence dispatch spawns on agents.refiner.evidence')
+})
+
+// An evidence result the tier gets wrong never holds the land. Each row first proves the dispatch ran on the
+// tier (drop the routing and it reds), then that the phase lands with no gate-evidence hold.
+const evidenceTierRun = async (evidenceResult, gateSeat) => {
+  const run = await runPhase(PROVISION_ARGS({ agents: TIERED_REFINER({ evidence: EVIDENCE_TIER }), tasks: SINGLE_TASK }), (prompt, opts) => {
+    if (opts.dispatchKind === 'evidence') return evidenceResult
+    if (/^gate-audit:t1:/.test(opts.label || '')) return gateSeat(opts)
+    return defaultImpl(prompt, opts)
+  })
+  const ev = run.calls.find(c => c.opts.dispatchKind === 'evidence')
+  assert.ok(ev, 'non-vacuity: the evidence dispatch ran')
+  assert.deepEqual(spawnOptsOf(ev.opts), EVIDENCE_TIER, 'the evidence dispatch spawned on agents.refiner.evidence')
+  assert.equal(run.out.landDecision, 'landed', 'the phase lands')
+  assert.ok(!run.out.escalated.some(e => e.reason === 'gate-evidence'), 'no gate-evidence hold (never HARD)')
+  return run
+}
+const APPROVE_GATE_SEAT = opts => ({ seat: opts.label, lens: 'execution-evidence', verdict: 'approve', findings: [], confidence: 'high', audit_sha: '2'.repeat(40) })
+
+test('evidence tier — empty result lands SOFT', async () => {
+  for (const empty of [{}, null, { perTask: [] }]) {
+    const { calls } = await evidenceTierRun(empty, APPROVE_GATE_SEAT)
+    const seat = calls.find(c => /^gate-audit:t1:/.test(c.opts.label || ''))
+    assert.ok(seat, `${JSON.stringify(empty)}: the gate-audit seat still runs`)
+    assert.ok(seat.prompt.includes('(no pin-status token — the evidence dispatch produced none)'), `${JSON.stringify(empty)}: the seat keeps the SOFT cannot-confirm path`)
+  }
+})
+
+test('evidence tier — wrong result lands SOFT', async () => {
+  // A non-schema shape (a stray MergeResult) stamps nothing: the seat keeps the SOFT no-token path.
+  const stray = await evidenceTierRun({ mode: 'merge-task', status: 'merged', integration_sha: '2'.repeat(40) }, APPROVE_GATE_SEAT)
+  assert.ok(stray.calls.find(c => /^gate-audit:t1:/.test(c.opts.label || '')).prompt.includes('(no pin-status token'), 'a non-schema result stamps no token')
+  // A sha the phase never produced: the seat's fix-less Critical judged the real tip, so the pin-equality
+  // check marks it a mismatch and keeps it off the HARD path.
+  const ghost = 'f'.repeat(40)
+  const critical = opts => ({ seat: opts.label, lens: 'execution-evidence', verdict: 'request_changes', confidence: 'high', audit_sha: '2'.repeat(40),
+    findings: [{ severity: 'Critical', title: 'mapped test provably unrun', file: 'src/a.test.js', rationale: 'absent from the captured gate log' }] })
+  const wrong = await evidenceTierRun({ perTask: [{ taskId: 't1', pin_status: 'CONFIRMED', pin_evidence: 'tip == gate-HEAD', observedHead: ghost, guard_specificity: 'covered', guard_evidence: '' }], phase_diff_files: [] }, critical)
+  const row = wrong.out.auditLog.find(e => e.gateEvidence && e.task === 't1')
+  assert.ok(row && row.pinMismatch === true && row.expectedPin === ghost && row.hard === false, 'the ghost sha reads as a pin mismatch, SOFT, never HARD')
+})
+
+// PIN-10: every agent() call the phase made has one row, in order, with its spawn fields; lens rides the
+// audit-family rows only and never reaches agent() opts. Delete the push in dispatch() and this reds.
+test('dispatchModels — one row per dispatch', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, agents: TIERED_REFINER({ provision: PROVISION_TIER }) }), defaultImpl)
+  const rows = out.handoff && out.handoff.dispatchModels
+  assert.ok(Array.isArray(rows), 'the handoff carries dispatchModels')
+  assert.equal(rows.length, calls.length, 'one row per dispatch')
+  calls.forEach((c, i) => {
+    assert.equal(rows[i].label, c.opts.label, `row ${i} is the dispatch in order`)
+    assert.equal(rows[i].dispatchKind, c.opts.dispatchKind ?? null)
+    assert.equal(rows[i].agentType, c.opts.agentType)
+    assert.equal(rows[i].model, c.opts.model)
+    assert.equal(rows[i].effort, c.opts.effort ?? 'default')
+    assert.ok(!Object.hasOwn(c.opts, 'lens'), `${c.opts.label}: lens never reaches the agent() spawn opts`)
+  })
+  const audit = rows.find(r => r.label === 'audit:t1:correctness')
+  assert.ok(audit && audit.lens === 'correctness', 'an auditor row carries the seat lens')
+  assert.ok(rows.filter(r => /^gate-audit:/.test(r.label)).every(r => r.lens === 'execution-evidence'), 'a gate-audit row carries its lens')
+  assert.ok(rows.filter(r => !/war-(evidence-)?auditor$/.test(r.agentType)).every(r => !Object.hasOwn(r, 'lens')), 'a non-auditor row carries no lens')
+  assert.ok(rows.some(r => r.dispatchKind === 'provision-barrier' && r.model === 'haiku' && r.effort === 'low'), 'the tier a dispatch ran on is the row model')
+})
+
+// PIN-17: schemas.md is the one doc home of the row shape, bound to the engine's DISPATCH_MODEL_KEYS literal.
+// Add or drop a key on either side and this reds.
+test('dispatchModels — schemas.md keys match', async () => {
+  const lit = src.match(/^const DISPATCH_MODEL_KEYS = \[([^\]]*)\]$/m)
+  assert.ok(lit, 'the engine declares DISPATCH_MODEL_KEYS')
+  const engine = [...lit[1].matchAll(/'([^']+)'/g)].map(m => m[1])
+  const doc = schemasMdForAbsorb.match(/^\s*dispatchModels: \[ \{ ([^}]*) \} \],/m)
+  assert.ok(doc, 'schemas.md documents the dispatchModels row')
+  assert.deepEqual(doc[1].split(',').map(s => s.trim()), engine, 'the schemas.md row keys equal the engine literal, in order')
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl)
+  const allowed = engine.map(k => k.replace(/\?$/, '')), required = engine.filter(k => !k.endsWith('?'))
+  for (const r of out.handoff.dispatchModels) {
+    assert.ok(Object.keys(r).every(k => allowed.includes(k)), `${r.label}: row keys ${Object.keys(r).join(',')} stay inside the documented shape`)
+    assert.ok(required.every(k => Object.hasOwn(r, k)), `${r.label}: every required key is present`)
+  }
 })

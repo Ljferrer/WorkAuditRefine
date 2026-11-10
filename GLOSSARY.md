@@ -721,8 +721,8 @@ The payload-free manifest a worker commits at the path `MANIFEST_PATH_TEMPLATE` 
 
 **Docs tier**:
 The worker spawn tier for a task whose `Files:` list is entirely `*.md` — mechanically classified
-at dispatch (never a plan field), configured at `agents.worker.docs` (defaulted in `war-config.mjs`). Mixed
-docs+code tasks stay on the base worker tier; auditors review docs-tier work at full strength.
+at dispatch (never a plan field), configured at `agents.worker.lite` (defaulted in `war-config.mjs`). Mixed
+docs+code tasks stay on the base worker tier; auditors review lite-tier work at full strength.
 _Avoid_: low-complexity flag (nothing is authored); re-tiering mid-flight (the predicate reads the
 plan's file list, not the diff).
 

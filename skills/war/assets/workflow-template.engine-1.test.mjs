@@ -7987,10 +7987,10 @@ test('T2.1 (D1/D8) — the escalate reservation ("NEVER escalate" on a cannot-co
   assert.ok(/NEVER 'escalate'/.test(es.prompt), 'the end-state-only prompt reserves escalate away from the cannot-confirm case')
 })
 
-test('Task 1.2 — docs tier: an all-*.md task dispatches its first-pass worker on the docs tier (sonnet); a non-*.md entry or an absent/empty files list stays base (opus, the fail-safe)', async () => {
+test('Task 1.2 — lite tier: an all-*.md task dispatches its first-pass worker on the lite tier (sonnet); a non-*.md entry or an absent/empty files list stays base (opus, the fail-safe)', async () => {
   const allMd = await firstPassWorkOpts(['docs/a.md', 'skills/war/SKILL.md'])
-  assert.equal(allMd.model, 'sonnet', 'all-*.md task → docs tier model (the configured agents.worker.docs)')
-  assert.equal(allMd.effort, undefined, "docs effort is 'default' ⇒ omitted from spawn opts")
+  assert.equal(allMd.model, 'sonnet', 'all-*.md task → lite tier model (the configured agents.worker.lite)')
+  assert.equal(allMd.effort, undefined, "lite effort is 'default' ⇒ omitted from spawn opts")
 
   const mixed = await firstPassWorkOpts(['docs/a.md', 'skills/war/assets/x.js'])
   assert.equal(mixed.model, 'opus', 'a single non-*.md entry keeps the base worker tier (opus)')
@@ -8286,10 +8286,10 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       canonical: [MANIFEST_PATH_TEMPLATE],
       extractInline: () => [(src.match(/const\s+MANIFEST_PATH_TEMPLATE\s*=\s*'([^'\n]+)'/) || [])[1]] },
     // Worker sub-tier defaults (Task 1.2): the inline WORKER_TIER_DEFAULTS mirror bound to the canonical
-    // DEFAULTS.agents.worker sub-tiers — value equality, never a restated literal. docs and ace (#2619) are
+    // DEFAULTS.agents.worker sub-tiers — value equality, never a restated literal. lite and ace (#2619) are
     // mirrored (fix has no sandbox default: absent ⇒ inherit the base worker, nothing to mirror).
     { name: 'WORKER_TIER_DEFAULTS (inline ↔ DEFAULTS.agents.worker sub-tiers)', mode: 'behavioral',
-      cases: [['docs'], ['ace']],
+      cases: [['lite'], ['ace']],
       inline: ([tier]) => inlineHelpers().WORKER_TIER_DEFAULTS[tier],
       canonical: ([tier]) => DEFAULTS.agents.worker[tier] },
     // AUDITOR_TIER_DEFAULTS (#2534): the sandbox fallback for an absent agents.auditor.high, bound to DEFAULTS by value.

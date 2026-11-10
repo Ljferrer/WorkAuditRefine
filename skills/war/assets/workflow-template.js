@@ -45,7 +45,7 @@ export const meta = {
 //                                     // doneWhen-less run and the assert-done-when.sh floor never runs, End state 9; any
 //                                     // OTHER present type is refused at intake by the same TASK-FIELD class, never coerced).
 //                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
-//                                     // files = the plan's `Files:` list (plan paths, NOT the worker's diff — the diff doesn't exist at dispatch); an all-*.md task runs its first-pass worker on the docs tier. Absent/empty ⇒ base worker tier (fail-safe).
+//                                     // files = the plan's `Files:` list (plan paths, NOT the worker's diff — the diff doesn't exist at dispatch); an all-*.md task runs its first-pass worker on the lite tier. Absent/empty ⇒ base worker tier (fail-safe).
 //     learningsTarget,                // read-path resolved repo root — the seats' memory_query `repo` value AND
 //                                     // the Lead's Gate-2 promotion destination. NOT a servitor write path.
 //     memoryLocalRoot,                // absolute local memory root — the servitor's ONLY writable path;
@@ -720,7 +720,18 @@ const WORKER_WRITE_TOOL_RULE = 'Change file content only with Edit or Write, nev
 const COMMIT_MESSAGE_READ_RULE = 'Never read a commit message from a scratchpad or any path outside your own task worktree.'
 const AUDIT_FAMILY = [NS + 'war-auditor', NS + 'war-evidence-auditor']
 const prefixed = (p, t) => AUTHORITY_LINE + '\n' + (AUDIT_FAMILY.includes(t) ? TOOL_ORDER_LINE + '\n' + HOST_TURN_TOOL_LINE + '\n' + p : t === NS + 'war-worker' ? p + '\n' + COMMIT_MESSAGE_READ_RULE + '\n' + WORKER_WRITE_TOOL_RULE : p)
+// dispatchModels (#2534 item 4, D10, PIN-10): one row per dispatch, recorded here at the leaf seam and returned
+// as handoff.dispatchModels. DISPATCH_MODEL_KEYS is the row shape; skills/war/references/schemas.md documents it
+// once (PIN-17), bound by a key-set row in workflow-template.recovery.test.mjs. `lens` rides only an audit-family
+// dispatch (opts.lens, the seat's lens), and dispatch() strips it before agent() so spawn opts stay byte-identical
+// (PIN-14). `taskClass` is defined but not yet emitted (Task 4.1). An absent effort records 'default'.
+const DISPATCH_MODEL_KEYS = ['label', 'dispatchKind', 'agentType', 'model', 'effort', 'taskClass?', 'lens?']
+const dispatchModels = []
 async function dispatch(prompt, opts) {
+  let lens
+  if (opts && Object.hasOwn(opts, 'lens')) ({ lens, ...opts } = opts)
+  const o = opts || {}
+  dispatchModels.push({ label: o.label ?? null, dispatchKind: o.dispatchKind ?? null, agentType: o.agentType ?? null, model: o.model ?? null, effort: o.effort ?? 'default', ...(lens && AUDIT_FAMILY.includes(o.agentType) ? { lens } : {}) })
   prompt = prefixed(prompt, opts && opts.agentType)
   if (maxParallel === null) return agent(prompt, opts)
   await dispatchSemaphore.acquire()
@@ -930,14 +941,14 @@ const bareWord = w => /^[\w./=:,@^~%+-]+$/.test(w)
 const shq = w => bareWord(w) ? w : "'" + w.split("'").join("'\\''") + "'"
 const helperOpts = (...words) => words.every(bareWord)
   ? { agentType: NS + 'war-helper', ...spawn('helper') } : { agentType: NS + 'war-refiner', ...spawn('refiner') }
-// Worker sub-tier SANDBOX fallbacks. docs and ace (#2619) are bound to DEFAULTS.agents.worker by the D2
+// Worker sub-tier SANDBOX fallbacks. lite and ace (#2619) are bound to DEFAULTS.agents.worker by the D2
 // registry row in workflow-template.engine-1.test.mjs. fix (the fix-round + floor-retry tier) is NOT listed
 // here even though DEFAULTS/presets now default it: its authoring default is applied by fillDefaults
 // BEFORE the resolved config reaches this sandbox, so at this layer an absent fix ⇒ inherit the base
 // worker (the correct fallback for a partial/hand-passed config — nothing to bind).
-const WORKER_TIER_DEFAULTS = { docs: { model: 'sonnet', effort: 'high' }, ace: { model: 'opus', effort: 'default' } }
-// spawnWorker(tier): worker spawn opts for a sub-tier ('docs'|'fix'|'ace') — the configured agents.worker[tier]
-// block when present, else WORKER_TIER_DEFAULTS[tier] (docs, ace), else the base worker (fix absent ⇒ inherit;
+const WORKER_TIER_DEFAULTS = { lite: { model: 'sonnet', effort: 'high' }, ace: { model: 'opus', effort: 'default' } }
+// spawnWorker(tier): worker spawn opts for a sub-tier ('lite'|'fix'|'ace') — the configured agents.worker[tier]
+// block when present, else WORKER_TIER_DEFAULTS[tier] (lite, ace), else the base worker (fix absent ⇒ inherit;
 // a null/absent tier ⇒ base). ace (the --ace + terminal-pass tier, #2519; charges 5 and 6 take fix, see aceSpawn) has its
 // own default (#2619): absent ⇒ WORKER_TIER_DEFAULTS.ace, never the fix tier. A partial tier block falls back to ITS tier's default model,
 // matching war-config's fillDefaults deep-merge. Effort only when non-default (omit = inherit session).
@@ -956,10 +967,23 @@ const spawnRefinerRecovery = () => {
   const a = { ...REFINER_RECOVERY_DEFAULTS, ...(agents.refiner && agents.refiner.recovery || {}) }
   return a.effort === 'default' ? { model: a.model } : { model: a.model, effort: a.effort }
 }
-// docs-tier predicate (plan 1.2): a task is docs-tier iff its plan Files: list (task.files — the plan
+// spawnRefinerTier(key): the refiner sub-tier agents.refiner[key] — 'provision' (provision-run,
+// provision-barrier, polish-worktree, late-fix-worktree; #2549, PIN-34) or 'evidence' (the non-intraDep
+// evidence dispatch; #2550, PIN-9). No DEFAULTS entry: an absent key returns exactly spawn('refiner')
+// (PIN-14). A partial block falls back to the routine refiner field by field.
+const spawnRefinerTier = key => {
+  const r = agents.refiner || {}, t = r[key]
+  if (!t) return spawn('refiner')
+  const model = t.model || r.model || ROLE_MODEL.refiner, e = t.effort || r.effort
+  return e && e !== 'default' ? { model, effort: e } : { model }
+}
+// PROVISION_SCRIPT (#2549 D35, PIN-35): the plugin path of the provision script. Every refiner prompt that
+// runs it gives this path once (the barrier's SCRIPT, tipWorktreeProvision, and the land CAS steps).
+const PROVISION_SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh'
+// lite-tier predicate (plan 1.2): a task is lite-tier iff its plan Files: list (task.files — the plan
 // file list, NOT the worker's reported diff) is non-empty and EVERY entry is a *.md path. Fail-safe:
 // an absent OR empty files list ⇒ FALSE (base worker tier) — an undefined/empty list must never
-// vacuously read as all-*.md and misclassify a non-doc task as docs.
+// vacuously read as all-*.md and misclassify a non-doc task as lite.
 const isDocsTask = t => Array.isArray(t.files) && t.files.length > 0 && t.files.every(f => typeof f === 'string' && f.endsWith('.md'))
 // Roster seat agent types (REA artifact evidence D3/D18): inline copy of the war-config.mjs export, bound by
 // the SEAT_AGENT_TYPES registry row in workflow-template.engine-1.test.mjs. 'war-evidence-auditor' is the evidence seat.
@@ -1677,7 +1701,7 @@ async function provisionStep(task, purpose = pt`for WAR task ${task.id} before i
     + pt`{ ok: false, taskId: "${task.id}", failedCommand: "<the command>", exitCode: <code>, stderrTail: "<tail of its stderr>", provisionSource: "${provisionSource}" } — `
     + pt`where failedCommand is the failing step VERBATIM (copy it exactly from the list above — the Workflow's evidence gate matches it against the dispatched list, and a paraphrased or invented command fails closed to held:workflow-error). `
     + pt`do NOT continue and do NOT remove the worktree (it is kept for inspection). This is environment setup, not the artifact under test: a failure is an env-block, never a code defect.`,
-    { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision-run:${task.id}`, dispatchKind: 'provision-run', schema: ENV_OUTCOME, ...spawn('refiner') })
+    { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision-run:${task.id}`, dispatchKind: 'provision-run', schema: ENV_OUTCOME, ...spawnRefinerTier('provision') })
   if (out && out.ok === true) return (typeof out.savedWork === 'string' && out.savedWork) ? { ok: true, savedWork: out.savedWork } : { ok: true }
   // Evidence gate (C, tightened): provisionEvidence above. The env-blocked shape is downstream
   // byte-preserved: reason env-blocked, worker unspawned, worktree kept, siblings proceed. The old
@@ -4041,7 +4065,7 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
     const agentType = seat.agentType ?? 'war-auditor'
     if (!SEAT_AGENT_TYPES.includes(agentType)) throw new Error('task ' + task.id + ': roster seat ' + seat.lens + ' names agentType ' + JSON.stringify(agentType) + ' — not a SEAT_AGENT_TYPES member (' + SEAT_AGENT_TYPES.join('|') + '); refused at dispatch')
     return dispatchSite(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin, correctiveRound, agentType) + (extra || ''), {
-      agentType: NS + agentType, phase: 'Audit',
+      agentType: NS + agentType, phase: 'Audit', lens: seat.lens,
       label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: { ...AUDIT_VERDICT, required: [...AUDIT_VERDICT.required, 'audit_sha'] }, ...spawnSeat(seat, peers) })
   }
   // Initial fan-out — one parallel() call, unsliced: the global dispatch semaphore holds the ceiling
@@ -4124,7 +4148,7 @@ log(`Phase ${ph.id} "${ph.title}": ${tasks.length} task(s) → ${ph.integrationB
 // inspection (schemas.md / SKILL.md). This is an ADDITION layered on the Part-A barrier, not a
 // rewrite. (The setup-scout that DERIVES the list is war-room Setup's job, not the barrier's.)
 if (tasks.length) {
-  const SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh'
+  const SCRIPT = PROVISION_SCRIPT
   const owned = ownedFile ? ` --owned-file ${ownedFile}` : ''
   // --reclaim-stale-remote is threaded onto every ensure-worktree line ONLY on a sanctioned recovery
   // relaunch that opts into reclaim (§4.4); absent it, the flag never appears (byte-identical to today).
@@ -4224,7 +4248,7 @@ if (tasks.length) {
     + pt`Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
     + pt`4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`
     + submodNote,
-    { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision:phase-${ph.id}`, dispatchKind: 'provision-barrier', schema: ENV_OUTCOME, ...spawn('refiner') })
+    { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision:phase-${ph.id}`, dispatchKind: 'provision-barrier', schema: ENV_OUTCOME, ...spawnRefinerTier('provision') })
   // No topology ⇒ nothing in the phase can run — a hard stop is correct here, evidence or not (B/C).
   // !ok or a missing result throws with the stderrTail (which carries the script's die text — incl. a
   // foreign-branch exit 3 or a diverged exit 7) → held:workflow-error via the catch.
@@ -5641,7 +5665,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE + '\n' + ACCEPTANCE_IDS_RULE
         // BACKWARD-CHAIN WORK (D1/D5): the worker `## The rules` block rides the work: build ONLY.
         + BACKWARD_CHAIN_WORK_CLAUSE,
-        { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'docs' : null) })
+        { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'lite' : null) })
 
       // A resolved null is env-died (#2555 D11), never the HARD 'worker returned no result'.
       const implNull = nullDied(impl, 'work:' + task.id); if (implNull) return { task, verdict: 'env-died', seats: [], expected: 0, blocked: implNull }
@@ -6916,7 +6940,7 @@ if (mergedTasksForGateAudit.length > 0) {
       : pt`No intra-phase same-repo dep edge on this phase: do NOT re-run the gate; omit integratedTipGate.\n`)
     + pt`  3. PHASE DIFF — run: git -C ${refineryPath} diff --name-only ${phaseBaseCmd}..$(git -C ${refineryPath} rev-parse HEAD) and return its lines as phase_diff_files (one repo-relative path per entry) — the phase's git-derived changed-file list, read by the gate-audit floor pass; absent ⇒ that pass's note arm reads an empty Set and matches nothing.\n`
     + pt`Return { perTask: [{ taskId, pin_status, pin_evidence, observedHead, guard_specificity, guard_evidence }], phase_diff_files, integratedTipGate? }. On any failure, return what you have — a partial/empty result is FAIL-OPEN (seats fall back to today's SOFT cannot-confirm path); never block.`,
-    { agentType: NS + 'war-refiner', phase: 'Refine', label: `evidence:phase-${ph.id}`, dispatchKind: 'evidence', schema: EVIDENCE_RESULT, ...spawn('refiner') })
+    { agentType: NS + 'war-refiner', phase: 'Refine', label: `evidence:phase-${ph.id}`, dispatchKind: 'evidence', schema: EVIDENCE_RESULT, ...(intraDep ? spawn('refiner') : spawnRefinerTier('evidence')) })
   // Death arm (D21, PIN-25): a dead evidence dispatch classifies env-died SOFT naming the site; the
   // seats keep today's fail-open SOFT cannot-confirm path (no token stamped, nothing HARD).
   if (evidence && evidence.integratedTipGate) evidence.integratedTipGate = admitGateResult(evidence.integratedTipGate, evidenceCapture)
@@ -7019,7 +7043,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + pt`\nDefault: SOFT. Hard only when provably unrun.`,
       // No backward-chain clause on this seat (D6, PIN-10): it sits outside auditPrompt, judges executed gate
       // evidence — never a fix — and has no corrective round; chainAuditClause is never appended here.
-      { agentType: NS + 'war-auditor', phase: 'Audit',
+      { agentType: NS + 'war-auditor', phase: 'Audit', lens: 'execution-evidence',
         label: `gate-audit:${taskId}:execution-evidence`, schema: AUDIT_VERDICT, ...spawn('auditor') })
     // gate-evidence findings are SOFT (do not hold the land) UNLESS a mapped test is provably unrun (hard).
     // Hard case: the auditor records a Critical or Major finding on the execution-evidence lens per its
@@ -7148,7 +7172,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + pt`\nDefault: SOFT. Hard only when provably unrun.`,
       // No backward-chain clause on this seat (D6, PIN-10): it sits outside auditPrompt, judges executed gate
       // evidence — never a fix — and has no corrective round; chainAuditClause is never appended here.
-      { agentType: NS + 'war-auditor', phase: 'Audit',
+      { agentType: NS + 'war-auditor', phase: 'Audit', lens: 'execution-evidence',
         label: `gate-audit:phase-${ph.id}:integrated-tip`, schema: AUDIT_VERDICT, ...spawn('auditor') })
     // Death arm (D21, PIN-25): a dead integrated-tip seat is env-died SOFT, site-named — never gate-evidence.
     const authDeath = deathOf(authVerdict)
@@ -7213,7 +7237,7 @@ if (endStateClaims.length > 0 && !vacuousPhase && (mergedTasksForGateAudit.lengt
     + FINDING_PATH_FORM_CLAUSE,
     // No backward-chain clause on this seat (D6, PIN-10): it sits outside auditPrompt, judges executed gate
     // evidence — never a fix — and has no corrective round; chainAuditClause is never appended here.
-    { agentType: NS + 'war-auditor', phase: 'Audit',
+    { agentType: NS + 'war-auditor', phase: 'Audit', lens: 'execution-evidence',
       label: `gate-audit:phase-${ph.id}:end-state`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   // Death arm (D21, PIN-25): a dead end-state seat is env-died SOFT, site-named — never gate-evidence,
   // never an 'unmet' attestation (the seat attested nothing).
@@ -7366,7 +7390,7 @@ const phaseGitSeed = workingBranchFor(submodLandTask)
 // ## provision): the phase-close polish worktree and each late-fix worktree share it. It runs the
 // ensure-worktree, then run.provision and the provision_tree marker (#2485 D15).
 const tipWorktreeProvision = (provWhat, provWorktree, provBranch) =>
-  pt`Provision the ${provWhat} by running provision-worktrees.sh. Do NOT free-author git; run exactly:\n`
+  pt`Provision the ${provWhat} by running ${PROVISION_SCRIPT}. Do NOT free-author git; run exactly:\n`
   + pt`  provision-worktrees.sh ensure-worktree ${provWorktree} ${provBranch} "$(git -C ${refineryLandPath} rev-parse ${ph.integrationBranch})"\n`
   + pt`— the worktree is cut at the POST-MERGE integrated tip (idempotent; reuse if present). `
   + (provisionList.length
@@ -7468,7 +7492,7 @@ const lateFixPass = async () => {
     for (const s of lateSrcOf.get(f) || [f]) if (!lfCopies.some(c => c.rationale === s.rationale && c.suggested_fix === s.suggested_fix)) lfCopies.push(s)
     if (!stop && origin.fixRounds < roundLimit) {
       const prov = await dispatchSite(tipWorktreeProvision('LATE-FIX worktree ' + id + ' for WAR task ' + origin.id, lfWorktree, lfBranch),
-        { agentType: NS + 'war-refiner', phase: 'Refine', label: 'late-fix-worktree:' + id, dispatchKind: 'late-fix-worktree', schema: ENV_OUTCOME, ...spawn('refiner') })
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: 'late-fix-worktree:' + id, dispatchKind: 'late-fix-worktree', schema: ENV_OUTCOME, ...spawnRefinerTier('provision') })
       cut = !!prov && prov.ok === true
       if (!cut) stop = 'the late-fix worktree did not provision (' + (deathOf(prov) || (prov && prov.stderrTail) || 'no result') + ')'
     }
@@ -7795,7 +7819,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     try {
     polishProv = await dispatchAgent(
       tipWorktreeProvision(pt`phase-close POLISH worktree for WAR phase ${ph.id}`, polishWorktree, polishBranch),
-      { agentType: NS + 'war-refiner', phase: 'Refine', label: `polish-worktree:phase-${ph.id}`, dispatchKind: 'polish-worktree', schema: ENV_OUTCOME, ...spawn('refiner') })
+      { agentType: NS + 'war-refiner', phase: 'Refine', label: `polish-worktree:phase-${ph.id}`, dispatchKind: 'polish-worktree', schema: ENV_OUTCOME, ...spawnRefinerTier('provision') })
     } catch (err) {
       const c = infraDeathCause(err)
       if (!c) throw err
@@ -8244,7 +8268,7 @@ const landConfirmArm = pt`if it exits 3 and both \`git ls-remote origin refs/hea
 // The detach (1) and push-first CAS (3) steps both bounded re-land prompts share — one string each,
 // byte-identical at the environment-proceed and baseline-proceed re-lands.
 const RELAND_DETACH = pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
-const RELAND_CAS = pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); on any exit but 0 or 2, ` + landConfirmArm + pt`. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
+const RELAND_CAS = pt`  3. Push-first CAS with ${PROVISION_SCRIPT}: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); on any exit but 0 or 2, ` + landConfirmArm + pt`. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
 const relandDiscrimination = (working) =>
   pt`     - On the FINAL failed CAS attempt (after roundLimit rejected pushes), before returning land_stale, discriminate a contender-less transient from a real divergence: run \`git fetch origin ${working} && git rev-list --left-right --count <merge-sha>...origin/${working}\` — the merge sha the loop just tried to push vs. the freshly-fetched origin tip, NEVER the local follower refs/heads/${working} (it lags). Right count 0 (contender-less transient: every commit on the fetched origin tip is already contained in the merge sha, so no competing commit exists and the rejection cannot be a lost CAS) buys exactly one extra push-first attempt beyond roundLimit exhaustion (an explicit +1, once — not a slot inside roundLimit): re-fetch, re-detach at origin/${working}, re-merge --no-ff, re-gate, land-advance; if that extra attempt also fails, return { mode: 'land-phase', status: 'land_stale' } (topology exhaustion / CAS failure, NOT a content conflict). If that attempt exits anything but 0 or 2, ` + landConfirmArm + pt`, never land_stale. Otherwise a nonzero right count (real contender commits on origin) is a real divergence: return { mode: 'land-phase', status: 'land_stale' } immediately, with no extra attempt. A transient that resolves returns status: 'landed' — no new status, so the servitor wrap-up fires automatically. A server-side [remote rejected] push with origin unmoved is a retry, never land_stale: land-advance retries it itself (3 times), and if it still exits 3, take the land confirm: ` + landConfirmArm + pt`.\n`
   + pt`     - Every attempt, not only the final one: Run land-advance as a foreground call with timeout 300000, because spent retries alone wait 70 s.\n`
@@ -8276,7 +8300,7 @@ if (landDecision === 'landed') {
     + pt`  2. Merge: \`git -C ${refineryLandPath} merge --no-ff ${ph.integrationBranch}\` (one phase commit).\n` + PROVISION_RERUN_CLAUSE + pt`     Run the gate (${plan.gate}) with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the _refinery land worktree. On gate failure return gate_failed.\n`
     + classificationClause(refineryLandPath, pt`the detached origin/${ph.workingBranch} tip the merge lands onto (\`git -C ${refineryLandPath} rev-parse origin/${ph.workingBranch}\`) — a stacked working branch carries prior plans' content the phase integration base lacks, so the land uses the working tip, NOT the integration base`)
     + baselineDebtClause()
-    + pt`  3. Push-first CAS: run \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\` where <merge-sha> is HEAD in _refinery after the merge.\n`
+    + pt`  3. Push-first CAS with ${PROVISION_SCRIPT}: run \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\` where <merge-sha> is HEAD in _refinery after the merge.\n`
     + pt`     - On clean push success (exit 0 from land-advance): the land succeeded. Return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }.\n`
     + pt`     - On reland exit code (rejected push — origin/${ph.workingBranch} moved): re-fetch origin/${ph.workingBranch}, re-merge, re-run gate, retry land-advance. `
     + pt`Repeat up to roundLimit (${roundLimit}) times total.\n`
@@ -9060,6 +9084,8 @@ if (landDecision === 'landed' || landDecision === 'held:escalation' || landDecis
       ? [...(Array.isArray(backstops) ? backstops : []), ...autoBaselineBackstops]
       : backstops,
     intentPresent: intent !== null,
+    // dispatchModels (D10, PIN-10): one row per dispatch this phase made, in dispatch order (see dispatch()).
+    dispatchModels: dispatchModels.slice(),
   }
 }
 
