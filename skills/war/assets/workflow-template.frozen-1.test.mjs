@@ -5,7 +5,9 @@
 // (Set, Map, Array, Object ...). There, an own-property assignment that shadows a frozen prototype
 // property (s.add = ...) throws 'Attempted to assign to readonly property.', and every /war phase
 // died at engine entry. A freeze cannot be undone in-process, so each test spawns a child node with
-// a preload that freezes the prototypes. Error.prototype stays unfrozen: freezing it breaks node.
+// a preload that freezes the prototypes of Object, Set, Map, Array, WeakMap, WeakSet, Promise, RegExp,
+// Function, String, Number, Boolean, Date and Symbol, and the Iterator prototype. Error.prototype stays
+// unfrozen: freezing it breaks node.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -14,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const FREEZE = 'data:text/javascript,for (const C of [Object, Set, Map, Array, WeakMap, WeakSet, Promise, RegExp, Function]) Object.freeze(C.prototype)'
+const FREEZE = 'data:text/javascript,for (const p of [Object, Set, Map, Array, WeakMap, WeakSet, Promise, RegExp, Function, String, Number, Boolean, Date, Symbol].map(C => C.prototype).concat(Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]())))) Object.freeze(p)'
 const childEnv = () => { const env = { ...process.env }; delete env.NODE_TEST_CONTEXT; return env }
 
 test('frozen intrinsics: a strict-mode phase lands with the built-in prototypes frozen', () => {
@@ -31,7 +33,7 @@ if (counts.join() !== '1,1') { process.stdout.write(JSON.stringify({ counts }));
 const reverted = anchors.reduce((t, [from, to]) => t.replace(from, to), src)
 const { out } = await runPhase(HANDOFF_ARGS(), handoffImpl(undefined), {}, STRICT + src)
 const { out: rev } = await runPhase(HANDOFF_ARGS(), handoffImpl(undefined), {}, STRICT + reverted)
-process.stdout.write(JSON.stringify({ frozen: Object.isFrozen(Set.prototype) && Object.isFrozen(Array.prototype), landDecision: out.landDecision, error: out.workflowError?.message ?? null, counts, revLand: rev.landDecision, revError: rev.workflowError?.message ?? null }))`
+process.stdout.write(JSON.stringify({ frozen: [Object, Set, Map, Array, WeakMap, WeakSet, Promise, RegExp, Function, String, Number, Boolean, Date, Symbol].every(C => Object.isFrozen(C.prototype)) && Object.isFrozen(Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]()))), landDecision: out.landDecision, error: out.workflowError?.message ?? null, counts, revLand: rev.landDecision, revError: rev.workflowError?.message ?? null }))`
   const r = spawnSync(process.execPath, ['--import', FREEZE, '--input-type=module', '-e', child], { encoding: 'utf8', env: childEnv(), timeout: 120000 })
   assert.equal(r.status, 0, `the child run exits 0\n${r.stderr}`)
   const res = JSON.parse(r.stdout.trim().split('\n').pop())
@@ -57,6 +59,9 @@ test('frozen intrinsics: the keyRegistry row tests pass with the built-in protot
 // WeakMap, WeakSet, Array, Promise, RegExp, Function, Error, String, Number, Boolean, Date and Symbol
 // prototypes and of the Iterator prototype. The scan reads names only, so Error is listed here even
 // though freezing Error.prototype breaks node. No name is excluded: neither script uses one today.
+// Blind spots: Object.assign, Reflect.set, computed keys (s[k] = v) and a prefix ++/-- whose operand
+// starts on the next line (legal JS, left unscanned to keep ++/-- off line breaks) are not scanned;
+// the runtime tests above are the only guard there.
 const PROTOS = [Object, Set, Map, WeakMap, WeakSet, Array, Promise, RegExp, Function, Error, String, Number, Boolean, Date, Symbol].map(C => C.prototype)
   .concat(Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]())))
 const PROTO_NAMES = new Set(PROTOS.flatMap(p => Object.getOwnPropertyNames(p)))
@@ -69,8 +74,10 @@ const KEY = String.raw`(?:\.\s*([A-Za-z_$][\w$]*)|\[\s*['"${'`'}]([^'"${'`'}\]]+
 const OPS = String.raw`\*\*=|\*=|\/=|%=|\+=|-=|<<=|>>>=|>>=|&&=|&=|\^=|\|\|=|\|=|\?\?=|=(?![=>])`
 const SCANS = [
   new RegExp(KEY + String.raw`\s*(?:${OPS})`, 'g'),
-  new RegExp(KEY + String.raw`\s*(?:\+\+|--)`, 'g'),
-  /(?:\+\+|--)\s*[A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*?\s*\.\s*([A-Za-z_$][\w$]*)(?![\w$]|\s*[.[])/g,
+  // ++/-- never cross a line break (ASI ends the statement there), and a prefix ++/-- never follows an
+  // identifier, ) or ] (that is a postfix one). The prefix operand's last segment is .name or ['name'].
+  new RegExp(KEY + String.raw`[ \t]*(?:\+\+|--)`, 'g'),
+  new RegExp(String.raw`(?<![\w$)\]][ \t]*)(?:\+\+|--)[ \t]*[A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*|\s*\[\s*['"${'`'}][^'"${'`'}\]]+['"${'`'}]\s*\])*?\s*` + KEY + String.raw`(?![\w$]|\s*[.[])`, 'g'),
 ]
 // Whole-line // comments are blanked (their newline kept, so line numbers hold); a // inside code or a
 // string is left alone. Each hit reports its line and the matched text, its receiver name in front.
@@ -98,12 +105,18 @@ test('frozen intrinsics: no sandbox script assigns a property named on a frozen 
   const rows = [
     ['const s = new Set()\ns.add = x\nif (s.size === 0) s.delete == y\n', ['2: s.add ='], 'plain assignment; a comparison is not a hit'],
     ["s['add'] = x", ["1: s['add'] ="], 'bracket key'],
-    ['s.add ||= x', ['1: s.add ||='], 'compound ||='],
-    ...['**=', '<<=', '>>=', '>>>=', '^='].map(op => [`s.size ${op} 2`, [`1: s.size ${op}`], `compound ${op}`]),
+    ['s[`add`] = x', ['1: s[`add`] ='], 'backtick bracket key'],
+    ...['+=', '-=', '*=', '/=', '%=', '**=', '<<=', '>>=', '>>>=', '&=', '|=', '^=', '&&=', '||=', '??='].map(op => [`s.size ${op} 2`, [`1: s.size ${op}`], `compound ${op}`]),
     ['s.size++', ['1: s.size++'], 'postfix ++'],
     ['s.size--', ['1: s.size--'], 'postfix --'],
     ['++s.size', ['1: ++s.size'], 'prefix ++'],
     ['--a.b.size', ['1: --a.b.size'], 'prefix -- on the last segment'],
+    ["++s['size']", ["1: ++s['size']"], 'prefix ++ on a bracket key'],
+    ["--a['b'].size", ["1: --a['b'].size"], 'prefix -- through a bracket segment'],
+    ['i++\ns.size > 0', [], 'a postfix ++ ends at the line break, so the next line is no prefix operand'],
+    ['s.size\n++x', [], 'a ++ on the next line is no postfix on s.size'],
+    ['a.b++ s.size', [], 'a ++ right after an identifier is a postfix, never a prefix (synthetic text)'],
+    ['x\n++\ns.size', [], 'a prefix ++ does not reach an operand on the next line (the named blind spot)'],
     ['s.add\n  = f', ['1: s.add ='], 'the operator on the next line'],
     ['  // s.add = x', [], 'a whole-line comment is skipped'],
     ["const u = 'http://h'; s.add = x", ['1: s.add ='], 'a // inside a string is not a comment'],
