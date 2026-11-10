@@ -9,11 +9,12 @@
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/audit-tree-fingerprint.test-lib.sh"
 
-# The infra-failure rows walk $TMP/plain, which holds a marked task worktree
-# (wtP). The operands suite builds the same fixture for its Grep walk-down rows.
+# Fixture state the old single suite left before these rows. The Grep walk-down
+# rows (operands suite) left an empty $TMP/plain/mid after they removed wtP, and
+# the infra-failure rows walk it. Row a4 (deadline suite) removed wtD's .git
+# link, so no start record lists wtD.
 mkdir -p "$TMP/plain/mid"
-git -C "$MAIN" worktree add -q "$TMP/plain/mid/wtP" -b pwalk
-printf 'marker\n' > "$TMP/plain/mid/wtP/.war-task"
+rm -f "$TMP/wtD/.git"
 
 # --- a Bash-arm infra failure leaves a mark -----------------------------------
 # A post event cannot stop the call, so the verdict arm escalates on the mark.

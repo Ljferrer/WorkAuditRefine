@@ -9,6 +9,14 @@
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/audit-tree-fingerprint.test-lib.sh"
 
+# Fixture state the old single suite built before these rows: row e1 (in
+# audit-tree-fingerprint.test.sh) committed g in wtB, and row t18 made wtA/sub.
+# Row c4 renames that g, and row t30 walks through wtA/sub.
+printf 'new\n' > "$TMP/wtB/g"
+git -C "$TMP/wtB" add g
+git -C "$TMP/wtB" commit -q -m move
+mkdir -p "$TMP/wtA/sub"
+
 # --- Task 8.1 operand forms (ruling B, 2026-10-24) ---------------------------
 # A `-C` after the subcommand word is git's copy-detection flag (diff, log,
 # blame), never a global `-C`: the operand base must not move. From wtC the two
@@ -28,7 +36,7 @@ run "$(mk_start "$AUD" t29)"
 run "$(mk_bash "$AUD" t29 "git -C $TMP diff -C --no-index wtA wtB")"
 if touched_is t29 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "a global -C followed by a subcommand -C keeps the operand base at the global -C directory"; else fail "global then subcommand -C routed wrong: |$(cat "$FP_ROOT/t29/touched" 2>/dev/null)|"; fi
 # A relative operand with a mid-path `..` segment escapes the cwd worktree:
-# from wtA (wtA/sub exists from row t18), `sub/../../wtB/f` is wtB/f.
+# from wtA (wtA/sub exists, made at the top of this suite), `sub/../../wtB/f` is wtB/f.
 # `diff` resolves to the base (wtA) first, so the set is wtA then wtB.
 run "$(mk_start "$AUD" t30)"
 PCWD="$TMP/wtA"
@@ -146,7 +154,7 @@ if touched_is t33 "$WTB"; then pass "tilde operand inside a worktree is touched"
 # from wtC implies --no-index ($TMP is outside wtC's work tree) and recurses
 # every worktree under $TMP, so each marked one is touched, in `git worktree
 # list` order (the superproject's, then the submodule's). wtD still has its
-# .git here (row a4 removes it later).
+# .git here (row a4, in the deadline suite, removes it there).
 run "$(mk_start "$AUD" t34)"
 PCWD="$TMP/wtC"
 run "$(mk_bash "$AUD" t34 "git diff $TMP /dev/null")"
@@ -444,11 +452,12 @@ printf 'two\n' > "$TMP/wtB/n
 l"
 if escalates_on c3 "$WTB"; then pass "a second edit to an untracked path with a newline escalates"; else fail "newline path edit not caught (rc=$RC out=|$OUT|)"; fi
 git -C "$TMP/wtB" mv g g2
+_rn="$(git -C "$TMP/wtB" diff --cached --name-status -M)"
 printf 'r1\n' >> "$TMP/wtB/g2"
 run "$(mk_start "$AUD" c4)"
 run "$(mk_read "$AUD" c4 "$TMP/wtB/f")"
 printf 'r2\n' >> "$TMP/wtB/g2"
-if escalates_on c4 "$WTB"; then pass "a second edit to the new path of a staged rename escalates"; else fail "rename path edit not caught (rc=$RC out=|$OUT|)"; fi
+if [ "$_rn" = "$(printf 'R100\tg\tg2')" ] && escalates_on c4 "$WTB"; then pass "a second edit to the new path of a staged rename escalates"; else fail "rename path edit not caught (staged=|$_rn| rc=$RC out=|$OUT|)"; fi
 printf 'one\n' > "$TMP/wtB/\"lead"
 run "$(mk_start "$AUD" c5)"
 run "$(mk_read "$AUD" c5 "$TMP/wtB/f")"

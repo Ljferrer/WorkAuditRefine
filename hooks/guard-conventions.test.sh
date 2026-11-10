@@ -359,7 +359,7 @@ while IFS= read -r _tf; do
   _h="$(search_root_scan "$_tf" 2>/dev/null)"
   [ -n "$_h" ] && sr_hits="$sr_hits$_h"$'\n'
 done <<EOF
-$(find "$REPO/hooks" "$REPO/skills" -type f -name '*.test.sh' \
+$(find "$REPO/hooks" "$REPO/skills" -type f \( -name '*.test.sh' -o -name '*.test-lib.sh' \) \
     -not -path '*/.claude/*' -not -path '*/.git/*' -not -path '*/node_modules/*' | sort)
 EOF
 if [ -z "$sr_hits" ]; then
