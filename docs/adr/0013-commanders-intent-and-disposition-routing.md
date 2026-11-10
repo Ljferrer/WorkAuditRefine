@@ -488,7 +488,10 @@ slots held back for the merge-floor retry loop. That arithmetic is **superseded*
 - **The trailer and the relaunch seed.** Every ace-side commit carries `Ace-Charge: <task>:<n>`
   (n = the counter after the charge; reverts carry none). The phase-start git-topology barrier
   returns `absorbCharges: { <task>: n }`, the HIGHEST trailer index on the task branch, and the
-  engine seeds `r.task.absorbRounds` from it — 0 with a loud log on error or absence.
+  engine seeds `r.task.absorbRounds` from it. A running task that the Lead override and the
+  barrier map both leave unseeded is read once more by one `charge-probe` dispatch (D40, #2676),
+  and only a task still unseeded seeds 0 with a loud log naming the map keys and the shape of
+  each return that had no map *(edited in place 2026-11-09; see the 2026-11-09 relaunch-seed amendment line below)*.
 - **Exhaustion routes to the sweep, never to `follow-up`.** At all three gates a spent budget
   routes the finding `phaseClose: true` to the phase-close sweep with a log naming the counter;
   the still-queued (never re-audited) bisection subsets ride there too, staying absorbs. Only a
