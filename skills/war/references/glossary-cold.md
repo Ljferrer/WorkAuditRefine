@@ -14,7 +14,7 @@ same way. **Coldness criterion** (one standing criterion; selections for waves 1
 the D32 row's comments in `skills/war/assets/skill-doc-contracts.test.mjs`, which pins those
 GLOSSARY.md pointers to their bodies here — wave 4's bodies are deliberately unpinned, selected for
 carrying no live drift-guard key, and so are wave 8's (#2273, plan 2026-11-08-model-routing-and-prompt-byte-budgets
-Task 1.2: the bodies from `## Worker block` to the end of this file, moved to bring `GLOSSARY.md` under its
+Task 1.2: the bodies from `## Worker block` through `## memory-mined`, moved to bring `GLOSSARY.md` under its
 advisory line); wave 6's four born-cold merge-provenance bodies are pinned instead by
 `skills/red-team/assets/workflow-scaffold.test.mjs`): a term qualifies when it names a
 retired mechanism, or when it is fully narrated in its own operative home (a `references/` file, an
