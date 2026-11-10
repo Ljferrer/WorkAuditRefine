@@ -50,10 +50,9 @@ Use this list when you add any new pass that dispatches a worker, re-audits, and
 7. Point an evidence seat at the manifest the worker writes (`manifestTask: origin`, read by `manifestPathOf(task.manifestTask || task)`).
 8. Dedup a queue fed by several seats. Key choice matters: blanking the task id is right only when a file is present (`lateKeyOf` plus the `blankText(f.file) ? null` guard in `queueLateFix`).
 9. Update every count and exclusivity claim the new site breaks: "six merge-task sites", "three provision flavors", "the ONE git read allowed".
-   At the landed tip, the comment above `absorbChargesClause` still says "the ONE git read allowed", though the prompt text was fixed.
-
+   Fix the code comment in the same diff as the prompt text.
 10. Copy each stop into every re-audit arm of the SAME pass, not only into sibling passes.
-   Plan 2026-11-08 phase 4 (task 4.1, D42) added an at-tip re-audit arm to `lateFixPass`.
+   Plan 2026-11-08 phase 4 (task 4.1, D42, #2773) added an at-tip re-audit arm to `lateFixPass`.
    That arm checked only `allApprove` and skipped the D15 escalate stop, so an escalate seat burned rounds to the cap and lost its reason.
    Four seats raised it, three as Major. The fix moved the stop into one helper, `lfEscStop`, that both arms call.
    Prefer one shared helper over a second inline copy when a pass grows a new arm.

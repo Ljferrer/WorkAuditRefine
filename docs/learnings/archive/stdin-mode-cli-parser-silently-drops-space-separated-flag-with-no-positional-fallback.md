@@ -4,7 +4,6 @@ description: "RESOLVED (#1378): a two-input-mode CLI can enforce an argv guarant
 metadata: 
   node_type: memory
   type: project
-  promoted: dev/2026-08-06-red-team-gate-cli@phase-2
   provenance: code-verified
   slug: stdin-mode-cli-parser-silently-drops-space-separated-flag-with-no-positional-fallback
   phase: "precision-chain-and-loop-breaker/4.1 (original defect); RESOLVED by red-team-gate-cli/1.2; body rewritten to current behavior at operator direction 2026-08-15, verified against dev/2026-08-06-red-team-gate-cli @ 1655b98c6c22be7490cc48809b509d3aeaabd16c"
@@ -107,6 +106,6 @@ allowance is file mode's), and the historical file-mode account overstated the a
 order-independent. Rewritten at operator direction — current behavior is the truth, superseding the
 repo's freeze-the-body RESOLVED-stamp convention for this file
 ([[resolved-lesson-stamp-freezes-body-so-it-can-contradict-the-new-description]],
-[[resolved-section-fix-append-can-itself-misstate-which-mode-a-rule-applies-to]]).
+[[resolved-lesson-stamp-freezes-body-so-it-can-contradict-the-new-description]]).
 
 > archived 2026-08-17: resolved — moved to archive

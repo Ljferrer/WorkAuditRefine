@@ -1,11 +1,10 @@
 ---
 name: engine-change-landed-this-run-cannot-exercise-itself-same-run
-description: "A /war run executes workflow-template.js from the INSTALLED plugin root, not from the branch the run is currently landing — so a phase that lands a change to the engine itself (e.g. a new endstate-check dispatch, a new prompt block) cannot exercise that change within the same run; artifacts the new code would have teed are simply absent, and downstream seats must attest from rung-1 evidence (gate log + pinned content reads) instead of the new artifact shape until a release + `/reload-plugins` picks up the change"
+description: "A /war run executes workflow-template.js from the installed plugin, so an engine change landed in the run cannot exercise itself until a release and /reload-plugins; seats fall back to rung-1 evidence"
 metadata: 
   node_type: memory
   type: project
-  provenance: code-verified
-  promoted: dev/2026-10-28-blocked-ace-and-merge-provenance@phase-2
+  provenance: agent-unverified
   slug: engine-change-landed-this-run-cannot-exercise-itself-same-run
   phase: "precision-chain-and-loop-breaker/5.5 (gate-audit note, confirmed against CLAUDE.md's plugin-iteration doctrine)"
   keywords: 
@@ -15,15 +14,16 @@ metadata:
     - plugin-dir
     - reload-plugins
     - endstate-check dispatch
-    - Task 3.2
     - mid-run engine change
     - land-barrier
     - dispatched prompt lags landed engine
     - version unknown
-    - _refinery endstate log
     - gate-audit self-reference
     - fast-forward despite no-ff
     - merge topology change
+    - plugin cache
+    - stage-workflow.mjs
+    - dogfooding WAR on WAR
   tags: 
     - war-engine
     - self-hosting
@@ -76,22 +76,25 @@ teeing-mechanism for, verify whether that mechanism's dispatch code landed in an
 the same run (in which case it should be live) or in the run's OWN active phase-set (in which case
 it cannot be live until reload) before treating an absent artifact as a defect.
 
-## Recurrence: 2026-10-28-blocked-ace-and-merge-provenance/phase-2 (landed tip 9bcc4fa6)
+## Tip: a run that dies at entry on an already-fixed defect
 
-Task 2.1 landed `--no-ff` task merge commits with a `WAR-Task` trailer (`taskMergeMatches` in
-`skills/war/assets/workflow-template.js` now requires two parents).
-The same phase still merged tasks 2.1, 2.2 and the polish by fast-forward.
-The refiner reports say "fast-forward", and the git-confirmed proofs in the audit log carry no `parents` field.
-So the run's own task history has no `WAR-Task` merge commits.
-A later proof over this branch that expects merge commits (for example, `skills/war/assets/task-integrated.sh` after plan Task 3.1, whose End state 7 makes it refuse a fast-forward-only branch) will not find them for these tasks.
-The plan accepts this through PIN-22: the run and any recovery relaunch use the installed plugin version.
+If a self-hosting run dies at entry on a defect that is already fixed somewhere, check which
+template copy loaded and whether that copy has the fix. The branch and the plugin cache can each
+lag the other. In one run (2026-09-11-backward-chain-doctrine, phase 1), the Lead
+reported the attempt died because the branch's `workflow-template.js` still called `Date.now()`,
+which the Workflow harness forbids, a defect already fixed upstream (PR #2301). Staging from the
+plugin-cache template with the branch's hotfix reapplied on top fixed it. This cause is a hypothesis
+(agent-unverified): verify which template actually loaded before spending a round on the branch
+code.
 
-## Recurrence: 2026-10-28-blocked-ace-and-merge-provenance/phase-3 (landed tip 8c1a7a51)
+## Recurrences
 
-The refiner report for task 3.1 says "Merge was fast-forward", so task 3.1 also has no `WAR-Task` merge commit.
-The phase land itself is a two-parent merge (parents bfcd3eed and a1a9eb93).
-An ace worker on task 3.1 also put `Ace-Charge` outside the final trailer block, though the landed prompt now asks for one final trailer block.
-The installed prompt was still the old one (see [[a-trailer-in-its-own-paragraph-is-unparsed-when-an-attribution-paragraph-follows]]).
-Inference, not tested: the new absorb-charge read finds no merge commit M for a fast-forward-merged task, so it reads an empty range and seeds 0.
+- **PIN-22 (2026-10-28-blocked-ace-and-merge-provenance, phase 2):** task 2.1 landed `--no-ff`
+  task merges with a `WAR-Task` trailer, but the same phase still merged its tasks by
+  fast-forward, because the run and any recovery relaunch use the installed plugin version
+  (accepted by PIN-22).
+- **Ace-Charge (same plan, phase 3):** an ace worker put `Ace-Charge` outside the final trailer
+  block, because the installed prompt was still the old one (see
+  [[a-trailer-in-its-own-paragraph-is-unparsed-when-an-attribution-paragraph-follows]]).
 
 > archived 2026-08-15: resolved — moved to archive

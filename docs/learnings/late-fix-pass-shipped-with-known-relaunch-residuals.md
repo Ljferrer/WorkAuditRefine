@@ -36,83 +36,19 @@ metadata:
 # The late-fix pass shipped with known relaunch residuals
 
 Read this before you change `lateFixPass` in `skills/war/assets/workflow-template.js` or the owned-path walk in `skills/war/assets/task-integrated.sh`.
-Auditors raised each residual several times as a `note` or `ask`, and none was fixed in task 3.1.
 
-1. **A late fix on a sibling's owned path costs that sibling its recovery proof.**
-   `task-integrated.sh` accepts a one-parent commit on an owned path only when its `Late-Fix:` trailer names this task.
-   The late-fix `fence` holds only unmerged tasks' files, `sweepExclude` files and release slots, not merged siblings' files.
-   So a fix charged to task A can edit task B's path, and on a relaunch B reads `NO_TASK_PROOF` and re-runs work/audit.
-   It fails safe. `skills/war/references/refiner-recovery.md` states the rule ("a late-fix commit naming another task … is no proof").
-   Polish commits already break the proof the same way.
-   Two `ask` rows (widen the rule versus document the re-run) went to the Checkpoint. Check the ruling before you change the rule.
-2. **Late-fix branch names carry no runId.** `lfBranch` is `war/<slug>/p<N>-latefix-<k>`, and `lateFixSeq` restarts at 0 on each launch.
-   A spent branch stays unmerged, so a relaunch can reuse it with its old rejected commits, or fail provision if another worktree holds it.
-   The re-audit judges the full diff, so nothing lands unjudged. The `p<N>-polish` branch has the same shape.
-3. **An empty late-fix branch can merge as "fixed".** Only `isSha(w.head_sha)` and unanimous roster approval gate it. No commit-count check exists.
-4. **A late-fix re-audit `escalate` verdict loops like `request_changes`.** Its `escalate_reason` never reaches the hold or carry detail. The sweep panel behaves the same way.
+**Mostly RESOLVED.** Of the eleven residuals auditors raised across three plans, these are closed: run-scoped `lfBranch` (2), the empty-branch merge (3), `lfEscStop` for escalate seats (4), `parkFixless` (5, #2624), the seed stamp on env-died seeds (7, #2641), the seed `fixRounds` carry (8), `lfOpen` keeps the defect's own file out of `lfFence` (9), the `Math.min(spentOf(task.fixRounds), roundLimit)` seed clamp (10), and the `lf_seg` latefix arm in `provision-worktrees.sh` `cmd_teardown_phase` (11).
 
-Phase 4 (task 4.1, the behavior-row sort, PIN-21) added two residuals. Both went to the Checkpoint as unruled `ask` rows. #2624 ruled both: residual 5 is fixed, and residual 6 keeps its route.
+## Still live
 
-5. **RESOLVED (#2624): a fix-less or fileless behavior row could carry with no fix text.** Now `parkFixless` parks it as an ask on both arms, before `carryLate` or the final-phase demote.
-   One split is left: the sweep filter reads the raw `disposition`, but the terminal arm reads `dispositionOf(f, null)`. So a fileless behavior Minor with no disposition parks at the sweep and files as a follow-up at the terminal seat. Neither route drops it.
-   The original text follows. The polish panel's `sweepMinors` filter and the terminal arm of `routeTerminalMinors` read raw seat findings, and intakeFloor never runs there.
-   So a behavior row that is not an `ask` or `follow-up` goes to `carryLate` on a non-final phase, even with a blank `suggested_fix` or no file.
-   On every other surface intakeFloor (PIN-2) parks that row as an ask.
-   Task 6.1's seed check expects each seeded row to carry a defect, a fix and a file, so such a row may fail that check. Nothing is dropped today.
-6. **Ruled keep (#2624): a behavior row from a task that did not merge can join the late-fix pass.** The sort keys only on the file owner, not on the raiser's merge status.
-   `lateOriginOf` then charges a merged task and uses its roster.
-   If the defect depends on the unmerged task's code, a fix at the integrated tip cannot satisfy it, and on the final phase a spent budget becomes a `late-defect` hold.
-   The other fork: route such a row on `carriedPhaseClose` with its raiser's relaunch.
+- **Item 1, narrowed.** `task-integrated.sh` accepts a one-parent commit on an owned path only when its `Late-Fix:` trailer names this task. `lfFence` now fences merged siblings' files, so this cost is mostly closed. A late fix that still edits a path another task owns costs that task its recovery proof: on a relaunch it reads `NO_TASK_PROOF` and re-runs work/audit. It fails safe. `skills/war/references/refiner-recovery.md` states the rule ("a late-fix commit naming another task ... is no proof").
+- **Item 5's split.** The sweep filter reads the raw `disposition`, but `routeTerminalMinors` reads `dispositionOf(f, null)`. So a fileless behavior Minor with no disposition parks at the sweep and files as a follow-up at the terminal seat. Neither route drops it.
+- **Item 6, ruled keep (#2624).** A behavior row from a task that did not merge can join the late-fix pass. `lateOriginOf` charges the file owner and uses its roster. If the defect depends on the unmerged task's code, a fix at the integrated tip cannot satisfy it, and on the final phase a spent budget becomes a `late-defect` hold.
 
-Locate-cue (phase 4): verify still present before acting — `const parkFixless` and its calls in the `sweepMinors = sweepMinors.filter(` block and `routeTerminalMinors` (#2624), and the owner-only `queueLateRow` call in the BEHAVIOR-ROW SORT block, found @ phase 4 landed tip 28e74359.
+By design: a final-phase seed hold names the seed id (`seed-1`). A carried row keeps its first origin task through `carryTaskOf`, so a seed of a seed never re-keys onto an unrelated `seed-1`.
 
-Phase 6 (task 6.1, `args.seededTasks`, PIN-9) added the carry intake and two more residuals.
-The #2641 ruling resolved residual 7. Check the Checkpoint ruling before you change residual 8's route.
+**General rule (from item 11):** a branch rename must update every prefix matcher, shell scripts included, not just the engine.
 
-7. **RESOLVED (#2641): a seeded task that ended `env-died` or `env-blocked` dropped off the carry channel.** Now one stamp pass after the land decision sets `e.seed` on each soft record of a seeded task.
-   It also sets `e.foldedSeeds` on each soft record of a task that holds folded seed rows (`CARRIED DEFECT (PIN-9)`), per an operator ruling of 2026-11-08.
-   The stamped `seed` row carries `seedId`, and the intake reuses it, per a second operator ruling of 2026-11-08. So at a landed phase's recovery relaunch the Lead threads only the record's rows, and the seed keeps its `seed-<n>` id and branch. A held phase's relaunch threads the held launch's own rows and adds no record rows. It never re-carries on `carriedTasks`, so the relaunch cannot run it twice.
-   The original text follows. Only the cap routes (`r.spent` at the audit loop, floor exhaustion) push to `seedCapped`.
-   The soft escalation records are `{ task, reason, ... }` with no `seed` row.
-   On a non-final phase the phase still lands, and `carriedTasks` holds nothing for that defect.
-   The defect then lives only in the Lead's own launch args. A recovery relaunch must re-thread it by hand.
-   An auditor raised this as an unruled `ask`: re-carry on `carriedTasks` (double-run risk) versus stamp the seed row on the escalation record.
-8. **A seeded task's fix budget restarts each phase.** The seeded task gets no `fixRounds` from the carried row, so it starts at 0.
-   The carried `fixRounds` is only stamped back onto the next carry. So a defect can spend a fresh `run.roundLimit` on every non-final phase.
-   The final phase still holds it as `late-defect`, so it stays bounded by the phase count. An auditor flagged this as a possible Lead ruling.
-
-## Status @ plan 2026-11-08-engine-findings-ace-and-late-fix phase 4 (landed tip 0b53a8ac)
-
-Task 4.1 closed items 2, 3, 4 and 8. Item 5 closed earlier (#2624, `const parkFixless`).
-Item 1 is narrowed: `lfFence` now adds every merged sibling's owned files (D18).
-- Item 2: `lfBranch` now carries `runIdShort` (`war/<slug>/<runIdShort>/p<N>-latefix-<k>`).
-- Item 4: both re-audit arms call `lfEscStop`, so an escalate seat stops the defect with its reason.
-- Item 8: the seeded task starts at `spentOf(task.fixRounds)`.
-
-Phase 4 added three new residuals. Each is live at the landed tip.
-
-9. **The D18 sibling fence can fence the defect's own file.** `lfFence` subtracts only the origin task object, not the defect's file.
-   If a merged sibling owns `f.file`, the late-fix worker is told not to touch the file it must fix.
-   The row spends its rounds and carries or holds. Nothing is dropped.
-   Two seats raised it as an `ask` (open the defect's file versus keep D18 literal). Check the ruling before you change `lfFence`.
-10. **A seeded `fixRounds` at or above `run.roundLimit` skips the audit loop.** The loop is `while (round <= roundLimit)` and the seed is not clamped.
-   No audit runs, `spent` stays false, so `seedCapped` never gets the row.
-   The task ends as a reason-less `audit-blocked` escalation, not the seed cap rule. It never merges unjudged.
-   Suggested fix: `Math.min(spentOf(task.fixRounds), roundLimit)`.
-11. **`teardown-phase` no longer reaps late-fix worktrees.** `cmd_teardown_phase` matches `wt_prefix="refs/heads/war/$slug/p$num-"`.
-   The run-scoped late-fix branch has a `<runIdShort>/` segment, so it misses that prefix.
-   Only its own tests call `teardown-phase` today, so the impact is low.
-   General rule: a branch rename must update every prefix matcher, including shell scripts, not just the engine.
-
-Locate-cue (plan 2026-11-08 phase 4): verify still present before acting — `const lfFence` and `const lfBranch` in `lateFixPass`, `let round = task.seed ? spentOf(task.fixRounds) : 0` in `skills/war/assets/workflow-template.js`, and `wt_prefix=` in `skills/war/assets/provision-worktrees.sh`, found @ landed tip 0b53a8ac (the run's `_refinery` worktree, HEAD equal to the tip).
-
-By design: a final-phase seed hold names the seed id (`seed-1`), because the Lead rules on the task in this phase.
-A carried row keeps the first origin task through `carryTaskOf`, so a seed of a seed never re-keys onto an unrelated `seed-1`.
-
-Locate-cue (phase 6): verify still present before acting — the seeded `tasks.push({ id, title: 'carried defect: '` line with no `fixRounds`, and `const carryTaskOf` in `skills/war/assets/workflow-template.js`, found @ phase 6 integration tip c43cebee, the second parent of landed tip 66c0f263 (the run's `_refinery` worktree).
-
-Locate-cue (#2641): verify still present before acting — the seed stamp loop `for (const e of escalated)` just above `const softEnvEscalated`, the `owner.foldedSeeds` push in the seededTasks fold arm and the `let id = s.seedId ||` mint in `skills/war/assets/workflow-template.js`, found @ #2641 branch tip 8ccfb3b8.
+Locate-cue: verify still present before acting — `const lateFixPass`, `const lfFence`, `const lfOpen`, `const parkFixless` and `const lateOriginOf` in `skills/war/assets/workflow-template.js`; the Late-Fix trailer arm in `skills/war/assets/task-integrated.sh`.
 
 Also see [[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]] and [[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]].
-
-Locate-cue: verify still present before acting — `let lateFixSeq = 0`, the `fence` and `lfBranch` lines in `lateFixPass`, the Late-Fix trailer arm in `skills/war/assets/task-integrated.sh`, and the refiner-recovery.md proof sentence found @ phase 3 landed tip c271332.

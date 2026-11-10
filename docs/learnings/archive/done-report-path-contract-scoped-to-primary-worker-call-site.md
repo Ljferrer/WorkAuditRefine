@@ -1,12 +1,22 @@
 ---
 name: done-report-path-contract-scoped-to-primary-worker-call-site
-description: "done-report path assertion wired at only the primary WORKER_RESULT site skips sibling sites"
+description: "A new done-report path-contract assertion wired at one WORKER_RESULT call site (primary worker) leaves sibling call sites returning the same result shape (fix-worker, ace-worker, phase-close polish) unchecked"
 metadata: 
   node_type: memory
   type: project
   provenance: agent-unverified
   slug: done-report-path-contract-scoped-to-primary-worker-call-site
-  phase: guard-floor-and-scope-hook-coverage-completeness/t1.8
+  phase: guard-floor-and-scope-hook-coverage-completeness/t1.8 + Engine-routes-contract-surfaces/1.1 (2026-07-12)
+  tags: 
+    - workflow-template
+    - coverage-gap
+    - worker-report
+    - scope-hook
+    - path-contract
+  created: 2026-07-10
+  updated: 2026-07-12
+  provenance_note: "renamed referent verified code-verified at phase Engine-routes-contract-surfaces/1.1, 2026-07-12 — see body update below"
+  absence_note: "superseded 2026-07-12 — the function was renamed assertReportedPathsInWorktree -> normalizeReportedPaths in phase 'Engine routes + contract surfaces' task 1.1 (End-state 10: the old token must appear nowhere). Confirmed PRESENT (code-verified) at skills/war/assets/workflow-template.js — verify still present before acting."
   keywords: 
     - path contract
     - done-report validation
@@ -17,29 +27,39 @@ metadata:
     - worktree root injection
     - WORKER_RESULT
     - single call site
-  tags: 
-    - workflow-template
-    - coverage-gap
-    - worker-report
-    - scope-hook
-    - path-contract
-  created: 2026-07-10
-  absence_note: "assertReportedPathsInWorktree not found in this cwd's skills/war/assets/workflow-template.js (phase-1 addition, t1.8) — servitor's worktree checkout may lag the landed branch; see [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]. Verify present near the primary worker-done handling site before acting on line numbers."
+    - normalizeReportedPaths
+    - FILES_CHANGED_RULE
+    - held:escalation
   relates: 
     - "[[gate-audit-inline-prompts-excluded-from-auditprompt-both-surfaces-coverage]]"
     - "[[standing-instruction-vs-dispatched-prompt-coverage-split]]"
+    - "[[wave-loop-thunk-catch-prevents-null-result-infinite-redispatch]]"
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
 ---
 
 # A new done-report assertion wired at one WORKER_RESULT call site doesn't cover sibling call sites returning the same shape
 
+**2026-07-12 update (phase "Engine routes + contract surfaces", task 1.1):** the function this
+lesson names was deliberately renamed `assertReportedPathsInWorktree` → `normalizeReportedPaths`
+(plan End-state 10: the old token must appear nowhere in `workflow-template.js` or any test
+title — verified absent; the new name confirmed present, single call site, at
+`skills/war/assets/workflow-template.js`, in the primary worker's done-report handling
+right after `blockedReason(impl)`). It also stopped being assert-only: it now *normalizes* a
+`mainCheckout`-rooted absolute path back to worktree-relative (warn-logged) and still throws
+(→ escalates, see [[wave-loop-thunk-catch-prevents-null-result-infinite-redispatch]]) on any other
+absolute path, including a sibling task's worktree. **The scope finding below still holds
+verbatim post-rename**: re-checked 2026-07-12, `normalizeReportedPaths` is wired at exactly one
+call site (the primary worker) — the fix-worker result (`fix` object, same file) still is not
+passed through it. Same judgment applies: plan-scoped to "one call site," other worker types are
+independently confined by the scope hook (ADR 0002).
+
 **The finding (two independent auditor cross-checks, t1.8, disposition note — Nit each):**
-`workflow-template.js` gained a path-contract assertion (`assertReportedPathsInWorktree`) that
-injects the absolute worktree root and asserts every path in a worker's `files_changed` contains
-the `.claude/worktrees/<name>/` segment. It is wired ONLY at the primary/initial worker's
-done-report handling site, checking `impl.files_changed`. Fix-worker, ace-worker, and phase-close
-polish-worker re-work also return `WORKER_RESULT` objects carrying `files_changed`, but none of
-those call sites run the same assertion.
+`workflow-template.js` gained a path-contract assertion (`assertReportedPathsInWorktree`, now
+`normalizeReportedPaths`) that injects the absolute worktree root and asserts every path in a
+worker's `files_changed` contains the `.claude/worktrees/<name>/` segment. It is wired ONLY at the
+primary/initial worker's done-report handling site, checking `impl.files_changed`. Fix-worker,
+ace-worker, and phase-close polish-worker re-work also return `WORKER_RESULT` objects carrying
+`files_changed`, but none of those call sites run the same assertion.
 
 **Judged intent-consistent, not a defect:** the plan slice explicitly scoped this to "one
 assertion, not a new hook," and every one of those worker types is itself a `war-worker` already

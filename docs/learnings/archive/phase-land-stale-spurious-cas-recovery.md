@@ -1,6 +1,7 @@
 ---
-name: ""
-metadata: 
+name: phase-land-stale-spurious-cas-recovery
+description: "A phase-level land_stale can be a contender-less transient CAS rejection; verify with rev-list --left-right, then land by hand, never rerun the phase"
+metadata:
   node_type: memory
   type: project
   keywords: [transient rejection, false divergence, rev-list left-right, manual reland, no-ff merge, servitor null, ground truth]
@@ -8,13 +9,13 @@ metadata:
   phase: audit-scheduler-integrity/phase-5
   tasks: t5
   date: 2026-06-26
-  tags: 
+  tags:
     - land_stale
     - CAS
     - phase-land
     - release
     - manual-recovery
-  related: 
+  related:
     - land-advance-push-first-cas-rejected-token
     - drift-guard-pin-for-task-split-intermediate-state
   originSessionId: war-servitor-audit-scheduler-integrity-p5

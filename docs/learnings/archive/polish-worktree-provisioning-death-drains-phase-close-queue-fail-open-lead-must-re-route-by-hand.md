@@ -1,8 +1,7 @@
 ---
 name: polish-worktree-provisioning-death-drains-phase-close-queue-fail-open-lead-must-re-route-by-hand
-description: "When the phase-close polish worktree's PROVISION dispatch itself dies (not the polish worker)"
+description: "When the phase-close polish dies (provision step, worker, or never convened), the fail-open sweep dumps the whole absorb queue unfixed, and the Lead must re-triage it by hand"
 metadata: 
-  promoted: dev/2026-08-19-realized-absorb-rate@phase-1
   node_type: memory
   type: project
   provenance: code-verified
@@ -12,7 +11,6 @@ metadata:
     - polish-worktree provisioning
     - phase-close coherence sweep
     - fail-open absorb demotion
-    - held:land-failed
     - env-died provisionStep
     - absorb to follow-up demotion
     - Lead manual re-triage
@@ -22,6 +20,10 @@ metadata:
     - session usage limit
     - polish worker dispatch death
     - recurrence phase 2
+    - worker returned no result
+    - entire phase absorb backlog orphaned
+    - no dedicated polish task in build order
+    - final post-merge gate-audit finding unfixed
   tags: 
     - war
     - phase-close
@@ -35,62 +37,62 @@ metadata:
 
 # A dead polish-worktree PROVISION dispatch fail-opens the whole phase-close queue — the Lead, not the engine, must re-route the orphaned findings
 
-**Found (code-verified — landed tip `291943e` on `dev/2026-08-19-realized-absorb-rate`, phase 1):**
-this phase's Workflow died on a session usage limit at its final three dispatches: the
-integrated-tip gate-audit, the phase-close polish-worktree PROVISION step, and land. The land
-dispatch death routed to `held:land-failed` (null escalation detail) and was recovered per the
-existing root-cause-(c) runbook — see
-[[never-follow-resumefromrunid-hint-after-a-land-failure]] (step-0 already-landed probe found the
-integration tip was NOT yet an ancestor of `origin/dev`, so the correct move was a fresh
-`--no-ff` merge + gate + push-first CAS, not a resume). That recovery worked exactly as documented.
+**The fact:** when the phase-close polish never runs, the fail-open coherence sweep drains its
+whole queue with zero fix commits. Every queued `absorb` finding is demoted to `follow-up`,
+unfixed, in one flat, untriaged dump. Sorting that dump is a Lead duty.
 
-**What's new here:** the PROVISION-step death is a dispatch site the existing `env-died`
-classification lesson already names as an unwrapped HARD gap (see
+**Found (code-verified, realized-absorb-rate phase 1):** the Workflow died on a session usage
+limit at its final dispatches, including the phase-close polish-worktree PROVISION step. That
+dispatch site is an unwrapped HARD gap (see
 [[env-died-classification-wraps-only-impl-and-fix-dispatch-not-provision-or-audit-or-null-return]]
 — `provisionStep`'s `agent()` call has no `dispatchAgent` wrapping). Because the polish worktree
-never got provisioned, the phase-close coherence sweep (an intentionally **fail-open** polish of
-`absorb`-disposition findings, per this repo's own architecture) drained its entire queue with zero
-fix commits: **12** `absorb`-disposed findings were demoted straight to `follow-up`, unfixed. This
-is not a bug in the fail-open design (fail-open is the documented, deliberate choice so a dead
-polish never blocks Land) — but it means the demotion event itself carries no triage: it is a flat
-dump of every queued finding into `follow-up`, indistinguishable at that point between "genuinely
-deferrable," "stale by land time," and "should be folded into already-planned follow-on work."
+never got provisioned, the sweep (an intentionally **fail-open** polish of `absorb`-disposition
+findings) demoted all **12** queued `absorb` findings straight to `follow-up`. Fail-open is the
+deliberate design, so a dead polish never blocks Land. But the demotion carries no triage: at that
+point "genuinely deferrable", "stale by land time", and "should fold into planned follow-on work"
+look the same.
 
-**The re-triage pattern that worked (Lead-side, by hand, after the fact):** of 12 raw follow-up
-rows, the Lead (1) dropped 1 as stale-by-land-time — re-verified per
-[[audit-log-finding-can-be-stale-by-land-time]] that the finding's own claim (lock-step with
-`DEFAULTS.run.roundLimit`) read false at the audit's own pin but TRUE at the actual integrated tip
-once a later task (1.2) had landed; (2) folded 2 same-file engine-comment findings directly into
-phase 2's already-planned task 2.1 slice, since that task already touches the same files (a
-next-phase fold-in lane, cheaper than a standalone issue); (3) consolidated the rest into ONE
-issue for a shared theme (README narration + tour watched-surface gap); (4) clustered 7 remaining
-findings sharing one root mechanism (the unwrapped-dispatch-death classification gap, same one
-named above) into 5 new issues plus a single corroborating comment on an existing issue rather than
-5-7 duplicate issue rows for the same root cause. Net: 19 raw finding rows (12 from this drain +
-some carried context) collapsed to 6 issues + 1 comment — a roughly 3:1 reduction driven entirely by
-manual clustering-by-root-cause, not by any mechanized dedup.
+**Recurrence (phase 2 of the same plan):** the sweep died on the usage limit again, this time at
+the polish *worker* dispatches, after the worktree was provisioned. Same class, different dispatch
+site. A death anywhere in the phase-close polish sequence drains fail-open. Treat this as a
+standing risk for any phase-close pass near a session's usage ceiling: budget its dispatches with
+headroom, or expect to re-triage.
 
-**Why this is durable:** any fail-open queue-drain (by design or by infra death) produces a flat,
-untriaged dump. The dedup/routing work — is a finding stale, foldable into planned work, or a
-duplicate of another finding's root cause — is not something the engine does or should do; it is a
-standing Lead duty whenever a polish/coherence-sweep pass empties without fixing.
+## Sub-shape: the polish never convenes
 
-**Locate-cue (verify still present before acting):** the phase-close coherence sweep description in
-`skills/war/SKILL.md`/`skills/war/references/` (fail-open polish of `absorb` findings); `provisionStep`
-in `skills/war/assets/workflow-template.js` (still unwrapped by `dispatchAgent` at time of writing).
+The terminal polish worker can return no result, or no polish task exists at all, so the final
+gate-audit's `phaseClose: true` finding has no drain. Either way the whole absorb backlog ships
+unfixed, not just the polish diff's own findings. Both instances come from the audit log:
 
-## Recurrence 2 (2026-08-20, plan `2026-08-19-realized-absorb-rate`, phase 2, `code-verified` —
-landed tip `7cacd59` on `dev/2026-08-19-realized-absorb-rate`)
+- references-pointer-integrity phase 1: the `p1-polish` entry reads `verdict: polish-discarded`,
+  `blocked: "worker returned no result"`. Over a dozen `absorb, phaseClose: true` findings from
+  tasks 1.1, 1.2, and 1.5 never had a chance to land. Treat this `blocked` value as worse than a
+  benign `sweepWhy` like "no findings queued".
+- realized-absorb-rate phase 3: the build order had no `*-polish` task. The
+  `phase-3-integrated-tip` gate-audit raised a Minor `absorb, phaseClose: true` finding on ADR
+  0025's Status line, and it shipped unfixed. A phase with no `*-polish` task is itself a signal
+  to check every `phaseClose: true` finding by hand.
 
-The phase-close polish sweep died on the session usage limit a **second** time in this same plan —
-phase 1's death was the polish-worktree PROVISION dispatch (documented above); phase 2's death hit
-the polish *worker* dispatches themselves, after the worktree had already been provisioned. Same
-class, different dispatch site within the same fail-open family: whenever the session usage limit
-is hit anywhere in the phase-close polish sequence (provision step or worker dispatch), the sweep
-drains fail-open and the Lead must re-triage the orphaned queue by hand exactly as described above.
-Two independent deaths across two consecutive phases of the same plan is enough to treat this as a
-standing operational risk for any phase-close pass running near a session's usage ceiling, not a
-one-off fluke — budget the phase-close sweep's dispatches with headroom, or expect to re-triage.
+## How to apply: re-triage by hand
+
+The pattern that worked, done by the Lead after the fact:
+
+1. Drop findings that are stale by land time. Re-verify each claim at the actual integrated tip,
+   per [[audit-log-finding-can-be-stale-by-land-time]]: one claim read false at the audit's own pin
+   but true once a later task had landed.
+2. Fold same-file findings into the next phase's already-planned task slice when that task touches
+   the same files. This is cheaper than a standalone issue.
+3. Consolidate findings that share a theme into one issue.
+4. Cluster findings that share one root mechanism into a few issues, plus a corroborating comment
+   on an existing issue, instead of one issue per finding.
+
+This dedup and routing is not something the engine does or should do. It is a standing Lead duty
+whenever a polish or coherence-sweep pass empties without fixing.
+
+**Locate-cue (verify still present before acting):** the phase-close coherence sweep description
+in `skills/war/SKILL.md`/`skills/war/references/` (fail-open polish of `absorb` findings);
+`provisionStep` in `skills/war/assets/workflow-template.js` (still unwrapped by `dispatchAgent` at
+time of writing).
 
 ## Related
 
@@ -100,5 +102,7 @@ the *provisioning-never-happened* variant, where nothing lands at all and 100% o
 orphaned, not a subset.
 [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — the general "no
 further round to drain this" hazard this instance also exhibits.
+[[never-follow-resumefromrunid-hint-after-a-land-failure]] — how to recover the land dispatch when
+the same usage-limit death also hits Land.
 
 > archived 2026-08-30: resolved — moved to archive

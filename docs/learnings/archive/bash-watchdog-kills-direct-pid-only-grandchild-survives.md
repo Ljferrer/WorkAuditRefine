@@ -1,6 +1,6 @@
 ---
 name: bash-watchdog-kills-direct-pid-only-grandchild-survives
-description: "RESOLVED (#1365): kill of $cmd_pid alone never reaches a backgrounded grandchild; group kill under set -m does"
+description: "Three bash watchdog traps: killing $cmd_pid alone misses a backgrounded grandchild (use a set -m group kill, RESOLVED #1365), tearing the watchdog down early skips its insurance KILL, and a set -m async launch needs an explicit < /dev/null"
 metadata:
   node_type: memory
   type: project
@@ -19,6 +19,10 @@ metadata:
     - teardown ordering
     - KILL insurance
     - RESOLVED
+    - /dev/null stdin
+    - implicit redirect
+    - SIGTTIN
+    - async command
   provenance: code-verified
   slug: bash-watchdog-kills-direct-pid-only-grandchild-survives
   phase: 2026-08-05-precision-chain-and-loop-breaker/2
@@ -47,8 +51,7 @@ own marker-file precedence, so this is a resource-leak / stdout-capture residual
 correctness defect in the floor's own contract.
 
 Found in `skills/war/assets/assert-done-when.sh` (WAR phase
-2026-08-05-precision-chain-and-loop-breaker/Task 2.1) — this original single-PID gap was
-filed as a `follow-up` at gate-audit, not fixed in-phase.
+2026-08-05-precision-chain-and-loop-breaker/Task 2.1).
 
 **Pattern for future timeout/watchdog scripts:** if process-group containment is wanted,
 gate it behind `set -m` (job control) around the background launch plus `kill -TERM -"$pid"`
@@ -56,33 +59,38 @@ gate it behind `set -m` (job control) around the background launch plus `kill -T
 platforms where the group form fails — and add a fixture whose command backgrounds a
 long-lived grandchild (`sleep 60 & wait`) to actually exercise the containment.
 
-## RESOLVED (2026-08-06-done-when-floor-wiring/1.4, #1365 + #1338, landed dev/2026-08-06-done-when-floor-wiring @ c0665c15) — group-form kill now lands; residual narrowed to two named ceilings, one still open
+## RESOLVED (2026-08-06-done-when-floor-wiring/1.4, #1365 + #1338)
 
-Code-verified at the landed tip (read via the `_refinery` worktree whose `gitdir` physical
-path contains this plan's slug — HEAD equalled the confirmed tip exactly):
 `skills/war/assets/assert-done-when.sh` now brackets the background launch in `set -m` /
-`set +m` (giving the command tree its own process group, pgid `$cmd_pid`) and the watchdog
-signals group-first with a single-PID fallback: `kill -TERM -"$cmd_pid" 2>/dev/null || kill
--TERM "$cmd_pid" 2>/dev/null || true`, then after `sleep 2`, the same shape with `-KILL`.
-The original concrete instance this lesson named (grandchild never signalled at all) is
-fixed — this exercises the `sleep 60 & wait` fixture the "Pattern" section above already
-prescribed, and the landed suite pins it (case 21: exit 1, timed-out diagnostic, empty
-stdout, capture returns within budget).
+`set +m` and signals group-first with a single-PID fallback: `kill -TERM -"$cmd_pid" 2>/dev/null
+|| kill -TERM "$cmd_pid" 2>/dev/null || true`, then after `sleep 2`, the same shape with `-KILL`.
+The landed suite pins the `sleep 60 & wait` grandchild fixture (case 21).
 
-**New residual nuance, surfaced by the SAME landing's audit and left open as a follow-up —
-a general teardown-ordering trap, not specific to this file:** the parent does `wait
-"$cmd_pid"` and, the instant the command dies (e.g. from the group TERM), runs `kill
-"$watchdog_pid"` on the very next line — killing the watchdog subshell **while it is still
-inside its `sleep 2`**, so the watchdog's own pending `kill -KILL -"$cmd_pid"` line never
-executes. A descendant that stayed in the command's own process group (never escaped into a
-new session) but ignores/traps SIGTERM is therefore signalled once, ignored, and never
-KILLed — it survives the "insurance" step entirely, still holding any inherited stdout fd.
-This is a **different** survivor class from the daemonized-new-session-group ceiling (which
-is a deferred, unfixable ceiling on bash 3.2 — no `setsid`): this one is reachable and
-fixable (e.g. have the parent itself issue the group KILL after `wait` returns, or defer
-killing the watchdog until past its own KILL window), but as of this landing it has no gate
-member, floor, or backstop row — it is documented truthfully in the floor's header comment
-but otherwise unfixed. Verify still present before acting.
+## Trap 2: `set -m` around an async launch removes the implicit /dev/null stdin
+
+Wrapping `cmd &` in `set -m` silently changes stdin semantics: background jobs under job
+control keep the caller's tty/pipe stdin instead of the implicit `/dev/null`, so a child that
+reads stdin can hang to the timeout budget or consume the caller's input (under a TTY, SIGTTIN
+can stop it). The hang is silent and only bites when the launched command reads stdin. Any
+`set -m` + `&` launch must carry an explicit `< /dev/null` (or a deliberate stdin) on the
+launched command; `assert-done-when.sh` does. When reviewing watchdog/timeout shells, grep the
+launch site for both `set -m` and stdin redirection together.
+
+## Trap 3: teardown ordering skips the insurance KILL
+
+**Residual surfaced by the same landing's audit and left open as a follow-up — a general
+teardown-ordering trap, not specific to this file:** the parent does `wait "$cmd_pid"` and, the
+instant the command dies (e.g. from the group TERM), runs `kill "$watchdog_pid"` on the very next
+line — killing the watchdog subshell **while it is still inside its `sleep 2`**, so the
+watchdog's own pending `kill -KILL -"$cmd_pid"` line never executes. A descendant that stayed in
+the command's own process group (never escaped into a new session) but ignores/traps SIGTERM is
+therefore signalled once, ignored, and never KILLed — it survives the "insurance" step entirely,
+still holding any inherited stdout fd. This is a **different** survivor class from the
+daemonized-new-session-group ceiling (which is a deferred, unfixable ceiling on bash 3.2 — no
+`setsid`): this one is reachable and fixable (e.g. have the parent itself issue the group KILL
+after `wait` returns, or defer killing the watchdog until past its own KILL window), but as of
+this landing it has no gate member, floor, or backstop row — it is documented truthfully in the
+floor's header comment but otherwise unfixed. Verify still present before acting.
 
 **Durable pattern to reuse (general, beyond this script):** when a monitor/watchdog process
 has a pending cleanup or insurance step gated behind its own `sleep`, and the *parent*

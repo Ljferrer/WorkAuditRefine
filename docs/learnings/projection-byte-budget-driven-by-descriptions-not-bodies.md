@@ -14,3 +14,5 @@ In the 2026-07-06 housekeeping pass, 370 body lines were cut across 23 topic fil
 **Why:** the budget axes (200 lines / 24,400 bytes) measure the *projection*, not the corpus. Keep-compress edits to bodies improve retrieval quality and disk, but cannot relieve index-budget pressure.
 
 **How to apply:** when `MEMORY.md` nears the 17 KB advisory, plan row reduction — archive by **explicit slug** (never `--candidates`, per [[lessons-learned-tooling-traps]]) or tighten `description:` lines — instead of expecting body compression to move the number.
+
+**Repo-root headroom:** measure it on its own with `node skills/_shared/war-memory.mjs render-index --local <scratch-empty-dir> --repo docs/learnings`, so the operator's local store does not skew the number. Verdict `warn` is the designed steady state for the repo root; do not chase `ok`.

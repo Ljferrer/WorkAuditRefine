@@ -1,12 +1,13 @@
 ---
-name: ""
-metadata: 
+name: json-parse-catch-misses-valid-scalar
+description: "A try/catch around JSON.parse lets valid scalars like null through, so add an object-type guard before destructuring"
+metadata:
   node_type: memory
   type: project
   keywords: [null destructure, TypeError, object guard, args normalization, primitive passthrough, try catch gap]
   slug: json-parse-catch-misses-valid-scalar
   phase: launch-fix/t1.1
-  tags: 
+  tags:
     - args-normalization
     - json-parse
     - destructure

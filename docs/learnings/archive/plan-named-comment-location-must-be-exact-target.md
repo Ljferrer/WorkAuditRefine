@@ -1,5 +1,6 @@
 ---
-name: ""
+name: plan-named-comment-location-must-be-exact-target
+description: "When a plan names a specific comment location to update, update that exact comment; documenting the fact in a nearby comment leaves the named one stale"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals
-description: "Audit tree fingerprint hook: git change detection, the Grep walk-down and ~- are closed, but rev-parse, the mktemp fallback and check-ignore stay unbounded"
+description: "Audit tree fingerprint hook: rev-parse, worktree list and check-ignore are now bounded, but a failed mktemp still falls back to /dev/null"
 metadata:
   node_type: memory
   type: project
@@ -42,7 +42,7 @@ metadata:
 
 # Read this list before you touch `hooks/audit-tree-fingerprint.sh` or call it fail-closed
 
-The hook is the D22 compensating control for the D21 `git grep -F -e <token>` admission. It landed with gaps. Phase 8 of 2026-10-20-rea-artifact-evidence and plan 2026-10-26-fingerprint-hook-followups closed most of them. Items 1 to 13 and the pinned rows below were re-read at master 6a5586ea (0.21.21). The hook moved after that read (#2477, #2475), so verify each item before acting.
+The hook is the D22 compensating control for the D21 `git grep -F -e <token>` admission. It landed with gaps. Phase 8 of 2026-10-20-rea-artifact-evidence and plan 2026-10-26-fingerprint-hook-followups closed most of them. Items 1, 2, 9, 11 and 13 were re-read on 2026-11-10, when the hook last changed in 71cbc73f (#2724). Verify each item before acting.
 
 The phase-8 slice and rulings A and B are not in `docs/plans/2026-10-20-rea-artifact-evidence.md`, which ends at Phase 7. The hook's header comments are the surviving record.
 
@@ -50,7 +50,7 @@ The phase-8 slice and rulings A and B are not in `docs/plans/2026-10-20-rea-arti
 
 Item numbers stay stable, so older notes that cite an item still resolve.
 
-1. **`git rev-parse HEAD` and `git worktree list` are outside the watchdog.** `bounded` wraps `status`, `ls-files` and both `hash-object` calls. `fingerprint` runs `git -C "$1" rev-parse HEAD` bare, and `marked_worktrees_of` runs `worktree list --porcelain` bare. A seat's trigger: a worker makes a worktree gitdir's HEAD a FIFO (worker Bash writes are advisory only, ADR 0002), so `rev-parse` never returns and the 600 s kill lands. Not executed. The DEADLINE header scopes its "one slow call" claim to the three bounded verbs, so it does not overclaim, but the hole stays. The security seat's absorb finding never landed.
+1. **Closed** (see below).
 2. **A failed `mktemp` hashes every path as `unreadable`.** `hfnew` and the batch-input temp in `blob_lines` fall back to `/dev/null`. Each path then reads `unreadable` at both ends, so a content-only edit to an already-dirty file leaves the fingerprint unchanged. Narrow window: the first `mktemp` must succeed and a later one fail. Raised as a Minor absorb and never landed.
 3. **A file that cannot be hashed at either end hides an edit.** A path whose `hash-object` fails gets `unreadable` at start and at verdict. A worker can set mode 000 around both hash times and change the content.
 4. **Closed** (see below).
@@ -58,11 +58,11 @@ Item numbers stay stable, so older notes that cite an item still resolve.
 6. **Closed** (see below).
 7. **The timeout marker, the marks and the tamper record are forgeable.** A worker's Bash can plant or delete a `!` line in `touched`, a `bash-open.*` file or `audit-no-agent-id`. A forged keyless file holds each seat started at or before it. The verdict arm prints only a cause `seat_mark` can write, so a forged mark reads `unrecognized mark`, but a forged line still prints in two shapes: one that starts with `/` in `no start record for <line>`, and one that starts with `~` in `unresolved Bash path <line>`. `main_find` reads a worktree's gitfile when git fails, so a planted gitfile can send a mark to the wrong place. `$STATE/timeout` and `$MAIN/.claude/war/audit-tamper/<agent_id>.json` sit where a worker's Bash can write. For the record, `skills/war/references/resume-and-recovery.md` now tells the Lead to cross-check `seat_verdict` against the `; seat verdict <v>` suffix on the escalated reason, which rides the engine's audit log, and to fail closed on a mismatch. That check is Lead prose, not code, and `$STATE/timeout` has no such cross-check. Narrow: a worker who can write there can already rewrite `$STATE/start`.
 8. **Touched-set writes fail open.** `touch_line` returns 0 when `mkdir -p` fails and does not check the append, and a `seat_mark` write fails the same way. `compare` returns clean when `$STATE/touched` is missing.
-9. **State dirs are never pruned.** No `rm -rf` of `$MAIN/.claude/war/audit-fingerprints/<agent_id>/` appears in the file. About 8 KB per seat run.
+9. **Closed** (see below).
 10. **Cost grows with marked worktrees and tracked files.** SubagentStart runs `git status -uall`, one `ls-files -v -z` and one `hash-object` batch in every marked worktree for every seat. `fingerprint` runs `expired` and a case test on every `ls-files` record, so the added cost scales with tracked-file count, not flagged-path count. A Grep with a directory root adds one `check-ignore` spawn per folder on the path down to each marked worktree, cached per walk.
-11. **`assert-no-submodule-mutation.sh` splits `.gitmodules` paths on whitespace.** Its path collection uses `awk '{print $2}'`, so a submodule path with a space breaks. `reuse_hygiene` in `provision-worktrees.sh` no longer has this bug for a single space, because it blanks `$1` and keeps the rest, but a run of spaces still collapses to one. The hook itself reads with `git config -z`.
+11. **`skills/war/assets/assert-no-submodule-mutation.sh` splits `.gitmodules` paths on whitespace.** Its `submod_paths` collection uses `awk '{print $2}'`, so a submodule path with a space breaks. `reuse_hygiene` in `provision-worktrees.sh` no longer has this bug for a single space, because it blanks `$1` and keeps the rest, but a run of spaces still collapses to one. The hook itself reads with `git config -z`.
 12. **Hypothesis, not executed: `status` still trusts stat data under `core.checkStat` and `core.trustctime`.** The status call pins only `core.fsmonitor=false` and `core.untrackedCache=false`. With `core.checkStat=minimal` and `core.trustctime=false`, git would compare only whole-second mtime and size, so a same-size edit with a restored mtime would stay out of the status list, and the hook would never hash it. Pinning both keys trades coverage against extra content reads on stat-noisy filesystems, so the operator decides. Nit, disposition `note`, agent-unverified.
-13. **Hypothesis, not executed: `ignored_dir`'s `check-ignore` runs outside `bounded`.** If it hung (a FIFO planted as an ignore file in a folder on the walk), the PreToolUse arm would run to the hook timeout and the walk-down touches not yet recorded would be lost. D3 (PIN-3) names only the `ls-files` call. Fix shape if it matters: route the call through `bounded`, and treat a deadline hit as not ignored, which marks.
+13. **Closed** (see below).
 14. **Two backstops have no recorded discharge.** Both are in `docs/plans/2026-10-26-fingerprint-hook-followups.md`. B3 in the same plan ran on 2026-11-02. B1 re-reads the Grep and Glob ripgrep flags from the installed Claude Code binary, because the walk rule was read from 2.1.311. B2 is a live `/war` run showing no AUDIT-TAMPER caused by a sibling worktree. I found no commit that discharges either, but a backstop run may leave no commit, so that is unproven. Run them before you call the walk rule current.
 15. **A glob-bearing Grep can read a worktree the walk leaves untouched.** The Grep tool's `glob` becomes a ripgrep `--glob`, and a glob override wins over ignore rules. `grep_walk` models ignore rules only, so a glob that matches an ignored folder's name reads sibling worktrees with no fingerprint compare. The operator ruled to keep the git-pattern rule (#2476, fork 2), because touching every worktree on a glob would let sibling churn raise a false AUDIT-TAMPER. Row "a glob-bearing Grep keeps the git-pattern rule" pins it, and backstop B1 rechecks it.
 16. **A post payload with neither `agent_id` nor `agent_type` passes through.** It reads as the main session, so a seat's touch would be lost. The 2.1.316 bundle builds both post events through the PreToolUse field builder, so a local subagent call carries both keys. Backstop B3 proved it for real `war-auditor` seats on 2.1.316. Recheck it after a Claude Code upgrade.
@@ -72,16 +72,9 @@ Item numbers stay stable, so older notes that cite an item still resolve.
 20. **A failed `.gitmodules` read on a walk leaves no mark.** `task_worktrees` pipes `git config` into a loop and drops its status, so a malformed file makes a directory walk skip every submodule task worktree. A direct path touch still finds its marker.
 21. **A directory link in the middle of a path touches only the target's worktree.** `link_roots` tests the whole path, so a Read of `wtA/lnk/f` with `lnk -> ../wtB/sub` touches wtB and not wtA. A hop through such a link in a middle worktree goes the same way. This needs a planted link, and a seat normally touches wtA through other calls.
 
-## Open issues filed from phase 2 of the 2026-10-26 plan
+## Issues filed from phase 2 of the 2026-10-26 plan
 
-All OPEN in gh at 0.21.21. The change that closed #2475 and #2477 fixes none of these, except that row `pg2` now runs the relative-path branch.
-
-- #2470: the `grep_walk` header says ripgrep never applies an ignore rule below an explicit root, which contradicts its own next sentences and rows gw3 and gw5.
-- #2474: the `outside_top` header still lists only a planted link or a missing component.
-- #2471 and #2472: `grep_walk` cache hits run in no row. Row `pg2` covers the relative-path branch.
-- #2473: a worker report's row count differs from the pinned diff. Bookkeeping, not a hook gap.
-
-#2438 to #2441 are also still OPEN in gh, though their code landed in phases 1 and 2. Read them as unclosed tickets, not open defects.
+Only #2472 is still OPEN (`grep_walk` cache hits run in no row). #2470, #2471, #2473, #2474, #2475, #2476, #2477 and #2438 to #2441 are CLOSED.
 
 ## Known, fail-closed, and pinned by rows (do not file as holes)
 
@@ -109,12 +102,15 @@ Fixed in phase 8 (rulings of 2026-10-24) and in plan 2026-10-26-fingerprint-hook
 - **Item 6: `~-`.** `tilde` returns 1 for any `~` form it cannot compute, and the verdict escalates `AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path …)`. It resolves only `~`, `~/x`, `~+` and `~+/x`. The operator ruled against reading the hook's own OLDPWD (#2440). Rows t13, t27b.
 - **Header comments.** The `lexical_dir` header names a missing or non-directory component (#2441).
 - **Bash records after the call runs (#2477).** Bash left the PreToolUse matcher and moved to PostToolUse and PostToolUseFailure, so a call another guard denied records nothing. A post event cannot stop the call, so a recording failure leaves a mark that the verdict arm escalates as unverifiable: a `!<cause>` line in `touched`, a `bash-open.<pid>` file a killed hook leaves behind, or the keyless file of item 18.
+- **Item 1: `rev-parse` and `worktree list`.** `fingerprint` runs `git -C "$1" rev-parse HEAD` under `bounded`, and `marked_worktrees_of` runs `worktree list --porcelain` under `bcap`.
+- **Item 9: pruning.** The `--prune <name>...` and `--prune --stale` argument modes remove record dirs under `$MAIN/.claude/war/audit-fingerprints/`, behind a `cd -P` real-record-tree guard.
+- **Item 13: `check-ignore`.** `ignored_dir` runs `check-ignore -q --no-index` under `bounded`.
 - **`grep_walk` takes both readings of the root (#2475).** The canon reading and the folded reading each walk if they name a directory. A missing root walks nothing, because its nearest ancestor would touch sibling worktrees.
 
 ## Why they shipped
 
 Items 1 and 2 are absorb findings that fell out of the phase-7 and phase-8 fix ladder, where each round found the next neighbor of the last fix. See [[an-ask-finding-re-raised-as-major-absorb-keeps-the-ace-ladder-from-converging]], [[in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round]], [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] and [[fix-round-uncommitted-leftover-is-stashed-by-pin-transfer-and-never-lands]]. The phase-3 gate audit attested the backstops `unverified`, a shape recorded in [[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]].
 
-**How to apply:** Before you call the hook fail-closed, grep the named constructs in items 1, 2 and 13. `fingerprint` and `marked_worktrees_of` hold the bare calls, `hfnew` and `blob_lines` hold the `/dev/null` fallback, and `ignored_dir` holds the bare `check-ignore`.
+**How to apply:** Before you call the hook fail-closed, grep the named constructs in item 2: `hfnew` and `blob_lines` hold the `/dev/null` fallback. Then read the rest of the Still open list.
 
 Related: [[submodule-task-worktrees-are-invisible-to-a-superproject-worktree-list]], [[dirty-worktree-fingerprint-needs-blob-hashes-z-status-and-link-text-not-a-bare-status-hash]], [[git-status-in-a-live-sibling-worktree-needs-optional-locks-off]].

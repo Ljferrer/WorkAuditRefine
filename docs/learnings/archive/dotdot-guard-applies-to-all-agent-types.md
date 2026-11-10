@@ -1,5 +1,6 @@
 ---
-name: ""
+name: dotdot-guard-applies-to-all-agent-types
+description: "A path-safety guard placed before the case \"$atype\" dispatch in a scope hook binds every agent type, fail-open ones included; choose universal or scoped on purpose and add a back-compat test"
 metadata: 
   node_type: memory
   type: project
@@ -33,8 +34,5 @@ When adding a path-safety guard to a scope hook with agent-type dispatch, decide
 - **Universal** (the chosen case here): add a hook-header comment stating the intent.
 - **Agent-scoped**: place it INSIDE the relevant `case` branch.
 - Either way, add a back-compat test asserting the previously-fail-open paths still exit 0.
-
-Instance resolved (1b): the guard lives pre-`case` in `hooks/validate-worktree-scope.sh`; the
-`INTENTIONALLY pre-case ... applies to ALL agent types` header comment named in this rule is now present.
 
 > archived 2026-07-11: resolved — moved to archive

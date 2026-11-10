@@ -38,4 +38,6 @@ Only a realpath step turns the link into the real root, so deleting the step tur
 **How to apply.** If a test claims to pin a path canonicalization step, check that its input survives `path.join` or `path.resolve` unchanged.
 A `..` segment or a doubled slash does not survive them. A symlink does.
 
+Locate-cue (verify still present before acting): `skills/war/assets/assert-args-complete.test.mjs`, the "prior-manifest (#2495): a matching root and version exits 0 with no warning" test, which calls `symlinkSync(RUNNING_ROOT, link)`.
+
 Related: [[weak-test-assertion-passes-without-feature-being-exercised]], [[negative-assert-on-a-fixture-that-cannot-carry-the-offender-is-vacuous-and-a-label-count-a-fix-round-also-satisfies]].

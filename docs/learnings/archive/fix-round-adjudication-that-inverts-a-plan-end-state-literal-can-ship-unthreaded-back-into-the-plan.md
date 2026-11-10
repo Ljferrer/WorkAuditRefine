@@ -1,6 +1,6 @@
 ---
 name: fix-round-adjudication-that-inverts-a-plan-end-state-literal-can-ship-unthreaded-back-into-the-plan
-description: "A fix-round adjudication that reverses a plan End-state literal must be patched into the plan; a token-presence grep cannot see the drift."
+description: "A fix-round adjudication or red-team correction that changes a plan's mechanism must be patched into the plan body; a token-presence grep cannot see the drift."
 metadata: 
   node_type: memory
   type: project
@@ -17,7 +17,10 @@ metadata:
     - gate-audit D3
     - cross-rung contradiction
     - stale-looking-but-correct
-  provenance: code-verified
+    - RED-TEAM CORRECTION
+    - dispatch slice
+    - plan body stale
+  provenance: agent-unverified
   slug: fix-round-adjudication-that-inverts-a-plan-end-state-literal-can-ship-unthreaded-back-into-the-plan
   phase: "2026-08-25-engine-reliability-and-filing-fidelity/phase-6 (tasks 6.1, 6.2)"
   tags: 
@@ -57,6 +60,16 @@ sites now asserts the opposite of the sentence naming the token. Every audit sea
 this had to re-derive it by hand from `git log -S` / `git blame` and recorded it as a `note`,
 never a hold: the code is right, the prose is stale.
 
+**Second source of the same gap: a red-team correction threaded only into the dispatch slice.**
+A `RED-TEAM CORRECTION` threaded into a task's dispatched spawn slice fixes that run's behavior,
+but leaves the plan file's own prose describing the wrong mechanism. In one plan, a task step
+said to "pipe every drafted body ... through `war-memory.mjs lint`", but `cmdLint` never reads
+stdin. The worker correctly built the corrected temp-file mechanism from the slice, while the
+plan body kept the broken pipe wording. When `/red-team` patches a plan "in place", verify the
+patch reached the plan-file bytes, not just the slice text a worker is spawned with. A
+stale-looking but correct implementation is a `note`, not a hold: confirm it against the live
+tree (red-team adjudication outranks a plan-body literal).
+
 **How to catch it:** a fixture title or comment that says "adjudicated #NNNN" as the reason
 its assertion diverges from the plan literal is the signal. Check whether the plan text was
 patched to match. If not, attest that End state partially-met/scoped and give the plan a
@@ -68,5 +81,8 @@ last check.
 **Locate-cue:** `skills/war/assets/workflow-template.js`, the barrier dispatch comment
 `the barrier is not one`; `skills/war/assets/workflow-template.test.mjs`, the
 `drain-cause (End state 9, adjudicated #1794)` fixture; the plan's End state 9 and D11 row.
+
+Related: [[standing-instruction-vs-dispatched-prompt-coverage-split]],
+[[source-comment-lags-emitted-prompt-after-rewrite]].
 
 > archived 2026-09-04: resolved — moved to archive

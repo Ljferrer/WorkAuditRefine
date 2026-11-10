@@ -1,14 +1,13 @@
 ---
 name: agent-card-reference-pointer-is-repo-relative-and-wont-resolve-against-a-foreign-target-repo
-description: "RESOLVED (references-pointer-integrity, #1364, 2026-08-18): Prompt-surface-simplification's references/<file>.md eviction pattern replaces an agent card's inline instructions with a markdown link like [x](../skills/war/references/x.md); that link is relative to the CARD's own file location, but a dispatched seat's cwd is the TARGET repo's task worktree — the link only resolves when the plugin is installed inside the target repo (WAR-on-itself), and a dispatched auditor's Bash is fail-closed to read-only git so it cannot expand CLAUDE_PLUGIN_ROOT to find the real plugin install root"
-metadata: 
+description: "PARTLY RESOLVED (ADR 0047): an agent-card references/ pointer resolves only where the seat can find the plugin root; Bash-capable seats now expand ${CLAUDE_PLUGIN_ROOT}, but a read-only auditor on a foreign target repo still cannot, so keep any blocking or anti-false-positive rule inline"
+metadata:
   node_type: memory
   type: project
-  promoted: dev/2026-07-28-prompt-surface-simplification@phase-3
   provenance: code-verified
   slug: agent-card-reference-pointer-is-repo-relative-and-wont-resolve-against-a-foreign-target-repo
   phase: prompt-surface-simplification/3.1
-  keywords: 
+  keywords:
     - references/ directory
     - trigger pointer
     - CLAUDE_PLUGIN_ROOT
@@ -19,14 +18,19 @@ metadata:
     - gitlink-bump
     - false block
     - anti-false-positive
-  tags: 
+    - ADR 0047
+    - plugin-root-anchored pointer
+    - D3 fallback line
+    - unverified-by-construction
+    - RESOLVED stamp overstates scope
+  tags:
     - war
     - prompt-surface
     - guard-architecture
     - cross-repo
   created: 2026-07-28
   originSessionId: 15ea107f-a540-466b-bb69-7ce45fb6e5a4
-  modified: 2026-07-29T16:17:53.793Z
+  modified: 2026-08-18T16:36:09.487Z
 ---
 
 # Agent-card reference pointer is repo-relative and won't resolve against a foreign target repo
@@ -80,5 +84,32 @@ sentence ("Your dispatched merge/land prompt threads the submodule targetRepo/ta
 for future eviction pointers:** when a pointer gates content that also survives some other way
 (a dispatched-prompt mirror, a Lead-owned resolution upstream), say so in the pointer's own
 prose — don't leave the survival implicit, even when it's true.
+
+**Partial resolution, `2026-08-06-references-pointer-integrity`/phase-1 (landed tip
+`d712424133e66952e780acba6dbd45c737a6afd5` on `dev/2026-08-06-references-pointer-integrity`,
+2026-08-18 — code-verified via gate-audit fallback, `auditSha 44089b3f9dc70a14a7ad8a3e730c6c297026363d`,
+`gateEvidence: true`; my own checkout had no live worktree matching this plan's slug):** the
+campaign that generalized this lesson (ADR 0047, "Agent-card pointer skeleton, plugin-root
+anchored") flipped every agent-card `references/` link target to the
+`${CLAUDE_PLUGIN_ROOT}/skills/war/...` form, which **resolves even on a foreign target repo for
+Bash-capable seats** (worker, refiner; they expand the placeholder in their own shell) — a real
+narrowing of the residual this lesson describes. Each of the five cards additionally carries a new
+standing "D3 fallback" sentence ("If a pointer's `${CLAUDE_PLUGIN_ROOT}` placeholder arrives
+unexpanded AND the repo under review is the plugin itself, strip the prefix and resolve
+repo-relative"). **The auditor/servitor residual this lesson names is NOT closed, only narrowed:**
+the D3 fallback's own precondition ("the repo under review is the plugin itself") is false on a
+genuinely foreign target repo, so on that repo D3 resolves nothing either — the campaign's own
+Commander's Intent states this explicitly ("resolution is thereby established for Bash-capable
+seats ... and recorded as a residual for the auditor seat"), and ADR 0047's seat-capability matrix
+records the auditor's resolution as fallback-first: the D3 line on the plugin repo itself, or
+otherwise harness substitution, itself recorded **unverified-by-construction** (no card-injection
+probe path exists to confirm the harness actually substitutes it). The mined lesson that
+originated this fact was stamped `RESOLVED (references-pointer-integrity ...)` in the repo-root
+archive (`docs/learnings/archive/agent-card-reference-pointer-is-repo-relative-and-wont-resolve-against-a-foreign-target-repo.md`)
+per the plan's own End state 15 mandate — but that stamp is **broader than what actually
+resolved**: it reads unqualified, while the underlying auditor-seat resolution gap on a genuinely
+foreign target repo is unchanged from the original finding above. Treat the repo-root RESOLVED
+stamp as covering the Bash-capable-seat case only; this file's original finding (no-shell/read-only
+seats still cannot resolve a plugin-rooted pointer against a foreign repo) remains accurate.
 
 > archived 2026-08-15: resolved — moved to archive

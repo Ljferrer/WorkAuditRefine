@@ -8,7 +8,7 @@ metadata:
   type: project
   provenance: code-verified
   promoted: dev/2026-08-25-engine-reliability-and-filing-fidelity@phase-7
-  keywords: [prompt parity, two-layer directive, agent markdown, per-task override, mirror clause, single-layer gap, prompt drift, FINDING-PATH FORM, war-auditor.md headroom, budget-raise trailer]
+  keywords: [prompt parity, two-layer directive, agent markdown, per-task override, mirror clause, single-layer gap, prompt drift, FINDING-PATH FORM, war-auditor.md headroom, budget-raise trailer, DISPOSITION WIDENINGS, disposition-eligibility mirror, staged headroom]
   tags:
     - war
     - refiner
@@ -49,31 +49,32 @@ the directive changes what the agent is told to emit).
 
 **How to apply:** when auditing or authoring a WAR directive, find which layer carries it and mirror it into
 the other, or document the single-layer choice. Grep both files for the directive's key phrase in the same
-diff.
+diff. Before adding a mirror to `agents/war-auditor.md`, check its byte count against its hard ceiling in
+`skills/war/assets/prompt-surface-budgets.test.mjs`; headroom is well under 1 KB, so a new mirror may need an
+ADR 0042 eviction or a `Budget-Raise:` trailer.
 
 **Closed gaps:** the `TMPDIR` gate-run pin is mirrored into the merge-task and land-phase clauses of
 `workflow-template.js` and the gate steps of `agents/war-refiner.md`; the dispatched merge-task prompts split
 floor exit 1 (`no-test`) from exit 2 (`status: 'error'`), matching the card. See
 [[floor-script-exit-codes-1-vs-2-route-differently]]. Residual inert Nit: the land-phase clause's copied cwd
-prose, carried by [[verbatim-mirror-directive-context-mismatch-at-destination]].
+prose, carried by [[verbatim-mirror-directive-context-mismatch-at-destination]]. The `FINDING-PATH FORM`
+directive (finding `file` values are repo-relative) is mirrored since #2124: the `**FINDING-PATH FORM:**`
+bullet in `agents/war-auditor.md`, and the `FINDING_PATH_FORM_CLAUSE` constant in `workflow-template.js`,
+interpolated into `auditPrompt()` and the three gate-audit-family prompt builds.
 
-**Still open:** the `FINDING-PATH FORM` directive in the `auditPrompt()` builder of `workflow-template.js`
-(finding `file` values must be repo-relative, never absolute or `./`-prefixed) has no mirror in
-`agents/war-auditor.md`. The three gate-audit-family prompt builds outside `auditPrompt()` never receive it
-either, and their `file` values feed the same follow-up collapse key, which has no path-form normalization
-(the ace culprit compare has the `aceRelPath` helper; see
-[[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]]). Before adding the
-mirror, check the card's byte count against its hard ceiling in
-`skills/war/assets/prompt-surface-budgets.test.mjs`; headroom is now well under 1 KB, so a one-sentence
-mirror may need an ADR 0042 eviction or a `Budget-Raise:` trailer.
+**Locate-cue:** search `FINDING-PATH FORM` in `agents/war-auditor.md` and `FINDING_PATH_FORM_CLAUSE` in
+`workflow-template.js`; both should hit.
 
-**Locate-cue:** search `FINDING-PATH FORM` in `workflow-template.js`; search `FINDING-PATH` in
-`agents/war-auditor.md` (absent until the gap is closed; the card's one `repo-relative` hit is the unrelated
-plugin-root pointer clause).
-
-Recurrences: 2 (gate-audit inline prompts bypass `auditPrompt()`, accepted by design, see
-[[gate-audit-inline-prompts-excluded-from-auditprompt-both-surfaces-coverage]]; the `FINDING-PATH FORM`
-gap above).
+Recurrences: 3. (1) Gate-audit inline prompts bypass `auditPrompt()`, accepted by design, see
+[[gate-audit-inline-prompts-excluded-from-auditprompt-both-surfaces-coverage]]. (2) The `FINDING-PATH FORM`
+gap above, now closed. (3) Late-defects-fixed-in-run, task 4.1: the cold reference
+`skills/war/references/disposition-eligibility.md` claims its widenings are mirrored in the dispatched
+`auditPrompt` DISPOSITION WIDENINGS block, but a new sentence there was never mirrored, deferred for
+staged-byte headroom. For the staged-byte cost model (full-line comments cost zero staged bytes, prompt
+literals cost full bytes), see
+[[workflow-template-growth-is-capped-by-the-staged-copy-headroom-floor-not-just-file-size]]. The ace
+culprit compare normalizes path form with the `aceRelPath` helper; see
+[[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]].
 
 Related: [[source-comment-lags-emitted-prompt-after-rewrite]],
 [[template-defers-runtime-values-to-agent-via-literal-placeholder]], [[bsd-mktemp-ignores-tmpdir-gnu-only]].

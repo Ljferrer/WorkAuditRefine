@@ -4,7 +4,7 @@ description: "A plan/red-team mandate that an ADR amendment leave 'all pre-exist
 metadata: 
   node_type: memory
   type: project
-  provenance: code-verified
+  provenance: agent-unverified
   slug: adr-amendment-byte-unchanged-body-mandate-exempts-status-currency-line
   phase: "auditor-guard-policy-and-mirror-truth/phase-1 task 1.1 (audit + gate-audit findings, landed dev/2026-07-26-auditor-guard-policy-and-mirror-truth, 2026-07-27)"
   keywords: 
@@ -24,7 +24,7 @@ metadata:
     - audit-adjudication
   created: 2026-07-27
   originSessionId: 0ad881e1-4bbc-43c6-8e45-8597d9cec1cf
-  modified: 2026-07-28T03:32:52.736Z
+  modified: 2026-08-25T08:18:04.329Z
 ---
 
 # ADR "amendment appends a dated section, body stays byte-unchanged" convention still moves the Status line
@@ -56,9 +56,28 @@ per-amendment-mutable field. Before flagging a Status-line move as a mandate vio
 silently absorbing a "fix" that reverts it), trace whether a prior amendment to the *same* ADR
 already moved that line — if so, the move is the sanctioned convention, not a deviation.
 
-**Anchors re-verified at the live tip (2026-08-02):** `docs/adr/0029-capture-grounds-on-committed-tip.md`'s
-`**Status:**` header reads `accepted; amended 2026-07-22, 2026-07-26`, both `## Amendment (2026-07-22)`
-and `## Amendment (2026-07-26)` sections exist, and precedent commit `c0f2f0d` resolves.
+**Verify before acting:** confirmed the referent file exists at `docs/adr/0029-capture-grounds-on-committed-tip.md`
+(read in a lagging checkout during this write — landed-tip grounding could not reach the true
+2026-07-27 tip: my session cwd was a different concurrent plan's worktree, and no live task
+worktree under `.git/worktrees/*` matched this plan's slug — the file there still read line 3 as
+`accepted; amended 2026-07-22` only, consistent with a lagging view, not a contradiction). The
+`accepted; amended 2026-07-22, 2026-07-26` line and the appended `## Amendment (2026-07-26)`
+section are sourced from this phase's `gate-audit:approve` finding (`gateEvidence:true`, pinned
+`auditSha: 4e15632bc2313ee9e3c1965c3d952006fb9bf4f3`), not independently confirmed by my own
+Read/Grep this round.
+
+## Recurrence 3 (2026-08-24, plan `authoring-side-verification`, phase 3, task 3.1 — `code-verified`
+at landed tip `783bd136ea6a9d8da9b73b5dcbf01d1d475a0cef`): **confirms the convention from the
+omission angle, not just the move-is-sanctioned angle.** `docs/adr/0044-authoring-contract-and-
+merged-artifact.md`'s worker diff appended a dated `## Amendment (2026-08-24): ...` section but
+initially left the head `**Status:**` line unchanged (no `amended 2026-08-24` mention) — an ace
+absorb-finding named this directly, citing the same repo precedent this lesson already documents
+(ADR 0025 records each amendment in its Status line). The phase-close polish pass fixed it in
+place; landed tip line 3 now reads `**Status:** accepted (design ratified 2026-08-04; ... amended
+2026-08-24 — authoring-side verification: ...)`. **Sharpened rule:** the Status-currency-line
+convention is not just permissively *movable* under a byte-unchanged-body mandate — a worker
+authoring a new dated amendment section should proactively update it too, and an omission is a
+real (if easily ace-absorbable) defect, not a neutral choice.
 
 ## Related
 
@@ -66,4 +85,4 @@ and `## Amendment (2026-07-26)` sections exist, and precedent commit `c0f2f0d` r
 edit convention where an update channel (a description prefix) is deliberately narrower than "the
 whole file," same family of "which part of a dated record actually moves on update."
 
-> archived 2026-08-15: resolved — moved to archive
+> archived 2026-08-15: resolved — moved to archive (confirmed again 2026-08-24, omission angle)

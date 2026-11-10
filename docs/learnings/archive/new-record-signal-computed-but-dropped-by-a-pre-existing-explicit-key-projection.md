@@ -108,5 +108,3 @@ grep BOTH sibling handoff projections, not just the one nearer the field it touc
 `followUps: minorsFiled.map(m => ({ issue: ...` line (search `followUps: minorsFiled.map`).
 
 > archived 2026-09-03: resolved — moved to archive
-
-> archived 2026-10-30: resolved — moved to archive

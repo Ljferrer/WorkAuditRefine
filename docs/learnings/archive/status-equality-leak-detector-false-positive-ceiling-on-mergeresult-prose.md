@@ -1,10 +1,10 @@
 ---
 name: status-equality-leak-detector-false-positive-ceiling-on-mergeresult-prose
-description: "D9 leak-detector equality-regex false-trips on MergeResult prose"
-metadata: 
+description: "The D9 landDecision leak detector false-trips on equality-form status prose; fix it by narrowing the detector or rewording to colon form, never by loosening the equality match"
+metadata:
   node_type: memory
   type: project
-  keywords: 
+  keywords:
     - leak detector
     - doc-contract test
     - status-equality regex
@@ -17,7 +17,7 @@ metadata:
   provenance: agent-unverified
   slug: status-equality-leak-detector-false-positive-ceiling-on-mergeresult-prose
   phase: land-path-integrity-and-status-enum-discipline/t2.1
-  tags: 
+  tags:
     - land-path
     - test-fidelity
     - drift-guard
@@ -50,19 +50,7 @@ detector with a task-level context cue (e.g. require the LHS to resolve to a tas
 identifier) or reword the prose to the colon-form the detector already excludes — not to loosen the
 equality-form match itself.
 
-**Verification note:** the finding's file/line anchor (`skills/war/assets/land-decision.test.mjs`
-~line 231 comment, assertion ~line 253) was **not independently re-Grep-verified** in this write —
-this checkout (`.claude/worktrees/nice-visvesvaraya-cabb53`, branch
-`claude/memory-frictions-roadmap-26a40e`) predates the phase's landed changes on
-`dev/2026-07-08-land-path-integrity-and-status-enum-discipline`; the file here still shows its
-pre-phase-2 153-line shape with no D9 test present (same worktree-staleness pattern already recorded
-by this phase's own Task-1 servitor pass — [[reland-loop-contender-less-transient-vs-real-divergence]],
-[[process-recipe-lesson-body-is-not-drift-guarded-by-any-test]]). **Before acting on this lesson,
-re-Read `land-decision.test.mjs` on the actual landed branch to confirm pattern-1's regex and the
-colon-form exclusion still take this shape.**
-
-Related: [[reland-loop-contender-less-transient-vs-real-divergence]],
-[[test-reframe-can-strand-adjacent-branch-coverage]],
+Related: [[test-reframe-can-strand-adjacent-branch-coverage]],
 [[dockerfile-shell-form-parser-heuristic-ceiling]],
 [[floor-subset-gate-claim-overstates-arbitrary-custom-pattern]].
 

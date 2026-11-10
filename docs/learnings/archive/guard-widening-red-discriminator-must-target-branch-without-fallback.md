@@ -1,6 +1,6 @@
 ---
 name: guard-widening-red-discriminator-must-target-branch-without-fallback
-description: "Case-pattern widening test proves the fix only on a branch with no independent fallback deny"
+description: "Widening a case-pattern reject class: a new test case only proves the widening if the branch has no independent fallback that already denies the same input"
 metadata: 
   node_type: memory
   type: project

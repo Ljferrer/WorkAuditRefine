@@ -4,7 +4,7 @@ description: "Audit finding may be fixed-in-flight; re-Grep tip"
 metadata:
   node_type: memory
   type: project
-  keywords: [resolved in flight, fix round history, landed tip verification, tautological test finding, outdated defect record, servitor gotcha capture, ff-topology, plan prose drift, merge-commit idiom, preMergeTip]
+  keywords: [resolved in flight, fix round history, landed tip verification, tautological test finding, outdated defect record, servitor gotcha capture, ff-topology, plan prose drift, merge-commit idiom, preMergeTip, fixRounds zero does not guarantee byte accuracy]
   provenance: code-verified
   slug: audit-log-finding-can-be-stale-by-land-time
   phase: war-companion-skills/p1-t3 + audit-gate-verdict-fidelity/t2.1
@@ -22,37 +22,27 @@ metadata:
 The audit log is the assembled record across a task's audit + fix-round history, not a final
 snapshot: a finding can describe a defect a fix round already resolved before landing.
 Instance (resolved-in-flight): three near-duplicate findings named a tautological IIFE test in
-`campaign-ledger.test.mjs` that did not exist at the landed tip — the construct was already a
-real test plus a clarifying comment.
+`skills/war-campaign/assets/campaign-ledger.test.mjs` that did not exist at the landed tip — the
+construct was already a real test plus a clarifying comment.
 
 **Why:** finding text persists in the log after the referent it names stops matching the code.
 **How to apply:** before recording an audit finding as a live gotcha, re-Grep/Read the named
 construct at the landed tip; if it no longer matches, treat it as resolved-in-flight and record
 only the underlying generic pattern (if any), never the file/line as a current instance.
+`fixRounds: 0` does not guarantee the audited sha's prose matches landed code; re-Grep the named construct anyway.
 
-**Recurrence (audit-gate-verdict-fidelity/t2.1, 2026-07-09):** a Nit finding claimed the plan file
-(`docs/plans/2026-07-08-audit-gate-verdict-fidelity.md`, Task 2.1 slice + Notes) "still describes
-the retired `<merge>^1`/`--no-ff` changed-file idiom" against the actual fast-forward
-`<preMergeTip>` implementation. Re-reading the plan file at the landed tip (verified in the
-p2-t2.1 worktree) showed the opposite: both the Task 2.1 slice and the Notes/"conscious deviations"
-section already state the `<preMergeTip>` idiom correctly, and the Notes section explicitly calls
-out that "an earlier draft's `<merge>^1` … idiom was itself topology-void" — i.e. the plan had
-already been self-corrected (the mid-task ff-topology course-correction was back-ported into the
-plan prose in the same task) before this finding was ever read. The finding described a prior
-draft state, not the landed one. **Extra angle vs. the original instance:** a plan file living
-*outside* a task's declared `Files:` list is exactly the kind of referent a courtesy/informational
-finding names but that a fix round has no obligation to re-touch — always re-Read the actual
-committed plan text before treating a "stale plan prose" finding as still live, even (especially)
-when the file is out-of-scope for the task under audit.
+**Recurrence (audit-gate-verdict-fidelity/t2.1, 2026-07-09):** a Nit said the plan file
+`docs/plans/2026-07-08-audit-gate-verdict-fidelity.md` still described a retired changed-file
+idiom. The committed plan already stated the `<preMergeTip>` idiom. A plan file outside a task's
+`Files:` list is the typical referent a fix round never touches, so re-Read the committed text
+before treating a "stale plan prose" finding as live.
 
 Related: [[weak-test-assertion-passes-without-feature-being-exercised]] (the tautology
 anti-pattern this stale finding would have instanced),
-[[verify-and-close-claim-can-trace-to-transient-uncommitted-edit]] (re-verify against committed
-HEAD, not transient state), [[premergetip-chain-skips-requirestest-false-tasks]] (a *real*,
-still-live gap in the same preMergeTip mechanism, found in the code rather than stale plan prose).
+[[verify-and-close-claim-can-trace-to-transient-uncommitted-edit]] (archived; re-verify against
+committed HEAD, not transient state), [[premergetip-chain-skips-requirestest-false-tasks]] (a
+*real* gap in the same preMergeTip mechanism, found in the code rather than stale plan prose).
 
-**Note (2026-10-30, merge-commit rule, #2485):** a dated record, so the recurrence above stays as written. It
-describes the `<preMergeTip>` idiom of the fast-forward engine. Task merges are now `--no-ff` merge commits
-with a `WAR-Task` trailer (ADR 0054), so a first-parent or `<merge>^1` per-task anchor is valid for them, and
-the `ff-topology` caution applies only to polish and terminal merges, which stay fast-forward. The lesson's
-rule (re-read the committed text before treating a finding as live) is unchanged.
+**Note (2026-10-30, merge-commit rule, #2485):** Task merges are now `--no-ff` merge commits with a `WAR-Task` trailer
+(ADR 0054), so the `<preMergeTip>` and `ff-topology` caution applies only to polish and terminal
+merges. The rule (re-read the committed text before treating a finding as live) is unchanged.

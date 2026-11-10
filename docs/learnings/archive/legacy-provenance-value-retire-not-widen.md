@@ -1,5 +1,6 @@
 ---
-name: ""
+name: legacy-provenance-value-retire-not-widen
+description: "When a strict enum gate lands on a field with legacy values, remap them at write time; never widen the allowlist"
 metadata:
   node_type: memory
   slug: legacy-provenance-value-retire-not-widen
@@ -34,8 +35,6 @@ metadata:
 4. The remap is a write-time agent instruction, not gate logic — the gate can't know intent.
 
 **In the repo (re-verified v0.14.6):** `hooks/validate-servitor-provenance.sh` allowlists exactly `agent-unverified | code-verified | user-confirmed`, never widened; `agents/war-servitor.md` carries the "Retire `agent-observed` — remap to `agent-unverified` at write time" directive.
-
-**D2 reframe — tier precedence over "user corrections outrank":** the enforceable form is tier order: a higher-tier fact supersedes a lower-tier one; never overwrite higher with lower. This works with no user present, and the one tier order is simultaneously the recall-weight order, the correction-precedence order, and the verify-on-write outcome (design decision 2, `docs/adr/0007-memory-provenance.md`).
 
 **Why:** widening an enum to accommodate past slop silently makes the gate vacuous.
 **How to apply:** before shipping any enum gate, grep for existing out-of-set values and put the remap directive in the writing agent's prompt, not in the gate.

@@ -17,6 +17,10 @@ metadata:
     - guard branch
     - label to end-of-file
     - false green
+    - skill-doc-contracts.test.mjs
+    - D38
+    - amendment heading extraction
+    - last amendment premise
   tags: 
     - testing
     - structural-test
@@ -24,7 +28,7 @@ metadata:
     - blind-spot
   created: 2026-08-03
   originSessionId: 4095ea62-efc7-4ed1-8045-8de0cd2f76bb
-  modified: 2026-08-03T16:55:18.339Z
+  modified: 2026-08-26T17:33:52.487Z
 ---
 
 # A label→guard region extractor that scans to end-of-text can borrow a sibling's guard
@@ -58,5 +62,29 @@ upstream instance that has none of its own — the exact blind-spot class
 here recurring in the *region-boundary* dimension rather than the token-matching dimension. A
 fixture arm carrying no guard at all, inserted before a guarded arm, is the discriminating negative
 reference this class of pin needs but frequently lacks.
+
+## Recurrence — an EOF-bound amendment-heading extraction's "it is the last amendment" premise, Phase 5 "engine-reliability-and-filing-fidelity" Task 5.4 gate-audit finding
+
+A different construct, same failure class: `skills/war/assets/skill-doc-contracts.test.mjs`'s D38
+guard extracts an ADR amendment section with
+`adr0013.match(/^## Amendment \(2026-08-25\)[\s\S]*$/m)` — heading to **end of file** — and its own
+block comment states the reason explicitly: "it is the last amendment; an earlier amendment carries
+the same byte-discipline sentence, so a whole-file key could not tell a deleted amendment apart." A
+sibling task in the **same phase** (Task 5.4) appended a **second**, later `## Amendment
+(2026-08-26)` section to the same ADR file — falsifying the "last amendment" premise the EOF bound
+depended on. The extracted block now spans both amendments; eight of D38's nine guard keys still
+discriminate correctly (checked against the new text), but the one append-only byte-discipline key
+that matches on the closing sentence's own wording became satisfiable by the NEW amendment's
+identical closing sentence too — a silent fail-open widening of that key's satisfying surface, not a
+red test. Recorded per the audit finding as a live-at-audit-time instance, disposition `absorb`
+(phaseClose:true) — likely fixed in the phase-close polish round, not confirmed here.
+
+**Sharpens the pattern:** an EOF-anchored region extraction's safety argument is often stated as "this
+is the last instance of the label" — that premise is exactly the kind a **later task in the same
+plan/phase** can falsify by appending a new instance, because ADR/amendment append-only discipline
+means new instances are added, never inserted before the last one, making "bound at EOF because it's
+last" a claim that decays with every future amendment. Same repair as the original lesson: bound the
+extraction at the **next** heading/label match, never at EOF, even when "there is currently only one"
+appears true at authoring time.
 
 > archived 2026-08-15: resolved — moved to archive

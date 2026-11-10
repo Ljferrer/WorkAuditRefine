@@ -28,6 +28,7 @@ and report the adjudicated verdict (here CLEARED-WITH-NOTES) with the raw gate v
 transparency. The genuine signal lives in the executed probes + coverage/consistency/feasibility +
 any `needsDecision` holes — not in "absent from codebase" counts. Mirrors the enforcement-vs-reality
 gap in [[red-team-env-gap-warn-is-agent-directive-not-code-enforced]].
+ADR 0032 (red-team grades by artifact kind) may have reduced this root cause; check it before relying on this lesson.
 
 ## Instance: variable-audit-roster / T1 (2026-07-02, dev/2026-07-02-variable-audit-roster)
 

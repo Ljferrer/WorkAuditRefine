@@ -1,5 +1,6 @@
 ---
-name: ""
+name: audit-baseline-must-pin-integration-branch-not-main-checkout
+description: "Pin an auditor's diff to the integration branch (three-dot), never the main checkout, or inherited files read as scope creep"
 metadata:
   node_type: memory
   slug: audit-baseline-must-pin-integration-branch-not-main-checkout

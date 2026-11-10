@@ -56,7 +56,7 @@ Audit finding resolved in a fix round before land — recorded as pattern, not l
 Rule: if a slice widens or narrows a predicate, survey every fixture whose reply shape crosses the new line, shared harness helpers included.
 A test that asserts only an effect two arms share cannot tell which arm ran.
 
-Related: [[plan-end-state-superseded-by-a-later-decision-row-stays-live-and-attests-unmet-at-the-gate]], [[weak-test-assertion-passes-without-feature-being-exercised]].
+Related: [[red-team-endstate-rewrite-must-update-design-row-task-slice-and-the-check-literal-together]], [[weak-test-assertion-passes-without-feature-being-exercised]].
 
 Locate-cue: verify still present before acting. At landed tip 8c1a7a51 the plan's Task 3.1 slice holds both "every other verdict is kept" and the mixed-history retirement.
 `skills/war/assets/task-integrated.sh` no longer contains "mixed history".

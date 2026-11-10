@@ -92,6 +92,13 @@ The operator raised the seed-tier member cap from 50 to 100 (`SEED_MAX_MEMBERS` 
 them a member that three new lessons name. The byte cap (1,500,000 B) and the archive-tier caps are
 unchanged. The cap stays dual-axis and eviction stays operator-gated.
 
+## Amendment (2026-11-10): seed-tier member cap raised from 100 to 110
+
+The operator raised the seed-tier member cap from 100 to 110 (`SEED_MAX_MEMBERS`). The second
+`seed-candidate` ingest sweep (#2592 to #2603) accepted 12 lessons into a 93-member corpus. At 100, the
+pack proposed evicting the 5 largest current members, among them
+`weak-test-assertion-passes-without-feature-being-exercised`. The byte cap and the archive-tier caps are unchanged.
+
 ## References
 
 - Design spec: [`docs/specs/2026-07-22-lessons-learned-seed-design.md`](../specs/2026-07-22-lessons-learned-seed-design.md)

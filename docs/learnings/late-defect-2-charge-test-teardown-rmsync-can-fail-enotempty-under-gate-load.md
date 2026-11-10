@@ -28,12 +28,11 @@ metadata:
 
 # The late-defect-2 charge test teardown can red the gate with ENOTEMPTY
 
-**What happened.** The round-4 merge gate for `p3-latefix-4` went red with one failure in 3033 tests.
+**What happened.** A round-4 merge gate for `p3-latefix-4` went red on one test only.
 The failing test is `late-defect: charge — the barrier read spelling, run through bash on a real repo, ...` in `skills/war/assets/workflow-template.late-defect-2.test.mjs`.
 The error came from its `finally { rmSync(dir, { recursive: true, force: true }) }` cleanup: `ENOTEMPTY, Directory not empty` under the gate's `node.tmp` dir.
-The branch diff touched only `agents/war-refiner.md` and an ADR, so the diff did not cause it.
-The same test file run alone at the same tip passed 27 of 27.
-The next gate run at the next tip was green.
+The diff touched only `agents/war-refiner.md` and an ADR, so it did not cause the failure.
+The same file run alone at the same tip passed, and the next gate run was green.
 
 **Why it matters.** `force: true` does not stop ENOTEMPTY when a child process still writes into the dir during the recursive walk.
 A real-repo test that spawns git can leave such a late writer (for example a git background process) under gate load.
@@ -42,9 +41,9 @@ One teardown flake reds the full gate and costs a late-fix round.
 **What to do.**
 - If the gate fails only on this teardown ENOTEMPTY, treat it as a flake, not a defect in the diff.
 - A durable fix is `rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })`, or a wait for the spawned child before cleanup.
-- A second test in the same file uses the same cleanup shape, so fix both.
+- Two more tests in the same file use the same cleanup shape (the sibling `late-defect: charge — the late-fix merge trailer check spelling ...` test and the `late-fix pass: an empty branch is never fixed` test), so fix all three.
 
 This is a hypothesis about the root cause (a late writer); no refute pass ran.
 Related: [[audit-tree-fingerprint-d8-row-can-red-under-gate-load-and-discard-a-docs-only-polish]].
 
-Locate-cue: verify still present before acting. Found at `skills/war/assets/workflow-template.late-defect-2.test.mjs` (two `rmSync(dir, { recursive: true, force: true })` finally blocks) @ phase 3 landed tip aabdfe42, read in the run's `_refinery` worktree whose HEAD equals that tip.
+Locate-cue: verify still present before acting. `skills/war/assets/workflow-template.late-defect-2.test.mjs` has three `finally { rmSync(dir, { recursive: true, force: true }) }` blocks and no `maxRetries`. First found at phase 3 landed tip aabdfe42.

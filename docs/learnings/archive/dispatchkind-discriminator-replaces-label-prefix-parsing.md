@@ -1,6 +1,6 @@
 ---
 name: dispatchkind-discriminator-replaces-label-prefix-parsing
-description: "Key downstream on opts.dispatchKind, not label-prefix parsing"
+description: "Stable opts.dispatchKind literal on a spawn call lets mocks/handlers/audits key on an explicit discriminator instead of parsing the human-readable label prefix (e.g. `provision-run:${task.id}` vs `provision:phase-${ph.id}`) — same pattern used for provision-barrier / provision-run / polish-worktree / evidence dispatches"
 metadata: 
   node_type: memory
   type: project
@@ -16,12 +16,17 @@ metadata:
     - mocks keyed on label
     - workflow-template.js
     - stable discriminator field
+    - provision-barrier
+    - provision-run
+    - phase Provision
+    - MergeResult
+    - ENV_OUTCOME
+    - test mock shadowing
   tags: 
     - design-pattern
     - dispatch
     - test-fragility
   created: 2026-07-10
-  promoted: true
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
 ---
 
@@ -32,9 +37,17 @@ metadata:
 `'evidence'` — set right next to the (still human-readable, still label-prefixed) `label` field.
 Mocks, handlers, and audit code key on `dispatchKind`, not on parsing `label` prefixes like
 `provision:` vs `provision-run:`. Verified present at the landed tip: grep `dispatchKind:` in
-`skills/war/assets/workflow-template.js` finds all four sites (~line 391, 701, 1193, 1404), each
+`skills/war/assets/workflow-template.js` finds all four sites, each
 with a same-line or preceding comment naming it "stable discriminator — mocks/handlers/audits key
 on it, not the label prefix."
+
+**Motivating example (provision mocks).** `provision-barrier` (label `provision:phase-${ph.id}`, the
+git-topology barrier) and `provision-run` (label `provision-run:${task.id}`, the per-task env step)
+share seat `war-refiner` and `phase: 'Provision'`, but at the time returned different shapes:
+`MergeResult` for the barrier, `ENV_OUTCOME` for `provision-run`. A mock that gates on phase alone
+matches both and returns the wrong shape for one. Key mocks on `dispatchKind`. Before calling a
+mock branch dead, check which dispatch the test actually fires: a branch that looks unreachable in
+one test can be live in the general pattern.
 
 **Why this beats label-prefix parsing:** a label string is built for human legibility (and can grow
 a related-but-different prefix, e.g. `provision:` vs `provision-run:`, which a substring/regex
@@ -55,4 +68,4 @@ routing table" shape in this codebase.
 Related: [[standing-instruction-vs-dispatched-prompt-coverage-split]] (same file family, different
 axis — prompt-surface coverage rather than dispatch routing).
 
-> archived 2026-07-26: resolved — moved to archive
+> archived 2026-07-11: resolved — moved to archive

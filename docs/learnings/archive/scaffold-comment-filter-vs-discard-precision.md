@@ -1,5 +1,6 @@
 ---
 name: scaffold-comment-filter-vs-discard-precision
+description: "In gate-mechanics prose, say \"filtered from blockers\" when a finding still survives in allFindings(); reserve \"discarded\" for objects no downstream consumer sees"
 metadata:
   node_type: memory
   slug: scaffold-comment-filter-vs-discard-precision

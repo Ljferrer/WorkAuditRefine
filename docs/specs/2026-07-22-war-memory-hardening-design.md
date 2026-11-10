@@ -69,7 +69,7 @@ Both items live in the same source file (`skills/_shared/war-memory.mjs`) and th
   doc change: every doc surface carrying the OLD reading is enumerated in §5, and the doc-contract
   gains OLD-absent locks, not just new-present locks. Doc-contract anchors are mid-sentence,
   case-tolerant, discriminating tokens — never ordinals or whole-file greps
-  ([[marker-completeness-check-needs-row-scoped-grep-not-whole-file-grep-c]]).
+  ([[grep-c-assertion-count-floor-is-a-fragile-dated-snapshot]]).
 - **Both-prompt-surface split rule does not bind** (checked, not assumed): no auditor/refiner/
   servitor behavior changes — `agents/*.md` and `workflow-template.js` are untouched, and no
   hand-mirrored enum (`KNOWN_LAND_DECISIONS`/`HARD_ESCALATION_REASONS`) is touched.

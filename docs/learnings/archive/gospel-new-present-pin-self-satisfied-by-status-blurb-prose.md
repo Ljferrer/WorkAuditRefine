@@ -56,24 +56,18 @@ the blurb sentence alone, independent of whether the actual section/heading the 
 still carries that wording. A NEW-present pin's job is to prove a doc surface landed the new
 phrasing; a blurb mention is not that proof, but `has_i()` cannot distinguish the two sources.
 
-## Concrete instance (code-verified, live at `2026-08-04-interview-and-authoring-contract` land,
-tip `3b1287111098120ae5dce1057548cd725bc00005`)
-
-Read at the `_refinery` worktree whose `HEAD` equals the landed tip (gitdir physical path containing
-the plan slug:
-`<repo-root>/.claude/war-worktrees/2026-08-04-interview-and-authoring-contract-2026-08-05/2026-08-04-interview-and-authoring-contract-2026-08-05/_refinery/`).
+## Concrete instance (code-verified at the `2026-08-04-interview-and-authoring-contract` land)
 
 `skills/war-machine/war-pipeline-structure.test.sh` pins (verify still present before acting):
 ```
 has_i "$README"    'recommended auxiliary plugin'
 ```
-`README.md`'s `## Status` blurb (line 361) contains the sentence "...the README section now reads
-Recommended Auxiliary Plugin" — a case-insensitive hit for that exact pin, all by itself. The pin
-already had three independent hits before the blurb landed — the `### Recommended Auxiliary Plugin`
-heading (`README.md:61`) and the link text plus `#recommended-auxiliary-plugin` fragment
-(`README.md:103`) — so in this instance the pin was never a precise single-section guard and the
-blurb is a fourth redundant hit, not the first non-section one. Gate-audit rated it Nit on that
-evidence, not Minor.
+`README.md`'s `## Status` blurb contains the sentence "...the README section now reads
+Recommended Auxiliary Plugin", a case-insensitive hit for that exact pin all by itself. The pin
+already had three independent hits before the blurb landed: the `### Recommended Auxiliary Plugin`
+heading, and the link text plus `#recommended-auxiliary-plugin` fragment. So in this instance the
+pin was never a precise single-section guard, and the blurb is a fourth redundant hit. Gate-audit
+rated it Nit on that evidence, not Minor.
 
 ## The durable rule
 

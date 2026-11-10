@@ -1,6 +1,6 @@
 ---
 name: fail-open-design-bounds-xargs-word-split-blast-radius
-description: "xargs ls -t splits on spaces; fail-open = silence"
+description: "xargs word-splits paths on spaces; in a fail-open hook that degrades to silent no-op, but escalate where the failure is unhandled"
 metadata: 
   node_type: memory
   type: project
@@ -22,18 +22,13 @@ metadata:
 
 ## What happened
 
-`hooks/inject-campaign-state.sh` (line ~76, `campaign-compaction-survival` phase, Task 1)
-collects candidate `ledger.json` paths into a newline-joined string, then sorts by mtime via
-`printf '%s' "$candidates" | xargs ls -t`. `xargs` word-splits on **all** whitespace, not just
-newlines — so a scan root (`$CLAUDE_PROJECT_DIR` or the hook's input `cwd`) or a campaign
-directory name containing a space fragments into multiple `ls` arguments, breaking the sort.
-The inline comment at line 63 justifies newline-splitting ("no newlines in our dir names") but
-never addresses spaces, and the root is externally supplied (session cwd), so this isn't fully
+`hooks/inject-campaign-state.sh` collects candidate `ledger.json` paths into a newline-joined
+string, then sorts by mtime via `printf '%s' "$candidates" | xargs ls -t`. `xargs` word-splits on
+**all** whitespace, not just newlines — so a scan root (`$CLAUDE_PROJECT_DIR` or the hook's input
+`cwd`) or a campaign directory name containing a space fragments into multiple `ls` arguments,
+breaking the sort. The inline comment justifies newline-splitting ("no newlines in our dir names")
+but never addresses spaces, and the root is externally supplied (session cwd), so this isn't fully
 within the hook's control.
-
-Confirmed via Read: `hooks/inject-campaign-state.sh` line 76 is the `xargs ls -t` sort call;
-line 63 carries the newline-only rationale comment (audit finding, task1, Minor, disposition
-`note` — not blocking).
 
 ## Why it's a `note`, not a fix-now
 

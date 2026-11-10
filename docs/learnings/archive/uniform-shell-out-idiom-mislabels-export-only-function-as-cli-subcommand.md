@@ -1,6 +1,6 @@
 ---
 name: uniform-shell-out-idiom-mislabels-export-only-function-as-cli-subcommand
-description: "'Shell out to X' idiom miscasts an export-only function as a CLI verb"
+description: "A doc's repeated 'shell out to X' idiom can miscast an export-only function as a CLI verb; check each referent against the module's dispatch table"
 metadata: 
   node_type: memory
   type: project
@@ -66,27 +66,9 @@ subcommand table entry, not just the function's existence) before trusting the i
 across correctly. An export that exists is not evidence it's dispatched the same way as its
 siblings.
 
-## Code-verified referent
-
-Confirmed in the container-packaging phase-2 worktree: `aggregateBackstops` is declared as
-`export function aggregateBackstops(campaignDir)` at
-`skills/war-campaign/assets/campaign-ledger.mjs:270` with no corresponding CLI subcommand case;
-the corrected `SKILL.md` wording ("it is a module export, not a CLI subcommand") lands at the
-"Campaign wrap-up — Unexecuted backstops" section. Verify still present before acting — this was
-observed pre-merge to master; re-grep `skills/war-campaign/SKILL.md` and
-`skills/war-campaign/assets/campaign-ledger.mjs` for `aggregateBackstops` at the current tip.
-
 ## Relation
 
-- [[tour-narrative-can-assert-a-false-code-fact-that-survives-until-a-doc-sweep-catches-it]] —
-  same family (prose asserts a code fact the code doesn't provide); that instance was a tour
-  narrative claiming a specific array-divergence, this one is a lifecycle-doc idiom claiming a
-  dispatch mechanism.
-- [[wire-key-rename-misses-prose-placeholders]] — same family, different vector: a rename leaves
-  stale placeholders in prose rather than an idiom over-generalizing to a new referent.
-- [[held-escalation-lead-manual-completion]] — same phase mechanics (audit escalation →
-  Lead adjudicates real-but-Minor → fixes in place rather than re-running); here the
-  adjudication turned on **finding severity** (doc-only Minor, not a Major behavior bug),
-  distinguishing it from that file's Major-escalation manual-completion path.
+[[tour-narrative-can-assert-a-false-code-fact-that-survives-until-a-doc-sweep-catches-it]] — same
+family (prose asserts a code fact the code doesn't provide).
 
 > archived 2026-07-21: resolved — moved to archive

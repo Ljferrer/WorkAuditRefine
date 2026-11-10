@@ -5,7 +5,6 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-07-24-drift-guard-and-floor-diagnostic-hardening@phase-1
   slug: multi-token-presence-loop-needs-paired-first-following-match-to-catch-a-swap
   phase: drift-guard-and-floor-diagnostic-hardening/1.1
   tags: 

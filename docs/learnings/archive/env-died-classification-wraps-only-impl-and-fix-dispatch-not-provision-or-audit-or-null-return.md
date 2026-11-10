@@ -1,6 +1,6 @@
 ---
 name: env-died-classification-wraps-only-impl-and-fix-dispatch-not-provision-or-audit-or-null-return
-description: "env-died soft class (#1411) wraps only thrown impl/fix dispatches; provision, audit-seat"
+description: "RESOLVED: #1411's env-died soft class once wrapped only the thrown impl and fix-round dispatches; workflow-template.js now classifies env-died SOFT at every dispatch site (D21, PIN-25), worker-site null returns included (#2555 D11), except that a land dispatch death holds held:land-failed and a TARGET_LOST/TARGET_LATE merge snapshot holds the task (#2309)"
 metadata: 
   node_type: memory
   type: project
@@ -10,12 +10,18 @@ metadata:
   keywords: 
     - env-died
     - dispatchAgent
+    - dispatchSite
     - infraDeathCause
     - SOFT_ENV_REASONS
     - null agent return
     - worker returned no result
+    - nullDied
     - provisionStep
     - audit-seat dispatch
+    - landDied
+    - held:land-failed
+    - TARGET_LOST
+    - TARGET_LATE
     - HARD_ESCALATION_REASONS
     - workflow-template.js wave thunk
   tags: 
@@ -29,47 +35,41 @@ metadata:
   modified: 2026-08-17T15:23:31.970Z
 ---
 
-# `env-died` classification currently wraps only two of several dispatch sites
+# RESOLVED: `env-died` is now classified at every dispatch site
 
-**Code-verified via gate-audit evidence, pinned `auditSha`/`gateHeadSha`
-`71ddc088fb558add6d92aab1ec4ec773b9881cd8` on `dev/2026-08-06-handoff-schemas-contract` phase 2
-(`gateEvidence: true`); the same residual was recorded identically by both the task-2.1 worker
-audit and its post-merge gate-audit, i.e. it survived unfixed to land.** `#1411` added `env-died`
-as a soft, retryable escalation reason (`SOFT_ENV_REASONS`, canonical in
+`#1411` added `env-died` as a soft, retryable escalation reason (`SOFT_ENV_REASONS`, canonical in
 `skills/war/assets/land-decision.mjs`, hand-mirrored in `skills/war/assets/workflow-template.js`)
-for a post-spawn API/quota/transport death, so a phase whose only unmerged tasks are infra deaths
-surfaces retryable under `--afk` instead of hard-escalating. The mechanism (`dispatchAgent`, tagging
-a caught throw with `err.warDispatchDeath = true`, consumed by `infraDeathCause`) was traced end to
-end inside the wave thunk and found to wrap **exactly two call sites**: the `impl` worker dispatch
-and the `fix`-round dispatch.
+for a post-spawn API/quota/transport death. The first version (`dispatchAgent` tags a caught throw
+with `err.warDispatchDeath = true`, `infraDeathCause` reads it) wrapped only two sites: the wave
+thunk's `impl` dispatch and its `fix`-round dispatch. Three shapes still classified HARD: a null
+(non-throwing) `agent()` return (the shape of #1411's own motivating incident, `blocked: "worker
+returned no result"`), `provisionStep`'s dispatch, and audit-seat deaths routed through `parallel`.
 
-**Three residual HARD-classification gaps, all fail-safe (louder class, no lost task) but narrowing
-the practical benefit End state 29 describes:**
+**Now (live code):**
 
-1. **A null (non-throwing) `agent()` return stays HARD.** The status-quo shape #1411's own cited
-   incident actually had — `reason: 'escalate'` with `blocked: "worker returned no result"` — is
-   produced by `blockedReason(null)`, the null-return path, which the new classification cannot
-   reach at all (the code's own comment says so honestly). So the literal motivating incident this
-   feature was built for still classifies HARD.
-2. **`provisionStep`'s `agent()` call is unwrapped.** This is the FIRST dispatch of every task and
-   the most likely one to meet a session limit, yet has no `dispatchAgent` wrapping.
-3. **Audit-seat deaths go through `parallel`**, which NULLs the thunk into a dropped seat, which
-   routes to `audit-blocked` (HARD) regardless of cause.
+- `dispatchAgent` tags a throw at every dispatch site (verdict-integrity D21, PIN-25), including
+  `provisionStep`'s provision-run and every `dispatchSite` caller (audit seats, ace workers and
+  re-audits, merge, gate-audit, land, wrap-up, filing and the rest).
+- A worker-site null return is labeled env-died by `nullDied` (#2555 D11), never "worker returned
+  no result".
+- A wave audit-round seat death classifies env-died SOFT before the shortfall check and breaks the
+  round loop. Only an ace or re-audit seat death demotes the current subset.
 
-**Why this matters for future engine work:** anyone extending soft-env classification (or
-debugging why a phase with an apparent infra death still hard-escalated) should check which of
-these three shapes actually occurred before assuming `env-died` should have fired. The plan itself
-scoped the work with the hedge "when the thunk-catch can see it" (i.e. this is a known, accepted
-scope residual, not a regression) — but it is easy to mistake the current narrow coverage for the
-full "post-spawn API/quota/transport death" wording in End state 29.
+**Exceptions that do not land soft:**
 
-**Locate-cue (verify still present before acting):** `skills/war/assets/workflow-template.js` —
-`dispatchAgent` (the `warDispatchDeath` tag) and `infraDeathCause`; the two wrap sites are the wave
-thunk's `impl` dispatch and its fix-round dispatch. `blockedReason` is the null-return path that
-`dispatchAgent` cannot reach.
+- A land dispatch death (`landDied`) records `env-died` naming the site, then sets
+  `held:land-failed`. There is nothing left to land without it, so it cannot be soft the way a
+  merge or audit death is. A plan's "every other site classifies env-died soft" is not exhaustive
+  for this site.
+- A merge snapshot that returns `TARGET_LOST` or `TARGET_LATE` holds the task, never as env-died
+  (#2309): a soft env-died would let a sibling land over an out-of-sync target.
+
+**How to apply:** when a phase with an apparent infra death still hard-escalates or holds, check
+which site died and read that site's own death arm in `workflow-template.js` (the header comments
+above `dispatchAgent`, `dispatchSite` and `nullDied`) before assuming env-died should have fired.
 
 **Related:** [[wave-loop-thunk-catch-prevents-null-result-infinite-redispatch]] (the `parallel`/null
-mechanics this residual rides on); [[shared-status-enum-widening-silently-widens-land-path]] (the
+mechanics this residual rode on); [[shared-status-enum-widening-silently-widens-land-path]] (the
 general hazard class of a shared status enum gaining a new value with uneven call-site coverage).
 
 > archived 2026-08-30: resolved — moved to archive

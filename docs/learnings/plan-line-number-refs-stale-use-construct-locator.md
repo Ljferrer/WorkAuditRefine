@@ -13,41 +13,16 @@ metadata:
     - line-numbers
     - integration-churn
     - auditor-nit
-  related: "[[plan-gate-enumeration-stale-after-stacking]], [[drift-guard-pin-for-task-split-intermediate-state]]"
+  related: "[[plan-array-literal-lags-canonical-export]], [[drift-guard-pin-for-task-split-intermediate-state]]"
   originSessionId: fab06e87-b8c3-454f-a1d8-ecc9fa41faf6
 ---
 
-# Plan line-number references go stale under integration churn; use construct-based locators
+# Plan line-number references go stale under integration churn; use construct locators
 
-## Instance (compressed)
-An F05/p3 plan cited the Wrap-up servitor prompt by raw line ranges; intervening
-phases landing into the integration base drifted every cited range before the
-task ran. The worker succeeded by locating the construct structurally — the
-`war-servitor` spawn under the `// ---- WRAP-UP — capture durable learnings`
-comment in `workflow-template.js` — and the auditor correctly classified the
-plan/diff line mismatch as a benign Nit, not scope creep. The plan's original
-line citations have since drifted again, proving the rule.
+**RESOLVED (instance) — kept as concept anchor.** The rule is now doctrine in CLAUDE.md "Known traps": "Anchor references by named construct, not line number — line numbers rot across the serial merge queue."
 
-## Durable rule
-**Inline `:N-M` line-number references in plan text and spec docs go stale as
-soon as any earlier task in the same integration branch adds or removes lines
-above the referenced section.** The safe reference form is a **construct
-locator**: name the enclosing function, comment header, or export symbol rather
-than a raw line range. Examples:
+**Rule.** A `:N-M` line range in a plan or spec goes stale as soon as an earlier task on the same integration branch adds or removes lines above it. Cite the file plus the enclosing function, comment header or export instead, for example "the `war-servitor` spawn under the `// ---- WRAP-UP — capture durable learnings` comment in `workflow-template.js`". Keep raw ranges for files with no named construct, and then say "approximately" and name the base commit.
 
-- Bad: `workflow-template.js :420-426`
-- Good: `the war-servitor agent() call in the WRAP-UP section of workflow-template.js`
+**Auditor note:** when the plan and the diff differ only in line numbers but the construct is clearly the intended target, rate it a Nit, not scope creep. Block only when the change is in the wrong construct.
 
-When a plan and candidate diverge on line numbers but the construct is clearly
-the intended target, classify as Nit and note the drift. Do not block unless
-the change is in the wrong construct entirely.
-
-Absorbed into doctrine: CLAUDE.md Known traps — "Anchor references by named
-construct, not line number — line numbers rot across the serial merge queue."
-
-## Implication for plan authors
-When writing a plan slice that edits a specific code location inside a long
-file, prefer: file + enclosing symbol name + brief description of the change.
-Reserve `:N-M` ranges for files where no named construct exists (e.g., flat
-config files). If you must cite lines, qualify them with "approximately" and
-note which base commit they were measured against.
+Related: [[plan-array-literal-lags-canonical-export]], [[drift-guard-pin-for-task-split-intermediate-state]].

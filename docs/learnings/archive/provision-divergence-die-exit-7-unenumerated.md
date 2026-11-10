@@ -21,12 +21,11 @@ metadata:
     - exit-codes
     - gotcha
   created: 2026-07-07
-  absence_note: "referent not found @ phase target-repo-agnostic-execution/p1t2 — the p1t2 task worktree was already torn down post-land (only p1t1's worktree survives on disk) and the checked-out branch here (claude/resume-war-campaign-945f35) predates this phase's merge. Verify the divergence branch and its exit code in cmd_ensure_integration at skills/war/assets/provision-worktrees.sh before acting on this note."
 ---
 
 # A new divergence die uses exit 7 — not in the file's existing ad-hoc exit-code set, and that's fine only because nothing keys on the number
 
-Per the p1t2 gate-audit (approve, gate-HEAD `f5f1a0548bfa54d62508cdc89be4775d6ae4f8ca`): `cmd_ensure_integration`'s
+Per the p1t2 gate-audit: `cmd_ensure_integration`'s
 new **create-path-only** divergence guard (local base and `origin/<base>` neither an ancestor of the
 other → `die`, both SHAs in the message, no branch created — ADR 0008) exits **7**. The file's other
 dies use 1 (generic), 3 (foreign branch not owned, ADR 0003), and other small ad-hoc values — there

@@ -26,7 +26,7 @@ metadata:
   relates: 
     - "[[retiring-a-resolved-memory-must-check-inbound-links-hubs-stay]]"
     - "[[dangling-link-verdict-must-check-archive-before-removal]]"
-    - "[[war-memory-candidates-apply-default-flip-pending-verification]]"
+    - "[[lessons-learned-tooling-traps]]"
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
 ---
 
@@ -39,9 +39,7 @@ never promoted (`[repo]` tag absent from `MEMORY.md`; independently confirmed by
 exist at `<local-memory-root>/<slug>.md`, but no
 `docs/learnings/<slug>.md` counterpart). ADR 0025 (same authoring convention, immediately preceding) has all
 12 of its cited lessons resolving in-repo — establishing an implicit convention that ADR-cited lessons are
-promoted. **The two cited ADR files themselves (`docs/adr/0028-*`, `docs/adr/0029-*`) were not found in either
-accessible checkout at servitor write time — highest ADR present was 0025 — so this fact's ADR-side half is
-`agent-unverified`; absence-note: verify ADR 0028/0029 exist and still cite these two slugs before acting.**
+promoted.
 
 **Why:** promotion (`type: project` → repo root via Gate 2) and ADR authoring are two independently-timed
 acts — nothing forces a lesson to be promoted just because an ADR is about to cite it. No tool catches the

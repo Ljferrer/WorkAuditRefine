@@ -21,27 +21,11 @@ metadata:
 
 # Stacked per-branch releases make the main-checkout baseline lag cumulatively
 
-When N stacked plans each release on their own branch and none have landed on main, a
-main-checkout audit baseline lags by N versions — a candidate's bump then reads as an N+1-step
-leap. (First instance: audit-fidelity/p3, 0.6.0 → 0.6.5 looked like a 5-step jump; it was
-baseline lag of 4 plus one legitimate patch.)
+**RESOLVED (audit prompts) — kept as concept anchor.** The Release-baseline rule in `agents/war-auditor.md` and the mirrored `RELEASE-BASELINE RULE` in `skills/war/assets/workflow-template.js` now tell auditors to judge a release diff against the three-dot `${integrationBranch}...${task.branch}` set, never a main checkout.
 
-## Durable rule
+When N stacked plans each release on their own branch and none has landed on main, a main-checkout baseline lags by N versions, so a correct 1-step bump reads as an N+1-step leap (first instance: audit-fidelity/p3, 0.6.0 → 0.6.5 was 4 steps of lag plus one patch).
+Do not flag such a jump as a scope error.
+To diagnose, count the stacked plans before this one; if that count + 1 equals the observed step, the lag is all in the baseline.
+ADR 0011 stack-and-plow keeps this situation live.
 
-**A multi-step version jump in the candidate diff, against a main-checkout baseline, is the
-expected signal when N stacked plans have not all landed on main.** Auditors must not flag this
-as scope error without first checking whether the increment collapses to a 1-step patch when
-diffed against the correct integration base.
-
-## How to diagnose
-
-1. Count the stacked plans preceding the current one in docs/plans/ and their release tasks —
-   each represents one version not yet on main.
-2. If prior_stacks + 1 == observed step size, the candidate is correct; the lag is entirely in
-   the baseline.
-3. Pin the audit diff to the integration-branch baseline (merge-base SHA of the task branch vs.
-   the integration branch tip) to see the true 1-step delta.
-
-Compounding variant of [[audit-baseline-must-pin-integration-branch-not-main-checkout]] (the
-general 1-step baseline-lag case); see also
-[[stacked-release-plan-version-literal-lags-operator-target]].
+Compounding variant of [[audit-baseline-must-pin-integration-branch-not-main-checkout]]; see also [[stacked-release-plan-version-literal-lags-operator-target]].

@@ -1,5 +1,6 @@
 ---
-name: ""
+name: printf-json-escaping-vacuous-test-case
+description: "A test that builds a JSON payload by printf-interpolating a raw string goes vacuous when the input holds quotes, because a jq parser with error suppression bails out first; build payloads with jq --arg"
 metadata: 
   node_type: memory
   type: project

@@ -1,8 +1,7 @@
 ---
 name: resolved-lesson-stamp-freezes-body-so-it-can-contradict-the-new-description
-description: "The RESOLVED description-stamp convention freezes the lesson body"
+description: "A RESOLVED description stamp freezes the body, so the body can contradict it; and an appended ## RESOLVED section is new prose that needs verify-on-write too"
 metadata: 
-  promoted: dev/2026-07-24-memory-tooling-hardening@phase-1
   node_type: memory
   type: project
   provenance: agent-unverified
@@ -20,6 +19,10 @@ metadata:
     - MEMORY.md truncation
     - servitor recurrence edit
     - stale line anchor
+    - RESOLVED section
+    - correction channel not self-verifying
+    - mode inversion
+    - stdin mode bare token
   tags: 
     - memory-system
     - lesson-hygiene
@@ -69,13 +72,20 @@ in place, and mark any now-wrong embedded prescription as superseded inline.
    opens `RESOLVED (...)`, treat every present-tense claim and every prescribed fix in the body below
    it as potentially superseded, and verify against the code before acting on it, never the reverse.
 
+**The appended `## RESOLVED` section is not self-verifying either.** It is new prose. Give it the
+same D3 verify-on-write check as any new lesson fact: re-derive the rule from the landed code, not
+from memory of what the fix did. When the description and the body disagree, check the code, not
+either field. Neither field is right by default.
+
+One instance: the `## RESOLVED` section of
+[[stdin-mode-cli-parser-silently-drops-space-separated-flag-with-no-positional-fallback]] swapped
+the modes. It said `--stdin` mode tolerates a bare token, but in
+`skills/red-team/assets/red-team-gate.mjs` `--stdin` mode refuses every bare token and file mode
+takes the first bare token as its path. The description had it right. The error survived an
+approve-verdict audit into the repo file.
+
 Related: [[tighten-target-flag-has-three-independent-silent-degradation-paths]],
 [[die-process-exit-inside-try-skips-finally-cleanup]] (both instances this pattern was observed in,
 and both now carry the `## RESOLVED` correction this lesson recommends).
-[[resolved-section-fix-append-can-itself-misstate-which-mode-a-rule-applies-to]] (2026-08-14,
-red-team-gate-cli phase-2 close) sharpens step 2 above: the appended `## RESOLVED` section itself is
-not self-verifying — it can misstate the fix (there: which mode a rule applies to) and survive an
-approve-verdict audit into the landed repo file, so "append the correction" is necessary but not
-sufficient without re-deriving the claim from the actual code.
 
 > archived 2026-08-30: resolved — moved to archive

@@ -1,6 +1,6 @@
 ---
 name: shared-string-constant-quote-literal-byte-anchor-fragility
-description: "MITIGATED (#811): byte-identity test on a quote-bearing string breaks on one-surface quote lint"
+description: "A byte-identity test on a quote-bearing string breaks when a quote lint runs on only one surface, so comment the coupling at every commentable surface"
 metadata: 
   node_type: memory
   type: project
@@ -53,22 +53,10 @@ fail** — the intended fail-safe behavior of a both-surfaces test, not a defect
 
 ## MITIGATED — phase "Engine fidelity + evidence contract" (#811, 2026-07-12)
 
-**Code-verified via the phase's own task worktree** (this servitor's own cwd was a stale,
-unrelated checkout — see [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] —
-confirmed instead at
-`<repo-root>/.claude/war-worktrees/2026-07-12-audit-gate-evidence-fidelity/p1-1.1/skills/war/assets/workflow-template.js`
-and its `.test.mjs`): this phase implemented exactly option (a) from the original lesson's "How to
-apply" section — an adjacent comment at BOTH the `workflow-template.js` literal and the test's
-`COST_CLAIM_SHARED` declaration, each naming the three coupled surfaces and requiring any
-quote-style lint to run identically across all three in one commit:
-
-- `workflow-template.js` (adjacent to the `COST-CLAIM RULE` prompt literal): `// #811
-  BYTE-COUPLED SURFACE (JS comment — NOT emitted into the prompt): this quote-bearing COST-CLAIM
-  RULE literal is byte-identical to agents/war-auditor.md's Cost-claim rule line AND the test's
-  COST_CLAIM_SHARED anchor. Any quote-style lint MUST run identically across ALL THREE in one
-  commit... A lint most plausibly starts here.`
-- `workflow-template.test.mjs` (adjacent to `const COST_CLAIM_SHARED = ...`): `// #811 QUOTE-LINT
-  ANCHOR: COST_CLAIM_SHARED is a quote-bearing byte literal COUPLED across THREE surfaces...`
+This phase added an adjacent comment at BOTH the `workflow-template.js` `COST-CLAIM RULE` literal
+and the test's `COST_CLAIM_SHARED` declaration. Each comment names the three coupled surfaces and
+requires any quote-style lint to run identically across all three in one commit. The comment in
+`workflow-template.js` is a JS comment and is not emitted into the prompt.
 
 Per the Commander's Intent, `agents/war-auditor.md` was deliberately left untouched — a comment
 there would ship as standing-prompt bytes read by every auditor spawn, which the plan explicitly

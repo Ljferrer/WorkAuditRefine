@@ -1,20 +1,20 @@
 ---
 name: packaging-floor-is-a-noop-without-a-dockerfile-and-ignores-modified-paths
 description: "Packaging floor noop: no Dockerfile, Mod skipped"
-metadata: 
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   slug: packaging-floor-is-a-noop-without-a-dockerfile-and-ignores-modified-paths
   phase: fail-loud-ingest-boundaries/t1
-  keywords: 
+  keywords:
     - requiresPackaging
     - assert-packaging-in-diff.sh
     - packaging floor no-op
     - no Dockerfile trivial exit 0
     - Added Renamed only not Modified
     - over-declared plan flag benign
-  tags: 
+  tags:
     - packaging-floor
     - plan-faithfulness
     - audit-grading
@@ -24,11 +24,7 @@ metadata:
 
 # `requiresPackaging:true` with no packaging surface is a benign over-declaration
 
-**Instance (fail-loud-ingest-boundaries/t1, 2026-07-08):** Phase 1 Task 1/2 of
-`docs/plans/2026-07-08-fail-loud-ingest-boundaries.md` both carry `requiresPackaging:true`
-even though their `Files:` lists have no packaging artifact (this repo has no Dockerfile at
-all). Auditor graded it Nit/note, not a plan-faithfulness violation, because the floor
-verifiably no-ops in this shape.
+**Instance:** two fail-loud-ingest-boundaries tasks carried `requiresPackaging:true` with no Dockerfile in the repo; the auditor graded it Nit/note.
 
 **Verified at `skills/war/assets/assert-packaging-in-diff.sh`** (re-verified at master
 2026-07-13, both shapes still `exit 0`):

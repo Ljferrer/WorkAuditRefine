@@ -1,14 +1,13 @@
 ---
 name: workflow-template-growth-is-capped-by-the-staged-copy-headroom-floor-not-just-file-size
-description: "workflow-template.js growth is bounded by stage-workflow.test.mjs's stripped-copy + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP floor, a file this task never touches"
+description: "workflow-template.js growth is bounded by stage-workflow.test.mjs's stripped-copy + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP floor, a file an engine task rarely touches"
 metadata:
-  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-13
   node_type: memory
   type: project
   provenance: code-verified
   slug: workflow-template-growth-is-capped-by-the-staged-copy-headroom-floor-not-just-file-size
   phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-13 (Every dispatch classified, D21), task 13.1"
-  keywords: 
+  keywords:
     - workflow-template.js
     - SCRIPT_BYTE_CAP
     - ARGS_HEADROOM_BYTES
@@ -20,7 +19,7 @@ metadata:
     - release risk
     - card headroom
     - indent strip
-  tags: 
+  tags:
     - engine
     - budget
     - release
@@ -31,46 +30,34 @@ metadata:
 
 # `workflow-template.js` growth is arbitered by a stripped-copy headroom floor in a sibling test file, not by the engine file's own size
 
-**Context (code-verified at landed tip `891bbc7a5da617332d404d6088f2bcf80c9fded5`,
-`dev/2026-09-06-engine-and-audit-verdict-integrity`, `skills/war/assets/stage-workflow.test.mjs`
-lines 640/702, read via the `_refinery` worktree whose HEAD equals that tip):**
+**The floor:** `skills/war/assets/stage-workflow.test.mjs` asserts
 
 ```js
-const ARGS_HEADROOM_BYTES = 131072
-// ...
 assert.ok(bytes + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP, ...)
 ```
 
-`bytes` is `Buffer.byteLength(stripFullLineComments(TEMPLATE))` — the engine source with
-full-line comments blanked out. `SCRIPT_BYTE_CAP` is the Workflow tool's hard `scriptPath` cap
-(524,288 B, i.e. 512 KiB). So the arbiter is not "does `workflow-template.js` fit under some
-size," it's "does the **comment-stripped** copy leave at least 131,072 B of headroom under the
-512 KiB cap for embedded run args." A phase's audit-log noted (agent-unverified, not
-independently re-measured by this servitor — no Bash to run `stripFullLineComments`) that this
-phase's diff to `workflow-template.js` alone moved the raw file from 595,893 B to 611,089 B
-(`git cat-file -s` at both revs), and that roughly 35 of the added lines were full-line comments
-the strip blanks, with the rest counting as executable growth against the floor.
+`bytes` is `Buffer.byteLength(stripFullLineComments(TEMPLATE))`, the engine source with full-line
+comments blanked. `stripFullLineComments` also drops the leading indent of top-level code lines
+(#2613), so the staged copy is smaller than a comment-only strip. `SCRIPT_BYTE_CAP` is the Workflow
+tool's hard `scriptPath` cap. So the arbiter is not the raw size of `workflow-template.js`: it is
+whether the **stripped** copy leaves `ARGS_HEADROOM_BYTES` free under the cap.
 
-**Why this matters:** `workflow-template.js` is by far the largest and most frequently touched
-file in this repo (hundreds of dispatch sites, prompt builders, and doc-mirror comments). A task
-whose diff only touches this one file, with no `stage-workflow.test.mjs` in its own `Files:` list,
-can still silently erode the shared headroom floor that gates every future engine change — the
-floor lives in a sibling file this task never opens. The phase gate
-(`node --test 'skills/**/*.test.mjs'`) is the only thing that catches an actual breach; there is
-no per-task warning short of running that gate.
+Do not trust any byte literal for these values. Read `ARGS_HEADROOM_BYTES` in
+`stage-workflow.test.mjs` and `SCRIPT_BYTE_CAP` (exported from `stage-workflow.mjs`, imported by
+the test). The headroom is 4096 today; it has been lowered several times.
+
+**Why this matters:** `workflow-template.js` is by far the largest and most frequently touched file
+in this repo. A task whose diff touches only this file, with no `stage-workflow.test.mjs` in its
+`Files:` list, can still erode the shared headroom floor that gates every future engine change. The
+phase gate (`node --test 'skills/**/*.test.mjs'`) is the only thing that catches an actual breach;
+there is no per-task warning short of running that gate.
 
 **How to apply:** before or after a large `workflow-template.js` diff, run
-`node --test skills/war/assets/stage-workflow.test.mjs` specifically (not just trust the full
-gate ran clean) if you want to see the current headroom margin explicitly — the assertion message
-prints the stripped byte count on failure. Treat sustained engine growth across several phases as
-a standing release risk: track the trend, not just the latest diff's delta, since the floor is
-shared across the whole file's history, not reset per phase.
+`node --test skills/war/assets/stage-workflow.test.mjs` specifically to see the headroom margin. The
+assertion message prints the stripped byte count on failure. Treat sustained engine growth across
+several phases as a standing release risk: track the trend, not just one diff's delta, since the
+floor is shared across the whole file's history.
+
+See [[the-staged-form-execution-run-is-not-in-the-repo-gate]].
 
 > archived 2026-10-27: resolved — moved to archive
-
-**Update (2026-11-04, plan 2026-11-04-late-defects-fixed-in-run phase 1, code-verified).**
-The literal above is stale: `ARGS_HEADROOM_BYTES` is now `119808` (117 KiB, #2622) in `skills/war/assets/stage-workflow.test.mjs`.
-The floor check `bytes + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP` still exists, and `SCRIPT_BYTE_CAP` is still 524288 in `skills/war/assets/stage-workflow.mjs`.
-`stripFullLineComments` now also drops the leading indent of top-level code lines (#2613), so the staged copy is smaller than a comment-only strip.
-Read in the run's `_refinery` worktree at 6c4f0f4e, the gate-audited sha whose tree the land merge 99d325fd keeps.
-See [[the-staged-form-execution-run-is-not-in-the-repo-gate]].

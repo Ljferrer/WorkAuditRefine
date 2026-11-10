@@ -1,6 +1,6 @@
 ---
 name: readme-undersell-guard-couples-doc-prose-to-true-slot-count
-description: "Version lock-step test can force a README fix outside plan Files list"
+description: "A new lock-step test can bind doc prose that states a count, forcing a README fix outside the task's Files list"
 metadata: 
   node_type: memory
   type: project
@@ -45,14 +45,6 @@ narrower and worth naming on its own: **the doc-prose itself asserts a count/enu
 ("three files") that a new drift-guard test can indirectly bind to** — get the test passing and
 you're forced to also true-up the prose it depends on, even though the test never explicitly
 names the prose file.
-
-**Why this was correctly APPROVE, not a plan-faithfulness violation:** the Commander's Intent
-explicitly named the README undersell guard as in-scope ("undersell phrase reintroduced fails"),
-and the plan's own Task 1.1 slice cited
-`[[plan-affected-file-list-doc-completeness-vs-correctness]]` at that exact spot — the file-list
-gap was pre-flagged as known-incomplete by the plan author, not an unauthorized scope expansion by
-the worker. No sibling Phase-1 task touched `README.md`, so there was no rebase-collision risk
-from the extra file either.
 
 **How to apply:** when a new test asserts something is byte-identical/consistent/lock-stepped
 across N surfaces and one of those surfaces is prose making a **count claim** ("three files",

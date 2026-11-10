@@ -14,7 +14,7 @@ Relevant memory: [[floor-script-discovery-set-must-mirror-gate-exclusions]], [[f
 [[weak-test-assertion-passes-without-feature-being-exercised]], [[task-prompt-suite-count-stale-after-stacking]],
 [[source-comment-lags-emitted-prompt-after-rewrite]], [[release-bump-slots-canonical-no-badge]],
 [[version-slots-no-cross-slot-consistency-test]], [[audit-baseline-must-pin-integration-branch-not-main-checkout]],
-[[stacked-per-branch-releases-make-main-lag-cumulative]], [[war-phase-up-front-provisioning-conflicts-same-file-serial-tasks]].
+[[stacked-per-branch-releases-make-main-lag-cumulative]], [[within-phase-dep-gate-must-rerun-on-integrated-tip]].
 
 ## Coordination
 

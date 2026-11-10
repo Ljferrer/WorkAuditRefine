@@ -1,5 +1,6 @@
 ---
-name: ""
+name: tip-capture-scope-differs-between-provision-and-refine-loop
+description: "A $TIP captured in one agent prompt does not reach another agent call; inline the value or re-capture per prompt"
 metadata: 
   node_type: memory
   type: project

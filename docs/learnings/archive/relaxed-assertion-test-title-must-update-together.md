@@ -27,8 +27,6 @@ metadata:
 
 **Rule:** when you change a test's assertion semantics (exact-count → superset, equality → range, …), rename the test title in the same commit. The title is the contract label; the body is its proof. A stale "exactly N members" title is worst on a drift-guard test — readers arrive there specifically to learn invariants, and a title contradicting the body invites reverting the correct body.
 
-Instance (t3b): the `HARD_ESCALATION_REASONS` drift-guard body was relaxed to superset semantics while the title still read "has exactly 6 members matching canonical"; both auditors independently flagged the stale title as a Nit. Since resolved: the guard in `skills/war/assets/war-config.test.mjs` is titled by construct ('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matches canonical export in land-decision.mjs (#36)'), asserts exact `deepEqual` against the canonical `HARD_ESCALATION_REASONS` export in `land-decision.mjs`, and locates the inline array by regex extraction rather than line number. Do not pin the member count in prose — it has grown since; the export is the source of truth.
-
 Suggested superset-guard title: `'inline X is canonical superset + exactly the <name> extra'`, not `'inline X has exactly N members matching canonical'`.
 
 ## Scope-lock corollary (memory-provenance/t3)

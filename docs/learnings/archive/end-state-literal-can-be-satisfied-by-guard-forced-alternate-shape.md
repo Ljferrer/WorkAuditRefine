@@ -1,6 +1,6 @@
 ---
 name: end-state-literal-can-be-satisfied-by-guard-forced-alternate-shape
-description: "A plan End-state's literal wording can be satisfied by a landed shape that differs from it, when the plan's own drift-guard extraction/coverage constraint makes the literal shape infeasible — verify the guard's own bounds before flagging placement as a deviation"
+description: "A plan End-state's literal wording can be satisfied by a different landed shape when the plan's own drift guard makes the literal shape infeasible; check the guard's bounds before flagging a deviation"
 metadata:
   node_type: memory
   type: project
@@ -44,40 +44,21 @@ before scoring the divergence as a defect — under the "stale-looking-but-corre
 gated demotion" calibration rule, a literal-vs-landed divergence that the live artifacts confirm
 correct is a Nit at most, never a hold.
 
-**Instance 1 — chain-anchor substitute for infeasible rung-body pairing**
-(`2026-07-28-audit-evidence-precedence` phase 1, Task 1.2; code-verified at the landed tip
-`731d46e88b502009745bfbb07e9655fdd027cd0a`, read via the `_refinery` worktree,
-`skills/war/assets/workflow-template.test.mjs` lines 7060-7080): red-team adjudication [C] mandated
-pairing each ambiguous claim-shape name (`execution`, `history`, `authority`) with a rung-body
-fragment (e.g. `execution` + `Gate-evidence artifact`) in a **five-surface** registry row (the
-auditor card plus four dispatched-prompt surfaces). That prescription directly contradicts the
-plan's own End state 8(ii), which requires those same rung-body tokens to measure **zero**
-occurrences on the dispatched-prompt surfaces — a five-surface anchor cannot carry a token that
-four of its five surfaces are forbidden to contain. The worker resolved this **in the row's own
-anchor-precondition comment**: kept the three base-absent skeleton tokens adjudication [C] also
-required, substituted an ordered four-shape chain anchor
-(`/content-at-pin[\s\S]{0,200}\bexecution\b[\s\S]{0,200}\bhistory\b[\s\S]{0,200}\bauthority\b/i`,
-which cannot green on the pre-existing bare `execution`/`history` hits because it leads with a
-base-absent token), and moved the rung-body coverage adjudication [C] wanted into a **card-only**
-supplementary assert loop below the registry loop. Multiple independent seats — the task's own
-audit, its gate-audit, and the authoritative phase-integrated-tip gate-audit — each re-verified this
-reasoning and confirmed it correct (`disposition: note`, never held).
+**Example 1 — chain-anchor substitute** (`2026-07-28-audit-evidence-precedence` phase 1,
+Task 1.2): red-team adjudication [C] asked to pair each ambiguous claim-shape name (`execution`,
+`history`, `authority`) with a rung-body fragment in a five-surface registry row. But End state
+8(ii) required those rung-body tokens to measure zero on four of the five surfaces. The worker
+used an ordered chain anchor that leads with a base-absent token, moved the rung-body coverage
+into a card-only assert loop, and explained it in the row's anchor-precondition comment. Every
+seat that re-checked it confirmed it correct (`disposition: note`).
 
-**Instance 2 — sibling paragraph instead of in-place bullet edits**
-(same plan, Task 1.3; code-verified at the same landed tip,
-`skills/war/SKILL.md` lines 88-92): the plan's End state 3 read "SKILL.md's phase-close and Gate-2
-bullets carry the three Lead bindings + skeleton," naming two existing bolded bullets
-(`**Retired-token sweep...**`, `**Post-servitor publication...**`) as the edit target. The landed
-diff instead inserts a **new sibling bolded paragraph** (`**Lead evidence bindings (phase-close +
-Gate 2; ADR 0041).**`) between the two, leaving both named bullets byte-unchanged, and the new
-paragraph cross-references both by name. Two independent grounds made this the correct shape, not
-a deviation: (a) the plan's own mapped guard (`skill-doc-contracts.test.mjs`'s D27 row) needs
-**one contiguous extraction region** for the three bindings — splitting them across two
-non-contiguous bullets would leave some bindings outside any pinned region; (b) editing inside the
-Gate-2 bullet would have spliced new text into a **different**, already-pinned extraction region
-(D22's ordered five-arm span) that the plan itself flagged as a rot risk to avoid splicing into.
-Red-team adjudication [G] had named the two bullets as *locators* ("locate them by these
-constructs, never by line number"), not edit targets — a reading the landed shape satisfies.
+**Example 2 — sibling paragraph instead of in-place bullet edits** (same plan, Task 1.3): End
+state 3 said SKILL.md's phase-close and Gate-2 bullets carry the three Lead bindings. The diff
+instead added a new sibling paragraph (`**Lead evidence bindings (phase-close + Gate 2; ADR
+0041).**`) between the two bullets and left them unchanged. That was correct: the mapped guard
+(`skill-doc-contracts.test.mjs`'s D27 row) needs one contiguous extraction region, and editing the
+Gate-2 bullet would have spliced into D22's already-pinned span. Adjudication [G] had named the
+bullets as locators, not edit targets.
 
 **How to apply:** when an End-state's literal wording ("edit bullet X", "pair name Y with fragment
 Z") looks unmet by a landed diff, do not score it as a deviation before checking (1) whether a
@@ -93,6 +74,6 @@ plan's *literal edit-target wording* is what conflicts with the plan's own guard
 requirement, and the worker/auditor's job is to resolve toward substance over literal wording.
 
 Related: [[weak-test-assertion-passes-without-feature-being-exercised]] (the five-surface
-registry row from Instance 1 has its own residual coverage gap, recorded separately).
+registry row from Example 1 has its own residual coverage gap, recorded separately).
 
 > archived 2026-08-15: resolved — moved to archive

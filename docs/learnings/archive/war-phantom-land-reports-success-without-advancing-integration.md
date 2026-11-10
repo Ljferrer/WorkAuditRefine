@@ -1,6 +1,6 @@
 ---
 name: war-phantom-land-reports-success-without-advancing-integration
-description: "landed w/ unchanged working_sha = phantom; verify sha"
+description: "A phase that reports landed while working_sha is unchanged from the prior tip is a phantom land; verify the SHA moved and re-land from the task branch"
 metadata: 
   node_type: memory
   type: project
@@ -16,14 +16,13 @@ integration branch into the working branch — a **phantom land** that reports s
 
 **Why it matters:** trusting the `landed`/`landDecision` fields at face value would silently DROP the task's work
 (and a stacked dependent would then build on a tip lacking it). Same family as
-land-decision-not-demoted-on-land-step-failure and [[scope-hook-test-nonhermetic-inside-war-task-worktree]]:
+land-decision-not-demoted-on-land-step-failure and [[relative-path-test-needs-clean-cwd]]:
 **git state is ground truth, not the Workflow's self-report.**
 
 **How to apply (Lead):** after EVERY phase land, verify `landResult.working_sha` is **NEW** (≠ the prior phase tip)
 AND that `git log master..dev/<slug>` actually contains the task's commit / the integration branch advanced. If a
 `landed` result shows an unchanged sha: the task branch usually still holds the work — gate-check it
 (`git worktree add --detach … <taskBranch>`; run the full gate), then **manually re-land** it (`--no-ff` merge of
-the task branch into the working branch + push), and clean up the phantom integration branch. Recovery used on
-`servitor-confinement-memory` T2: re-landed `990bc01` → dev `034744f`.
+the task branch into the working branch + push), and clean up the phantom integration branch.
 
 > archived 2026-07-15: resolved — moved to archive

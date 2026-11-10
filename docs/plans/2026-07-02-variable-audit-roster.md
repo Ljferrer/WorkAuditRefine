@@ -71,7 +71,7 @@ stragglers), [[stacked-release-plan-version-literal-lags-operator-target]] +
 
 Atomic because the F07 drift-guards in `war-config.test.mjs` extract and execute the **template's** inline
 mirror text — splitting canonical from mirror leaves every intermediate state red, and same-file serial
-tasks rebase-conflict ([[war-phase-up-front-provisioning-conflicts-same-file-serial-tasks]]).
+tasks rebase-conflict ([[within-phase-dep-gate-must-rerun-on-integrated-tip]]).
 
 - [ ] **Step 1 — `war-config.mjs`.** `DEFAULTS.audit` (currently at ~:28) → `{ roster: [trio @ deep],
   rosterPolicy: 'all', autoEscalate: true }`; `COVEN_POLICIES` (~:12) → `ROSTER_POLICIES` (values unchanged:
@@ -136,7 +136,7 @@ tasks rebase-conflict ([[war-phase-up-front-provisioning-conflicts-same-file-ser
   construct-anchored phrasing, no line numbers** (don't-leave-work, operator-ratified).
 - [ ] **Step 4 — `workflow-template.test.mjs`.** Rewrite coven/lenses/depth tests to roster semantics; new
   tests per the ten-point plan below (existing `runPhase`/`seatOf`/`buildSeqImpl` harness,
-  [[buildseqimpl-harness-for-multi-call-lens-tests]]).
+  `buildseqimpl-harness-for-multi-call-lens-tests`).
 - [ ] **Step 5 — Ten-point test plan** (unique-token + presence-guard discipline throughout):
   1. **RED→GREEN `validateRoster`:** accepts 1–5 distinct entries (depth present or absent); rejects `[]`,
      6 entries, duplicate lenses, empty/non-string lens, `depth: 'shallow'`, non-object entries.

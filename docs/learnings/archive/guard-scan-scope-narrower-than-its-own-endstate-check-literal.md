@@ -1,6 +1,6 @@
 ---
 name: guard-scan-scope-narrower-than-its-own-endstate-check-literal
-description: "A standing regression guard added to satisfy a plan End-state can legitimately scan a NARROWER…"
+description: "A standing guard that backstops an End-state check can scan a narrower scope than the check literal; compare scan boundaries before trusting the guard as the durable substitute"
 metadata: 
   node_type: memory
   type: project
@@ -30,11 +30,6 @@ metadata:
 
 # A committed guard's scan scope can be narrower than the End-state check literal it backstops
 
-**Found (code-verified via gate-audit fallback — landed tip
-`d712424133e66952e780acba6dbd45c737a6afd5` on `dev/2026-08-06-references-pointer-integrity`; my
-own checkout had no live worktree matching this plan's slug, so this is grounded on the pinned
-`auditSha 44089b3f9dc70a14a7ad8a3e730c6c297026363d` gate-audit verdict, `gateEvidence: true`, whose
-own ES9+ES13 attestation explicitly records the same residual):**
 `skills/war/assets/reference-link-integrity.test.mjs`'s third retirement pattern
 (`RETIRED_NO_PATH_FORM_CLAIM = /no\s+path\s+form\s+resolves/i`) is evaluated only inside the
 `QUALIFIED_HEADERS` loop, over each file's **header region** (the text before its first `## `

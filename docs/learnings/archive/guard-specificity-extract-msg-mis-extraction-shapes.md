@@ -1,10 +1,9 @@
 ---
 name: guard-specificity-extract-msg-mis-extraction-shapes
-description: assert-guard-specificity-in-diff.sh extract_msg() has two documented mis-extraction shapes
+description: "assert-guard-specificity-in-diff.sh extract_msg() had two mis-extraction shapes (both fixed); a narrower ceiling remains when a stderr message contains the word echo or printf"
 metadata: 
   node_type: memory
   type: project
-  promoted: dev/2026-07-08-audit-gate-verdict-fidelity@phase-1
   provenance: code-verified
   keywords: 
     - extract_msg
@@ -66,12 +65,5 @@ contains ` echo `/` printf ` as a literal space-delimited word (e.g. `echo "run 
 still mis-extracts. Judged advisory-evidence-only and unrealistic for real guard messages — not
 worth closing now; the header's existing shell-aware-tokenizer upgrade path (already named in this
 lesson's parent ceiling family) is the documented escape hatch if it ever bites for real.
-
-**Provenance caveat on this recurrence note:** this checkout's `HEAD` does not match the phase's
-landed branch (worktree-lag — see [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]),
-so the exact variable names (`hal_kw`/`hal_seg`) and line numbers were **not** independently
-re-Grepped here; sourced from the phase's Commander's Intent + unanimous gate-audit `approve`
-verdicts (`audit_sha a38520a6`). Verify `extract_msg`/`record_guard` in
-`skills/war/assets/assert-guard-specificity-in-diff.sh` directly before citing exact mechanics.
 
 > archived 2026-07-11: resolved — moved to archive (recurrence note added 2026-07-12; still archived, not restored — knowledge only, no status change)

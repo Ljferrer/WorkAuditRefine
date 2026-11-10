@@ -1,13 +1,13 @@
 ---
 name: prompt-literal-heavy-task-headroom-estimate-can-undershoot-red-team-544b-vs-actual-hard-line-raise
-description: "A red-team headroom estimate for a prompt-literal-heavy task (e.g"
-metadata: 
+description: "When a task adds new dispatch prompt prose to a budgeted surface, treat a red-team headroom estimate as a soft floor; real growth can run far higher"
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   slug: prompt-literal-heavy-task-headroom-estimate-can-undershoot-red-team-544b-vs-actual-hard-line-raise
   phase: "realized-absorb-rate/phase-1 task 1.1 (landed dev/2026-08-19-realized-absorb-rate, tip 291943e)"
-  keywords: 
+  keywords:
     - WORKFLOW_LITERAL_BUDGET
     - prompt-surface-budgets.test.mjs
     - hard budget raise
@@ -17,7 +17,7 @@ metadata:
     - bisection dispatch prompt literals
     - compression-first-raise-fallback
     - budget arithmetic optimism
-  tags: 
+  tags:
     - war
     - prompt-surface
     - budget
@@ -40,11 +40,6 @@ now pins `WORKFLOW_LITERAL_BUDGET = { hard: 79872, advisory: 70656 }` (raised fr
 raising both the hard and advisory `WORKFLOW_LITERAL_BUDGET` lines, not just consuming existing
 headroom.
 
-**What worked:** the plan's own duty — compress in-task first, raise the hard/advisory ceiling only
-as an ADR-0042-justified fallback when compression alone can't fit — held up under a much larger
-gap than red-team projected. The raise itself was lawful (cited its ADR 0042 justification per the
-family's convention) and landed clean; this is not a process failure, just a sizing-estimate one.
-
 **Why this is durable:** this is the same *class* of estimate-optimism as
 [[adr-0042-eviction-replacement-pointer-bytes-outrun-plan-arithmetic]] (that lesson: an eviction's
 new-pointer-line byte estimate runs ~2x low) but a different *mechanism* — there the growth is a
@@ -58,7 +53,7 @@ landed `WORKFLOW_LITERAL_BUDGET` test numbers rather than trusting the pre-land 
 deciding whether a compression pass alone will suffice.
 
 **Locate-cue (verify still present before acting):** `WORKFLOW_LITERAL_BUDGET` constant in
-`skills/war/assets/prompt-surface-budgets.test.mjs` (currently `{ hard: 79872, advisory: 70656 }`);
+`skills/war/assets/prompt-surface-budgets.test.mjs` (`{ hard: 79872, advisory: 70656 }` after that raise; read the current value);
 the `aceBisect` dispatch-prompt-building code in `skills/war/assets/workflow-template.js`.
 
 ## Related

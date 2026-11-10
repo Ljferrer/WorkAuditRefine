@@ -41,18 +41,12 @@ silently dropped every `[repo]` row (observed: 23,888 B / 144 lines → 3,849 B 
 checks (unindexed file, dangling link) are internal-consistency checks, not completeness checks
 against a root the script was never told about.
 
-**Resolution — code-verified 2026-07-15 at this plan's own task worktree** (`p2-2.1` for plan
-`2026-07-14-lessons-learned-repo-projection-integrity`, resolved via `.git/worktrees/p2-2.1{1,2}/gitdir`
-per [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] — this servitor's own session
-worktree still showed the pre-fix script with no repo-completeness block at all, confirming the
-lag pattern yet again):
+**Resolution (code-verified):**
 
 1. **`skills/_shared/war-memory.mjs`'s `resolveRoots()` already read `CLAUDE_MEMORY_REPO`** as a
    fallback for `--repo` (`argv.repo || process.env.CLAUDE_MEMORY_REPO || null`) — PRE-EXISTING
-   behavior the plan leveraged, not a change (the plan's stack diff touches no `war-memory.mjs`;
-   its spec §5/§9 forbade it, and the phase-2 gate-audit proved the forbidden-path clause MET).
-   Every command built on `resolveRoots` — including `archive`'s internal re-render — inherits the
-   env convention for free. Zero new argument parsing (the plan's own Method clause).
+   behavior the plan leveraged, not a change. Every command built on `resolveRoots` — including
+   `archive`'s internal re-render — inherits the env convention for free.
 2. **`skills/lessons-learned/assets/safe-swap.sh`'s shared `do_verify` gate** gained an *additive*
    Rule 3: when `CLAUDE_MEMORY_REPO` is set AND resolves to an existing directory AND that
    directory holds >= 1 top-level hot lesson, but the projection's `[repo]`-marked row count is
@@ -68,23 +62,12 @@ lag pattern yet again):
    convention from an unrelated playbook (e.g. `references/migration.md`'s own example export)
    would otherwise silently activate the new Rule-3 path in fixtures that predate it.
 
-**Correction at Gate-2 (Lead-verified against the landed branch, 2026-07-16):** the Phase 5
-archive invocation in `skills/lessons-learned/SKILL.md` DOES now carry the explicit flag —
-`archive --local "$STAGING" --repo "$REPO_ROOT" <slug>...` — added by this plan's Task 1.1 (its
-End state 9, audited met) and pinned by a new doc-contract lock. The servitor draft of this note
-claimed the callsite was flag-less by design; that read came from a stale checkout (the
-verify-on-write lag hazard this note's sibling documents). The real belt-and-suspenders shape:
-the explicit `--repo` on the Phase 5 command (lock-pinned) is the belt, and `resolveRoots`'s
-pre-existing `CLAUDE_MEMORY_REPO` env fallback (point 1) is the suspenders — either alone keeps
-`[repo]` rows through archive's internal re-render; `do_verify`'s Rule-3 hard fail backstops
-both.
+The Phase 5 archive invocation in `skills/lessons-learned/SKILL.md` also carries the explicit flag:
+`archive --local "$STAGING" --repo "$REPO_ROOT" <slug>...`, pinned by a doc-contract lock. Either
+the flag or the env fallback alone keeps `[repo]` rows through archive's re-render; `do_verify`'s
+Rule-3 hard fail backstops both, provided `CLAUDE_MEMORY_REPO` is exported in the calling shell.
 
-**Why it matters:** the original write-up's "how to apply" advice (manually `grep -c '\[repo\]'`
-after every archive, treat the explicit Phase 5 render as REQUIRED) is now a belt-and-suspenders
-habit rather than the only backstop — `do_verify` itself now hard-fails the wholesale-drop case,
-provided `CLAUDE_MEMORY_REPO` is exported in the calling shell.
-
-Related: [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (how this resolution was
-confirmed despite this servitor's own lagging checkout), [[projection-byte-budget-driven-by-descriptions-not-bodies]].
+Related: [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]],
+[[projection-byte-budget-driven-by-descriptions-not-bodies]].
 
 > archived 2026-07-27: resolved — moved to archive

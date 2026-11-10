@@ -1,6 +1,6 @@
 ---
 name: whole-suite-check-command-non-discriminating-when-its-own-tests-ship-unmerged
-description: "An End-state check: command that runs a whole pre-existing test suite is non-discriminating…"
+description: "A whole-suite End-state check: command stays green at an untouched tip when the feature's own tests ship in the same commit; pair it with a presence pin on the new test"
 metadata: 
   node_type: memory
   type: project
@@ -29,17 +29,6 @@ metadata:
 ---
 
 # A plan's End-state check: command that runs a whole pre-existing suite doesn't discriminate feature-present from feature-absent when the suite's own new tests ship in the same commit
-
-**Found (code-verified — landed tip `7cacd59` on `dev/2026-08-19-realized-absorb-rate`, phase 2):**
-this phase's post-merge gate-audit seat correctly ruled an End-state condition **UNMET** at an
-untouched tip, even though the condition's mapped `check:` command — running the whole pre-existing
-test suite — reported green. The suite read green not because the feature was present, but because
-the suite itself, including the new assertions meant to exercise the feature, ships in the same
-unmerged commit as the feature: at an untouched tip neither the feature nor its own tests exist yet,
-so there is nothing for the (absent) new tests to catch, and the rest of the pre-existing suite
-passes regardless. The gate-audit's content-at-pin rung beat the naive execution rung here — exactly
-[ADR 0041](../docs/adr/0041-audit-evidence-precedence.md)'s evidence-precedence design working as
-intended.
 
 **The general class this flags for plan authoring:** a `check:` command that invokes a whole
 pre-existing test suite (e.g. `node --test 'skills/**/*.test.mjs'` or similar) is **non-discriminating**

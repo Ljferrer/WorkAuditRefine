@@ -33,51 +33,19 @@ metadata:
   modified: 2026-11-08T00:00:00.000Z
 ---
 
-# The fingerprint test reds under heavy load (phase 1: mechanism is a hypothesis; phase 2: load is evidenced)
+# The fingerprint test reds under heavy load
 
-**PARTLY RESOLVED (#2615, PR #2722, 2026-11-08).** The 2 s `run_shim` budget caused the row 166 flake.
-A 3 s stall on wtB's `git status` reproduced the phase 1 symptom exactly: marker wtB, skipped list `wtB wtD wtS`.
-Every `run_shim` row now uses a 10 s deadline (`SHIM_D`), and the six rows that wait for the kill run their hook in one parallel wave.
-The d8 row now carries that 3 s stall on every run, so it proves its own margin.
-Row 112 is still open (#2724). It never used `run_shim`: it reds when one hook run outlasts the hook's own 540 s default under extreme load.
-The sections below are the record from before the fix. Their 2 s mechanism no longer applies to the `run_shim` rows.
+**PARTLY RESOLVED (#2615, PR #2722, 2026-11-08).** The old 2 s `run_shim` budget caused the d8 row (`git-error skip labelled wrong`) flake.
+A 3 s stall on wtB's `git status` reproduced it: marker wtB, skipped list `wtB wtD wtS`.
+Every `run_shim` row now uses a 10 s deadline (`SHIM_D`), and the d8 row carries that 3 s stall on every run, so it proves its own margin.
+The c7 row (`plain sibling edit not caught beside odd names`) is still open (#2724).
+It uses `run`, not `run_shim`, so it reds only when one hook run outlasts the hook's own 540 s default under extreme load.
 
-**This is a hypothesis note.** No inward refute pass ran, and no rerun proved the flake.
+**Sightings.** Phase 1 of 2026-11-04-late-defects-fixed-in-run: a docs-only polish gate failed the d8 row, and the engine discarded the polish (`polish-discarded`, `findings: []`), so its phase-close absorbs never landed.
+Phase 2: task 2.1 (nothing under `hooks/`) failed the c7 row and then the d8 row; the environment-proceed re-merge hit the same load and the merge site held `held:escalation`.
+Phase 5: the land gate failed the d8 row twice at load 45-62 and held `held:land-failed`; the Lead reran the gate at load about 12 (green), ran one `land-advance`, and dispatched the servitor by hand.
 
-**Observed.** In phase 1, the polish branch changed docs only (`CONTEXT.md`, `skills/war/references/staged-script.md`, ADR 0037).
-Its gate failed on one case of `hooks/audit-tree-fingerprint.test.sh`: `FAIL 166 - git-error skip labelled wrong`.
-The suite took 236 s in a 36-job gate.
-The row expects the watchdog to fire on the last worktree, wtS.
-The observed marker named wtB, and the skipped list was `wtB wtD wtS`.
-
-**Why it may be timing.** `run_shim` sets `WAR_FINGERPRINT_DEADLINE_SECONDS=2` for the whole hook run.
-The d8 row (`SHIM_FAIL="$WTA status" SHIM_SLOW="$WTS status"`) needs real `git status` calls on the earlier worktrees to finish inside that budget.
-Under parallel gate load, those calls can plausibly take longer than 2 s, so the deadline fires at wtB.
-A docs-only diff cannot change the hook's behavior.
-
-**Cost.** The engine discarded the polish (`polish-discarded`, `findings: []`), and every phase-close absorb it carried did not land.
-At tip 99d325fd, ADR 0037 has no 2026-11-04 indent-strip amendment.
-At the same tip, `CONTEXT.md` still says "comment-stripped substitution".
-
-**How to apply.** If this row reds on a diff that cannot touch the hook, rerun the suite alone before you blame the diff.
-If it reproduces only under load, file a flake issue against the row's deadline.
-After a `polish-discarded`, re-route its absorbs by hand.
-The discard entry does not list them.
-
-Locate-cue: verify still present before acting. `run_shim` and the d8 row are in `hooks/audit-tree-fingerprint.test.sh` @ phase 1 of 2026-11-04-late-defects-fixed-in-run.
-Read in the run's `_refinery` worktree at 6c4f0f4e, which has the same tree as the land merge 99d325fd.
-
-## Recurrence at phase 2 (task 2.1): a real task held, not only a polish discarded
-
-**Observed.** Task 2.1 changed 12 files and none sit under `hooks/`.
-Its merge gate failed twice on `hooks/audit-tree-fingerprint.test.sh`, in two different rows, so the cause is not one bad row.
-The gate runs 36 jobs, and the fingerprint suite ran 1506 s in one of them.
-First failing row: `FAIL 112 - plain sibling edit not caught beside odd names`.
-That run's output carried `AUDIT-TAMPER: fingerprint timeout (... still hashing after 540s, deadline 540s ...)`.
-Row 112 does not set the 2 s override, so the hook's own 540 s default fired.
-Second failing row: `FAIL 166 - git-error skip labelled wrong` (the original d8 row), 230/231, 586 s.
-
-**Evidence that it is load.** The refiner reran only this suite:
+**Evidence that it is load.** The refiner reran only this suite in phase 2:
 
 | Run | Load average | Result |
 |---|---|---|
@@ -85,32 +53,16 @@ Second failing row: `FAIL 166 - git-error skip labelled wrong` (the original d8 
 | task tip, fresh TMPDIR | 28-55 | 230/231, 586 s |
 | task tip, fresh TMPDIR | 17-23 | 231/231, 219 s |
 
-Much of that load came from unrelated projects on the same machine.
-The refute pass: the diff touches nothing under `hooks/`, and the same tip passes on a quieter machine.
-What stays unproven: which call stalls. The mechanism is still a hypothesis.
-
-**Cost.** The first failure was classed environment, so the engine spent its one environment-proceed re-merge.
-The re-merge hit the same load and failed the same way, so the merge site hard-escalated (`held:escalation`).
-The re-merge gate alone ran 1506 s. The phase did not land until the Lead intervened.
-See [[held-escalation-lead-manual-completion]] for what the Lead then did.
+Much of that load came from unrelated projects on the same machine. Which call stalls in the c7 row is unproven.
 
 **How to apply.**
-Before you launch a phase, or when a fingerprint row reds, check the load average (`uptime`).
-If it is above about 20 and other projects share the machine, wait or pause them before you retry the gate.
-Do not rerun the unchanged gate under the same load: the second failure is certain and it spends the environment retry.
-Run the full gate once on a quiet machine, and treat that run as the proof.
-File the flake once against the suite, not per row. Issue #2615 holds the phase-2 sighting.
+- Before you launch a phase, or when a fingerprint row reds, check the load average (`uptime`).
+- If it is above about 20 and other projects share the machine, wait or pause them before you retry the gate.
+- Do not rerun the unchanged gate under the same load: the second failure is near certain and it spends the environment retry.
+- Run the full gate once on a quiet machine, and treat that run as the proof.
+- After a `polish-discarded`, re-route its absorbs by hand. The discard entry does not list them.
+- File the flake once against the suite, not per row.
 
-Locate-cue: verify still present before acting. The 540 s default and the `WAR_FINGERPRINT_DEADLINE_SECONDS` clamp are in `hooks/audit-tree-fingerprint.sh`. The rows are in `hooks/audit-tree-fingerprint.test.sh`. Found at landed tip fc9cb08c, phase 2 of 2026-11-04-late-defects-fixed-in-run.
-
-## Recurrence at phase 5: the land gate held, not a merge gate
-
-**Observed.** The phase-5 land gate at merge 86335b32 failed twice on row 166, at load 45-62, with a 640 s suite time.
-The refiner classed it environment: the diff touches nothing under `hooks/`, and a base rerun and a quiet tip rerun both passed 231/231.
-The environment-proceed retry got no green run, so the land site held `held:land-failed` and pushed nothing.
-
-**Recovery.** The land merge commit already existed in `_refinery`, so the Lead built nothing new.
-The Lead reran the full gate at that merge at load about 12 (36/36 green), then ran one `land-advance`.
-The engine skips the servitor wrap-up on `held:land-failed`, so the Lead dispatched the servitor by hand.
+Locate-cue: verify still present before acting. The 540 s default and the `WAR_FINGERPRINT_DEADLINE_SECONDS` clamp are in `hooks/audit-tree-fingerprint.sh`. `run_shim`, `SHIM_D` and the c7 and d8 rows (by label) are in `hooks/audit-tree-fingerprint.test.sh`.
 
 Related: [[held-escalation-lead-manual-completion]], [[never-follow-resumefromrunid-hint-after-a-land-failure]], [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]], [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]], [[polish-discarded-auditlog-entry-carries-no-findings-critical-major-ride-polish-rejected-instead]].

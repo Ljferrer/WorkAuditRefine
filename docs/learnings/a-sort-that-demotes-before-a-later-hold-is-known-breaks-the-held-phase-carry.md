@@ -53,8 +53,6 @@ Comments like "the held arm carries the whole queue" are true only for holds tha
 
 Related: [[turning-an-always-hold-signal-into-a-fix-route-stales-every-reader-that-assumed-it-held]], [[late-fix-pass-shipped-with-known-relaunch-residuals]].
 
-Locate-cue: verify still present before acting. Found `const sortOwned = new Map()` in the BEHAVIOR-ROW SORT block, the `sortOwned.get(f)` arm in the sweep-time drain, and the `late hold` test, @ phase 4 landed tip 28e74359 (read in the run's `_refinery` worktree at that HEAD).
-
 ## Recurrence: the inverse order, phase 6 (task 6.1)
 
 Phase 4 broke because a step acted before a later hold existed.
@@ -78,4 +76,4 @@ A final-phase seed hold reaches both snapshots, so the sort skips and the pass n
 
 **Test.** `late-defect: carry cap` in `skills/war/assets/workflow-template.late-defect-5.test.mjs` asserts no `late-fix:` label on the held final phase. A mutant that dispatches proves the row red.
 
-Locate-cue (phase 6): verify still present before acting. Found the seedCapped loop above `const sortOwned = new Map()` in `skills/war/assets/workflow-template.js` and the "no late-fix worker is dispatched on a phase that holds" assert, @ phase 6 integration tip c43cebee, the second parent of landed tip 66c0f263 (read in the run's `_refinery` worktree, whose HEAD is that integration branch).
+Locate-cue (verify still present before acting). In `skills/war/assets/workflow-template.js`: the `for (const { task: t, why } of seedCapped)` loop directly above `const sortOwned = new Map()` in the BEHAVIOR-ROW SORT block, and the `sortOwned.get(f)` arm in the sweep-time drain. Tests: `late-defect: exclusion late hold` (late-defect-3) and `late-defect: carry cap` (late-defect-5, with the "no late-fix worker is dispatched on a phase that holds" assert).

@@ -15,7 +15,7 @@ metadata:
     - self-discovery
     - suite-count
   relates:
-    - "[[plan-gate-enumeration-stale-after-stacking]]"
+    - "[[plan-array-literal-lags-canonical-export]]"
     - "[[gate-under-covers-after-cross-branch-merge-new-runner]]"
   created: 2026-06-26
   originSessionId: fab06e87-b8c3-454f-a1d8-ecc9fa41faf6
@@ -39,7 +39,7 @@ A plan doc is reference material the worker may consult; a task **prompt** is th
 directive the worker executes against. Prompts are followed literally — a wrong count in the
 prompt makes the worker stop at that count instead of discovering the real set.
 
-This is the agent-directive analog of [[plan-gate-enumeration-stale-after-stacking]] (same
+This is the agent-directive analog of [[plan-array-literal-lags-canonical-export]] (same
 problem in plan documentation). The fix is identical at every level (plan doc, task prompt,
 merge checklist): prefer self-discovery references over literal enumerations.
 
