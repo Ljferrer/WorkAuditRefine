@@ -21,6 +21,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,7 +58,7 @@ const FILE_BUDGETS = {
   // post-shrink 8,989 B @ c6a05fb → hard ×1.25 ceil-KB = 11,264; advisory ×1.10 ceil-KB = 10,240
   'agents/war-setup-scout.md': { hard: 11264, advisory: 10240 },
   // New card (ADR 0057): a small card is the point of the helper, so the budget stays small.
-  // post-shrink 1,044 B @ a46c4f0 → hard ×1.25 ceil-KB = 2,048; advisory set by hand at 1,536, below hard
+  // post-shrink 1,044 B @ a46c4f0 → hard ×1.25 ceil-KB = 2,048; advisory pinned at 1,536, below hard
   'agents/war-helper.md': { hard: 2048, advisory: 1536 },
   // post-shrink 9,199 B @ c6a05fb → hard ×1.25 ceil-KB = 12,288; advisory ×1.10 ceil-KB = 10,240
   // RAISED +1,024 B (12,288 → 13,312) at the operator's direction, 2026-10-31: the card reached 14 B
@@ -68,10 +69,14 @@ const FILE_BUDGETS = {
   // Budgeted per adjudication F: CONTEXT.md is the Layer 1 router, prompt-bearing (#2636).
   // post-shrink 1,429 B (the router written on base 31c216b, measured in #2636) @ 31c216b →
   // hard ×1.25 ceil-KB = 2,048; advisory pinned below at 1,536 (the tiny-file rule: advisory < hard).
+  // working copy on 31c216b: the router was measured before it was committed, so no blob holds
+  // the cited count (CONTEXT.md at 31c216b is the pre-split file) and the derivation guard skips
+  // the blob check for this row (#2083).
   'CONTEXT.md': { hard: 2048, advisory: 1536 },
   // Budgeted per adjudication F: GLOSSARY.md is the shared glossary, prompt-bearing.
   // MOVED unchanged from the CONTEXT.md row (#2636): the glossary left CONTEXT.md as a
-  // byte-identical move, and its budget row moved with it. Its history, as recorded on CONTEXT.md:
+  // byte-identical move, and its budget row moved with it. The glossary was measured as CONTEXT.md
+  // at c6a05fb, so the derivation guard reads that blob path (#2083). Its history, as recorded on CONTEXT.md:
   // GREW (Task 7.1): post-shrink 101,769 B @ c6a05fb → computed hard ×1.25 ceil-KB =
   // 128,000 B would EXCEED the Phase-1 placeholder hard of 126,976 B (pre-shrink
   // 100,984 B @ 762a7e4 → 126,976/111,616). Ratchet-down only: placeholder retained,
@@ -90,7 +95,8 @@ const FILE_BUDGETS = {
   // EVERY work-audit-refine:war-* spawn — a prompt-bearing surface with wider reach than any
   // single agent card, so the six files join the census. Tiny-file deviation from the pure
   // ×1.25/×1.10 ceil-KB formula: rounding would collapse hard and advisory onto one KB step,
-  // and checkBudget requires advisory < hard, so advisory takes the 0.75×hard step instead.
+  // and checkBudget requires advisory < hard, so advisory takes the 0.75×hard step instead
+  // (each row says `advisory pinned`, so the derivation guard checks its hard arm only).
   // post-shrink 1,009 B @ d959346 → hard ×1.25 ceil-KB = 2048; advisory pinned below at 1536
   'hooks/reply-standard/subagent-card.md': { hard: 2048, advisory: 1536 },
   // post-shrink 269 B @ d959346 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
@@ -251,7 +257,10 @@ function extractTopLevelTemplateLiterals(src) {
 
 // --- Shared row check --------------------------------------------------------------
 
+// Every run prints one MEASURE line per surface, below the advisory line too (#1735): the
+// re-baseline preflight reads it, so no measurement is hidden until a surface crosses a line.
 function checkBudget(label, size, { hard, advisory }) {
+  console.warn(`MEASURE prompt-surface-budgets: ${label} ${size} B (advisory ${advisory}, hard ${hard})`);
   assert.ok(
     Number.isInteger(hard) && Number.isInteger(advisory) && advisory > 0 && hard > advisory,
     `${label}: budget constants must satisfy 0 < advisory < hard (got advisory=${advisory}, hard=${hard})`,
@@ -268,6 +277,96 @@ function checkBudget(label, size, { hard, advisory }) {
         + `${advisory} B (hard ${hard} B) — plan a shrink pass before the hard line is reached`,
     );
   }
+}
+
+// --- Derivation truth helpers (ADR 0042 D5, #2083) ----------------------------------
+
+// One budgeted row line, and the contiguous `//` run directly above a line (leaders stripped,
+// line structure kept). Both the shape guard and the truth guard read rows through these.
+const ROW_SHAPE = /^\s*'([^']+)':\s*\{\s*hard:\s*\d+,\s*advisory:\s*\d+\s*\},?\s*$/;
+function commentBlockAbove(lines, idx) {
+  const block = [];
+  for (let i = idx - 1; i >= 0 && /^\s*\/\//.test(lines[i]); i--) {
+    block.unshift(lines[i].replace(/^\s*\/\/ ?/, ''));
+  }
+  return block.join('\n');
+}
+
+// Every FILE_BUDGETS row with its comment block and live constants. The literal-share sentinel is
+// not a row: its count comes from the pinned extraction, not a blob, so it keeps the shape check only.
+function discoverDerivationRows(lines) {
+  const rows = [];
+  lines.forEach((line, i) => {
+    const m = line.match(ROW_SHAPE);
+    if (m && FILE_BUDGETS[m[1]]) rows.push({ key: m[1], block: commentBlockAbove(lines, i), ...FILE_BUDGETS[m[1]] });
+  });
+  return rows;
+}
+
+// ceil-KB of bytes × pct/100, in integer arithmetic (no float rounding at a KB edge).
+const ceilKB = (bytes, pct) => Math.ceil((bytes * pct) / 102400) * 1024;
+
+// The default blob reader. It returns a byte size, 'no-commit' or 'no-path'. Both `cat-file -s`
+// failures exit 128, so the commit probe runs first and tells them apart. A missing git binary
+// also reads as 'no-commit' (fail open).
+function defaultBlobSize(sha, path) {
+  const git = (args) => execFileSync('git', ['-C', repoRoot, ...args], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  try {
+    git(['cat-file', '-e', `${sha}^{commit}`]);
+  } catch {
+    return 'no-commit';
+  }
+  try {
+    return Number(git(['cat-file', '-s', `${sha}:${path}`]).trim());
+  } catch {
+    return 'no-path';
+  }
+}
+
+// Pure check of one row: { key, block, hard, advisory } plus an injected reader (sha, path) →
+// size | 'no-commit' | 'no-path'. Returns { errors, warnings }. Markers in the block:
+//   `measured as <path>`    the blob path is <path>, not the row key (a moved row)
+//   `working copy on <sha>` no blob holds the count, so the blob check is skipped
+//   `RAISED`, `placeholder retained`  a ruling set the constants, so the arithmetic is skipped
+//   `advisory pinned`       the advisory was set below hard by hand, so only the hard arm is checked
+const DERIVATION_CAPTURE = /post-shrink ([\d,]+) B(?: \([^)\n]*\))? @ ([0-9a-f]{7,40})/g;
+function checkDerivation({ key, block, hard, advisory }, readBlobSize) {
+  const errors = [];
+  const warnings = [];
+  const cites = [...block.matchAll(DERIVATION_CAPTURE)].map((m) => [Number(m[1].replaceAll(',', '')), m[2]]);
+  if (cites.length === 0) return { errors: [`${key}: no post-shrink derivation line to check`], warnings };
+  const moved = block.match(/measured as ([\w/-]+(?:\.[\w-]+)*)/);
+  const path = moved ? moved[1] : key;
+  if (!/working copy on [0-9a-f]{7,40}/.test(block)) {
+    for (const [cited, sha] of cites) {
+      const got = readBlobSize(sha, path);
+      if (got === 'no-commit') {
+        warnings.push(`WARN prompt-surface-budgets: derivation guard: ${key} cites ${sha}, and ${sha} `
+          + 'is not a commit in this clone — blob check skipped (fail open)');
+      } else if (got === 'no-path') {
+        errors.push(`${key}: ${path} is absent at ${sha}, so the cited ${cited} B measures nothing (#2083) — `
+          + 'fix the sha, or mark the row `measured as <path>` or `working copy on <sha>`');
+      } else if (got !== cited) {
+        errors.push(`${key}: derivation cites ${cited} B at ${sha}, but the ${path} blob holds ${got} B (#2083)`);
+      }
+    }
+  }
+  if (!/\bRAISED\b|placeholder retained/.test(block)) {
+    const [cited] = cites[0];
+    const wantHard = ceilKB(cited, 125);
+    if (hard !== wantHard) {
+      errors.push(`${key}: hard ${hard} B does not follow from ${cited} B — ×1.25 ceil-KB gives ${wantHard} B `
+        + '(a ruled raise marks the row RAISED)');
+    }
+    const wantAdvisory = ceilKB(cited, 110);
+    if (!/advisory pinned/.test(block) && advisory !== wantAdvisory) {
+      errors.push(`${key}: advisory ${advisory} B does not follow from ${cited} B — ×1.10 ceil-KB gives `
+        + `${wantAdvisory} B (a hand-set advisory marks the row advisory pinned)`);
+    }
+  }
+  return { errors, warnings };
 }
 
 // --- Tests -------------------------------------------------------------------------
@@ -298,7 +397,9 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
 // D5 mandates that every budget constant carry its derivation. Nothing enforced it: a bare
 // `{ hard, advisory }` row could land above with no comment at all, leaving the number
 // unauditable — no way to tell a measured ratchet from a typed-in guess. This guard binds the
-// shape of the comment block directly above each budgeted subject.
+// shape of the comment block directly above each budgeted subject. Shape is not truth: the
+// `derivation guard — ` tests below check each FILE_BUDGETS row's cited count against its blob
+// and recompute its constants (checkDerivation, #2083).
 //
 // CONTAINS, never starts-with. Survey of the live subjects at this task's base: these blocks open
 // with something other than their derivation line — war-setup-scout's adjudication-M note,
@@ -326,8 +427,8 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
 //
 // Multiplier disjunction, not conjunction: a row whose advisory is not the ×1.10 value shows only
 // the ×1.25 side. GLOSSARY.md's placeholder is retained under ratchet-down. The tiny-file rows
-// (CONTEXT.md, agents/war-helper.md and the hooks/reply-standard subagent cards) pin their advisory
-// below the hard line by hand.
+// (CONTEXT.md, agents/war-helper.md and the hooks/reply-standard subagent cards) carry the
+// `advisory pinned` marker, so checkDerivation skips only their advisory arm.
 //
 // DISCOVERY FLOOR (default-deny, the sibling census's posture): the row-shape scan does not get to
 // define its own subject set. Reflow one row to a multi-line object literal and it drops silently
@@ -344,27 +445,18 @@ test('per-row derivation guard — every budgeted constant carries its derivatio
   const ownSrc = readFileSync(fileURLToPath(import.meta.url), 'utf8');
   const lines = ownSrc.split('\n');
 
-  const ROW_SHAPE = /^\s*'([^']+)':\s*\{\s*hard:\s*\d+,\s*advisory:\s*\d+\s*\},?\s*$/;
   const SENTINEL = 'WORKFLOW_LITERAL' + '_BUDGET';
   const SENTINEL_DECL = new RegExp('^const ' + SENTINEL + '\\b');
   const DERIVATION = /post-shrink [\d,]+ B(?: \([^)\n]*\))? @ [0-9a-f]{7}/;
   const MULTIPLIER = /×1\.25|×1\.10/;
 
-  // Contiguous `//` run immediately above the subject line, leaders stripped, line structure
-  // preserved — the newline anchoring above is meaningless if the block is flattened first.
-  const commentBlockAbove = (idx) => {
-    const block = [];
-    for (let i = idx - 1; i >= 0 && /^\s*\/\//.test(lines[i]); i--) {
-      block.unshift(lines[i].replace(/^\s*\/\/ ?/, ''));
-    }
-    return block.join('\n');
-  };
-
+  // commentBlockAbove (module scope) keeps line structure — the newline anchoring above is
+  // meaningless if the block is flattened first.
   const subjects = [];
   lines.forEach((line, i) => {
     const row = line.match(ROW_SHAPE);
-    if (row) subjects.push([row[1], commentBlockAbove(i)]);
-    else if (SENTINEL_DECL.test(line)) subjects.push([SENTINEL, commentBlockAbove(i)]);
+    if (row) subjects.push([row[1], commentBlockAbove(lines, i)]);
+    else if (SENTINEL_DECL.test(line)) subjects.push([SENTINEL, commentBlockAbove(lines, i)]);
   });
 
   const discovered = subjects.map(([key]) => key).sort();
@@ -397,6 +489,117 @@ test('per-row derivation guard — every budgeted constant carries its derivatio
         + '(the hard ×1.25 arm, the advisory ×1.10 arm, or both) — ADR 0042 D5',
     );
   }
+});
+
+// --- Derivation truth (ADR 0042 D5, #2083) -------------------------------------------
+// The shape guard above proves a derivation line exists. These tests prove it is TRUE: the cited
+// count is the blob size at the cited commit, and the constants follow from it. checkDerivation is
+// pure — the blob reader is injected — so each fixture below feeds one reader outcome.
+const fixtureRow = (block, hard, advisory) => ({ key: 'agents/fixture.md', block, hard, advisory });
+const readerOf = (outcome) => () => outcome;
+// 10,000 B → hard ceil-KB(12,500) = 13,312; advisory ceil-KB(11,000) = 11,264.
+const GOOD_BLOCK = 'post-shrink 10,000 B @ abc1234 → hard ×1.25 ceil-KB = 13,312; advisory ×1.10 ceil-KB = 11,264';
+
+test('derivation guard — the live table passes', () => {
+  const lines = readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n');
+  const rows = discoverDerivationRows(lines);
+  assert.deepEqual(rows.map((r) => r.key).sort(), Object.keys(FILE_BUDGETS).sort(),
+    'every FILE_BUDGETS row reaches the derivation-truth check');
+  for (const row of rows) {
+    const { errors, warnings } = checkDerivation(row, defaultBlobSize);
+    for (const w of warnings) console.warn(w);
+    assert.deepEqual(errors, [], `${row.key}: derivation is not true`);
+  }
+});
+
+test('derivation guard — a true fixture row passes', () => {
+  const { errors, warnings } = checkDerivation(fixtureRow(GOOD_BLOCK, 13312, 11264), readerOf(10000));
+  assert.deepEqual(errors, []);
+  assert.deepEqual(warnings, []);
+});
+
+test('derivation guard — wrong cited bytes reds', () => {
+  const { errors } = checkDerivation(fixtureRow(GOOD_BLOCK, 13312, 11264), readerOf(10001));
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /cites 10000 B .*blob holds 10001 B/);
+});
+
+test('derivation guard — wrong multiplier reds', () => {
+  const hard = checkDerivation(fixtureRow(GOOD_BLOCK, 12288, 11264), readerOf(10000)).errors;
+  assert.equal(hard.length, 1, 'a hard constant off the ×1.25 ceil-KB value reds');
+  assert.match(hard[0], /hard 12288 B .*×1\.25 ceil-KB gives 13312 B/);
+  const adv = checkDerivation(fixtureRow(GOOD_BLOCK, 13312, 10240), readerOf(10000)).errors;
+  assert.equal(adv.length, 1, 'an advisory constant off the ×1.10 ceil-KB value reds');
+  assert.match(adv[0], /advisory 10240 B .*×1\.10 ceil-KB gives 11264 B/);
+});
+
+test('derivation guard — advisory pinned skips only the advisory arm', () => {
+  const block = 'post-shrink 1,044 B @ abc1234 → hard ×1.25 ceil-KB = 2,048; advisory pinned at 1,536';
+  assert.deepEqual(checkDerivation(fixtureRow(block, 2048, 1536), readerOf(1044)).errors, [],
+    'a pinned advisory off the ×1.10 value passes');
+  const wrongHard = checkDerivation(fixtureRow(block, 3072, 1536), readerOf(1044)).errors;
+  assert.equal(wrongHard.length, 1, 'a pinned-advisory row with a wrong hard still reds');
+  assert.match(wrongHard[0], /hard 3072 B/);
+  const unpinned = block.replace('advisory pinned', 'advisory');
+  assert.equal(checkDerivation(fixtureRow(unpinned, 2048, 1536), readerOf(1044)).errors.length, 1,
+    'without the marker the same advisory reds');
+});
+
+test('derivation guard — path absent at a present sha reds', () => {
+  const { errors, warnings } = checkDerivation(fixtureRow(GOOD_BLOCK, 13312, 11264), readerOf('no-path'));
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /agents\/fixture\.md is absent at abc1234/);
+  assert.deepEqual(warnings, []);
+});
+
+test('derivation guard — missing commit fails open', () => {
+  const row = fixtureRow(GOOD_BLOCK, 13312, 11264);
+  const open = checkDerivation(row, readerOf('no-commit'));
+  assert.deepEqual(open.errors, [], 'a sha this clone lacks fails open');
+  assert.equal(open.warnings.length, 1, 'and prints exactly one WARN line');
+  assert.match(open.warnings[0], /^WARN prompt-surface-budgets: .*abc1234 is not a commit in this clone/);
+  // The same fixture observes its branch: a no-path outcome for it reds.
+  assert.equal(checkDerivation(row, readerOf('no-path')).errors.length, 1);
+});
+
+test('derivation guard — measured as redirects the blob path', () => {
+  const seen = [];
+  const reader = (sha, path) => { seen.push(`${sha}:${path}`); return 10000; };
+  const block = `${GOOD_BLOCK}\nThe file was measured as CONTEXT.md before a move.`;
+  assert.deepEqual(checkDerivation(fixtureRow(block, 13312, 11264), reader).errors, []);
+  assert.deepEqual(seen, ['abc1234:CONTEXT.md']);
+  seen.length = 0;
+  checkDerivation(fixtureRow(GOOD_BLOCK, 13312, 11264), reader);
+  assert.deepEqual(seen, ['abc1234:agents/fixture.md'], 'without the marker the row key is the path');
+});
+
+test('derivation guard — working copy on skips the blob check', () => {
+  const block = `${GOOD_BLOCK}\nworking copy on abc1234: measured before commit.`;
+  assert.deepEqual(checkDerivation(fixtureRow(block, 13312, 11264), readerOf('no-path')).errors, []);
+  assert.equal(checkDerivation(fixtureRow(GOOD_BLOCK, 13312, 11264), readerOf('no-path')).errors.length, 1,
+    'without the marker the same reader reds');
+  assert.equal(checkDerivation(fixtureRow(block, 12288, 11264), readerOf('no-path')).errors.length, 1,
+    'the marker keeps the arithmetic');
+});
+
+test('derivation guard — RAISED and placeholder retained skip the arithmetic', () => {
+  for (const marker of ['RAISED +1,024 B by operator ruling.', 'Ratchet-down only: placeholder retained.']) {
+    const block = `${GOOD_BLOCK}\n${marker}`;
+    assert.deepEqual(checkDerivation(fixtureRow(block, 14336, 12288), readerOf(10000)).errors, [],
+      `${marker}: raised constants pass`);
+    assert.equal(checkDerivation(fixtureRow(block, 14336, 12288), readerOf(10001)).errors.length, 1,
+      `${marker}: the marker keeps the blob check`);
+  }
+  assert.equal(checkDerivation(fixtureRow(GOOD_BLOCK, 14336, 12288), readerOf(10000)).errors.length, 2,
+    'without a marker both raised constants red');
+});
+
+test('derivation guard — default reader tells no-commit from no-path', () => {
+  const head = execFileSync('git', ['-C', repoRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const size = defaultBlobSize(head, 'CLAUDE.md');
+  assert.ok(Number.isInteger(size) && size > 0, `a present path at HEAD reads a size (got ${size})`);
+  assert.equal(defaultBlobSize(head, 'no-such-file-2083.md'), 'no-path');
+  assert.equal(defaultBlobSize('0'.repeat(40), 'CLAUDE.md'), 'no-commit');
 });
 
 for (const [relPath, budget] of Object.entries(FILE_BUDGETS)) {
