@@ -330,15 +330,15 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
 // failing ids also red at the pre-ace tip, so every ace-family commit is gated BEFORE its re-audit.
 // The GREEN arm requires head_sha at the validator (if/then): a terse green reply is re-asked at the
 // tool layer, never reverted. The red arm's head_sha stays optional at the validator; the base
-// proceed-over (aceGateGreen) needs it. Fail-CLOSED on the evidence (absent/malformed ⇒ not green) and
+// proceed-over (aceGateJudge) needs it. Fail-CLOSED on the evidence (absent/malformed ⇒ not green) and
 // fail-OPEN on the task (a red gate with a new id forward-reverts the ace tip, after its one D35
 // re-run, and the approved pre-ace tip still merges, PIN-2). provision_failed (D11): a red whose failed
 // step is a provision step; it is never re-asked for ids (D35).
 // gate_segment (#2326): the MERGE_RESULT marker's ace twin. The literal 'incomplete' rides
 // gate_green:false when the backgrounded gate job died before it wrote exit_code:, so an unfinished gate never reads as a failed one.
-// aceGateGreen re-dispatches on that pair, bounded by roundLimit. A gate_green:true reply with a
+// aceSegments re-dispatches on that pair, or on an unjudged red (no head_sha, no ids, D11), bounded by roundLimit. A gate_green:true reply with a
 // stray marker is a green reply.
-// gate_failing_ids (late-defects D10, PIN-10): the red arm's failing test ids, which aceGateGreen
+// gate_failing_ids (late-defects D10, PIN-10): the red arm's failing test ids, which aceGateJudge
 // compares with the same check run at the pre-ace tip (the `ace-base-gate` dispatch).
 const GATE_CHECK = { type: 'object', required: ['gate_green'], properties: {
   gate_green: { type: 'boolean' }, head_sha: { type: 'string' }, gate_output: { type: 'string' }, gate_failing_ids: { type: 'array' },
@@ -2959,7 +2959,7 @@ const trailerGapLog = (who, probe, want) => {
   const t = probe && probe.tip_trailers
   if (!t || typeof t !== 'object') return
   const gaps = want.filter(([, key]) => !(typeof t[key] === 'string' && t[key].trim()))
-  if (gaps.length) log(who + ': the moved tip ' + probe.tip_sha + ' lacks ' + gaps.map(([name, , value]) => name + ' (expected "' + name + ': ' + value + '")').join(' and ') + ', which its prompt asked for. The charge and re-audit proceed; a relaunch\'s ABSORB-CHARGE READ will not count this commit (D24).')
+  if (gaps.length) log(who + ': the moved tip ' + probe.tip_sha + ' lacks ' + gaps.map(([name, , value]) => name + ' (expected "' + name + ': ' + value + '")').join(' and ') + ', which its prompt asked for. The charge and re-audit proceed' + (gaps.some(([, key]) => key === 'aceCharge') ? '; a relaunch\'s ABSORB-CHARGE READ will not count this commit' : '') + ' (D24).')
 }
 // tipClass: 'unusable' (null probe) · 'non-descendant' (the pre-dispatch tip is not an ancestor) ·
 // 'unchanged' (no commit above the pre-dispatch tip, or the approved tree) · 'moved' (a net change).
@@ -4678,7 +4678,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       ? pt`ACE GATE RE-ASK (D35): the prior red at ${aceTipSha} named no gate_failing_ids. Run the gate again and return the id of each failing test.\n`
       : pt`ACE GATE RE-RUN (D35): the prior gate run at ${aceTipSha} was red. Run it once more from scratch in a new TMPDIR before any revert.\n`, reask ? ':ids' : ':rerun')
     const second = await aceGateJudge(r, aceTipSha, g2)
-    if (second && second.green) log('ace-gate ' + r.task.id + ': the first red did not reproduce (flaky) — proceeding.')
+    if (second && second.green && g2 && g2.gate_green === true) log('ace-gate ' + r.task.id + ': the first red did not reproduce (flaky) — proceeding.')
     if (second) return second
     log('ace-gate ' + r.task.id + ': RED at ace tip ' + aceTipSha + ' — ' + why1 + '; the D35 re-run: ' + aceGateWhy(g2) + '. No re-audit runs (PIN-12); the ace tip is forward-reverted (PIN-2).')
     return { green: false, died: null }

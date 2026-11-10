@@ -660,6 +660,12 @@ test('ace gate: a judged red re-runs once before the revert — a flaky red proc
   assert.ok(ask.startsWith('ACE GATE RE-ASK (D35): the prior red at ace00001 named no gate_failing_ids.'), 're-ask: the prompt names the missing ids')
   assert.ok(logged(reask.logs, 'no gate_failing_ids, so the gate is re-asked once for them (D35)'), 're-ask: logged')
   assert.ok(tidyAced(reask.out), 're-ask: the returned ids were red at the pre-ace tip, so the ace proceeds over them')
+  // The red reproduced (its ids were red at the pre-ace tip too), so the proceed-over is never logged flaky.
+  const FLAKY = "if (second && second.green && g2 && g2.gate_green === true) log("
+  assert.ok(!logged(reask.logs, 'did not reproduce (flaky)'), 're-ask: a proceed-over second judgment is never logged flaky')
+  assert.ok(src.includes(FLAKY), 'the mutation target is the live flaky-log guard')
+  const looseFlaky = await reaskRun(src.replace(FLAKY, 'if (second && second.green) log('))
+  assert.ok(logged(looseFlaky.logs, 'did not reproduce (flaky)'), 'the mutant logs the reproduced red as flaky')
   // Red at base: without the re-ask branch the head_sha-only red is re-run, never asked for its ids.
   const REASK = "const reask = g.gate_green === false && g.provision_failed !== true && isSha(g.head_sha) && !debtIds(g.gate_failing_ids).length"
   assert.ok(src.includes(REASK), 'the mutation target is the live re-ask test')
@@ -683,6 +689,17 @@ test('ace re-entry: a moved tip without its trailers is logged by name and still
   assert.ok(src.includes(site), 'the mutation target is the live re-entry log call')
   const mutant = await run(src.replace(site, "(() => {})('ace-reentry ' + r.task.id, reProbe,"))
   assert.ok(!logged(mutant.logs, GAP), 'the mutant logs nothing')
+  // A tip that carries Ace-Charge and lacks only Ace-Subset: the charge read still counts it, so the
+  // log ends at the proceed clause.
+  const subsetOnly = probeAt('reentry', (p, o, w) => ({ ...NEW_SEAT_DEFAULTS['tip-probe'](p, o, w), tip_trailers: { aceSubset: '', aceCharge: 't1:2' } }))
+  const subRun = source => runPhase(ACE_ARGS(), reentryImpl(), { 'tip-probe': subsetOnly }, source)
+  const sub = await subRun()
+  assert.ok(logged(sub.logs, 'ace-reentry t1: the moved tip ', 'lacks Ace-Subset (expected "Ace-Subset: t1:reentry:a2:skills/second.js"), which its prompt asked for. The charge and re-audit proceed (D24).'), 'a subset-only gap logs the proceed clause alone')
+  assert.ok(!logged(sub.logs, 'ABSORB-CHARGE READ will not count'), 'a subset-only gap never claims the charge read skips the commit')
+  const CLAUSE = "(gaps.some(([, key]) => key === 'aceCharge') ? '; a relaunch\\'s ABSORB-CHARGE READ will not count this commit' : '')"
+  assert.ok(src.includes(CLAUSE), 'the mutation target is the live charge-clause guard')
+  const always = await subRun(src.replace(CLAUSE, "'; a relaunch\\'s ABSORB-CHARGE READ will not count this commit'"))
+  assert.ok(logged(always.logs, 'ABSORB-CHARGE READ will not count'), 'the mutant claims the charge read skips the commit')
 })
 
 test('ace dispatch: an empty reply with an unmoved tip re-dispatches once', async () => {

@@ -13638,7 +13638,7 @@ test('#1935/#1951 — the ace gate-check licenses only a green gate whose echoed
   // Single-line condition: the death arm's own `if (gateDied) return { green: false, died: gateDied }`
   // precedes it in the block, so the match must not span lines.
   const cond = block[0].match(/if \(([^\n]*?)\) return \{ green: true, died: null \}/)
-  assert.ok(cond, 'aceGateGreen must gate its `return { green: true, died: null }` on a condition')
+  assert.ok(cond, 'aceGateJudge must gate its `return { green: true, died: null }` on a condition')
   assert.match(cond[1], /head_sha/, 'the licensing condition must READ head_sha — a requested-but-uncompared echo is #1935')
   // Reuse the shipped sha helpers rather than re-implementing them.
   const isShaSrc = src.match(/const isSha = (s => [^\n]+)/)
