@@ -428,6 +428,7 @@ import {
   provisionSiteCensus,
   PROVISION_SITE_CENSUS,
   provisionFailure,
+  netZeroClash,
 } from './workflow-template.test-harness.mjs'
 
 
@@ -733,3 +734,43 @@ for (const shape of ['subset-mode approval then merge', 'merge-slot mismatch re-
     } finally { rmSync(dir, { recursive: true, force: true }) }
   })
 }
+
+// Polish claims, the net-zero clash range (plan 2026-11-08-engine-findings T5.1, D19 d, ADR 0061).
+// netZeroClash follows the captured t2 pin-transfer prompt against real git. The mutant drops the
+// NET-ZERO step, so step (2) replays the clash commit and its revert onto the claimant's merged line.
+test('polish claim: a net-zero clash range merges in real git and the claimant line survives', async () => {
+  const NET_ZERO_ON = 'const netZeroClause = clashRec'
+  assert.ok(src.includes(NET_ZERO_ON), 'the mutation target is the live clause')
+  const mutantSrc = src.replace(NET_ZERO_ON, 'const netZeroClause = false && clashRec')
+  for (const [arm, edit] of [['clash', 'T2 line\n'], ['identical', 'T1 line\n']]) {
+    const live = await netZeroClash({ edit })
+    try {
+      assert.match(live.revert.stdout, /RANGE-REVERTED/, arm + ': the FORWARD-REVERT step reverts the clash commit')
+      assert.ok(live.netZero && /NET-ZERO-DROPPED/.test(live.netZero.stdout), arm + ': the NET-ZERO step drops the net-zero pair: ' + (live.netZero && live.netZero.stderr))
+      assert.equal(live.rebase.status, 0, arm + ': the rebase through the approved sha is clean, no conflict: ' + live.rebase.stderr)
+      assert.equal(live.shared, 'T1 line\n', arm + ': the claimant line survives on integration')
+      assert.equal(live.b, 't2 approved\n', arm + ': the approved t2 work merged')
+    } finally { rmSync(live.root, { recursive: true, force: true }) }
+    // Red at base: the full rebase conflicts on the clash arm, and on the identical arm it exits 0
+    // (the clash commit is already upstream) but its revert removes the claimant line.
+    const mutant = await netZeroClash({ edit, source: mutantSrc })
+    try {
+      assert.equal(mutant.netZero, null, arm + ': the mutant prompt carries no NET-ZERO step')
+      if (arm === 'clash') assert.notEqual(mutant.rebase.status, 0, 'clash: the mutant full rebase conflicts')
+      else { assert.equal(mutant.rebase.status, 0, 'identical: the mutant full rebase exits 0'); assert.notEqual(mutant.shared, 'T1 line\n', 'identical: and the claimant line is lost') }
+    } finally { rmSync(mutant.root, { recursive: true, force: true }) }
+  }
+})
+
+test('polish claim: a net-zero clash range rebases onto a moved tip', async () => {
+  const live = await netZeroClash({ edit: 'T2 line\n', moveTip: true })
+  try {
+    assert.ok(live.netZero && /NET-ZERO-DROPPED/.test(live.netZero.stdout), 'the NET-ZERO step drops the pair')
+    assert.equal(live.rebase.status, 0, 'the approved-only rebase onto the moved tip is clean: ' + live.rebase.stderr)
+    assert.equal(live.shared, 'T1 line\n', 'the claimant line survives')
+    assert.equal(live.b, 't2 approved\n', 'the approved t2 work merged')
+    assert.equal(live.git('show', 'integration^2:docs/c.md'), 'a later integration commit', 'the t2 merge sits on the moved tip')
+  } finally { rmSync(live.root, { recursive: true, force: true }) }
+  const mutant = await netZeroClash({ edit: 'T2 line\n', moveTip: true, source: src.replace('const netZeroClause = clashRec', 'const netZeroClause = false && clashRec') })
+  try { assert.notEqual(mutant.rebase.status, 0, 'red at base: the mutant full rebase conflicts on the moved tip') } finally { rmSync(mutant.root, { recursive: true, force: true }) }
+})

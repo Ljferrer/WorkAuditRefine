@@ -57,6 +57,7 @@ import {
   fakeParallel,
   NEW_SEAT_DEFAULTS,
   answerNewSeat,
+  aceJudgedRed,
   isHexSha,
   fixtureTree,
   branchOfPrompt,
@@ -463,7 +464,7 @@ for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace
         if (o.label === 'merge:t1') { git('checkout', 'integration'); gitTaskMerge(run, 'task', branchOfPrompt(p)); git('push', 'origin', 'integration'); return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration'), gate_sha: git('rev-parse', 'task') } }
         return defaultImpl(p, o)
       }, { rawMergeResults: true, rawTaskAuditPins: true,
-        'ace-gate': p => reverts ? { gate_green: false, gate_output: 'regressed ace' } : NEW_SEAT_DEFAULTS['ace-gate'](p),
+        'ace-gate': p => reverts ? aceJudgedRed('regressed ace')(p) : NEW_SEAT_DEFAULTS['ace-gate'](p),
         'audit-pin': p => ({ head_sha: git('rev-parse', 'task'), pins: fixturePinRequest(p).map(resolve) }),
         'pin-snapshot': snapshot,
         'pin-transfer': p => {

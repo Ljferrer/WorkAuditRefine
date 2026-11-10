@@ -17,9 +17,12 @@ metadata:
     - lateOriginOf unmerged raiser
     - seededTasks env-died
     - seed fixRounds reset
+    - lfFence sibling fence
+    - teardown-phase latefix
+    - roundLimit seed clamp
   provenance: code-verified
   slug: late-fix-pass-shipped-with-known-relaunch-residuals
-  phase: 2026-11-04-late-defects-fixed-in-run/phase-3 (task 3.1) + phase-4 (task 4.1) + phase-6 (task 6.1)
+  phase: 2026-11-04-late-defects-fixed-in-run/phase-3 (task 3.1) + phase-4 (task 4.1) + phase-6 (task 6.1) + 2026-11-08-engine-findings-ace-and-late-fix/phase-4 (task 4.1)
   tags:
     - late-fix
     - recovery
@@ -27,7 +30,7 @@ metadata:
     - task-integrated
   created: 2026-11-05
   originSessionId: f18978de-02f5-4ccd-9681-eb7dbaa3087b
-  modified: 2026-11-06T04:26:42.451Z
+  modified: 2026-11-10T05:34:36.201Z
 ---
 
 # The late-fix pass shipped with known relaunch residuals
@@ -77,6 +80,31 @@ The #2641 ruling resolved residual 7. Check the Checkpoint ruling before you cha
 8. **A seeded task's fix budget restarts each phase.** The seeded task gets no `fixRounds` from the carried row, so it starts at 0.
    The carried `fixRounds` is only stamped back onto the next carry. So a defect can spend a fresh `run.roundLimit` on every non-final phase.
    The final phase still holds it as `late-defect`, so it stays bounded by the phase count. An auditor flagged this as a possible Lead ruling.
+
+## Status @ plan 2026-11-08-engine-findings-ace-and-late-fix phase 4 (landed tip 0b53a8ac)
+
+Task 4.1 closed items 2, 3, 4 and 8. Item 5 closed earlier (#2624, `const parkFixless`).
+Item 1 is narrowed: `lfFence` now adds every merged sibling's owned files (D18).
+- Item 2: `lfBranch` now carries `runIdShort` (`war/<slug>/<runIdShort>/p<N>-latefix-<k>`).
+- Item 4: both re-audit arms call `lfEscStop`, so an escalate seat stops the defect with its reason.
+- Item 8: the seeded task starts at `spentOf(task.fixRounds)`.
+
+Phase 4 added three new residuals. Each is live at the landed tip.
+
+9. **The D18 sibling fence can fence the defect's own file.** `lfFence` subtracts only the origin task object, not the defect's file.
+   If a merged sibling owns `f.file`, the late-fix worker is told not to touch the file it must fix.
+   The row spends its rounds and carries or holds. Nothing is dropped.
+   Two seats raised it as an `ask` (open the defect's file versus keep D18 literal). Check the ruling before you change `lfFence`.
+10. **A seeded `fixRounds` at or above `run.roundLimit` skips the audit loop.** The loop is `while (round <= roundLimit)` and the seed is not clamped.
+   No audit runs, `spent` stays false, so `seedCapped` never gets the row.
+   The task ends as a reason-less `audit-blocked` escalation, not the seed cap rule. It never merges unjudged.
+   Suggested fix: `Math.min(spentOf(task.fixRounds), roundLimit)`.
+11. **`teardown-phase` no longer reaps late-fix worktrees.** `cmd_teardown_phase` matches `wt_prefix="refs/heads/war/$slug/p$num-"`.
+   The run-scoped late-fix branch has a `<runIdShort>/` segment, so it misses that prefix.
+   Only its own tests call `teardown-phase` today, so the impact is low.
+   General rule: a branch rename must update every prefix matcher, including shell scripts, not just the engine.
+
+Locate-cue (plan 2026-11-08 phase 4): verify still present before acting — `const lfFence` and `const lfBranch` in `lateFixPass`, `let round = task.seed ? spentOf(task.fixRounds) : 0` in `skills/war/assets/workflow-template.js`, and `wt_prefix=` in `skills/war/assets/provision-worktrees.sh`, found @ landed tip 0b53a8ac (the run's `_refinery` worktree, HEAD equal to the tip).
 
 By design: a final-phase seed hold names the seed id (`seed-1`), because the Lead rules on the task in this phase.
 A carried row keeps the first origin task through `carryTaskOf`, so a seed of a seed never re-keys onto an unrelated `seed-1`.

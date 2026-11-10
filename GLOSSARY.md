@@ -699,11 +699,11 @@ The handoff End-state status for a claimed condition no seat attests — attesta
 channel (every gate-audit-family seat returns one `endStateAttestations` row per claimed condition:
 the condition verbatim, status `met` | `unmet` | `unverified`, evidence), so silence maps to
 `unverified`, never `met`. A missing, unreadable, or stale artifact (its stamped tip SHA mismatching
-the confirmed tip) also attests `unverified`, and so do the two record-only artifact states the
-land-barrier endstate-check dispatch stamps: `intake_lint:` (the check literal failed the intake lint,
-so the row was never executed) and `cmd_bytes_mismatch:` (the written `.cmd` failed the byte-for-byte
-verify, so the row was not executed as declared). Such an artifact is present, readable and
-tip-matched, yet its condition was never evaluated, so it is never `unmet` (#1781). Whole-pass absence
+the confirmed tip) also attests `unverified`, as does a `tip_mismatch:` artifact (HEAD was not the
+expected tip, D28) and the two record-only states the endstate-check dispatch stamps:
+`intake_lint:` (the literal failed the intake lint; never executed) and `cmd_bytes_mismatch:` (the
+`.cmd` failed the byte verify; not executed as declared). A record-only artifact is present,
+readable and tip-matched, yet its condition was never evaluated, so it is never `unmet` (#1781). Whole-pass absence
 stays all-`deferred`; findings stay defect-only (attestation rides the rows, never a finding).
 _Avoid_: reading silence as `met` (the failure mode the status exists to close); conflating it with
 `deferred` (the whole-pass-absent status) or `unmet` (an attested, evidenced failure); attesting an
@@ -1054,7 +1054,7 @@ a spent budget routes the rows to the phase-close sweep as absorbs, logged and n
 `r.task.pendingAbsorbs` for the next approve, regardless of budget).
 Every ace-side commit carries the trailer `Ace-Charge: <task>:<n>` (n = the counter after the charge),
 and a relaunch seeds the counter from the highest trailer index on the task branch (the phase-start
-barrier's `absorbCharges`), 0 with a loud log on error or absence. Supersedes the retired reserve
+barrier's `absorbCharges`), then one `charge-probe` read, else 0 with a loud log. Supersedes the retired reserve
 arithmetic on `fixRounds` (ADR 0013 amendment 2026-09-03); `fixRounds` counts blocking fix rounds and
 floor retries only.
 _Avoid_: an ace-side commit that charges `fixRounds`; reading a revert as a charge; a second meter.

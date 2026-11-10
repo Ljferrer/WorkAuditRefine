@@ -229,6 +229,10 @@ const NEW_SEAT_DEFAULTS = {
   // every pre-Phase-4 fixture routes exactly as it did. A fixture that wants the floor answers the
   // seat with { diff_files: [...] } through `seats`.
   'diff-probe': { detail: 'harness default — no probe' },
+  // charge-probe (D40, #2676): the one read-only refiner re-read of an unseeded task's Ace-Charge
+  // trailers. The neutral default is the diff-probe no-map shape, so every existing fixture keeps its
+  // 0-seed arm; a fixture that wants a seed answers the seat with { absorbCharges: {...} } through `seats`.
+  'charge-probe': { detail: 'harness default — no probe' },
 }
 // runPhase(args, agentImpl, seats): `seats` drives the two #1913 refiner seats — a value, or a
 // (prompt, opts) function. They are answered from `seats`, never from agentImpl, precisely because the
@@ -240,13 +244,18 @@ const answerNewSeat = (seats, prompt, opts, world) => {
   const r = o ?? NEW_SEAT_DEFAULTS[opts.dispatchKind]
   return typeof r === 'function' ? r(prompt, opts, world) : r
 }
+// aceJudgedRed (plan 2026-11-08-engine-findings T3.1, D11): the red an ace gate prompt asks a real
+// failure to return — head_sha echoing the dispatched ace tip, plus the failing ids. A bare
+// { gate_green: false } is unjudged since D11 (a segment), so the RED-arm fixtures answer this shape.
+const aceJudgedRed = (gate_output = 'FAIL: 1 test failed', ids = ['test_ace_red']) => prompt =>
+  ({ gate_green: false, head_sha: (String(prompt).match(/at the ace tip ([0-9a-f]{7,40})/) || [])[1], gate_failing_ids: ids, gate_output })
 // The #2485 harness Git world: hex test, a deterministic fixture tree per name, the branch a prompt
 // names, and the fixed tip a ref-named PRE resolves to.
 const isHexSha = s => typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s)
 const fixtureTree = name => createHash('sha1').update('tree:' + name).digest('hex')
 const branchOfPrompt = prompt => (String(prompt).match(/\(branch ([^,)\s]+)/) || [])[1] || null
 const FIXTURE_REF_TIP = 'feed0000'.padEnd(40, '0')
-const NEW_SEAT_KINDS = ['ace-gate', 'ace-base-gate', 'pre-ace-probe', 'pin-transfer', 'diff-probe', 'pin-confirm', 'pin-snapshot', 'target-reconcile', 'merge-confirm', 'merge-snapshot', 'merge-reconcile', 'audit-pin', 'tip-probe', 'ace-revert']
+const NEW_SEAT_KINDS = ['ace-gate', 'ace-base-gate', 'pre-ace-probe', 'pin-transfer', 'diff-probe', 'pin-confirm', 'pin-snapshot', 'target-reconcile', 'merge-confirm', 'merge-snapshot', 'merge-reconcile', 'audit-pin', 'tip-probe', 'ace-revert', 'charge-probe']
 
 // Scripted Git proof for neutral flow fixtures; real Git integrity tests supply their own
 // independent resolver and raw responses. This helper never changes worker/auditor responses.
@@ -309,7 +318,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
 
 const seatOf = (opts) => (opts.agentType || '').split(':').pop()
 const defaultImpl = (prompt, opts) => {
-  if (opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin' || opts.dispatchKind === 'tip-probe' || opts.dispatchKind === 'ace-revert' || opts.dispatchKind === 'ace-base-gate' || opts.dispatchKind === 'pre-ace-probe') return answerNewSeat({}, prompt, opts)
+  if (opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin' || opts.dispatchKind === 'tip-probe' || opts.dispatchKind === 'ace-revert' || opts.dispatchKind === 'ace-base-gate' || opts.dispatchKind === 'pre-ace-probe' || opts.dispatchKind === 'charge-probe') return answerNewSeat({}, prompt, opts)
   const seat = seatOf(opts)
   // Provision dispatches now return the ENV_OUTCOME shape: the git-topology barrier
   // (dispatchKind 'provision-barrier') AND the per-task provision-run (dispatchKind 'provision-run')
@@ -2179,7 +2188,6 @@ const LITERAL_REGISTRY = [
   ["Holding the land for phase ${ph.id}: no task"],
   ["wrap-up:phase-${ph.id}`, schema: SERVITOR_RE"],
   ["Phase ${ph.id} (${landDecision}): no memoryL"],
-  ["${f.title || ''} ${f.rationale || ''}`)) ? '"],
 ]
 
 const untaggedHeadMultiset = (text) => {
@@ -2359,6 +2367,11 @@ const makeDispatch = (agent, maxParallel) => new Function('agent', 'maxParallel'
 // pairs are prompt PROSE (agent-resolved placeholders) and are dropped by the tokenizer — e.g. the
 // release-baseline rule's `\${integrationBranch}...\${task.branch}` mirror text is not a live site.
 const BARE_INTERPOLATION_CENSUS = [
+  // CITATION_MIN_LENGTH (#2224, D7): a module const, construction-guaranteed — the DISPOSITION
+  // WIDENINGS (3) citation sentence must carry the interpolation, never a bare number (the `citation` row).
+  'CITATION_MIN_LENGTH',
+  // ACE_TRAILER_CHECK (D24, PIN-25): a module const, the pre-push trailer check on the four ace-family prompts.
+  'ACE_TRAILER_CHECK',
   'PLAN_DEFECT_SENTINEL', 'PREFLIGHT', 'SCRIPT', 'artifactLine', 'authArtifactLine', 'authCriteria',
   'baseDesc', 'batchSha', 'block', 'depSha', 'depth', 'doneWhenLog', 'e.preMergeTip', 'e.taskId',
   // ev.sha left this census (in-band-absorb-default 4.1 polish): the pinned-sha slot renders the
@@ -2432,7 +2445,12 @@ const BARE_INTERPOLATION_CENSUS = [
   // are construction-guaranteed strings; `shape` is backgroundGateRule's param, a pt-built literal at
   // every call site; `e.gateLogPath` carries an explicit || conventional-path fallback at evItems;
   // `opts.label` is a segment continuation header's site label — every call site passes one.
-  'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'GATE_LOG_UNTHREADED', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
+  // (GATE_LOG_UNTHREADED left the census at D10: gateArtifactLine reads it behind a refused-path ternary.)
+  'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
+  // Plan 2026-11-08-engine-findings T2.1: PHASE_WIDE_MARK and STALE_TIP_PHRASE are plain-string module
+  // consts; expectedTip renders only behind its own truthy ternary; refused renders only behind a
+  // typeof-string ternary in gateArtifactLine; id is a recoveredIds entry, a task id the preMerged arm pushed.
+  'PHASE_WIDE_MARK', 'STALE_TIP_PHRASE', 'expectedTip', 'refused', 'id',
   // FIX_GATE_RULE (#2617 part 2): a plain-string module const, construction-guaranteed.
   'FIX_GATE_RULE',
   // gateArtifactLine: kind is a literal at both callers; path is guarded by gateLogPathOf.
@@ -2527,7 +2545,13 @@ const quietGate = (base) => (prompt, opts) => {
 // carries the body.
 // Parallel repository gate: completed suites emit out of order. Require the final completion marker
 // before treating an absent mapped path as HARD; all pre-existing checklist duties are retained.
-const GATE_AUDIT_CHECKLIST_SHA256 = 'e1ff1f342a87d3c49c2c3d91f7c1b72ad69896fe096964e22c9eded678cfc9f2'
+// Re-pinned (plan 2026-11-08-engine-findings-ace-and-late-fix T2.1): four bullets appended for the
+// execution-evidence seat (D30 phase-wide, D28 confirmed tip, D32 gate scope, D31 environment note);
+// the card gains no byte, and every earlier bullet stays byte-identical.
+// Re-pinned (same task, fix round): the D28 bullet scopes the CONFIRMED TIP compare to the End-state
+// check artifacts and leaves a gate log on its own gated sha; the D30 bullet names the intent-ordinal
+// compare. Every other bullet stays byte-identical.
+const GATE_AUDIT_CHECKLIST_SHA256 = 'ea044abe32637b84b4156e89fad699777dac4b5d5764c6ac48f99f0baa0de408'
 
 // A citation-resolved finding: the seat matched the parked ask's NAMED trade-off to a threaded
 // standing adjudication row and returns disposition:'absorb' + citation (A2 — panel judgment),
@@ -2980,6 +3004,34 @@ const chainCode = () => src.replace(/^\s*\/\/.*$/gm, '')   // comment-stripped s
 const polishAceImpl = () => buildSeqImpl(
   { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]), approveWith('audit:t1:correctness', [])] },
   aceBase([nit()]))
+// Polish claims (plan 2026-11-08-engine-findings T5.1, D19, ADR 0061): two same-wave tasks, each
+// approved once with one absorb nit on its own file, then clean. `touch` names the files each polish
+// commit touches. `late` delays that task's polish return (or, with lateWork, its work worker) by 40 ms,
+// so the return order is fixed. `work` and `polish` may supply a head_sha thunk per task (real git).
+const CLAIM_TASK = (id, files, extra = {}) => ({ id, issue: id === 't1' ? 101 : 102, title: 'Task ' + id, planSlice: 'slice ' + id, files, roster: [{ lens: 'correctness' }], ...extra })
+const CLAIM_ARGS = (over = {}) => SWEEP_ARGS({ tasks: [CLAIM_TASK('t1', ['docs/a.md']), CLAIM_TASK('t2', ['docs/b.md'])], ...over })
+const claimImpl = ({ touch = {}, late = 't2', lateWork = false, work = {}, polish = {}, ownFile = { t1: 'docs/a.md', t2: 'docs/b.md' } } = {}) => {
+  const audits = {}
+  const sleep = ms => new Promise(res => setTimeout(res, ms))
+  return async (prompt, opts) => {
+    const label = opts.label || ''
+    const id = (label.match(/:(t[12])(?::|$)/) || [])[1]
+    if (seatOf(opts) === 'war-worker' && opts.phase === 'Work' && id) {
+      if (lateWork && id === late) await sleep(40)
+      return { task_id: id, status: 'implemented', head_sha: work[id] ? work[id]() : (id === 't1' ? 'deadbee1' : 'deadbee2'), tests: { unit: 1 } }
+    }
+    const p = label.match(/^ace:polish:(t[12]):/)
+    if (p) {
+      if (!lateWork && p[1] === late) await sleep(40)
+      return { task_id: p[1], status: 'implemented', head_sha: polish[p[1]] ? polish[p[1]]() : (p[1] === 't1' ? 'a1a1a1a1' : 'b2b2b2b2'), tests: { unit: 1 }, ace_diff_files: touch[p[1]] || [] }
+    }
+    if (/^audit:t[12]:/.test(label)) {
+      const n = audits[id] = (audits[id] || 0) + 1
+      return approveWith(label, n === 1 ? [nit({ title: id + ' polish row', file: ownFile[id], disposition: 'absorb' })] : [])
+    }
+    return sweepBase([])(prompt, opts)
+  }
+}
 // The seven fix-applying builds: the head string the delete-and-trace control anchors on, the variant
 // name the site passes, the fixture that reaches it, and the capture predicate (label-keyed).
 const CHAIN_FIX_BUILDS = [
@@ -3200,6 +3252,45 @@ const realGitPinConfirm = (dir, p) => {
 // #2485 D8/D10: the engine's two-step --no-ff task merge, spelled as the merge prompt spells it, with the
 // exact WAR-Task trailer naming the engine's task branch. NEVER-MOVE (D11): a source already an
 // ancestor of HEAD is merged — no second merge commit (the reconcile replay of an existing merge).
+// netZeroClash (plan 2026-11-08-engine-findings T5.1, D19 d): a real repo with two same-wave task
+// worktrees. t1 and t2 each commit their own file, then each polish commit sets docs/shared.md to its
+// line, t1 first (claimImpl), so t1 claims the file and t2's commit clashes. `edit` is t2's line. The
+// engine runs the phase and the t2 pin-transfer prompt is captured. Then real git merges t1 (and, with
+// moveTip, one more commit lands on integration), runs the prompt's FORWARD-REVERT script and, when the
+// prompt carries one, its NET-ZERO script in the t2 worktree, rebases t2 onto integration as step (2)
+// says, and merges it when the rebase is clean. The caller removes `root`.
+const netZeroClash = async ({ edit, moveTip = false, source = src }) => {
+  const root = mkdtempSync(join(tmpdir(), 'war-net-zero-'))
+  const repo = join(root, 'repo'), wt = { t1: join(root, 'wt1'), t2: join(root, 'wt2') }
+  mkdirSync(join(repo, 'docs'), { recursive: true })
+  const { run, git } = realGitTools(repo)
+  const at = (dir, ...a) => { const r = spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  const commit = (dir, file, text) => { writeFileSync(join(dir, file), text); at(dir, 'add', file); at(dir, 'commit', '-q', '-m', file + ': ' + text.trim()); return at(dir, 'rev-parse', 'HEAD') }
+  git('init', '-q', '-b', 'integration'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+  for (const [f, t] of [['shared.md', 'line 1\n'], ['a.md', 'a\n'], ['b.md', 'b\n']]) writeFileSync(join(repo, 'docs', f), t)
+  git('add', 'docs'); git('commit', '-q', '-m', 'base')
+  const approved = {}
+  for (const id of ['t1', 't2']) { git('worktree', 'add', '-q', '-b', id, wt[id], 'integration'); approved[id] = commit(wt[id], 'docs/' + (id === 't1' ? 'a' : 'b') + '.md', id + ' approved\n') }
+  let pinP = null
+  const tasks = ['t1', 't2'].map(id => CLAIM_TASK(id, ['docs/' + (id === 't1' ? 'a' : 'b') + '.md'], { branch: id, worktree: wt[id] }))
+  const { out } = await runPhase(SWEEP_ARGS({ tasks }), claimImpl({
+    touch: { t1: ['docs/shared.md'], t2: ['docs/shared.md'] },
+    work: { t1: () => approved.t1, t2: () => approved.t2 },
+    polish: { t1: () => commit(wt.t1, 'docs/shared.md', 'T1 line\n'), t2: () => commit(wt.t2, 'docs/shared.md', edit) },
+  }), { 'pin-transfer': (p, o) => { if (o.label === 'pin-transfer:t2') pinP = p; return { status: 'error' } } }, source)
+  assert.ok(pinP, 'the t2 pin-transfer probe was dispatched (presence guard)')
+  gitTaskMerge(run, 't1', 't1')
+  if (moveTip) commit(repo, 'docs/c.md', 'a later integration commit\n')
+  const scriptAfter = head => (pinP.includes(head) ? pinP.split(head)[1].match(/run exactly:\s*`([^`]+)`/) || [] : [])[1]
+  const bash = script => spawnSync('bash', ['-c', script], { encoding: 'utf8' })
+  const revert = bash(scriptAfter('FORWARD-REVERT (--ace)'))
+  const netZero = scriptAfter('NET-ZERO CLASH RANGE') ? bash(scriptAfter('NET-ZERO CLASH RANGE')) : null
+  const rebase = spawnSync('git', ['-C', wt.t2, 'rebase', '-q', 'integration'], { encoding: 'utf8' })
+  if (rebase.status !== 0) spawnSync('git', ['-C', wt.t2, 'rebase', '--abort'], { encoding: 'utf8' })
+  else gitTaskMerge(run, 't2', 't2')
+  const read = f => readFileSync(join(repo, 'docs', f), 'utf8')
+  return { root, out, pinP, approved, revert, netZero, rebase, shared: read('shared.md'), b: read('b.md'), git }
+}
 const gitTaskMerge = (run, source, branch) => {
   if (run('merge-base', '--is-ancestor', source, 'HEAD').status === 0) return
   for (const args of [['-c', 'core.hooksPath=/dev/null', 'merge', '--no-ff', '--no-commit', source],
@@ -3400,7 +3491,7 @@ const captureRangeRevertScript = async ({ dir, git, quiet, approved }) => {
       return { tip_sha: tip, tip_tree: git('rev-parse', tip + '^{tree}'), pre_sha: git('rev-parse', pre), pre_tree: git('rev-parse', pre + '^{tree}'), approved_tree: git('rev-parse', approved + '^{tree}'),
         count: Number(git('rev-list', '--count', pre + '..' + tip)), pre_is_ancestor: true, files: git('diff', '--no-renames', '--name-only', pre, tip).split('\n') }
     },
-    'ace-gate': { gate_green: false, gate_output: 'red' },
+    'ace-gate': aceJudgedRed('red'),
     'pin-transfer': p => { scripts.push(rangeRevertScriptOf(p)); return { status: 'error' } },
   })
   assert.equal(scripts.length, 1, 'the pin-transfer probe carried the range revert')
@@ -3510,7 +3601,11 @@ const READER_CENSUS = [
   ['pinOrSentinel', /'\(integration_sha unrecorded\/malformed\)'/, 1],
   ['gate_sha Git binding (gitBoundGateSha)', /const gated = result && result\.gate_sha, second = proof|const \{ gate_sha: dropped, \.\.\.rest \} = result$/, 2],
   ['landMerged: predTip from lastLandedTip', /const predTip = lastLandedTip \?\? recoveryPredSeed$/, 1],
-  ['landMerged: gateHeadSha from gate_sha, preMergeTip', /gateHeadSha: pinOrSentinel\(mr\.gate_sha\), gateLogPath: mr\.gate_log_path, preMergeTip: predTip/, 1],
+  ['landMerged: gateHeadSha from gate_sha, preMergeTip', /gateHeadSha: pinOrSentinel\(mr\.gate_sha\), gateLogPath: mr\.gate_log_path, gateLogRefused: mr\.gate_log_refused, preMergeTip: predTip/, 1],
+  // Plan 2026-11-08-engine-findings T2.1 (D28): the expected tip the endstate-check dispatch and the
+  // CONFIRMED TIP line name — the last merge commit (lastLandedTip), else null. Its fixture is
+  // 'endstate-check: the dispatch names the expected tip and the runner compares'.
+  ['expectedTip from lastLandedTip (D28)', /^const expectedTip = isSha\(lastLandedTip\) \? lastLandedTip : null$/, 1],
   ['landMerged: lastLandedTip and landedShaByTask from integration_sha', /if \(isSha\(mr\.integration_sha\)\) \{ lastLandedTip = mr\.integration_sha; landedShaByTask\.set\(task\.id, mr\.integration_sha\) \}/, 1],
   ['already_upstream landMerged (pinProof.head_sha)', /landMerged\(r\.task, \{ mode: 'merge-task', status: 'merged', integration_sha: pinProof\.head_sha, gate_sha: pinProof\.head_sha \}\)/, 2],
   ['first-merge and floor-retry populate sentences', /pt`Populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at/, 2],
@@ -3524,6 +3619,9 @@ const READER_CENSUS = [
   // late-defects Task 3.1: a merged late fix (a --ff-only merge, so integration_sha is the late-fix tip) moves the tracker.
   ['lateFixPass: lastLandedTip from a merged late fix', /^\s+if \(isSha\(mr\.integration_sha\)\) lastLandedTip = mr\.integration_sha$/, 1],
   ["auditEvidenceOf's fallback (landedShaByTask)", /const g = auditLog\.find\(e => e && e\.task === t && e\.gateEvidence && typeof e\.gateHeadSha|sha: g \? g\.gateHeadSha : \(landedShaByTask\.get\(t\) \?\? 'unrecorded'\)/, 2],
+  // D33 (#2686): the sibling-merge stamp names a merged sibling's landed tip (its merge commit) for
+  // the filer to read at; it licenses nothing and moves no record by itself.
+  ['D33 siblingTouch (landedShaByTask)', /^\s+for \(const \[task, sha\] of landedShaByTask\) \{$/, 1],
 ]
 const readerCensusOf = source => {
   const counts = new Map(READER_CENSUS.map(([name]) => [name, 0])), unclassified = [], ambiguous = []
@@ -3571,7 +3669,7 @@ const readCharges = (cmd, dir, branch) => {
   assert.equal(r.status, 0, r.stderr)
   return r.stdout.split('\n').map(s => s.trim()).filter(Boolean)
 }
-// The prompt's rule: the bare task id segment must equal this task's id; take the HIGHEST n.
+// The prompt's rule: the task-id segment must equal this task's exact id; take the HIGHEST n.
 const highestFor = (values, id) => Math.max(0, ...values.map(v => v.match(/^(.+):(\d+)$/)).filter(m => m && m[1] === id).map(m => Number(m[2])))
 
 // ---- #2485 Task 4.1 — tree-keyed re-provision before any gate (plan 2026-10-28-blocked-ace-and-merge-provenance, D15/D19) ----
@@ -3777,6 +3875,7 @@ export {
   fakeParallel,
   NEW_SEAT_DEFAULTS,
   answerNewSeat,
+  aceJudgedRed,
   isHexSha,
   fixtureTree,
   branchOfPrompt,
@@ -4176,4 +4275,8 @@ export {
   withoutSweepDebt,
   TWIN_TASKS,
   NON_INFRA_THROW,
+  CLAIM_TASK,
+  CLAIM_ARGS,
+  claimImpl,
+  netZeroClash,
 }

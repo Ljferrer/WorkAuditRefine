@@ -890,7 +890,7 @@ test('2485/T5.1 de-mirror — manifest top-level fields live in run-manifest.md;
 
 // (2026-09-06 Task 1.2 — D22, PIN-26) Doc-truth pins on the remaining surfaces: the manifest
 // relaunch arm lives in run-manifest.md alone (schemas.md points, never restates), the handoff
-// `followUps` literal is the de-mirrored four-key summary, the ask-ruling gate's overrule clause is
+// `followUps` literal is the de-mirrored key summary, the ask-ruling gate's overrule clause is
 // ratify-or-record-dissent (#1886), the card carries the relaunch trigger pointer (ADR 0042), and
 // /war-review carries the basename-vs-workflowRunId warning.
 test('doc-truth (T1.2) — relaunch arm, followUps literal, overrule clause, relaunch pointer, war-review warning (#1916, #1793, #1886)', () => {
@@ -911,7 +911,7 @@ test('doc-truth (T1.2) — relaunch arm, followUps literal, overrule clause, rel
   assert.match(manifest[0], /`attempts\[\]`[\s\S]*run-manifest\.md/, 'schemas.md § Run manifest must point `attempts[]` at run-manifest.md (de-mirror)')
   assert.doesNotMatch(manifest[0], /attempts: \[/, 'schemas.md restates the `attempts[]` shape — the shape lives only in run-manifest.md (de-mirror)')
   // schemas.md: the handoff followUps literal, house de-mirror form.
-  assert.match(schemasMd, /followUps: \[ \{ issue, reason, merged\?, drainCause\? \} \],\s*\/\/ Authoritative shape: the followUps projection in workflow-template\.js — this row is a de-mirrored summary/, 'schemas.md must carry the `followUps: [ { issue, reason, merged?, drainCause? } ]` literal in the house de-mirror form (#1793)')
+  assert.match(schemasMd, /followUps: \[ \{ issue, reason, findingClass\?, merged\?, drainCause\? \} \],\s*\/\/ Authoritative shape: the followUps projection in workflow-template\.js — this row is a de-mirrored summary/, 'schemas.md must carry the `followUps: [ { issue, reason, findingClass?, merged?, drainCause? } ]` literal in the house de-mirror form (#1793)')
   // SKILL.md: the overrule clause is ratify-or-record-dissent; the OLD `confirms or overrules` is gone.
   assert.ok(!/confirms or overrules/i.test(skillMd), 'the OLD `confirms or overrules` clause is still in skills/war/SKILL.md (#1886)')
   assert.match(skillMd, /ratifies the prefill or records a dissent as the ruling/, 'the ask ruling gate must carry the ratify-or-record-dissent clause (#1886)')
@@ -4187,7 +4187,7 @@ test('unverified-triggers — the GLOSSARY.md **`unverified`** entry names exact
     assert.ok(stamps.includes(f), `the endstate build must stamp \`${f}:\` on every artifact — the frame anchor rotted`)
   }
   const canonical = stamps.filter((t) => !FRAME.includes(t)).sort()
-  assert.equal(canonical.length, 2, 'the endstate build must stamp exactly its two record-only artifact states (D16: intake_lint, cmd_bytes_mismatch)')
+  assert.equal(canonical.length, 3, 'the endstate build must stamp exactly its three unverified artifact states (D16: intake_lint, cmd_bytes_mismatch; D28: tip_mismatch)')
   const entry = glossaryMd.match(/^\*\*`unverified`\*\* \(End-state status\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(entry, 'could not locate the **`unverified`** (End-state status) glossary entry in GLOSSARY.md — the extraction construct rotted')
   const e = norm(entry[0])
@@ -4795,7 +4795,8 @@ const LATE_DEFECTS_POINTER = /read \[references\/late-defects\.md\]\(references\
 // through the same reads: the leg names the projection, the behavior class, the retired sufficiency of a
 // non-null issue, and both rulings.
 const floorCoversBehavior = (b) =>
-  /`handoff\.followUps\[\]` entry projects the top-level `minorsFiled\[\]` row at the same index/.test(b) &&
+  /`handoff\.followUps\[\]` holds one entry per filed issue, and when an entry or any of its `merged\[\]` rows carries/.test(b) &&
+  !/at the same index/.test(b) &&
   /`findingClass: 'behavior'`/.test(b) &&
   /a non-null `issue` alone no longer passes/.test(b) &&
   /fix-now \(a seeded task\)/.test(b) &&
@@ -4863,6 +4864,8 @@ test('late-defect: doctrine floor — a behavior follow-up halts the DAG advance
   assert.ok(floorRaw, 'could not locate `## The behavior follow-up floor` in late-defects.md — construct rotted')
   const floor = [norm(floorRaw[0])]
   for (const [re, what] of [
+    [/holds one entry per filed issue[\s\S]*not index-aligned with the top-level `minorsFiled\[\]`/, 'the per-issue grouping (D26)'],
+    [/Read every entry and every `merged\[\]` row\./, 'the entry-and-merged read'],
     [/a non-null `issue` alone no longer passes the floor/, 'the retired sufficiency'],
     [/\*\*fix-now:\*\* the row becomes a seeded task\./, 'the fix-now ruling'],
     [/On the final phase there is no next phase, so launch one seed-only phase/, 'the final-phase fix-now launch'],

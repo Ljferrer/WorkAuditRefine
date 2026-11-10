@@ -604,3 +604,79 @@ test('seed-1 land_stale lesson premise — land_stale is a hard escalation reaso
   assert.ok(normalize(readRel('skills/war/SKILL.md')).includes('run one more `war-servitor` pass fed the resolution'),
     'skills/war/SKILL.md no longer carries the resolution-fed war-servitor pass rule that lesson step 4 restates');
 });
+
+// ---- charge-probe seed and ace red arm (D11, D35, D40): the reference rows follow the engine ----
+// Each row drops its retired wording and names the engine rule. The engine anchors below are the
+// oracle: a renamed or removed engine arm fails closed, so a row never stays green beside dead code.
+const SEED_AND_RED_ROWS = [
+  { name: 'schemas.md absorbCharges bullet', file: 'skills/war/references/schemas.md',
+    extract: (r) => lineStarting(r, '- **`absorbCharges`**'),
+    old: ['a malformed value ⇒ `absorbRounds` 0'],
+    new: ['read once more by one `charge-probe` dispatch', 'only a task still unseeded after that reply',
+      'the keys each map carried and the shape of each return that carried no map'] },
+  { name: 'ADR 0013 relaunch seed amendment', file: 'docs/adr/0013-commanders-intent-and-disposition-routing.md',
+    extract: (r) => lineStarting(r, '- 2026-11-09 · Amendment: the relaunch seed has a third source'),
+    old: [],
+    new: ['read once more by one `charge-probe` dispatch', 'the keys each map carried and the shape of each return that had no map'] },
+  // The 2026-09-03 policy bullet itself: it must stop teaching the retired 0-on-absence seed.
+  { name: 'ADR 0013 relaunch seed policy bullet', file: 'docs/adr/0013-commanders-intent-and-disposition-routing.md',
+    extract: (r) => between(r, '- **The trailer and the relaunch seed.**', '- **Exhaustion routes to the sweep'),
+    old: ['0 with a loud log on error or absence', 'each return\'s shape'],
+    new: ['read once more by one `charge-probe` dispatch (D40, #2676)', 'only a task still unseeded seeds 0 with a loud log',
+      'the map keys and the shape of each return that had no map'] },
+  // The card sentence and the barrier prompt sentence are twins: both rows pin the same phrase.
+  { name: 'refiner card barrier item, failing read', file: REFINER_CARD,
+    extract: (r) => lineStarting(r, '1. **Phase git-topology barrier'),
+    old: ['the engine seeds 0 loudly'],
+    new: ['one charge-probe re-reads'] },
+  { name: 'barrier prompt ABSORB-CHARGE READ, failing read', file: ENGINE_PATH,
+    extract: (r) => lineStarting(r, '+ pt` Return \\`absorbCharges: {'),
+    old: ['the engine seeds 0 and logs it loudly'],
+    new: ['one charge-probe re-reads'] },
+  { name: 'schemas.md ENV_OUTCOME absorbCharges comment', file: 'skills/war/references/schemas.md',
+    extract: (r) => lineStarting(r, 'absorbCharges? }'),
+    old: ['(absent/malformed ⇒ 0, logged)'],
+    new: ['one charge-probe re-read, then 0'] },
+  { name: 'schemas.md Ace base gate paragraph', file: 'skills/war/references/schemas.md',
+    extract: (r) => lineStarting(r, '**Ace base gate**'),
+    old: ['a red with no ids or no matching `head_sha`', 'keeps the forward-revert',
+      'forward-reverts only when that second run is a judged red again'],
+    new: ['is unjudged (D11): it re-dispatches as a segment', 'is re-asked once for its ids (D35)',
+      '`provision_failed: true` red, which is never re-asked for ids', 'a second run that is a judged red again, dies, or carries no usable echo forward-reverts the ace tip',
+      'a first reply that dies, or is green with no usable `head_sha` echo, is no judged red: it forward-reverts the ace tip at once, with no D35 re-run'] },
+  { name: 'schemas.md GateCheck fail-open sentence', file: 'skills/war/references/schemas.md',
+    extract: (r) => lineStarting(r, "The task gate (and the task's `Done when:` command) run at an ace-family commit"),
+    old: ['a red gate with a new id forward-reverts the ace tip, the approved'],
+    new: ['once its one D35 re-run reproduces'] },
+  { name: 'resume-and-recovery.md ace gate row', file: 'skills/war/references/resume-and-recovery.md',
+    extract: (r) => lineStarting(r, '- **Incomplete gate — ace gate (#2326).**'),
+    old: ['on that pair, bounded by `run.roundLimit`. A spent bound'],
+    new: ['no usable `head_sha` and no `gate_failing_ids` is unjudged',
+      'returns `head_sha`, `gate_output` and `provision_failed: true`', 'one fresh re-run before the forward-revert (D35)',
+      'is re-asked once for its ids', '`provision_failed: true` red, which is never re-asked for ids'] },
+  { name: 'GLOSSARY.md absorb meter seed', file: 'GLOSSARY.md',
+    extract: whole,
+    old: ['0 with a loud log on error or absence'],
+    new: ['then one `charge-probe` read, else 0 with a loud log'] },
+];
+for (const s of SEED_AND_RED_ROWS) {
+  test(`seed and red arm docs — ${s.name}`, () => {
+    const hay = normalize(s.extract(readRel(s.file))).toLowerCase();
+    for (const token of s.old) assert.ok(!hay.includes(normalize(token).toLowerCase()), `${s.name}: retired text ${JSON.stringify(token)} is still present`);
+    for (const token of s.new) assert.ok(hay.includes(normalize(token).toLowerCase()), `${s.name}: ${JSON.stringify(token)} is absent`);
+  });
+}
+
+test('seed and red arm docs — the engine still carries the arms the rows describe', () => {
+  const src = readRel(ENGINE_PATH);
+  for (const anchor of [
+    "dispatchKind: 'charge-probe'",
+    "seedTask(t, [['charge-probe absorbCharges', pm]])",
+    "(res.gate_segment === 'incomplete' || (!isSha(res.head_sha) && !debtIds(res.gate_failing_ids).length))",
+    'const reask = g.gate_green === false && g.provision_failed !== true && isSha(g.head_sha) && !debtIds(g.gate_failing_ids).length',
+    'const second = await aceGateJudge(r, aceTipSha, g2)',
+    'if (first) return first',
+    'if (gateDied) return { green: false, died: gateDied }',
+    'if (!g || g.gate_green !== false) {',
+  ]) assert.ok(src.includes(anchor), `the engine no longer carries ${JSON.stringify(anchor)} — re-read the engine and correct the reference rows`);
+});

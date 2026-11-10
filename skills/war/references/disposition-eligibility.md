@@ -48,10 +48,14 @@ Three widenings, mirrored in the dispatched `auditPrompt` DISPOSITION WIDENINGS 
    past a present operator, #1879) — and a citation without the echoed `ask` cannot reliably
    unpark or prefill the question (the miss is logged, never silent). The re-audit panel verifies
    citation soundness. Ambiguity is NO-match: park the ask (match strictness, PIN-6).
+   `citation.row` must be the threaded row's own text, or one contiguous run of it of at least
+   24 characters that no other threaded row contains — never a row id, a paraphrase, or a row
+   with your own words added; a refused row rides as a plain absorb and the ask stays parked.
 
 ## Barrier list — the in-diff `absorb` default and its four barriers (in-band-absorb-default D1/D2)
 
-A **fully specified** `Minor`/`Nit` (non-empty `suggested_fix`) **defaults to `absorb`** when its
+A **fully specified** `Minor`/`Nit` (a `suggested_fix` that names a fix — not blank and not a
+no-fix sentinel such as "None needed.") **defaults to `absorb`** when its
 file is in the task diff, and to `absorb` + `phaseClose:true` when its file is outside the task diff
 — you read the diff, so you set that disposition yourself (the engine's diff-probe intake floor
 applies the same default when you omit it, from the task branch's git-derived diff). On such a finding `follow-up` is legal

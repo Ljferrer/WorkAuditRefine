@@ -1135,7 +1135,8 @@ cmd_teardown_task() {
 # removed (for phase worktrees) or inside <worktreeRoot>/<runId> (for
 # _refinery). A sibling worktree of a different run-id is never touched.
 # We identify "phase worktrees" as registered worktrees of this repo that live
-# under --run-dir AND are checked out on a war/<slug>/p<N>-* branch.
+# under --run-dir AND are checked out on a war/<slug>/p<N>-* branch or a
+# run-scoped late-fix branch war/<slug>/<runIdShort>/p<N>-latefix-<k>.
 #
 # --owned-file PATH: the run's owned-ref ledger. The integration branch
 #   integration/<slug>/phase-<N> must be recorded in this ledger before
@@ -1237,15 +1238,24 @@ cmd_teardown_phase() {
 
   # --- Collect and remove this run's phase task worktrees -------------------
   # Registered worktree paths that (a) live under run-dir and (b) are on a
-  # war/<slug>/p<N>-* branch. We read the porcelain once, pairing each
-  # `worktree <path>` with its following `branch <ref>`.
+  # war/<slug>/p<N>-* branch, or on a run-scoped late-fix branch
+  # war/<slug>/<runIdShort>/p<N>-latefix-<k> (a branch under war/<slug>/ whose
+  # last path segment starts with p<N>-latefix-). We read the porcelain once,
+  # pairing each `worktree <path>` with its following `branch <ref>`.
   wt_prefix="refs/heads/war/$slug/p$num-"
+  lf_base="refs/heads/war/$slug/"
+  lf_seg="p$num-latefix-"
   phase_paths="$(
-    git worktree list --porcelain 2>/dev/null | awk -v want="$rd_phys/" -v pref="$wt_prefix" '
+    git worktree list --porcelain 2>/dev/null | awk -v want="$rd_phys/" -v pref="$wt_prefix" -v lfbase="$lf_base" -v lfseg="$lf_seg" '
       /^worktree / { wt = substr($0, 10); br = "" }
       /^branch /   {
         br = substr($0, 8)
-        if (index(wt, want) == 1 && index(br, pref) == 1) { print wt }
+        if (index(wt, want) != 1) next
+        if (index(br, pref) == 1) { print wt; next }
+        if (index(br, lfbase) == 1) {
+          last = br; sub(/.*\//, "", last)
+          if (index(last, lfseg) == 1) print wt
+        }
       }
     '
   )"

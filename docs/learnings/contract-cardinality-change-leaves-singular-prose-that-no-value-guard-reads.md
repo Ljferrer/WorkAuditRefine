@@ -2,6 +2,7 @@
 name: contract-cardinality-change-leaves-singular-prose-that-no-value-guard-reads
 description: A one-to-N contract change leaves singular prose on surfaces that a path-value guard never reads
 metadata:
+  promoted: dev/2026-11-08-engine-findings-ace-and-late-fix@phase-1
   node_type: memory
   type: project
   keywords:
@@ -13,9 +14,12 @@ metadata:
     - stale sibling surface
     - dated decision log
     - IDENTICAL guard
+    - index-aligned projection
+    - same index
+    - grouped followUps
   provenance: agent-unverified
   slug: contract-cardinality-change-leaves-singular-prose-that-no-value-guard-reads
-  phase: "2026-10-20-rea-artifact-evidence/phase-5 (task 5.1, p5-polish)"
+  phase: "2026-10-20-rea-artifact-evidence/phase-5 (task 5.1, p5-polish); recurrence 2026-11-08-engine-findings-ace-and-late-fix/phase-1 (task 1.1)"
   tags:
     - war
     - rea
@@ -24,7 +28,7 @@ metadata:
     - phase-close
   created: 2026-10-22
   originSessionId: 18c261f6-f7c5-4bb3-8473-a40e81fb5346
-  modified: 2026-10-23T00:34:27.645Z
+  modified: 2026-11-09T22:18:14.221Z
 ---
 
 # A cardinality change leaves singular prose that no value guard reads
@@ -64,8 +68,22 @@ The README Status blurb and the CHANGELOG 0.21.17 entry still described the sing
 - If a hit sits outside the task's `Files:` list, put it in the plan slice. Otherwise expect it to reach the phase-close sweep as an `absorb` finding.
 - Same family: [[default-flip-must-audit-all-doc-surfaces]] (a changed fact survives in a sibling surface).
 
+## Recurrence: N-to-fewer grouping breaks an index-aligned reader (2026-11-08 phase 1)
+
+- Plan D26 grouped `handoff.followUps[]` by issue number. Rows that share an issue now ride the first entry's `merged[]`.
+- So the list got shorter than `minorsFiled[]`. Three Lead docs still said each entry maps the `minorsFiled[]` row "at the same index" ("one for one", "row for row").
+- The ADR 0058 behavior-row floor used that mapping. A Lead who followed it could skip a tail behavior row and advance unruled.
+- The engine comment said "the Checkpoint floor reads minorsFiled". That was true in code and false in the doctrine the Lead follows.
+- Three seats raised it as Major. The fix round made every entry and `merged[]` row carry its own `findingClass`. It reworded SKILL.md, late-defects.md, resume-and-recovery.md and schemas.md, and banned `at the same index` in skill-doc-contracts.
+- Lesson: a grouping or dedup change shrinks a list. Grep every reader for positional words ("same index", "row for row", "one for one") as well as the noun phrase.
+- A fixture that asserts only the count and the merged titles stays green over this break. Add an arm that puts the flagged row at a grouped index.
+
+Audit finding resolved in a fix round before land. Recorded as pattern, not live instance. Read at landed tip 293edc46 through the run's `_refinery` worktree (branch head 37560c72, the land merge's source, same tree).
+
 ## Locate-cue (verify still present before acting)
 
+- `skills/war/references/late-defects.md`: search `not index-aligned` (2026-11-08 recurrence).
+- `skills/war/assets/skill-doc-contracts.test.mjs`: search `at the same index` (the ban regex).
 - `skills/war/references/artifact-evidence-lead.md`: search `one digest manifest per cited artifact`.
 - `docs/adr/0053-rea-artifact-evidence-source.md`: search `digest manifest per cited` in section 2, `mismatch against any cited` in section 5 (both sentences wrap after `cited`), and `D23` in the Decision log.
 - `docs/adr/0041-audit-evidence-precedence.md`: the 2026-10-20 row that begins `evidence-seat rung`.
