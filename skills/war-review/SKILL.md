@@ -75,7 +75,7 @@ attempts' transcripts into one phase. A phase carrying `attempts[]` is a relaunc
 separately, labelled by attempt; its `envelope` totals cover the current attempt only, so label a
 relaunched phase's token and tool-call totals attempt-scoped, never as the phase total.
 The per-model and per-class rows (§ 3) follow the same rule: `dispatchModels` is
-binding-to-attempt ([`../war/references/schemas.md`](../war/references/schemas.md)), so label
+binding-to-attempt ([`../war/references/run-manifest.md`](../war/references/run-manifest.md) § Relaunch), so label
 a relaunched phase's rows attempt-scoped too.
 The `journal.jsonl` and `agent-*.jsonl` files are **harness-internal, line-delimited
 JSON** — read them **defensively**:
