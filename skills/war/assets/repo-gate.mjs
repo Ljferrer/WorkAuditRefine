@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 function jobs(name) {
-  const value = process.env[name] ?? '2'
+  const value = process.env[name] ?? '4'
   if (!/^[1-9][0-9]*$/.test(value) || Number(value) > 32) {
     throw new Error(`${name} must be an integer from 1 to 32`)
   }

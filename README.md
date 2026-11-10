@@ -418,13 +418,13 @@ node skills/war/assets/repo-gate.mjs
 ```
 
 This is the gate in this repository's `.claude/war/config.json`. It runs the full
-`skills/**/*.test.mjs` glob with two Node test-file workers while two shell workers
+`skills/**/*.test.mjs` glob with four Node test-file workers while four shell workers
 run every discovered `*.test.sh`. Discovery excludes `.git`, `.claude`, and
 `node_modules` directories and does not follow symlinks. New suites are discovered
 on each invocation. Other projects' declared gates retain their existing ordering.
 
 Set `WAR_GATE_NODE_JOBS` and `WAR_GATE_SHELL_JOBS` to tune the pools independently
-(each defaults to `2`, accepts `1`–`32`). These limits apply per gate invocation;
+(each defaults to `4`, accepts `1`–`32`). These limits apply per gate invocation;
 concurrent WAR runs share the machine, so start with the defaults.
 
 The Node invocation and each shell suite get separate temporary directories and

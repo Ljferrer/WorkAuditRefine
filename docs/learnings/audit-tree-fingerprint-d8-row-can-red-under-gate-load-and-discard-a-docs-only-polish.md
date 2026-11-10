@@ -1,11 +1,12 @@
 ---
 name: audit-tree-fingerprint-d8-row-can-red-under-gate-load-and-discard-a-docs-only-polish
-description: "PARTLY RESOLVED (#2615): the watchdog rows now use a 10 s deadline, but row 112 still reds when one hook run outlasts the 540 s default (#2724)"
+description: "PARTLY RESOLVED (#2615): the watchdog rows now use a 10 s deadline, but old row 112 still reds when one hook run outlasts the 540 s default (#2724)"
 metadata:
   node_type: memory
   type: project
   keywords:
     - audit-tree-fingerprint.test.sh
+    - audit-tree-fingerprint-deadline.test.sh
     - flaky test
     - git-error skip labelled wrong
     - WAR_FINGERPRINT_DEADLINE_SECONDS
@@ -63,6 +64,6 @@ Much of that load came from unrelated projects on the same machine. Which call s
 - After a `polish-discarded`, re-route its absorbs by hand. The discard entry does not list them.
 - File the flake once against the suite, not per row.
 
-Locate-cue: verify still present before acting. The 540 s default and the `WAR_FINGERPRINT_DEADLINE_SECONDS` clamp are in `hooks/audit-tree-fingerprint.sh`. `run_shim`, `SHIM_D` and the c7 and d8 rows (by label) are in `hooks/audit-tree-fingerprint.test.sh`.
+Locate-cue: verify still present before acting. The 540 s default and the `WAR_FINGERPRINT_DEADLINE_SECONDS` clamp are in `hooks/audit-tree-fingerprint.sh`. `run_shim`, `SHIM_D` and the d8 row (by label) are in `hooks/audit-tree-fingerprint-deadline.test.sh`, and the c7 row is in `hooks/audit-tree-fingerprint-operands.test.sh`. #2823 split the old single suite into four files, so row numbers changed.
 
 Related: [[held-escalation-lead-manual-completion]], [[never-follow-resumefromrunid-hint-after-a-land-failure]], [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]], [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]], [[polish-discarded-auditlog-entry-carries-no-findings-critical-major-ride-polish-rejected-instead]].
