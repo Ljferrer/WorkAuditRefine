@@ -31,7 +31,7 @@ metadata:
 
 # How the auditor git guard now admits `git grep` without opening the pager hole
 
-**ADR record.** ADR 0029 Amendment 2026-10-22 (plan D21, task 6.1) reverses the 2026-07-26 "still no". The reason: no seat had the Grep tool on Claude Code 2.1.304, so the auditors had no search channel. The compensating control is the audit tree fingerprint hook (D22).
+For why the verb had to be admitted, see [[auditor-seat-can-lack-grep-glob-tools-leaving-no-search-channel]].
 
 **Why the verb stayed out for so long.** `git grep -O<cmd>` (`--open-files-in-pager`) runs an arbitrary command. A verb allowlist cannot admit `grep` while that flag exists.
 
@@ -47,6 +47,6 @@ The `git branch` read-form loop beside it uses the same default-deny-by-shape id
 
 **Locate-cue (verify still present before acting).** The "NARROW-FORM grep enforcement" block in `hooks/validate-auditor-git.sh` and the Amendment 2026-10-22 section of `docs/adr/0029-capture-grounds-on-committed-tip.md`, found at landed tip d66961d9 on `dev/2026-10-20-rea-artifact-evidence`.
 
-Related: [[allowlist-catch-all-token-defeats-meta-guard]], [[auditor-seat-can-lack-grep-glob-tools-leaving-no-search-channel]], [[auditor-grep-tool-unrestricted-by-git-verb-bash-guard]], [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]].
+Related: [[allowlist-catch-all-token-defeats-meta-guard]], [[auditor-seat-can-lack-grep-glob-tools-leaving-no-search-channel]], [[auditor-seat-can-lack-grep-glob-tools-leaving-no-search-channel]], [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]].
 
 > archived 2026-11-05: resolved — moved to archive

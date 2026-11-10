@@ -15,7 +15,7 @@ base, Code-boundary decomposition, Roadmap, Campaign ledger, Inbox, Hopper) — 
 Memory hooks: [[frontmatter-tools-negation-check-single-line-only]] (T3 parses frontmatter, never a
 single-line grep), [[weak-test-assertion-passes-without-feature-being-exercised]] (temp-break proofs for both
 test surfaces), [[regex-slice-disambiguation-relies-on-match-order-not-anchoring]] +
-[[regex-extract-live-code-lazy-quantifier-fragility]] (anchored line-based `Files:` parsing, no lazy
+[[regex-slice-disambiguation-relies-on-match-order-not-anchoring]] (anchored line-based `Files:` parsing, no lazy
 quantifiers), [[release-bump-slots-canonical-no-badge]], [[stacked-release-plan-version-literal-lags-operator-target]],
 [[war-branch-base-off-latest-master-not-prior-tip]], [[gate-under-covers-after-cross-branch-merge-new-runner]],
 [[plan-line-number-refs-stale-use-construct-locator]] (README edits anchor by construct),
@@ -162,7 +162,7 @@ harness for plugin skills.
   is a bug): anchor `/^\s*(-\s+)?\*{0,2}Files?:\*{0,2}/` (the `s?` also matches the house singular
   `**File:**` form — silent-miss is the unsafe direction for a contention check; tolerates `**Files:**`
   bold, the spec §6.2 template's indented `- Files:` list form, and markdown links; no lazy quantifiers —
-  [[regex-extract-live-code-lazy-quantifier-fragility]]), then **consume continuation lines until a blank
+  [[regex-slice-disambiguation-relies-on-match-order-not-anchoring]]), then **consume continuation lines until a blank
   line or a new construct** (heading, `**`, `- [ ]`). Token policy: strip parenthetical/em-dash annotation
   clauses from the joined block BEFORE comma-splitting — but **keep** a parenthetical whose content is
   exactly one backticked path-shaped token (the ``(`path`)`` bare-path form carries a real file); accept a

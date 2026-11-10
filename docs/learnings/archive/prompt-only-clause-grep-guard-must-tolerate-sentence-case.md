@@ -1,63 +1,80 @@
 ---
 name: prompt-only-clause-grep-guard-must-tolerate-sentence-case
-description: "Prose grep guard: use -i + mid-sentence anchor"
-metadata: 
+description: "A grep guard over prose, whether it checks a clause is present or a retired phrase is absent, must match case-insensitively on a mid-sentence anchor"
+metadata:
   node_type: memory
   type: project
-  keywords: [case-insensitive match, false negative, capitalization drift, anchor token, prose verification, requiresTest false, manual check]
   provenance: agent-unverified
   slug: prompt-only-clause-grep-guard-must-tolerate-sentence-case
   phase: no-test-routing-enum-gate-evidence/Phase4-t4
-  tags: 
+  keywords:
+    - case-insensitive match
+    - false negative
+    - capitalization drift
+    - anchor token
+    - prose verification
+    - requiresTest false
+    - manual check
+    - retirement grep
+    - case-sensitive false negative
+    - sentence-initial capitalization
+    - grep -i
+    - OLD-absent guard
+    - doc-consistency gate
+    - toLowerCase
+    - red-team-gate
+  tags:
     - plan-authoring
     - grep-guard
     - requiresTest-false
     - red-team
     - self-verification
+    - testing
+    - gotcha
   created: 2026-06-30
   originSessionId: 1bd064e5-a8af-4b1f-91d5-638887067351
 ---
 
 # Prompt-only clause's own grep guard must tolerate sentence case
 
-## What happened
+**Rule:** a grep guard over prose must match case-insensitively (`grep -i`, a regex `/i` flag, or a
+`.toLowerCase()` comparison) and anchor on a mid-sentence phrase. This holds both ways:
+- **Presence:** a check that a new clause landed at every site.
+- **Absence:** a check that retired wording is gone (a retirement grep or a drift-guard absence test).
 
-Plan `docs/plans/2026-06-30-no-test-routing-enum-gate-evidence.md`, Phase 4 (#269),
-added a `requiresTest:false` (prompt-only) task: append a "do NOT curate/excerpt"
-completeness clause to three `gate_output`-population prose sites (`workflow-template.js`
-×2, `war-refiner.md`). Because there is no behavioral test for prose, the plan's own
-verification step (V4) was a **manual grep**: `grep -rn 'do NOT curate' ...`.
+The same prose lands capitalized at a sentence start and lowercased mid-sentence. A case-sensitive
+guard false-negates on the other casing and passes when it should fail.
 
-The example clause text given in the plan is sentence-capitalized at its first site
-(`*"Do NOT curate or excerpt — ..."*`) but the plan instructs each site to *adapt* the
-clause to its surrounding prose form — which can lowercase it mid-sentence at other
-sites. A case-sensitive `grep -rn 'do NOT curate'` therefore false-negates against a
-correctly-landed but lowercased instance. Red-team probe `executable-proof` caught this
-before build (Finding C, Minor/warn) and the fix was applied pre-implementation: switch
-to case-insensitive `grep -rin` anchored on a casing-robust token (`curate or excerpt`,
-which never occurs at a sentence boundary in either clause form).
+## Presence instance
 
-## Why this matters generally
+Plan `docs/plans/2026-06-30-no-test-routing-enum-gate-evidence.md`, Phase 4 (#269), added a
+`requiresTest:false` task: append a "do NOT curate/excerpt" clause to three `gate_output` prose
+sites. Its only check was a manual `grep -rn 'do NOT curate' ...`. The plan's example was
+sentence-capitalized (`"Do NOT curate or excerpt — ..."`), and each site adapted the case. Red-team
+probe `executable-proof` caught the false negative before build. The fix: `grep -rin` anchored on
+`curate or excerpt`, which never sits at a sentence start.
 
-Any `requiresTest:false` task whose only verification is a manual/self-authored grep
-guard is exposed to this exact trap: the plan writes one canonical (capitalized) example
-of the new prose, but real landing sites vary in case/position. A case-sensitive grep
-guard silently passes when it should fail closed, giving false confidence that the
-clause landed everywhere it should have.
+## Absence instance
+
+A retired phrase like `... is refused by construction ...` can come back as its own sentence:
+"Refused by construction: the CLI never reaches the read." A case-sensitive retirement grep reports
+zero hits while the retired claim is live. `/red-team` round 1 reproduced this before
+red-team-gate-cli/1.2 landed. In `skills/red-team/assets/red-team-gate.test.mjs`, the D8b doc-guard
+row compares its retired-wording needles against `text.toLowerCase()`.
 
 ## How to apply
 
-- When a plan step's *own* completeness check is a grep over freshly-authored prose
-  (not an automated test), default the grep to case-insensitive (`-i` / `grep -rin`).
-- Pick the anchor token from a position that is stable across every planned adaptation
-  of the sentence (mid-sentence phrase, not a sentence-initial capitalized word).
-- Treat this as a red-team-catchable class: `executable-proof` probes plan-authored
-  verification commands, not just the production code — run one before build on any
-  `requiresTest:false` prose task with a plan-defined manual grep gate.
+- When a plan step's own completeness check is a grep over fresh prose, default to `-i` / `grep -rin`.
+- For any "retired wording must be gone" backstop, default to case-insensitive matching unless the
+  casing itself is load-bearing.
+- Pick the anchor from a position stable across every planned adaptation of the sentence.
+- `executable-proof` probes plan-authored check commands, not just production code. Run one before
+  build on any `requiresTest:false` prose task with a manual grep gate.
 
-Relates to [[gate-output-curated-excerpt-obscures-mapped-test-evidence]] (the underlying
-completeness-clause problem this task fixes) and
-[[task-prompt-suite-count-stale-after-stacking]] (sibling "self-discovery over literal"
-discipline in the same plan).
+Relates to [[gate-output-curated-excerpt-obscures-mapped-test-evidence]],
+[[task-prompt-suite-count-stale-after-stacking]],
+[[backstop-retirement-grep-false-reds-on-sanctioned-replacement-substring]] (the mirror image: a
+retirement grep false-*reds* on a sanctioned substring), and
+[[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]].
 
 > archived 2026-07-21: resolved — moved to archive

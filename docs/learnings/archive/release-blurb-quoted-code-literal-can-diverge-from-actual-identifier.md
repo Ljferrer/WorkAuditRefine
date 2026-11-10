@@ -23,7 +23,7 @@ metadata:
     - plan-fidelity
   created: 2026-07-27
   originSessionId: 0ad881e1-4bbc-43c6-8e45-8597d9cec1cf
-  modified: 2026-07-28T21:01:36.668Z
+  modified: 2026-08-17T21:30:13.821Z
 ---
 
 # A release blurb quoting a code call can rename the variable, silently defeating a later grep
@@ -89,5 +89,37 @@ land — `## Status` is a release slot.
 in release prose, quote through the actual close position — if the bold run continues past the
 "headline" phrase into a parenthetical or qualifier, either quote the whole run or quote only the
 open prefix (no closing `**`) the way a drift guard anchoring on that construct already does.
+
+## Recurrence 2 (2026-08-17, plan `2026-08-06-structural-pin-extractors`, phase 2 "Release",
+task 2.1) — a code-span EXPRESSION (identifier plus comparison glue), not a renamed identifier,
+byte-mismatches the landed assert call
+
+A third sub-shape of the same failure mode: the diverging half is neither a renamed identifier nor
+a markdown-close position, but the comparison operator glued onto an otherwise-correct identifier.
+`code-verified` — read directly at the `_refinery18` worktree whose `HEAD` is byte-equal to the
+landed tip `1c059bdb6451f51ae8203190d8af781a4f2bb2ba` (gitdir physical path containing this plan's
+slug: `<repo-root>/.claude/war-worktrees/2026-08-06-structural-pin-extractors-2026-08-17/_refinery/`),
+`README.md` line 364. The blurb renders the anti-vacuity floor as the code span
+`` `DONE_WHEN_SITES.length === 6` ``, but the landed assert in
+`skills/war/assets/workflow-template.test.mjs` is `assert.equal(DONE_WHEN_SITES.length, 6, '...')`
+— a call, not a `===` comparison. A reader grepping the exact rendered literal
+`DONE_WHEN_SITES.length === 6` finds zero hits; only the identifier half
+(`DONE_WHEN_SITES.length`) byte-matches. Nit, `disposition: note`, non-blocking — the audit also
+confirmed this "render the assert as a semantically-equivalent `===` condition" is an established
+house style already present in the prior 0.17.9 blurb, not a new deviation, and every *other*
+backticked literal and quoted-prose fragment in the same three-bullet paragraph was individually
+checked against the pinned phase-1 diff and byte-matched.
+
+**Sharper form for this sub-shape:** when a blurb renders a Node `assert.*` call as a
+reader-friendly boolean condition (`X === Y` for `assert.equal(X, Y, ...)`, `X` for
+`assert.ok(X, ...)`), that rendering is a deliberate, established house-style trade (semantic
+clarity over grep-ability) rather than a defect to fix — but it means "grep the rendered literal to
+verify it's true" (the discipline [[plan-survey-token-sweep-misses-untagged-siblings]] names) does
+not apply to condition-style code spans the way it does to verbatim call quotes; verify those
+against the call's actual arguments by reading the source, not by grepping the span.
+
+Related: [[bounded-window-measurement-comment-self-invalidates-when-its-own-release-commit-lands]]
+(same phase, same paragraph, a sibling but distinct release-prose imprecision — a diff-footprint
+absolute rather than a quoted-literal mismatch).
 
 > archived 2026-08-15: resolved — moved to archive

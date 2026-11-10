@@ -1,5 +1,6 @@
 ---
-name: ""
+name: drift-matrix-stated-vs-covered-cells
+description: "When a plan cites an A x B matrix, enumerate every cell in the tests (row count = rows x columns); workers fill the natural cells and miss the boundary ones that define the contract"
 metadata: 
   node_type: memory
   type: project

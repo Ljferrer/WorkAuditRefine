@@ -1,6 +1,6 @@
 ---
 name: red-team-scope-word-mandate-satisfied-by-substance-not-literal-phrase-removal
-description: "A red-team adjudication row that names a specific proscribed phrase ('never an unscoped X')…"
+description: "A red-team row's proscribed phrase can ship while its concern is fixed another way; re-derive the falsification, don't grep for the banned string"
 metadata: 
   node_type: memory
   type: project
@@ -53,24 +53,12 @@ the landed text for the banned string therefore does not tell you whether the co
 
 ## Evidence
 
-`2026-08-06-war-strategy-mirror-guards`, phase 3 "Release", task 3.1. The threaded red-team
-adjudication row ("war-strategy-mirror-guards blurb constraints") says: bound every absolute with
-its scope word, never an unscoped "the landed diff", because the release commit itself touches
-`plugin.json`/`marketplace.json`/`README.md` and falsifies unscoped footprint absolutes. The landed
-`README.md` `## Status` paragraph opens its footprint sentence with the literal, proscribed phrase:
-"**The landed diff** touches doctrine and seat-prompt prose, ... and the version slots — no
-routing, enum, or merge-path change." `code-verified` — read directly at the `_refinery` worktree
-whose `HEAD` is byte-equal to the landed tip `4c624ee9037522f34d9c39337e262833303d7c26`
-(`.claude/war-worktrees/2026-08-06-war-strategy-mirror-guards-2026-08-17/_refinery/README.md`,
-line 361 — verify still present before acting).
-
-Both the task-level audit (task 3.1) and the post-merge gate-audit (`phase-3-end-state`,
-`auditSha: 8fc4b174...`) independently flagged the identical text and both rated it `disposition:
-note`, non-blocking — because the enumeration was widened to explicitly end with "and the version
-slots," which covers the release commit's own three files, and every other file in the phase
-footprint maps to a named category. The sentence is TRUE and unfalsified; the author fixed the
-adjudication's underlying concern by a different mechanism (list-widening) than the one it
-suggested (a scope-word swap), and the literal banned phrase survived the fix.
+In `2026-08-06-war-strategy-mirror-guards` phase 3 (Release), the red-team row banned an unscoped
+"the landed diff", because the release commit touches `plugin.json`/`marketplace.json`/`README.md`.
+The landed `README.md` `## Status` footprint sentence still opens with "**The landed diff** touches
+doctrine and seat-prompt prose, ... and the version slots". The task audit and the post-merge
+gate-audit both flagged it and both rated it `disposition: note`: the widened enumeration ("and the
+version slots") covers the release commit's own files, so the sentence is true and unfalsified.
 
 ## How to apply
 

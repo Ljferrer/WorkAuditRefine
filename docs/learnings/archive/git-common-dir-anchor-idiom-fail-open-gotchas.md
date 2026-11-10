@@ -1,6 +1,6 @@
 ---
 name: git-common-dir-anchor-idiom-fail-open-gotchas
-description: "The `git rev-parse --git-common-dir` main-checkout anchor idiom: two fail-open correctness gotchas"
+description: "The git rev-parse --git-common-dir main-checkout anchor still succeeds in a bare repo, and only the two-step capture-then-check form stays fail-open"
 metadata: 
   node_type: memory
   type: project
@@ -37,12 +37,7 @@ campaign-state-anchor for `hooks/inject-campaign-state.sh`,
 worktree's cwd to the **main checkout** (dirname of the shared `.git-common-dir`).
 It is deliberately fail-open: any probe failure must leave the caller's
 cwd-relative behavior untouched, never wedge or mis-anchor. Two gotchas found
-auditing the three landed sites — verify still present before acting (found at
-`hooks/inject-campaign-state.sh`, `skills/war-campaign/assets/campaign-ledger.mjs`
-`resolveCampaignDir()`, and `docs/adr/0016-campaign-compaction-survival.md`'s
-2026-07-15 amendment @ phase 1; verified via the phase's own landed `_refinery`
-task-worktree checkout, not this servitor's own — see
-[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]):
+auditing the three landed sites:
 
 ## 1. The probe SUCCEEDS in a bare repo — "bare" does not belong in the fail-open enumeration
 

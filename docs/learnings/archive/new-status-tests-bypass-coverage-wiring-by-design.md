@@ -1,5 +1,6 @@
 ---
-name: ""
+name: new-status-tests-bypass-coverage-wiring-by-design
+description: "A new test that calls bare verdict(findings) is valid only if another test already drives the same branch through the full verdict(allFindings(...), cov) production path"
 metadata: 
   node_type: memory
   slug: new-status-tests-bypass-coverage-wiring-by-design

@@ -1,5 +1,5 @@
 ---
-name: ""
+name: dotdot-pattern-misses-leading-relative-traversal
 description: "case glob misses leading ../; use the full .. equivalence class"
 metadata: 
   node_type: memory

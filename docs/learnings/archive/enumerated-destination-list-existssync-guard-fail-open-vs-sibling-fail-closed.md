@@ -1,10 +1,9 @@
 ---
 name: enumerated-destination-list-existssync-guard-fail-open-vs-sibling-fail-closed
-description: "RESOLVED (doc-cli-consistency-corpus/1.1, #1368): existsSync-guarding an explicitly enumerated (not directory-scanned) list of doc destination files makes a rename/delete silently narrow a UNION scan instead of reding it — throw instead, matching sibling suites that read the same files unguarded"
+description: "existsSync-guarding an explicitly enumerated (not directory-scanned) list of doc destination files makes a rename/delete silently narrow a UNION scan instead of reding it — throw instead, matching sibling suites that read the same files unguarded"
 metadata: 
   node_type: memory
   type: project
-  promoted: dev/2026-07-28-prompt-surface-simplification@phase-2
   provenance: code-verified
   slug: enumerated-destination-list-existssync-guard-fail-open-vs-sibling-fail-closed
   phase: prompt-surface-simplification/2.1

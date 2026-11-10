@@ -194,7 +194,7 @@ recount at the live surface.
 - Memory lessons (the originating friction cluster): [[version-slots-no-cross-slot-consistency-test]],
   [[run-provision-config-not-yet-mirrored-into-template]], [[standing-instruction-vs-dispatched-prompt-coverage-split]],
   [[gate-can-assert-mirrored-clause-presence-without-asserting-byte-identity]], [[default-flip-must-audit-all-doc-surfaces]],
-  [[doc-truth-sweep-must-check-presets-not-just-defaults]], [[release-bump-slots-canonical-no-badge]],
+  [[default-flip-must-audit-all-doc-surfaces]], [[release-bump-slots-canonical-no-badge]],
   [[adr-policy-table-entry-vs-mechanism-attribution]], [[source-comment-lags-emitted-prompt-after-rewrite]],
   [[held-workflow-error-infra-death-prose-mismatch]], [[uniform-shell-out-idiom-mislabels-export-only-function-as-cli-subcommand]],
   [[tour-narrative-can-assert-a-false-code-fact-that-survives-until-a-doc-sweep-catches-it]].

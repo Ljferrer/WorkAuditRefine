@@ -1,10 +1,10 @@
 ---
 name: deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold
-description: "Worker-probe (done-report-only) End-state evidence: gate-audit treats cannot-confirm as SOFT"
-metadata: 
+description: "A plan can deliberately validate an end state via an in-task worker probe (done-report evidence only) instead of a committed test; gate-audit treats the resulting cannot-confirm as SOFT, never a hold"
+metadata:
   node_type: memory
   type: project
-  keywords: 
+  keywords:
     - worker probe
     - done report
     - sandbox probe
@@ -21,12 +21,12 @@ metadata:
   provenance: agent-unverified
   slug: deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold
   phase: Contract-on-both-sides/1.1 (2026-07-12) +1 recurrence (campaign-anchor-comment-truth/phase-1 task-1.1, 2026-07-19)
-  tags: 
+  tags:
     - audit-pipeline
     - gate-audit
     - plan-authoring
     - test-strategy
-  related: 
+  related:
     - auditor-cannot-execute-the-tests-it-must-verify-pass
   created: 2026-07-12
   updated: 2026-07-19

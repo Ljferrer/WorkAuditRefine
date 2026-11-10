@@ -1,10 +1,10 @@
 ---
 name: auditor-seat-can-lack-grep-glob-tools-leaving-no-search-channel
-description: "An auditor card can declare tools: Read, Grep, Glob, Bash, and both the guard denial and doctrine point a denied seat at 'the Grep/Glob tools' as the remedy for a metacharacter-refused shell grep — but a live seat session can have NO Grep/Glob tool provisioned at all, while shell grep/git grep are guard-denied, leaving zero search channel besides git log -S/-G, git blame -L, and whole-file Read."
-metadata: 
+description: "An auditor seat may have no Grep/Glob tool even though its card lists them, and the Bash git-verb guard denies shell grep but not the Grep tool, so check which tool call was denied before reporting could-not, and fall back to git grep -F -e"
+metadata:
   node_type: memory
   type: project
-  keywords: 
+  keywords:
     - auditor
     - Grep tool
     - Glob tool
@@ -15,10 +15,13 @@ metadata:
     - git log -S
     - git blame -L
     - degraded search
+    - git grep denied
+    - Grep tool vs shell grep
+    - false I cannot
   provenance: agent-unverified
   slug: auditor-seat-can-lack-grep-glob-tools-leaving-no-search-channel
   phase: 2026-08-06-gate-audit-finding-routing/2.1
-  tags: 
+  tags:
     - auditor
     - tooling
     - gate-audit
@@ -48,6 +51,10 @@ point to was unavailable, forcing whole-file Reads.
 
 ## Durable rule
 
+- The Bash git-verb guard (`hooks/validate-auditor-git.sh`) denies shell `grep` and `git grep`,
+  but it has no hook on the Grep tool, which is a separate channel. Before reporting "I could not
+  search" as a finding, check which concrete tool call was actually denied. A seat that holds the
+  Grep tool and claims it cannot search is a calibration miss; a seat with no Grep tool is not.
 - Do not assume a card's `tools:` frontmatter is what actually gets provisioned at dispatch —
   when authoring guard/deny messages or doctrine that names a specific tool as "the" remedy,
   consider a fallback that degrades gracefully (e.g. `git log -S<token>` / `git log -G<regex>` /

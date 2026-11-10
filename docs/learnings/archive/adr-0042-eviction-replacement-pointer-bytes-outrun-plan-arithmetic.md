@@ -2,7 +2,6 @@
 name: adr-0042-eviction-replacement-pointer-bytes-outrun-plan-arithmetic
 description: "Treat a plan's ADR-0042 eviction byte arithmetic as an estimate; measure the landed card size and budget from that."
 metadata: 
-  promoted: dev/2026-08-06-references-pointer-integrity@phase-1
   node_type: memory
   type: project
   provenance: code-verified
@@ -48,9 +47,12 @@ against a ~130 B plan figure, leaving tens of bytes of headroom instead of hundr
 - A shared margin that is meant to fund two later edits is consumed by the first edit to land. The
   second task must re-measure and fund its own eviction.
 
-Recurrences: 2 (engine-reliability phases 4 and 6 spent the same `agents/war-refiner.md` margin
-down to 14 B; the hard line was later raised +2,048 B under a `Budget-Raise:` trailer, and the card
-sits near that line again).
+**Recurrences (engine-reliability plan, 2026-08-26, same `agents/war-refiner.md` card):**
+- Phase 4: one task spent 735 B of a ~899 B margin sized for two edits, leaving 164 B under the hard line.
+- Phase 6: the still-owed edit spent 150 of those 164 B and had to fund itself with two unplanned evictions, leaving 14 B.
+
+The hard line was later raised +2,048 B under a `Budget-Raise:` trailer, and the card sits near
+that line again.
 
 **Locate-cue:** the `FILE_BUDGETS` entry for `agents/war-refiner.md` in
 `skills/war/assets/prompt-surface-budgets.test.mjs` (read the current `hard` value and the raise

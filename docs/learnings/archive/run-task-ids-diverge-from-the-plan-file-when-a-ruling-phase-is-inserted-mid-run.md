@@ -33,13 +33,9 @@ metadata:
 
 ## Fact
 
-The plan file `docs/plans/2026-10-20-rea-artifact-evidence.md` has headings for Phases 1, 2, 3, 5, 6 and 7, and none for Phase 4. Phase 3 is `## Phase 3 — Release`. Its only task is `### Task 3.1: Version bump`.
+When the Lead inserts a phase mid-run and leaves the plan's phase list alone, run task ids and plan-file task ids stop matching.
 
-The run executed four phases before the post-release amendment.
-- Phase 3 held tasks 3.1 and 3.2. They carried the operator rulings #2402 to #2406. Branch `war/2026-10-20-rea-artifact-evidence/p3-3.2` is on origin. `.../p3-3.1` is gone.
-- Release ran as phase 4, task 4.1. Its branch `.../p4-4.1` is gone. It shipped 0.21.17.
-
-The plan file still has no heading for the ruling phase, and a grep of it for the ruling numbers finds nothing. Commit c923a70c added an "As executed" sentence to its build-order line: Phase 3 ran the rulings, Lead-inserted, and the plan's Phase 3 ran as Phase 4 (Task 3.1 as Task 4.1).
+Example: in `docs/plans/2026-10-20-rea-artifact-evidence.md`, Phase 3 is `## Phase 3 — Release` with one task, `### Task 3.1: Version bump`. The run inserted a ruling phase as phase 3 (tasks 3.1 and 3.2 carried the operator rulings), so Release ran as phase 4, task 4.1. The plan file has no heading for the ruling phase. A later commit added only an "As executed" sentence to its build-order line.
 
 `docs/adr/0053-rea-artifact-evidence-source.md` (Decision log, the 2026-10-21 row) cites "plan 2026-10-20-rea-artifact-evidence task 3.1" for those rulings. Resolved against the plan file, that citation lands on the version bump. The two lessons that say "phase-3 task 3.1 ruling" use the run id too.
 
@@ -51,7 +47,7 @@ The Lead threaded the extra phase into the run and left the phase list alone. Th
 
 - Do not treat a run task id as a plan-file anchor. Resolve it through the `war/<slug>/pN-N.M` branch names and the handoff. Those branches can be deleted later, so also read the plan's build-order line.
 - When you cite a task from a run that inserted a phase, write "run task N.M" or name the branch. Add the plan task title.
-- If the plan file must stay readable after the run, amend its phase list when the phase is inserted. Do it in a Lead or Checkpoint commit, not in a task. Commit c923a70c is a late example: it recorded the insert in the build-order line.
+- If the plan file must stay readable after the run, amend its phase list when the phase is inserted. Do it in a Lead or Checkpoint commit, not in a task. Recording the insert only in the build-order line, after the fact, is the weak form.
 - When an audit seat finds an ADR "task N.M" that does not match the plan file, check the run's branch names before filing a citation defect.
 - No end-state check is affected: the check text travels with the threaded plan.
 
@@ -59,6 +55,6 @@ Related: [[plan-decision-id-and-end-state-id-can-share-a-numeral-and-get-conflat
 
 ## Locate-cue (verify still present before acting)
 
-`docs/plans/2026-10-20-rea-artifact-evidence.md`, search `## Phase 3 — Release` and `As executed`. `docs/adr/0053-rea-artifact-evidence-source.md`, search `task 3.1` under `## Decision log`. Found at the phase-4 integration tip 6277998a, read through the run's `_refinery` worktree. That commit is the second parent of landed tip c2e4b1c5. The landing merge's first parent, 67526e8c, is the phase base and an ancestor of it, so the two trees match by ancestry (tree not read directly). The cwd checkout was on another branch, so the first grounding rung failed and the worktree rung held.
+`docs/plans/2026-10-20-rea-artifact-evidence.md`, search `## Phase 3 — Release` and `As executed`. `docs/adr/0053-rea-artifact-evidence-source.md`, search `task 3.1` under `## Decision log`.
 
 > archived 2026-10-30: resolved — moved to archive

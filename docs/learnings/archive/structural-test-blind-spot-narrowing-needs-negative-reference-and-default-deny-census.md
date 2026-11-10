@@ -18,6 +18,11 @@ metadata:
     - exact multiset equality
     - LITERAL_REGISTRY
     - both-ways probe
+    - glob literal
+    - node_modules glob
+    - block comment strip
+    - line-only strip
+    - ordered exact list census
   tags: 
     - testing
     - structural-test
@@ -39,6 +44,29 @@ caught a bare untagged backtick immediately after `agent(`, missing ~129 untagge
 (#931). Verified present at structural-test-integrity/1.1-1.3 (functions confirmed in the
 landed tree: `blockCommentSpans`, `naiveTwoStepStrip`, `scanTemplateLiterals`, `LITERAL_REGISTRY`
 in `skills/war/assets/workflow-template.test.mjs`).
+
+## The trap — a string literal can fool a block-comment strip
+
+The common two-step idiom
+
+```js
+const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+```
+
+is comment-blind and string-blind alike. A string literal that carries `/*` and a later `*/` (for
+example the glob `'*/node_modules/*'`, or `'*/.git/*'`) reads as a block-comment pair. The second
+`.replace` then matches from that `/*` to the next `*/` and silently deletes the real code between
+them. An assertion can stop discriminating, or a should-fail test can pass because the deleted span
+held the token it checks is absent.
+
+- Prefer line-comment-only stripping (`src.replace(/\/\/[^\n]*/g, '')`) when the asserted tokens
+  provably never appear inside a real block comment. It is cheaper and immune to this trap.
+- Where a site must keep the block pass, pin it with a census: `blockCommentSpans(text)`
+  reproduces the naive idiom on purpose (fake spans included) and asserts the **ordered exact list**
+  of `/\/\*[\s\S]*?\*\//`-shaped spans as `{head, tail}` substring pairs (never lengths or
+  offsets). It goes red on both an added span (a new block comment, or a new `/*`-bearing string
+  literal anywhere in the file) and a removed or merged one, so a new glob, regex or shell literal
+  fails a named test instead of silently changing what a strip site asserts on.
 
 ## Technique 1 — narrow the real sites, keep ONE isolated negative reference
 
@@ -79,5 +107,7 @@ extending the existing allowlist.
 
 - [[registry-header-rule-can-read-stricter-than-its-own-documented-exception]] — a classification
   nuance inside `LITERAL_REGISTRY` itself, same phase.
+- [[weak-test-assertion-passes-without-feature-being-exercised]] — the broader "test looks strict
+  but isn't" family the comment-strip trap belongs to.
 
 > archived 2026-10-30: resolved — moved to archive

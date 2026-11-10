@@ -1,14 +1,13 @@
 ---
 name: keep-green-sites-shared-reachedby-regex-cannot-discriminate-sibling-ace-fixtures
 description: "A fixture-reachability floor's reachedBy regex shared by three sibling dispatch sites cannot tell which one actually ran"
-metadata: 
-  promoted: dev/2026-08-25-doc-truth-and-drift-guard-debt@phase-2
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   slug: keep-green-sites-shared-reachedby-regex-cannot-discriminate-sibling-ace-fixtures
   phase: "2026-08-25-doc-truth-and-drift-guard-debt/phase-2 tasks 2.1+2.3 (cascading-impact lens, disposition note)"
-  keywords: 
+  keywords:
     - KEEP_GREEN_SITES
     - reachedBy
     - fixture reachability
@@ -25,7 +24,7 @@ metadata:
     - ace:polish:
     - ace:subset:
     - ace:reentry:
-  tags: 
+  tags:
     - war
     - test-coverage
     - workflow-template
@@ -80,12 +79,6 @@ three `reachedBy: /^ace:/` entries at lines 9085-9087, versus the real dispatch 
 and the ace ladder", task 8.1, landed `dev/2026-09-06-engine-and-audit-verdict-integrity` @
 `8884782176ff60a2c93eb249f328aa2751eac060`) — the exact fix this lesson's durable rule recommended
 landed verbatim
-
-**Code-verified** — landed-tip grounding reached rung 2 (worktree lookup): the `_refinery46`
-worktree's `gitdir` physical path is
-`<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/.git`
-(contains this plan's slug) and its `HEAD` reads `8884782176ff60a2c93eb249f328aa2751eac060`,
-exactly the threaded landed tip — a direct Read there is `code-verified`-capable.
 
 `skills/war/assets/workflow-template.js` now defines (line 2838):
 

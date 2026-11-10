@@ -4,7 +4,7 @@ description: "Audit finding may be fixed-in-flight; re-Grep tip"
 metadata:
   node_type: memory
   type: project
-  keywords: [resolved in flight, fix round history, landed tip verification, tautological test finding, outdated defect record, servitor gotcha capture, ff-topology, plan prose drift, merge-commit idiom, preMergeTip]
+  keywords: [resolved in flight, fix round history, landed tip verification, tautological test finding, outdated defect record, servitor gotcha capture, ff-topology, plan prose drift, merge-commit idiom, preMergeTip, fixRounds zero does not guarantee byte accuracy]
   provenance: code-verified
   slug: audit-log-finding-can-be-stale-by-land-time
   phase: war-companion-skills/p1-t3 + audit-gate-verdict-fidelity/t2.1
@@ -29,6 +29,7 @@ real test plus a clarifying comment.
 **How to apply:** before recording an audit finding as a live gotcha, re-Grep/Read the named
 construct at the landed tip; if it no longer matches, treat it as resolved-in-flight and record
 only the underlying generic pattern (if any), never the file/line as a current instance.
+`fixRounds: 0` does not guarantee the audited sha's prose matches landed code; re-Grep the named construct anyway.
 
 **Recurrence (audit-gate-verdict-fidelity/t2.1, 2026-07-09):** a Nit finding claimed the plan file
 (`docs/plans/2026-07-08-audit-gate-verdict-fidelity.md`, Task 2.1 slice + Notes) "still describes

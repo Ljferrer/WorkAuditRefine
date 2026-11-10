@@ -1,6 +1,6 @@
 ---
 name: provision-nonidempotent-orphan-integration-branch-blocks-relaunch
-description: "Orphan integration branch blocks relaunch; prove empty before deleting"
+description: "Half-run provision orphans branch → relaunch exit 3; RESOLVED (opt-in) by --reclaim-empty-orphan two-proof self-heal on ensure-integration"
 metadata: 
   node_type: memory
   type: project
@@ -26,7 +26,6 @@ metadata:
     - exit-codes
     - gotcha
   created: 2026-07-07
-  promoted: true
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
 ---
 
@@ -44,17 +43,11 @@ self-heal that mechanizes the manual recipe below: (1) `git log --oneline "$base
 — no unique commits, so deletion resets no work; (2) `git ls-remote --exit-code origin
 "refs/heads/$branch"` absent — never published. Both proofs must hold or the branch is left
 untouched and the die is unchanged (`EX_FOREIGN`, exit 3). Flag absent → byte-identical prior
-behavior. Verified present at `skills/war/assets/provision-worktrees.sh` (landed tip,
-`cmd_ensure_integration`, ~line 271-283).
+behavior. Verified present at `skills/war/assets/provision-worktrees.sh`,
+`cmd_ensure_integration`.
 
-**New residual gotcha in the self-heal itself:** proof (1) is implemented as
-`orphan_commits="$(git log --oneline "$base..$branch" 2>/dev/null || true)"` — this swallows ANY
-`git log` failure (e.g. an unresolvable `$base`) into empty stdout, so an unresolvable base would
-falsely satisfy "proven empty" and, combined with an unreachable origin also reading as "absent"
-in proof (2), could delete a branch that in fact carries real unique commits. This was flagged at
-gate-audit (Minor, disposition `follow-up`, not absorbed — needs a `git rev-parse --verify --quiet
-"$base"` guard or separate exit-status capture) and is confirmed **still present** in the landed
-tip. Full detail: [[reclaim-empty-orphan-proof-swallows-git-log-error-as-empty]].
+**Residual gotcha in the self-heal itself:** proof (1) swallows a `git log` error as empty
+output. See [[reclaim-empty-orphan-proof-swallows-git-log-error-as-empty]].
 
 **Durable residue (still holds):**
 - A phase returning `held:escalation` with **every** worker escalating on "Provision precondition

@@ -44,7 +44,6 @@ metadata:
 
 **How to apply.**
 - To rename the plugin or the server, edit the hook line first, then run `memory-tool-name.test.mjs` and the hook test.
-- The first 1.2 hook header cited the name test before it existed. Task 1.3 produced it. A forward reference across tasks in one phase is fine if the file exists at the landed tip.
 
 **Locate-cue (verify still present before acting).** `hooks/validate-evidence-auditor-mcp.sh`, the `MEMORY_TOOL=` line. `.claude-plugin/plugin.json`, the `mcpServers` key `war-memory`. `skills/war/assets/memory-tool-name.test.mjs`, search `ES6`. Found at landed tip fcdc744e, read through the run's `_refinery` worktree (HEAD equal to the tip).
 

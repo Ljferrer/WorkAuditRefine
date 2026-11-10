@@ -1,6 +1,6 @@
 ---
 name: spec-context-band-statement-of-drift-survives-code-changes-uncorrected
-description: "A design spec's dated Context/gap statement records drift as of authoring time — doc-truth sweeps leave it uncorrected even when later code makes it read stale"
+description: "A design spec's dated Context/gap statement records drift as of authoring time; doc-truth sweeps must leave it uncorrected even when later code makes it read stale"
 metadata:
   node_type: memory
   type: project
@@ -32,14 +32,10 @@ metadata:
 
 # A spec's dated problem statement is a statement OF drift, not a live claim — leave it uncorrected when code later makes it read stale
 
-**What happened (code-verified):** the phase's `#887` docs/specs sweep (task 2.1) found that
-`docs/specs/2026-07-08-war-execution-engine-input-and-lifecycle-hardening-design.md`'s friction-3
-problem statement (its "Context — the gap/problem" band, line 51) lists `plan.gate` among
-interpolated fields that "silently ship `undefined`". Post-`#894` (this same plan's Phase 1), a
-null `plan.gate` now composes safely to the discovery-only clause, so the `plan.gate` example in
-that older spec reads stale against current behavior. Confirmed present, byte-matching the finding,
-at `docs/specs/2026-07-08-war-execution-engine-input-and-lifecycle-hardening-design.md` (the
-friction-3 bullet naming `plan.gate` among fields with "no general guard").
+**What happened:** a docs/specs doc-truth sweep found an older design spec whose "Context — the
+gap/problem" band listed `plan.gate` among interpolated fields that "silently ship `undefined`". A
+later fix made a null `plan.gate` compose safely, so that example now read stale against current
+behavior.
 
 The worker adjudicated this **verified-correct, no change** — deliberately leaving the stale-reading
 sentence untouched — because it sits in that spec's dated "Context — the gap/problem" band: a

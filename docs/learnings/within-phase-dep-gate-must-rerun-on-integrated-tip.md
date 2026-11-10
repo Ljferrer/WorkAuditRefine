@@ -37,3 +37,7 @@ For within-phase dependencies (Task N references Task M's output):
 3. Only the integrated-tip gate result is authoritative for land/release decisions.
 
 Do not rely on per-task branch gate results when tasks within the same phase are inter-dependent.
+
+Same-wave tasks share the frozen phase base, so undeclared same-file coupling still rebase-conflicts at merge: declare the dep, or split the tasks across phases.
+
+Recovery: land the gate-green task, then re-run the rest as single-task phases.

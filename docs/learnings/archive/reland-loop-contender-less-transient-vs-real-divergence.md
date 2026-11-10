@@ -1,6 +1,6 @@
 ---
 name: reland-loop-contender-less-transient-vs-real-divergence
-description: "Reland: rev-list merge-sha vs origin, not follower, +1 budget"
+description: "Before a final land_stale, rev-list the attempted merge SHA against fresh origin: right-count 0 earns one extra push beyond roundLimit, nonzero stops at once"
 metadata: 
   node_type: memory
   type: project
@@ -30,7 +30,7 @@ When a push-first CAS land attempt fails on the **final** round-limit exhaustion
 - Right-count `0` (origin has nothing beyond what you tried to push) ⇒ contender-less transient ⇒ spend exactly **one** extra push-first attempt beyond `roundLimit`, then `land_stale` if that also fails.
 - Right-count nonzero (real contender commits sitting on origin) ⇒ `status:"land_stale"` immediately — no wasted retry.
 
-The discrimination — including the explicit "+1 beyond roundLimit" budget — must be **byte-parallel across both surfaces**: the standing copy in `skills/war/references/refiner-recovery.md` (evicted from the `agents/war-refiner.md` §land-phase card by prompt-surface-simplification Task 4.1, which left a trigger pointer on the card) and the dispatched `workflow-template.js` land prompt. This is the same standing-vs-dispatched dual-surface pattern as [[standing-instruction-vs-dispatched-prompt-coverage-split]] — a change to one without the other drifts silently because the Workflow sandbox can't import the `.md` prose, so grep-parity on the exact command string + budget sentence is the only guard.
+The discrimination, including the "+1 beyond roundLimit" budget, lives on both the standing and the dispatched land surfaces; keep them in step per [[standing-instruction-vs-dispatched-prompt-coverage-split]].
 
 **Why:** a bare `roundLimit` exhaustion treats a lost race (someone else's merge landed first, genuine divergence) identically to a flaky push against an otherwise-quiet remote — the latter deserves one more shot before giving up, the former should stop immediately rather than burn a retry that can't succeed.
 

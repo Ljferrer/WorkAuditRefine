@@ -1,6 +1,6 @@
 ---
 name: doc-promises-ledger-field-the-schema-contract-never-defines
-description: "A doc paragraph promising 're-thread from the run-ledger record' can name a field the ledger.json contract never defines"
+description: "RESOLVED (adjudications key defined in schemas.md ledger contract, 2026-07): a doc paragraph promising 're-thread from the run-ledger record' named a field the ledger.json contract never defined"
 metadata: 
   node_type: memory
   type: project
@@ -29,42 +29,24 @@ metadata:
 
 # A doc paragraph can promise a ledger field the schema contract never defines
 
-**What happened (code-verified — `skills/war/references/schemas.md`, audit-adjudication-threading
-phase 1 task 1.3, `disposition: follow-up`):** the args-contract paragraph for `adjudications`
-states the accumulated set is "**re-threaded in full** — from the run-ledger record, alongside
-`args.recovery`" (schemas.md, the `Optional adjudications` paragraph), and `SKILL.md`'s
-held-partial-phase runbook (landed the same phase, task 1.2) instructs the Lead to "record each row
-in the run ledger" (step 1) and re-thread "from the ledger record" (step 4). But the same
-schemas.md file's `## ledger.json — run state at .claude/teams/<run-id>/` block — the ledger
-contract's **only** documented home — enumerates exactly `{ run_id, plan_file, working_branch,
-landing_branch, gate, created_at, phases[], pr_url? }`. No `adjudications` key exists at any level.
-A Lead following the runbook literally has no documented place to *write* the rows in the first
-place, so the recovery re-thread — the incident this phase exists to close — is unmechanizable from
-the contract as written.
+**What happened (code-verified — audit-adjudication-threading/1.3, `disposition: follow-up`):**
+`skills/war/references/schemas.md`'s args-contract paragraph for `adjudications` promised the set
+is "re-threaded in full — from the run-ledger record", but the same file's `## ledger.json`
+contract block (~160 lines away, the contract's only documented home) enumerated no `adjudications`
+key at any level — a Lead following the runbook literally had no documented place to write the
+rows, so the recovery re-thread was unmechanizable. The diff was 100% plan-faithful: promise
+paragraph and contract block were owned by different task slices, and no task's `Files:` scope
+covered the ledger block.
 
-**Why it slipped through:** the paragraph making the promise and the block defining the contract
-sit ~160 lines apart in the *same file*, but each was edited by a different task in the phase
-(1.3 wrote the promise paragraph per its plan slice; no task in this phase touched the ledger
-block itself, since it wasn't in any task's `Files:`/plan-slice scope). A same-file self-consistency
-check that only greps for the paragraph's own literal wording would miss this — it requires cross-
-referencing the promise against a *structurally distant* contract block in the same doc.
+**The rule:** when a doc sentence promises data will live in or be read from an existing structured
+contract (a ledger, a manifest, a schema block) elsewhere in the same file or repo, cross-check
+that contract's own field enumeration for the referenced key before treating the promise as
+mechanizable — the gap is invisible to both a same-paragraph proofread and a plan-faithfulness
+check, even when promise and contract sit far apart in the same file.
 
-**Not a worker deviation:** the promised sentence is exactly what the plan slice specified (Task 1.3
-plan slice — schemas.md, spec D8 "Ledger + issue trail, no new artifact"); the gap is inherited from
-the plan/spec not budgeting a task to extend the ledger schema itself, not a fidelity defect in the
-diff that landed it.
-
-**The rule:** when a plan/task adds a doc sentence that promises data will live in or be read from an
-existing structured contract (a ledger, a manifest, a schema block) elsewhere in the *same* file or
-repo, cross-check that contract's own field enumeration for the referenced key before treating the
-promise as mechanizable — a doc-internal cross-reference gap is invisible to both a same-paragraph
-proofread and a plan-faithfulness check (the diff can be 100% plan-faithful and still leave the
-promise unactionable).
-
-**Fix (suggested, not yet applied — follow-up, out of Task 1.3's slice):** add the documented key to
-the ledger.json contract block, e.g. a top-level `adjudications: ["<preformatted row>"]` — the
-run-long accumulated set (spec D8) the recovery relaunch re-threads from — and cite it from the
-args-contract paragraph.
+**RESOLVED (2026-07):** schemas.md's `## ledger.json` block now defines the top-level
+`adjudications` key and the args-contract paragraph cites it ("the `ledger.json` top-level
+`adjudications` key above") — the suggested fix landed as written.
 
 Related: [[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]] — a sibling "doc
 promises an artifact the mechanism doesn't actually thread" gap. [[standing-instruction-vs-dispatched-prompt-coverage-split]]

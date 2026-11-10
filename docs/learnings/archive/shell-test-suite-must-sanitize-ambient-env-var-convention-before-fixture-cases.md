@@ -26,21 +26,14 @@ metadata:
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
 ---
 
-**Pattern (from `docs/plans/2026-07-14-lessons-learned-repo-projection-integrity.md` Task 1.1 —
-agent-authored plan rationale; not independently code-verified at the landed tip since this
-servitor's session worktree — `<session-worktree>` — lagged the landed branch. The referenced
-env-var *export* and the shell-test file's own structural anchors were directly confirmed present:
-`skills/lessons-learned/references/migration.md` exports
-`CLAUDE_MEMORY_REPO="$(git rev-parse --show-toplevel)/docs/learnings"` in its migration-playbook
-preamble, and `skills/lessons-learned/assets/safe-swap.test.sh` has the `SCRIPT=`/`mkmem()`/`CASE
-1` structure the new sanitation line is placed relative to).**
-
-A script that reads an env var as an *implicit* config channel — no CLI flag, "if set, behavior
+**Pattern.** A script that reads an env var as an *implicit* config channel — no CLI flag, "if set, behavior
 changes" — creates a hazard for its own test suite: any other doc/playbook in the same repo that
 teaches an operator to `export` that same var (here, a memory-migration playbook's preamble) means
 a developer's ambient shell, or a CI job that sources such a playbook, silently arms the new code
 path inside test cases that were never designed to exercise it — and those cases read as false
-failures (or worse, false passes) with no code change.
+failures (or worse, false passes) with no code change. Example: `skills/lessons-learned/references/migration.md`
+exports `CLAUDE_MEMORY_REPO="$(git rev-parse --show-toplevel)/docs/learnings"`, and
+`skills/lessons-learned/assets/safe-swap.test.sh` exercises a script that reads that var.
 
 **Fix:** the test file must `unset <VAR>` immediately after any environment guard (e.g. right
 after confirming the script-under-test exists) and *before* the first fixture case runs — never
@@ -53,5 +46,7 @@ that followed the export-teaching playbook.
 **When to apply:** any shell test suite in this repo whose script-under-test reads an env var by
 convention rather than an explicit flag, where a *different* skill's doc teaches operators to
 export that same var name for a legitimate real-pass workflow.
+
+Related: [[test-harness-fixed-env-makes-claimed-fallback-coverage-false]].
 
 > archived 2026-07-27: resolved — moved to archive

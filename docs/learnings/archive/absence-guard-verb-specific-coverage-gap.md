@@ -1,12 +1,12 @@
 ---
 name: absence-guard-verb-specific-coverage-gap
-description: "checkout guard misses switch; enum verb classes"
+description: "An absence guard that greps one verb misses equivalent verbs (checkout vs switch); enumerate the whole verb class and scan for all of it"
 metadata: 
   node_type: memory
   slug: absence-guard-verb-specific-coverage-gap
   phase: 4
   type: project
-  keywords: [equivalence class, git switch detach, latent false negative, syntactic token scan, under-specified grep, regression gate hole]
+  keywords: [equivalence class, git switch detach, latent false negative, syntactic token scan, under-specified grep, regression gate hole, grep -v chain, byte-identical sibling checks, load-bearing duplication]
   tags: 
     - war
     - clean-surface
@@ -42,6 +42,11 @@ CHECK 3 (`switch origin/`) — both requiring `--detach` on the same line, byte-
 
 **Why it matters:** the refinery-surface test is a long-lived regression gate; a verb-gap gives
 the appearance of coverage without providing it.
+
+**The redundant filter is a deliberate mirror:** ABSENCE CHECK 2 and ABSENCE CHECK 3 share the
+identical `grep -v '\-\-detach' | grep -v 'detach'` chain. The second filter is subsumed by the
+first, but the uniform structure keeps drift between the sibling checks diff-visible. Do not
+"clean" it, and change both checks together so the mirror stays exact.
 
 ## Related
 

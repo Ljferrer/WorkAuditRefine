@@ -8,7 +8,7 @@ metadata:
   type: project
   provenance: code-verified
   promoted: dev/2026-08-25-engine-reliability-and-filing-fidelity@phase-7
-  keywords: [prompt parity, two-layer directive, agent markdown, per-task override, mirror clause, single-layer gap, prompt drift, FINDING-PATH FORM, war-auditor.md headroom, budget-raise trailer]
+  keywords: [prompt parity, two-layer directive, agent markdown, per-task override, mirror clause, single-layer gap, prompt drift, FINDING-PATH FORM, war-auditor.md headroom, budget-raise trailer, DISPOSITION WIDENINGS, disposition-eligibility mirror, staged headroom]
   tags:
     - war
     - refiner
@@ -74,6 +74,12 @@ plugin-root pointer clause).
 Recurrences: 2 (gate-audit inline prompts bypass `auditPrompt()`, accepted by design, see
 [[gate-audit-inline-prompts-excluded-from-auditprompt-both-surfaces-coverage]]; the `FINDING-PATH FORM`
 gap above).
+
+Recurrence 3 (late-defects-fixed-in-run, task 4.1): the cold reference `skills/war/references/disposition-eligibility.md`
+claims its widenings are mirrored in the dispatched `auditPrompt` DISPOSITION WIDENINGS block, but a new
+sentence there was never mirrored, deferred for staged-byte headroom. For the staged-byte cost model
+(full-line comments cost zero staged bytes, prompt literals cost full bytes), see
+[[workflow-template-growth-is-capped-by-the-staged-copy-headroom-floor-not-just-file-size]].
 
 Related: [[source-comment-lags-emitted-prompt-after-rewrite]],
 [[template-defers-runtime-values-to-agent-via-literal-placeholder]], [[bsd-mktemp-ignores-tmpdir-gnu-only]].

@@ -46,6 +46,6 @@ metadata:
 
 Same family: [[standing-instruction-vs-dispatched-prompt-coverage-split]].
 
-**Locate-cue (verify the fixed form is still present before acting).** `skills/war/assets/workflow-template.js`, the `MEMORY_QUERY_TOOL_LINE` const and its comment, and each prompt build that appends it. `agents/war-worker.md`, the Prior-lessons sentence. Seen in the fixed form at landed tip fcdc744e, read through the run's `_refinery` worktree.
+**Locate-cue (verify the fixed form is still present before acting).** `skills/war/assets/workflow-template.js`, the `MEMORY_QUERY_TOOL_LINE` const and its comment, and each prompt build that appends it. `agents/war-worker.md`, the Prior-lessons sentence.
 
 > archived 2026-11-05: resolved — moved to archive

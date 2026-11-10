@@ -1,13 +1,13 @@
 ---
 name: seeding-md-seed-local-render-block-omits-conditional-repo-flag
-description: "RESOLVED (memory-tooling-hardening/1.2, #1086): seeding.md's `## Seed` local-destination bullet mandates `--repo docs/learnings/` conditionally in prose but the code block right below it shows the bare render-index call — a copy-paste footgun that silently drops [repo] rows"
-metadata: 
+description: "RESOLVED (#1086): a code block under an iff-condition prose step must show both branches; seeding.md's Seed local-render block once showed only the bare render-index call, silently dropping [repo] rows"
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   slug: seeding-md-seed-local-render-block-omits-conditional-repo-flag
   phase: lessons-learned-seed/2
-  keywords: 
+  keywords:
     - seeding.md
     - "--repo"
     - render-index --local
@@ -18,7 +18,7 @@ metadata:
     - copy-paste footgun
     - war-memory.mjs
     - local destination
-  tags: 
+  tags:
     - war
     - documentation-accuracy
     - memory-system
@@ -66,6 +66,13 @@ that silently picks the "false" branch every time is a latent footgun, not neutr
 `seeding.md` is next touched, consider either showing the `--repo docs/learnings/` form (since a
 local-destination run can still have a non-empty `$REPO_ROOT`) or adding a doc-contract test
 anchored specifically on this bullet, mirroring the existing Phase-5-render lock.
+
+## RESOLVED (memory-tooling-hardening/1.2, #1086)
+
+`seeding.md`'s "Local destination:" bullet now shows both branches: one `render-index` line with
+`--repo docs/learnings/` for a non-empty `$REPO_ROOT`, and the bare line for an empty or unset one,
+and the prose says to run exactly one of them. The "left unfixed at land" note above describes the
+state when this lesson was first written.
 
 Related: [[archive-subcommand-rerender-drops-repo-rows-and-verify-cannot-catch-it]].
 

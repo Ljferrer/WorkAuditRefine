@@ -33,41 +33,24 @@ metadata:
 
 # MITIGATED — `effectiveDate` protects on the newest date-*shaped* token anywhere, not the newest real date
 
-**What (as shipped 2026-07-21, MITIGATED by #989 — see below):** the tighten-eviction floor's "lessons younger than 14 days are protected"
-check is driven by `effectiveDate([md.created, md.updated, md.modified, md.date, phase,
-description])`, which regex-matches `/20\d\d-\d\d-\d\d/g` across **every** source string
-(frontmatter date keys AND the free-text `phase`/`description` prose) and returns the
-lexicographic max of all matches found. Because ISO dates zero-pad, lex-max == chronological max
-for genuinely valid dates — but the regex has no semantic validation:
+**What (as shipped 2026-07-21):** the tighten-eviction floor's "lessons younger than 14 days are
+protected" check uses `effectiveDate([md.created, md.updated, md.modified, md.date, phase,
+description])`. It regex-matches `/20\d\d-\d\d-\d\d/g` across **every** source string, free-text
+`phase`/`description` prose included, and returns the lexicographic max. The regex had no semantic
+validation, so a future-dated token (`2099-01-01`) or an invalid one (`2026-13-45`, which parses to
+`NaN`) in prose could win and protect a lesson from eviction forever.
 
-- A **future or just-large-looking** date-shaped token anywhere in prose (e.g. an issue/PR id or an
-  intentionally-cited future date like `2099-01-01`) becomes the lex-max, yields a future
-  `effectiveDate`, a negative `ageDays` in `tightenPlan`, and the lesson is **permanently** treated
-  as within the 14-day young-window — never eligible for eviction.
-- An **invalid-shaped** token (`2026-13-45` — passes the digit-shape regex but isn't a real
-  calendar date) can also win the lex-max; `tightenPlan` does `Date.parse(effMs + 'T00:00:00Z')`
-  which yields `NaN`, and the resulting `ageDays` comparison behaves as protected too.
-
-**Why this is fine as shipped:** this is the red-team-adjudicated regex (2026-07-21) and the
-failure direction is deliberately fail-safe — it only ever **over-protects** (a lesson survives
-eviction it might otherwise qualify for), never **false-evicts** a young lesson. Eviction is also
-gated behind a later operator-approved strike-list step, so an over-protected lesson merely stays
-in the corpus one tighten cycle longer; nothing is silently deleted.
-
-**Why record it anyway:** any future change to `tightenPlan`'s ranking or floors (or a caller that
-starts trusting `effectiveDate` as a genuine calendar date rather than a protection signal) should
-know the field can be dominated by a coincidental digit-shaped substring in free prose, not just by
-the four frontmatter date keys. If ever tightened, validate `month <= 12 && day <= 31` before
-treating a prose token as a real date, and/or exclude non-frontmatter sources from consideration.
+**Why this was fine as shipped:** the failure direction is fail-safe. It only ever
+**over-protects**, never **false-evicts** a young lesson, and eviction is gated behind an
+operator-approved strike-list step, so nothing is silently deleted.
 
 Related: [[projection-byte-budget-driven-by-descriptions-not-bodies]] (same subsystem — projection
 size is driven by description text, not lesson bodies; this fact is the eviction-side analogue).
 
 ## MITIGATED — `effectiveDate` UTC round-trip + `FUTURE_SKEW_MS` validation (#989, 2026-07-23)
 
-**Code-verified in this task's rebased worktree** (Task 1.1 landed into the phase-1 integration
-tip before this task ran; confirmed at `skills/_shared/war-memory.mjs`, `effectiveDate()`): this
-lesson's own "if ever tightened, validate…" advice is now implemented. Every date-shaped token
+**Code-verified** at `skills/_shared/war-memory.mjs`, `effectiveDate()`: the token is now
+validated before it can count. Every date-shaped token
 must survive two checks before it can win the max: (1) a UTC round-trip parse
 (`Date.parse(token + 'T00:00:00Z')` must not be `NaN` — this doubles as the month/day range check,
 so `2026-13-45`/`2026-00-10`/`2026-12-00` are rejected), and (2) a future bound (the parse must not

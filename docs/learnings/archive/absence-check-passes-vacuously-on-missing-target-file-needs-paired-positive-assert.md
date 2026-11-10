@@ -33,10 +33,7 @@ metadata:
 
 ## The fact
 
-`skills/war-machine/war-pipeline-structure.test.sh`'s `lacks()`/`lacks_i()` helpers (verified present
-at the landed tip `955e7c10d98e4c4c4e30d22f0ab7c29209f8ab23` on
-`dev/2026-08-05-2026-08-04-interview-and-authoring-contract`, read via the `_refinery` worktree —
-`lacks()` at line 86, `lacks_i()` at line 101) both read the target file through
+`skills/war-machine/war-pipeline-structure.test.sh`'s `lacks()`/`lacks_i()` helpers both read the target file through
 `strip_prose < "$1" | grep -qF -e "$2"` (or `-qiF` for the `_i` twin). The script sets `set -u` but
 **not** `set -e`. If `"$1"` (the target file) is deleted or renamed, the input redirection fails,
 `strip_prose` sees no stdin, `grep` sees an empty stream, exits 1 (no match), and the helper prints
@@ -46,16 +43,6 @@ file.
 Locate cue: verify still present before acting — `skills/war-machine/war-pipeline-structure.test.sh`,
 functions `lacks()`/`lacks_i()`, both piping `strip_prose < "$1"` with no existence guard, `set -u`
 active but not `set -e`.
-
-## Why it didn't bite here
-
-The phase's five gospel surfaces (README.md, CLAUDE.md, `skills/war-help/SKILL.md`, CONTEXT.md,
-`skills/war-strategy/SKILL.md`) each carry a **paired positive** assert — a `has_i()` new-present pin
-on the same surface (four of the five in this suite; the fifth, war-strategy, in its own sibling
-suite `war-strategy-structure.test.sh`) — that reds if the file is missing. Wholesale deletion of a
-surface still fails the suite via its positive pin even though every one of that surface's absence
-pins would pass vacuously. The gate-audit judged this fully mitigated **by construction**, not by any
-guard inside `lacks()`/`lacks_i()` themselves.
 
 ## The durable rule
 

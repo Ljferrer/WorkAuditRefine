@@ -21,7 +21,6 @@ metadata:
     - comment-drift
     - mechanical-sweep
   created: 2026-07-10
-  promoted: true
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
 ---
 

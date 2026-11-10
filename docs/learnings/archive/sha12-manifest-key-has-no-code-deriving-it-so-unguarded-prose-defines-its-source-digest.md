@@ -51,14 +51,6 @@ Prose only. A test binds some of that prose and not the rest.
 
 "Declared" and "measured" differ when the file on disk drifted from the plan row. The seat finds the manifest through the declared row. A key cut from a measured digest names a file the seat never opens. The card reads a cited artifact with no manifest as SOFT. The seat cannot compare what it cannot find, so the HOLD check does not run for that artifact.
 
-## What happened in phase 5
-
-Task 5.1 landed two operator rulings. D23 made one manifest per cited artifact, keyed by `<sha12>`. D24 made the recon lane digest-first and defined `<plan-slug>` as the plan basename with its date prefix.
-
-Four audit seats found the same gap in one round. Both dispatched prompts said "declared sha256". The doctrine home, the card bullet and the export header comment said only "sha256". Ace round a3 added the word to all three.
-
-Audit finding resolved in a fix round before land, recorded as pattern, not live instance. The missing test is live. A grep for `declared sha256` under test files hits only `skills/war/assets/workflow-template.engine-1.test.mjs`, plus a comment in `skills/war/assets/workflow-template.test-harness.mjs`.
-
 ## How to apply
 
 - When you change how a placeholder is derived, edit four surfaces in one commit: the dispatched prompts, the standing card, the doctrine home and the export comment. This is the mirror rule in [[standing-instruction-vs-dispatched-prompt-coverage-split]].
@@ -73,7 +65,5 @@ Audit finding resolved in a fix round before land, recorded as pattern, not live
 - `skills/war/assets/workflow-template.js`: search `const manifestPathOf`.
 - `skills/war/assets/workflow-template.engine-1.test.mjs`: search `rea clause and evidence skeleton: one manifest per cited artifact`.
 - `skills/war/assets/target-artifacts.test.mjs`: search `const resolve =`.
-
-Found at landed tip 82cef9c9, read through the run's `_refinery` worktree. Its HEAD equals the landed tip, so grounding rung 2 held. The cwd checkout was on another branch.
 
 > archived 2026-11-05: resolved — moved to archive

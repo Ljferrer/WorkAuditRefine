@@ -1,6 +1,6 @@
 ---
 name: glossary-cold-scope-claims-sit-in-three-files-a-new-wave-must-update-each
-description: "A new glossary-cold.md body can leave its header, the D32 test comment and the census comment claiming the old scope"
+description: "A new glossary-cold.md wave must update the header wave list, the D32 test comment and the census comment together, or they keep claiming the old scope"
 metadata:
   node_type: memory
   type: project
@@ -42,20 +42,10 @@ metadata:
 3. `skills/_shared/doc-cli-consistency.test.mjs`, the reason comment above the `glossary-cold.md` entry.
    It scoped the file to "evicted incident/recovery bodies".
 
-**Who owned what.** Task 1.4 owned sites 1 and 2, and its ace fix round corrected both. Site 3 is in
-task 1.1's Files, a file-disjoint sibling. The 1.4 audit raised it as a cross-task cascade
-(`phaseClose: true`), because task 1.4 could not touch it. It read correctly for wave 5 at the integrated
-tip. Which later commit made it correct is not recorded in the audit log.
-
 **A born-cold body has no pre-eviction text.** The header now says so (search `born-cold body is
 authored here first`). A pinned companion test, `D32 companion`, checks that the clause stays beside the
 `at eviction time` qualifier. It checks the clause's presence, not its truth. ADR 0044 records that
 residual.
-
-**A plan locator was wrong.** The plan slice for task 1.1 put the census reason comment in
-`EVICTION_DESTINATIONS`. Its only home is `VERB_SCAN_EXCLUSIONS`, because the file phrases no scanned
-module's CLI commands. The worker reworded it in the live home. The audit ruled that a faithful
-deviation.
 
 **Wave 6 repeated the lag.** Its four born-cold bodies (Tip probe, Merge-commit provenance, Provision tree
 marker, Launch identity of a recovery) are pinned by `skills/red-team/assets/workflow-scaffold.test.mjs`,
@@ -74,7 +64,7 @@ lived in CONTEXT.md` in the census file. The wave 6 pin is the `Tip probe` term 
 worktree (rung 2).
 
 Related: [[new-references-md-file-forces-doc-cli-consistency-placement-census-registration]],
-[[adr-0042-eviction-destination-creation-does-not-auto-register-in-qualified-headers]],
+[[new-references-md-file-forces-doc-cli-consistency-placement-census-registration]],
 [[plan-line-number-refs-stale-use-construct-locator]].
 
 > archived 2026-11-05: resolved — moved to archive

@@ -17,4 +17,4 @@ Also: a shell exclusion filter (`$STRANDED` matched inside a piped `while read â
 
 2026-07-16: `docs/specs/2026-07-16-aftermath-class1-gate-evidence-design.md` â€” the per-ref gate rule, the git-cherry row-evidence recipe, and the unset-upstream `-d` recovery are now encoded in `skills/aftermath/SKILL.md` Class-1; the third paragraph's shell-exclusion-filter / batched `git push origin --delete` verification gotcha above is now encoded (2026-07-22) as the post-batch residual-set verification subsection in `skills/aftermath/SKILL.md` Class-1, per `docs/specs/2026-07-22-aftermath-class1-postdelete-verify-design.md`.
 
-Related: [[aftermath-2026-07-03-stranded-remote-set]], [[audit-2026-06-29-plans-serial-stack]].
+Related: [[aftermath-2026-07-03-stranded-remote-set]], [[plan-line-number-refs-stale-use-construct-locator]].

@@ -2,7 +2,6 @@
 name: evidence-mcp-hook-blast-radius-exceeds-the-evidence-knob
 description: The MCP hook limits war-worker to REA plus the memory query tool in every run and denies every mcp__ call when jq is missing
 metadata:
-  promoted: dev/2026-10-20-rea-artifact-evidence@phase-2
   node_type: memory
   type: project
   keywords:

@@ -34,7 +34,7 @@ metadata:
 
 **Why.** The Provision barrier cuts a submodule task's worktree cwd-scoped to the submodule path. The prompt line reads "Run ensure-integration and ensure-worktree cwd-scoped to each submodule task's targetRepo path (not the superproject)". Git registers that worktree in the submodule's own registry. `write_marker` in `skills/war/assets/provision-worktrees.sh` still drops a `.war-task` file at its root.
 
-**Instance (fixed in a fix round before land, recorded as pattern, not live defect).** The first audit of task 6.2 raised a Major from the correctness seat. The fingerprint hook's SubagentStart arm listed only the payload cwd's repo. Every seat of every submodule task would then escalate `AUDIT-TAMPER: unverifiable fingerprint (no start record for <wt>)`. That fails closed, but the documented remedy (a fresh-round re-audit) hits the same path every time, so no submodule task could pass an audit. The security seat concurred at Minor. The plan-faithfulness seat noted the slice names the mechanism, and judged the gap latitude, not a deviation. No plan decision was needed.
+**Instance (fixed in a fix round before land).** The fingerprint hook's SubagentStart arm listed only the payload cwd's repo. Every seat of every submodule task would then escalate `AUDIT-TAMPER: unverifiable fingerprint (no start record for <wt>)`, and a fresh-round re-audit hits the same path, so no submodule task could pass an audit.
 
 **Fix shape at the landed tip.** `task_worktrees` in `hooks/audit-tree-fingerprint.sh` runs `marked_worktrees_of` on the cwd repo, then once per initialized path in `$MAIN/.gitmodules`. Three details matter:
 - It reads `.gitmodules` from `$MAIN`, not the cwd. A superproject worktree carries no initialized submodule.

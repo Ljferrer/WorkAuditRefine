@@ -21,7 +21,7 @@ metadata:
     - "[[retire-token-needs-clean-surface-gate-test]]"
     - "[[absence-guard-search-root-must-anchor-to-subtree]]"
     - "[[absence-guard-verb-specific-coverage-gap]]"
-    - "[[absence-guard-redundant-filter-is-deliberate-mirror]]"
+    - "[[absence-guard-verb-specific-coverage-gap]]"
   created: 2026-07-03
   originSessionId: 9c57c14a-92ed-4fc9-92d1-27be3d4dbad5
 ---
@@ -37,6 +37,6 @@ Landed in the `lacks()` helper + enumerated list in `skills/war-machine/war-pipe
 **Why:** an enumerated list can never accidentally widen its blind spot via a copy-pasted directory exclusion.
 **How to apply:** true retirement (no legitimate home) → repo-wide grep per [[retire-token-needs-clean-surface-gate-test]]; rename with a real permanent exemption → enumerated list (recursive roots are error-prone: [[absence-guard-search-root-must-anchor-to-subtree]]).
 
-Related: [[absence-guard-verb-specific-coverage-gap]], [[absence-guard-redundant-filter-is-deliberate-mirror]] cover *how* one grep's filter chain covers a class within a file; this note is one level up — *which files* to scan.
+Related: [[absence-guard-verb-specific-coverage-gap]], [[absence-guard-verb-specific-coverage-gap]] cover *how* one grep's filter chain covers a class within a file; this note is one level up — *which files* to scan.
 
 > archived 2026-07-26: resolved — moved to archive

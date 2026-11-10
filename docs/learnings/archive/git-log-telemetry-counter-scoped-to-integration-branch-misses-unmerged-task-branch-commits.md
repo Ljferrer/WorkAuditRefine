@@ -1,13 +1,13 @@
 ---
 name: git-log-telemetry-counter-scoped-to-integration-branch-misses-unmerged-task-branch-commits
 description: "A git-log-derived telemetry counter that reads only the integration or working branch renders n/a for a never-merged task's own commits, honest but under-reporting, because those commits stay on a task branch the row never reads"
-metadata: 
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   slug: git-log-telemetry-counter-scoped-to-integration-branch-misses-unmerged-task-branch-commits
   phase: 2026-09-03-in-band-absorb-default/phase-6 task 6.2
-  keywords: 
+  keywords:
     - telemetry counter scope
     - absorbRounds row
     - Ace-Charge trailer
@@ -18,7 +18,7 @@ metadata:
     - honest n/a under-report
     - war-review SKILL.md
     - git log ref scope
-  tags: 
+  tags:
     - war
     - telemetry
     - git
@@ -31,17 +31,13 @@ metadata:
 
 # A git-log-derived telemetry counter scoped to the integration/working branch cannot see a still-open task branch's own commits
 
-**Code-verified** at landed tip `d4793b14eae512c69c55c9fe9990f89b559baed3` on
-`dev/2026-09-03-2026-09-03-in-band-absorb-default`, read via the `_refinery45` worktree (`gitdir`
-names this plan's slug; `HEAD` byte-equals the landed tip).
-
 ## What happened
 
 `skills/war-review/SKILL.md`'s `absorbRounds spent per task` telemetry row (D5) resolves the counter
 by reading `git log ... <workingBranch>` or the phase's `integrationBranch` for the highest
 `Ace-Charge: <task>:<n>` trailer carrying that task's id. The row states this explicitly: "a deleted
-task branch does not matter: the read never targets the task branch" (verbatim, confirmed at the
-landed tip). For a task whose terminal status is `escalated`, `blocked`, or otherwise never merged,
+task branch does not matter: the read never targets the task branch" (verbatim).
+For a task whose terminal status is `escalated`, `blocked`, or otherwise never merged,
 its own `ace:<task>:a<n>` commits stay on its own task branch (`war/<slug>/p<N>-<task id>`) and never
 reach either ref this row reads. The row renders `n/a` for such a task even when its own branch's
 `absorb-budget:` log lines and `Ace-Charge` trailers show real charges — an under-report, not a

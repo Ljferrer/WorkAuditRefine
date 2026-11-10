@@ -1,5 +1,6 @@
 ---
 name: retrofit-site-existing-tests-as-regression-guard
+description: "A retrofit site that only applies a shared predicate to an existing branch needs no new behavioral test if an existing test would fail when the new branch is deleted"
 metadata:
   node_type: memory
   type: project
@@ -20,21 +21,12 @@ metadata:
 
 ## What happened
 
-Phase `fix-worker-result-binding/p2` applied the `blockedReason` predicate fix to three
-dispatch sites (verify still present before acting in `skills/war/assets/workflow-template.js`):
-
-- **Site 1** (fix-worker escalation path): new L3 behavioral test written (TEST 2).
-- **Site 2** (fix-worker blocked result binding): new L3 behavioral test written (TEST 1).
-- **Site 3** (M2 no-test add-test-worker escalation): retrofit — no new behavioral test.
-
-Site 3 is a **retrofit**: the new branch mirrors the existing vacuous-re-audit escalation
-pattern already present at an adjacent site, and the shared predicate is the only change.
-The plan explicitly labeled Site 3 a "retrofit," scoped behavioral tests to Sites 1 and 2
-only, and identified the existing M2 no-test tests as the regression guard (they exercise
-the code path by passing implemented add-test workers, so the new branch is skipped —
-confirming behavior preservation).
-
-The audit approved this as plan-faithful.
+Phase `fix-worker-result-binding/p2` applied the `blockedReason` predicate fix to three dispatch
+sites in `skills/war/assets/workflow-template.js`. Two sites got new behavioral tests. The third
+(the M2 no-test add-test-worker escalation) was a **retrofit**: it mirrored an existing adjacent
+escalation pattern, and the shared predicate was the only change. The plan scoped new tests to the
+first two sites and named the existing M2 no-test tests as the regression guard. The audit approved
+this as plan-faithful.
 
 ## The pattern
 

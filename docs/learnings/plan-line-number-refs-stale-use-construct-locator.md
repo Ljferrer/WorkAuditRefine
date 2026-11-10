@@ -13,7 +13,7 @@ metadata:
     - line-numbers
     - integration-churn
     - auditor-nit
-  related: "[[plan-gate-enumeration-stale-after-stacking]], [[drift-guard-pin-for-task-split-intermediate-state]]"
+  related: "[[plan-array-literal-lags-canonical-export]], [[drift-guard-pin-for-task-split-intermediate-state]]"
   originSessionId: fab06e87-b8c3-454f-a1d8-ecc9fa41faf6
 ---
 

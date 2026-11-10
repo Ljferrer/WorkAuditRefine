@@ -31,10 +31,8 @@ metadata:
 
 ## What (code-verified at landed tip)
 
-`skills/war/assets/workflow-template.js` (landed phase `2026-09-06-engine-and-audit-verdict-integrity`
-Task 3.1, tip `83cd4e7cfe0619c576d4301413eccae2fc5f1be9`, read via the `_refinery` worktree whose
-`gitdir` physical path names this plan's slug and whose `HEAD` equals the threaded tip). The
-`parkAsk` header comment (line 1358-1360) reads:
+In `skills/war/assets/workflow-template.js` (landed in `2026-09-06-engine-and-audit-verdict-integrity`
+Task 3.1), the `parkAsk` header comment reads:
 
 > The survivor's own raiser is part of that skip test ... never lands on its own corroborators list,
 > so the handoff row counts distinct seats.
@@ -45,20 +43,12 @@ The skip predicate two lines below (`same = c => c.seat === e.seat && c.file ===
 the record's own `seat` field and inside its own `corroborators` list. The "counts distinct seats"
 claim is false: the record can double-count one seat across two files.
 
-Three auditor seats (three separate Nits, same task, same audit round) caught this independently and
-all three suggested near-identical rewordings scoping the claim to "seat+file+title," not "seats."
+## Why
 
-## Why durable
-
-This landed with disposition `absorb` (not `phaseClose`) — it is inside the task's own diff — yet
-survived to the landed tip unfixed (Nits do not force a fix round; only Critical/Major block). It is
-also ironic in a way worth naming: this same phase's Task 2.1 was explicitly ordered to de-mirror
-false "count" claims from engine header comments (rule 7 of D24, the Adjudications-header fix), and
-a fresh instance of the identical failure class — a comment asserting a count/uniqueness property the
-code does not actually guarantee — was introduced one task later, in the same file, by the very same
-kind of change. A header comment's claimed *consequence* of a new predicate needs the same scrutiny
-as an explicit count word: verify the claim against the predicate's actual key, not the author's
-intent for it.
+The finding was a Nit with disposition `absorb` inside the task's own diff, and it still reached
+the landed tip unfixed, because Nits do not force a fix round. A header comment's claimed
+*consequence* of a new predicate needs the same scrutiny as an explicit count word: verify the
+claim against the predicate's actual key, not the author's intent for it.
 
 ## How to apply
 
@@ -75,7 +65,7 @@ about the claim being wrong from the SAME commit that introduces both the predic
 
 ## Locate-cue (verify still present before acting)
 
-`skills/war/assets/workflow-template.js`, `parkAsk`'s header comment, line ~1360 ("so the handoff row
-counts distinct seats"), and the `same` predicate two lines below it.
+`skills/war/assets/workflow-template.js`, `parkAsk`'s header comment ("so the handoff row counts
+distinct seats"), and the `same` predicate two lines below it.
 
 > archived 2026-10-27: resolved — moved to archive

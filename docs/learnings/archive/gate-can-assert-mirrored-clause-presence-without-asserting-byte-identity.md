@@ -1,10 +1,10 @@
 ---
 name: gate-can-assert-mirrored-clause-presence-without-asserting-byte-identity
-description: "Presence-only gate on a mirrored line misses wording drift"
+description: "An anchor-phrase gate proves a mirrored clause is present, not byte-identical; byte-identity needs a cross-surface extract-and-equal test, so check the registry row's mode before trusting a 'verbatim' doc claim"
 metadata:
   node_type: memory
   type: project
-  provenance: agent-unverified
+  provenance: code-verified
   slug: gate-can-assert-mirrored-clause-presence-without-asserting-byte-identity
   phase: learnings-read-path/phase-1-T3
   date: 2026-07-06
@@ -14,6 +14,11 @@ metadata:
     - anchor-phrase assertion vs literal-text assertion
     - doc-contract test gap
     - mirrored clause drift
+    - pointer byte-identity
+    - war-config.test.mjs
+    - mirrored verbatim
+    - token-anchor drift guard
+    - assert.doesNotMatch retired claim lock
   tags:
     - gate-design
     - doc-contract-test
@@ -28,37 +33,34 @@ metadata:
 
 # A doc-contract gate can assert a mirrored clause is *present* without asserting it is *byte-identical*
 
-**What was found (learnings-read-path phase-1, T3, Nit — referent not found in this worktree @
-phase-1 landing; verify still present before acting in the integrated `skills/lessons-learned/`
-tree):** Commander's Intent required the CLAUDE.md pointer line be "byte-identical across every
-surface that emits it" (migrate playbook, Gate 2 publication, and the target repo's own
-CLAUDE.md). T3's new doc-contract test asserted only the anchor phrases
-`` `CLAUDE.md` carries the pointer line `` and `append-if-absent` were present in
-`references/migration.md` — it did not assert the *quoted pointer-line text itself* matches
-byte-for-byte. The plan's mapped-tests list for T3 enumerated exactly 4 anchor-phrase assertions
-and did not include a byte-identity check, so this was not a plan-floor violation — but a future
-edit to the pointer line's wording or emoji at one surface would silently diverge from its
-siblings and no test would catch it.
+**The original gap (learnings-read-path phase-1, T3, Nit):** Commander's Intent required the
+CLAUDE.md pointer line to be byte-identical across every surface that emits it. T3's doc-contract
+test asserted only the anchor phrases `` `CLAUDE.md` carries the pointer line `` and
+`append-if-absent` in `references/migration.md`. It did not assert that the quoted pointer-line
+text matched byte for byte. Anchor-phrase tests catch removal. They do not catch drift between
+copies.
 
-**The pattern:** when a plan requires the same literal string to be reproduced across N surfaces
-(a pointer line, a CLI invocation example, a version string), a doc-contract test that asserts
-each surface *contains a clause about* the shared text (an anchor-phrase match) is necessarily
-weaker than one that asserts the *literal shared substring* is identical across surfaces. Anchor-
-phrase tests catch removal; they do not catch drift between copies. This is the sibling case to
-[[verbatim-mirror-directive-context-mismatch-at-destination]] (which is about a mirror being
-*wrong* at the destination context) — here the risk is the mirror silently *diverging* over time
-because no single task owns cross-surface consistency and the gate for each surface only checks
-its own presence.
+**RESOLVED (drift-guards phase, t1.2 — code-verified):** `skills/war/assets/war-config.test.mjs`
+now has the test `'pointer byte-identity: the ratified pointer line is byte-identical across the
+three canonical surfaces (#656, D4)'`. It names this lesson's slug in its source comment. It
+extracts the pointer line from `CLAUDE.md`, `skills/war/SKILL.md`, and
+`skills/lessons-learned/references/migration.md` by locating the 📚 lead marker on the anchor's
+line (skipping each surface's legitimately-different blockquote/indentation prefix), then asserts
+byte-`equal` across all three. The older `#534` presence-only duty test stays in place as
+orthogonal: it catches full removal, and the new test catches wording drift.
 
-**Why:** per-task plan slices are scoped to one surface at a time; nothing in a phase's task
-breakdown assigns ownership of "these N surfaces must stay byte-identical" unless the plan
-explicitly adds a cross-surface diff/consistency test.
+**Durable pattern:** when a plan or Commander's Intent requires N surfaces to carry byte-identical
+text, add a cross-surface literal-extraction plus equality test. Extract from each surface by
+construct (anchor + lead-marker slice, never a fixed substring offset), and compare pairwise
+against a canonical first surface. The test above is the reference implementation in this
+codebase.
 
-**How to apply:** when a plan (or Commander's Intent) requires byte-identical text across
-multiple surfaces, add one small cross-surface test that extracts the literal substring from
-each surface and asserts equality (not just each surface's own anchor-phrase presence) — ideally
-owned by whichever task lands last among the mirrored sites, or as a phase-closing task. Absent
-that test, flag the gap as a Nit at every task landing that emits the mirrored text, so a future
-sweep can add the missing consistency gate deliberately rather than by accident.
+**Reader-side rule:** before you trust a "verbatim" or "byte-identical" claim in a standing doc,
+find the registry row that backs it and read its `mode` (or its anchor list). Anchors prove
+presence only. Byte-identity holds only when the row does `deepEqual` on extracted literal text.
+Instance: `agents/war-auditor.md`'s "## Read-only git guard contract" said it was "mirrored
+verbatim" into the audit prompt, but its registry row in
+`skills/war/assets/workflow-template.test.mjs` checked four regex anchors per surface. The claim
+was retired and is locked by `assert.doesNotMatch(auditorMd, /mirrored verbatim/i)`.
 
 > archived 2026-07-15: resolved — moved to archive

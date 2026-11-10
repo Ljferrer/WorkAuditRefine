@@ -1,5 +1,6 @@
 ---
 name: walkfiles-basename-prune-cascades-all-callers
+description: "Adding to walkFiles' default prune list prunes for every caller, and the prune key is the entry basename, never a path prefix"
 metadata:
   node_type: memory
   type: project
@@ -14,7 +15,7 @@ metadata:
     - fixture
   related:
     - "[[node-breadth-assertion-test-js-overclaims]]"
-    - "[[prune-assertion-substring-token-drift]]"
+    - "[[weak-test-assertion-passes-without-feature-being-exercised]]"
   created: 2026-06-26
   originSessionId: e734fab0-d931-4547-a090-ed30c93e12f8
 ---

@@ -1,6 +1,6 @@
 ---
 name: unthreaded-pattern-override-dooms-cross-repo-test-floor
-description: "floor --pattern hatch unthreaded; non-meta tasks false-no-tests"
+description: "A guard's override flag that no run config threads is dead config, so the first foreign repo fails totally (test floor --pattern false-flagged every no-test)"
 metadata:
   node_type: memory
   slug: unthreaded-pattern-override-dooms-cross-repo-test-floor
@@ -32,8 +32,8 @@ from run configuration, or the first foreign repo fails **totally, not partially
 `assert-test-in-diff.sh`'s default pattern set deliberately mirrors THIS repo's gate
 (`skills/**/*.test.mjs`, `**/*.test.sh`) and its header advertises `--pattern` for other repos —
 but no config field existed and all three invocation surfaces composed the call bare
-(merge-task prompt `workflow-template.js:648`, retry prompt `:731`, standing instruction
-`agents/war-refiner.md:39`). Result on the first non-meta run (Otto, vitest `*.test.ts`,
+(the merge-task prompt and the retry prompt in `workflow-template.js`, and the standing
+instruction in `agents/war-refiner.md`). Result on the first non-meta run (Otto, vitest `*.test.ts`,
 2026-07-07 war-engine-port): **every** `requiresTest` merge-task false-no-tested → pointless
 ADD_TEST fix-worker + full re-audit → red again on the equally-bare retry → escalation. Verified
 red/green: same base/branch, default → exit 1, `--pattern '*.test.ts'` → exit 0.
@@ -44,22 +44,15 @@ instruction, war-room scout+confirm, decisive zero-match preflight (warn interac
 
 ## Diagnosis cue
 
-Once a task branch has merged, `git diff <integrationTip>...<taskBranch>` is **empty** (merge-base
-== branch tip) — a repro run post-land shows exit 1 for *both* the bug and the control and proves
-nothing. Reconstruct the refine-time base from the integration branch's first-parent history (the
-commit before the task's merge) and repro against that.
+After a task branch merges, `git diff <integrationTip>...<taskBranch>` is empty, so repro against the refine-time base (the integration branch's first-parent commit before the task's merge).
 
 ## Status: RESOLVED (test-floor-pattern-threading phase, p2t1 + p2t2)
 
 Per the phase's audit log (both tasks approved, gate-audit `approve` on p2t1): Task 1.1 landed the
 `--pattern` threading into all three prompt sites (`workflow-template.js` + `agents/war-refiner.md`,
 same commit), and Task 1.2 landed the operator-facing `overrides.testPattern` prose in
-`skills/war/SKILL.md`. **Absence note:** this servitor's own checkout (branch
-`claude/resume-war-campaign-945f35`) does not contain these changes — `testPattern`/`--pattern`
-threading was not found via Grep here at write time; the fix lives on
-`dev/2026-07-07-target-repo-agnostic-execution`. Re-verify the threading directly on that branch
-before treating this as closed. See [[floor-subset-gate-claim-overstates-arbitrary-custom-pattern]]
-for a doc-precision residual the same phase surfaced in the SKILL.md prose it landed.
+`skills/war/SKILL.md`. See [[floor-subset-gate-claim-overstates-arbitrary-custom-pattern]] for a
+doc-precision residual the same phase surfaced in the SKILL.md prose it landed.
 
 ## Related
 

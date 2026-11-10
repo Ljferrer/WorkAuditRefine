@@ -32,23 +32,7 @@ metadata:
 
 # A plan's literal test-spec can itself be vacuous — check before grading a deviation as a fidelity gap
 
-**Instance:** the plan slice for a loop-inversion lock ("delete-the-inversion" — invert
-`assert-packaging-in-diff.sh`'s scan loop so `parse_dockerfile` is called once per Dockerfile
-instead of once per (file, Dockerfile) pair) called for "a structural assertion counting
-`parse_dockerfile` invocation sites in the script (definition excluded)" — i.e. a **static**
-call-site count. The pre-change script *also* has exactly one static call site (the inversion only
-relocates it from the inner loop to the outer loop) — so a static count-of-1 assertion would pass
-identically on a revert. The literal spec, taken at face value, is a vacuous lock: it can never go
-RED against the regression it exists to catch.
-
-The worker instead wrote a **runtime** invocation-count trace (`bash -x` xtrace counting actual
-`parse_dockerfile` calls at execution time: 2 for 2 Dockerfiles post-fix vs 5 for a 5-pair
-pre-fix fixture) — strictly stronger, and it genuinely REDs on a revert. The auditor traced through
-*why* the literal spec would have been vacuous, confirmed the runtime version is intent-consistent
-(the plan's actual goal — "delete-the-inversion lock" — is served, just not by the literal
-mechanism named), and graded it Nit/`note`, not a plan-faithfulness violation, citing the
-"latitude rule": intent is the ceiling, the plan slice is the floor, and a worker may exceed the
-letter of a test-spec clause when the letter is demonstrably weaker than what it was meant to lock.
+**Instance:** a plan asked for a **static** count of `parse_dockerfile` call sites to lock a loop inversion in `assert-packaging-in-diff.sh`, but the pre-change script also had exactly one call site, so that lock could never go RED on a revert. The worker wrote a **runtime** `bash -x` xtrace invocation count instead, which does RED on a revert, and the auditor graded it Nit/`note` under the latitude rule: intent is the ceiling, the plan slice is the floor.
 
 **Why durable:** a plan author writing a test-spec clause in prose ("assert X is true") can
 unknowingly describe a check that is vacuous under the specific before/after states in play — this

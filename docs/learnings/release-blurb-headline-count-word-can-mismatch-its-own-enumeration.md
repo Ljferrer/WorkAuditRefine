@@ -17,6 +17,13 @@ metadata:
     - README Status line
     - version bump release note
     - campaign carry-over undescribed
+    - comment blocks corrected count wrong
+    - version slot undercount
+    - fixed small countable set
+    - bare count no enumeration
+    - count word drift
+    - cite the record not the count
+    - scope adjudication row
   tags: 
     - release
     - prose-precision
@@ -95,3 +102,25 @@ flagged this identical Nit independently across both the task-level and gate-aud
 core Rule already states applies at any granularity, not just headline-vs-enumeration — before
 calling a quoted/appended text block "one-X", count the X (sentences, clauses, lines) in the actual
 string, not the number of times the block itself was appended.
+
+## Sub-shapes of the same rule
+
+- **Count inside one quoted block:** "an identical one-sentence skeleton" that is really two
+  sentences. Count the sentences in the actual string.
+- **Mid-sentence tally of edits:** "Two `workflow-template.js` comment blocks are corrected" when
+  the diff carried a third comment-only hunk. Count the diff hunks the note claims to cover.
+- **Fixed small set undercounted:** "Slots: `plugin.json`, `marketplace.json`." named 2 of the 4
+  canonical version slots, and "one pointer each" missed that one card carried two. A small,
+  exactly countable set is as easy to undercount as an open list.
+- **True count with no enumeration:** "names the two dispatch shapes" and "four new" lessons, with
+  none of them named. No reader can check a bare count. Enumerate the items or drop the count word.
+  A lesson count rots fastest, because the servitor and Gate 2 add lessons after the blurb is
+  drafted.
+
+## Generalization: cite the record, do not restate its count
+
+Any hand-typed count that restates a list recorded elsewhere (an adjudication row, a plan
+skeleton, a table) should cite that record by name or section, not restate the number. The count
+drifts the moment the list changes and the summary does not. Instance: a scope adjudication row
+said "28 seed slugs" while the plan's own Skeleton record enumerated 29, and audit seats re-flagged
+the drift as a Nit every round.

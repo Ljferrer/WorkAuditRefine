@@ -1,6 +1,6 @@
 ---
 name: audit-worktree-pre-impl-tip-stale-verdict
-description: "Stale worktree HEAD false reads; verify at audit_sha"
+description: "A worktree HEAD can lag the audited tip and give false presence or absence reads, so check HEAD against gateHeadSha/auditSha and verify at audit_sha"
 metadata:
   node_type: memory
   type: project
@@ -25,9 +25,8 @@ metadata:
 
 Any agent spawned against a worktree pinned mid-phase (auditor, servitor, Lead) can observe a
 pre-final-tip snapshot: absence reads are false-absent, and presence of the *pre-fix shape* is a
-false regression. 9+ recorded instances across phases (latest: packaging-floor-enum-wiring/p1,
-where a stale servitor checkout false-read `'unpackaged'` and the packaging scripts as absent —
-that work has since landed on master); in serial/parallel shared-integration phases every task's
+false regression. In one instance a stale servitor checkout false-read `'unpackaged'` and the
+packaging scripts as absent. In serial/parallel shared-integration phases every task's
 gate-audit pin except the last shows benign drift (expected steady state), and a release task's
 own bump commit is the most common single-task cause. Left unhandled it can escalate to a
 spurious `held:escalation` land-halt.

@@ -1,22 +1,22 @@
 ---
 name: undefined-check-config-validator-rejects-null-despite-null-equals-absent-convention
 description: "Plan prose calling a config off-state 'absent/null' must pick the guard: `!== undefined` rejects null, `!= null` accepts both."
-metadata: 
+metadata:
   node_type: memory
-  type: project
-  keywords: 
+  type: projec
+  keywords:
     - war-config.mjs
     - validate
     - run.maxParallel
     - null vs undefined
     - config validation
     - overrides convention
-    - explicit unset
+    - explicit unse
     - Pivotal constraints
   provenance: code-verified
   slug: undefined-check-config-validator-rejects-null-despite-null-equals-absent-convention
   phase: 2026-08-25-engine-reliability-and-filing-fidelity/Phase 1 (task 1.2)
-  tags: 
+  tags:
     - war
     - war-config
     - validation
@@ -26,7 +26,7 @@ metadata:
   modified: 2026-08-26T06:35:24.371Z
 ---
 
-# A new `run.*` key's `!== undefined` guard can reject the `null` the plan's own prose calls equivalent to absent
+# A new `run.*` key's `!== undefined` guard can reject the `null` the plan's own prose calls equivalent to absen
 
 **Found (code-verified on `dev/2026-08-25-engine-reliability-and-filing-fidelity`, phase 1 task
 1.2; re-confirmed against the live tree).** The `run.maxParallel` guard in
@@ -34,10 +34,10 @@ metadata:
 `c.run.maxParallel !== undefined && (!Number.isInteger(...) || ... < 1)`, so
 `{ run: { maxParallel: null } }` produces a hard validation error (`null` is not `undefined`, and
 `Number.isInteger(null)` is `false`). This is a **faithful** implementation of the task's own slice
-literal ("when present, integer >= 1, else an error naming the key"), so it is not a defect in that
+literal ("when present, integer >= 1, else an error naming the key"), so it is not a defect in tha
 task. But the plan's Pivotal constraints and the sibling engine-side task's slice both phrase the
 knob's off-state as **"absent/null"** interchangeably, and `war-config.mjs`'s own `overrides.*`
-block (`gate` / `workingBranch` / `landingBranch` / `learningsTarget` / `testPattern`) uses explicit
+block (`gate` / `workingBranch` / `landingBranch` / `learningsTarget` / `testPattern`) uses explici
 `null` as the established convention for "operator explicitly left this unset". A hand-written or
 future-tooling-written config using `null` for `run.maxParallel`, matching that sibling
 convention, hard-fails validation instead of meaning unthrottled.
@@ -46,7 +46,7 @@ convention, hard-fails validation instead of meaning unthrottled.
 
 When plan prose (Pivotal constraints, task slices) describes a new config key's off-state as
 **"absent/null"**, don't assume the validator accepts both. Check whether the guard is
-`!== undefined` (accepts only true absence) or `!= null` (accepts both `undefined` and explicit
+`!== undefined` (accepts only true absence) or `!= null` (accepts both `undefined` and explici
 `null`). This codebase has **two live conventions in the same file** (`war-config.mjs`):
 `overrides.*` keys treat `null` as the conventional explicit-unset value; a `run.*` scalar key
 guarded by `!== undefined` does not. Before shipping a new optional numeric/scalar `run.*` key,

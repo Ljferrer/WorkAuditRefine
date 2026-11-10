@@ -1,6 +1,6 @@
 ---
 name: retire-token-needs-clean-surface-gate-test
-description: "Retire token via *.test.sh grep gate; excl load-bearing"
+description: "To retire a token, reword live sites, assert it absent in generated output, and add a *.test.sh grep gate that excludes test files"
 metadata: 
   node_type: memory
   slug: retire-token-needs-clean-surface-gate-test
@@ -50,11 +50,6 @@ Two non-obvious gotchas:
   moment a future worker pastes old prose; a gate-discovered test turns "we removed it" into
   "it cannot come back".
 
-(The phase's side obligation — documenting the provisioning args and the literal-`"undefined"`
-footgun in `schemas.md` — landed and stands closed.)
-
-**Why:** a "docs & retire" phase reads like changelog noise, but the transferable artifact is
-the retire-via-gate recipe.
 **How to apply:** reword → assert-absent-in-output → grep-gate-the-whole-surface with a
 deliberate test-file exclusion; reuse for the next retired env var / flag / token.
 

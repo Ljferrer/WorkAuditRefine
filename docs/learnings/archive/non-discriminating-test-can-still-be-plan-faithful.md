@@ -29,12 +29,6 @@ metadata:
 
 # A test can look "weak" (non-discriminating, never-RED) and still be correct
 
-Two related auditor-calibration patterns surfaced auditing `campaign-ledger.test.mjs`'s Files:
-extraction and roadmap-ingestion fixtures. Both named specific line numbers/fixtures
-(`roadmaps/notes/decoy2.md`, a sole-backticked-`` `TODO` `` fixture) that do not match this
-checkout's current copy of the file — referent not found @ Contract-on-both-sides/1.1; recording
-only the generic patterns below, not the named instances, per the audit-log staleness protocol.
-
 **Pattern A — future-regression guard, not current-mechanism proof.** An absence assertion (e.g.
 "this decoy path must never appear in the ledger") can be non-vacuous even when it never goes RED
 against the CURRENT parser, if the fixture's decoy is deliberately shaped to only matter for a

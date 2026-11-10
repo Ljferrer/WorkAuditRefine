@@ -1,20 +1,20 @@
 ---
 name: redteam-sandbox-probe-branch-residue-blocks-next-provision
-description: "A red-team probe (ff-topology) that built a synthetic fast-forward git fixture inside the SHARED sandbox worktree — instead of a throwaway temp repo — left branches (not just commits) behind; `git reset --hard && git clean -fd` restored the working tree but only rewinds the currently checked-out branch, never deletes sibling branches the probe created. The residue was repo-global (the sandbox worktree shares the main .git) and collided with the next /war run's Provision barrier as a foreign integration ref (ADR 0003), forcing held:workflow-error, a manual branch delete, and a fresh relaunch."
-metadata: 
+description: "Restoring a red-team sandbox with git reset --hard and git clean -fd leaves probe-created branches in the shared .git, so also sweep git branch --list before the next Provision"
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   slug: redteam-sandbox-probe-branch-residue-blocks-next-provision
   phase: "war-memory-cli-correctness/phase-1 (red-team round 0, wf_53228ce5-e83, 2026-07-27; prior workflow run wf_85641550-d11)"
   created: 2026-07-27
-  tags: 
+  tags:
     - red-team
     - sandbox-worktree
     - provision-barrier
     - adr-0003
     - branch-hygiene
-  keywords: 
+  keywords:
     - ff-topology
     - sandbox escape
     - git reset --hard
@@ -71,21 +71,7 @@ Related: [[provision-nonidempotent-orphan-integration-branch-blocks-relaunch]] (
 signature — orphan/foreign integration branch blocks Provision — different root cause: a
 non-idempotent provision step there, a red-team sandbox escape here); [[provision-barrier-refiner-owned-not-worker-self-create]].
 
-## Mitigated — phase 2 of `2026-08-02-redteam-doctrine-and-guards` (2026-08-02)
-
-The underlying isolation-idiom hazard this incident traced to is now named and fixed at the
-mechanism level (End state 18 of that phase): `code-verified` at the landed tip
-`06efa2b925caec1fafd1f019e32e32517e114250`, `skills/red-team/assets/workflow-scaffold.js`'s
-SCOPE-LOCK preamble and `skills/red-team/SKILL.md` Step 3 both now prescribe `git clone
---no-hardlinks` whenever a probe runs `git` at all — the only idiom verified to stay isolated even
-when the target is itself a linked worktree — and name the two unsafe forms explicitly (`cp -R`
-against a linked worktree copies the `.git` pointer file, not a real repo; a bare, non-`--detach`
-`git worktree add` writes a real branch into the target's shared ref store that survives `rm -rf`).
-The escape guard's ref-diff (`--baseline` mode) would now also catch a residual branch left this
-way, on top of the sandbox-idiom fix. This does not retroactively confirm this specific incident's
-resolution (still unconfirmed per the note above) — it confirms the *class* of hazard this incident
-belongs to (a "sandbox" that isn't actually isolated from the real repo's git state) is now a
-documented, guarded pattern rather than a recurrence trap. Full detail:
+**Mitigated:** the sandbox-isolation idiom is now fixed and guarded; see
 [[cp-r-and-bare-worktree-add-do-not-isolate-a-sandbox-from-a-linked-worktree-target]].
 
 > archived 2026-08-15: resolved — moved to archive

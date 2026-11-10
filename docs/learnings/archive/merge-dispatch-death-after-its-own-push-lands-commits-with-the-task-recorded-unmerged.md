@@ -29,12 +29,11 @@ metadata:
 
 # A merge dispatch death between its own push and its return can leave a task's commits landed while the engine still records it unmerged
 
-**Context (code-verified at landed tip `891bbc7a5da617332d404d6088f2bcf80c9fded5`,
-`dev/2026-09-06-engine-and-audit-verdict-integrity`, `skills/war/assets/workflow-template.js`
-line 4094, read via the `_refinery` worktree whose HEAD equals that tip):** the merge-task prompt
+**Context (code-verified in `skills/war/assets/workflow-template.js`, at the merge-task
+dispatch's `const mrDeath = deathOf(mr)` check):** the merge-task prompt
 instructs the refiner to push the merge onto the integration branch as one of its steps, then
 report back. If the refiner dispatch dies post-spawn (harness/API death) **after** that push but
-**before** the dispatch returns, `deathOf(mr)` at line 4093-4094 is truthy and `mergeDied(mrDeath)`
+**before** the dispatch returns, `deathOf(mr)` is truthy and `mergeDied(mrDeath)`
 runs — the task classifies `env-died` and stays "unmerged" from the engine's own bookkeeping, even
 though its commits are already on the integration branch. The task gets no per-task gate-audit
 entry, and `landed[]` omits it for that run.
