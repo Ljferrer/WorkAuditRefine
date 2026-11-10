@@ -8434,7 +8434,10 @@ const drainCauseOf = m => (m && m.drainCause && typeof m.drainCause === 'object'
 // the same file within ±FOLLOWUP_LINE_WINDOW lines, or the same normTitle when a line is absent) was
 // fixed before land: it moves to notes as reconciled:aced-later, logged with the aced sha, never filed.
 if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDecision === 'held:land-failed') && minorsFiled.length > 0) {
+  // A recovery-carried row (its acedAt indexes the prior run's aced array) or an already-filed row
+  // skips the reconcile and the VERIFY FIRST stamp: it files or reuses its issue as before.
   const regressedRow = m => typeof m.demoteReason === 'string' && m.demoteReason.startsWith('demote:absorb-regressed') && !!m.file
+    && m.recovered !== true && typeof m.issue !== 'number'
   const kept = []
   for (const m of minorsFiled) {
     const later = regressedRow(m) && Number.isInteger(m.acedAt) ? aced.slice(m.acedAt).find(a => {
@@ -8545,6 +8548,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
     ? ((DEMOTE_REASONS.find(p => typeof m.demoteReason === 'string' && m.demoteReason.startsWith(p))) || 'demote:unclassified')
     : m.floorSkipped === true ? 'demote:floor-skipped'
     : 'seat-filed (barrier: ' + (typeof m.barrier === 'string' && m.barrier ? m.barrier : 'none') + ')'
+  const verifyFirst = minorsFiled.some(m => m.siblingTouch)
   let filingOut = null
   try {
     filingOut = await dispatchSite(
@@ -8579,9 +8583,14 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; const dc = drainCauseOf(m); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''} · seats: ${seatsListOf(m).join(', ')}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}${typeof m.demoteReason === 'string' && m.demoteReason ? pt` · engine demote reason: ${m.demoteReason}` : ''}${dc ? pt` · drain cause: ${dc.dispatch} died — ${dc.why}` : ''} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}${typeof m.issue === 'number' ? pt` · already filed #${m.issue ?? ''} (reuse it: no new issue, no comment)` : ''}` }).join('\n') + '\n'
       // D33 (#2686): the VERIFY FIRST block, only when a row carries siblingTouch (refiner-recovery.md
       // § File-followups filing is its standing home).
-      + (minorsFiled.some(m => m.siblingTouch) ? pt`VERIFY FIRST: a merged sibling task changed the file of each row below after its absorb regressed. Before filing one, read its file at the landed tip; when the defect its rationale names is gone, return it in verified_fixed: [{ n, evidence }] (evidence: the file and line you read) and give it no filed entry and no cluster. Otherwise file it.\n`
+      + (verifyFirst ? pt`VERIFY FIRST: a merged sibling task changed the file of each row below after its absorb regressed. Before filing one, read its file at the landed tip; when the defect its rationale names is gone, return it in verified_fixed: [{ n, evidence }] (evidence: the file and line you read) and give it no filed entry and no cluster. Otherwise file it.\n`
         + minorsFiled.map((m, i) => m.siblingTouch ? pt`  row ${i + 1}: task ${m.siblingTouch.task ?? '<task>'} merged at ${m.siblingTouch.sha ?? 'unrecorded'}` : null).filter(Boolean).join('\n') + '\n' : '')
-      + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
+      // A VERIFY FIRST prompt names verified_fixed in its return shape and scopes the cluster rule
+      // past those ordinals (agents/war-refiner.md § Return carries the optional field).
+      + (verifyFirst
+        ? pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }], verified_fixed: [{ n, evidence }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above not returned in verified_fixed in exactly ONE cluster's ordinals array (merge rows only, never split one).`
+        : pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one).`)
+      + pt` A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
     // Fail-open (D2): a THROWN filing dispatch must never convert a resolved land decision into

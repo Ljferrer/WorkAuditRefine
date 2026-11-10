@@ -9467,7 +9467,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   assert.ok(reportAuditP.includes(REPORT_NOTES) && reportGateP.includes(REPORT_NOTES), 'both worker-report prompts quote the notes')
   // A row added without a floor raise leaves slack, and slack lets a deleted row pass. The ceiling
   // turns that add red, so the floor and the row count move in one commit.
-  assert.ok(REGISTRY.length <= 56, 'the registry holds' + REGISTRY.length + ' rows, above the floor: raise the REGISTRY.length floor and this ceiling to the new row count in the commit that adds the row')
+  assert.ok(REGISTRY.length <= 56, 'the registry holds ' + REGISTRY.length + ' rows, above the floor: raise the REGISTRY.length floor and this ceiling to the new row count in the commit that adds the row')
   assert.ok(REGISTRY.length >= 56,'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) + the four plan 2026-11-08 T1.6 prompt-prefix rows (AUTHORITY_LINE, TOOL ORDER, HOST_TURN_TOOL_LINE, WORKER_WRITE_TOOL_RULE) + the push-denied row (#2671) + the three plan 2026-11-08-engine-findings T1.1 rows (citation, parked-ask, worker-report) + the five T2.1 rows (compound-command carve-out, stale-tip phrase, gate scope, confirmed tip, confirmed tip scope) + the three T3.1 rows (exact-id, ace trailers, VERIFY FIRST) — 56 rows, no slack')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
@@ -13196,7 +13196,7 @@ test('#2326 — a spent segment budget is bounded, forward-reverts, reaches the 
   assert.ok(out.landed.includes('t1'), 'the approved pre-ace tip still merges (PIN-2)')
 })
 
-test('#2326 — the pair is the read: a marker-less false stays RED on one dispatch, a stray marker on green stays green, and a failure or a moved echo after a segment keeps its route', async () => {
+test('#2326 — the pair is the read: a judged marker-less false stays RED after its one D35 re-run, a stray marker on green stays green, and a failure or a moved echo after a segment keeps its route', async () => {
   // A judged red (head_sha + ids, D11) with a stray note is no segment: it takes the RED route after
   // its one D35 re-run, never the segment loop.
   const bare = await runPhase(PT_ARGS(), acePtImpl(), { 'ace-gate': p => ({ ...aceJudgedRed('FAIL')(p), segment_note: 'stray note' }) })
@@ -20500,6 +20500,29 @@ test('file-followups: a reverted round records no ace, so the regressed row stil
   assert.ok(!demotionOf(mutant.out, 'stale read'), 'the mutant reconciles the row an earlier ace never fixed')
 })
 
+test('file-followups: a recovery-carried regressed row skips the reconcile and still files', async () => {
+  // #2700 prior-return carry: the held attempt's regressed row keeps acedAt 0, an index into the prior
+  // run's aced array, and the carried aced row on the same file and line is re-pushed beside it.
+  const regressed = { task: 't1', severity: 'Minor', title: 'carried regressed', file: 'x.js', line: 10, rationale: 'r', disposition: 'follow-up', demoteReason: 'demote:absorb-regressed', engineFiled: true, acedAt: 0 }
+  const priorReturn = issue => ({ aced: [{ task: 't1', finding: { severity: 'Nit', title: 'an earlier ace', file: 'x.js', line: 12 }, sha: 'abc1234' }],
+    minorsFiled: [issue === undefined ? regressed : { ...regressed, issue }] })
+  const run = (issue, source) => runPhase(PROVISION_ARGS({ recovery: { sanctioned: true, priorReturn: priorReturn(issue) } }), barrierEnv({ ok: true, preMerged: ['t1'] }), {}, source)
+  const plain = await run()
+  assert.ok((plain.out.aced || []).some(a => a.recovered === true && a.finding.title === 'an earlier ace'), 'presence: the carried aced row matches the row on file and line')
+  const d = demotionOf(plain.out, 'carried regressed')
+  assert.ok(d && d.recovered === true, 'the carried row still files')
+  assert.equal(t31NotesOf(plain.out, 'carried regressed', 'reconciled:aced-later').length, 0, 'and leaves no reconciled note')
+  assert.ok(!filingPromptOf(plain.calls).includes('verified_fixed'), 'a prompt with no VERIFY FIRST row keeps the two-key return shape')
+  const filed = await run(77)
+  assert.equal(demotionOf(filed.out, 'carried regressed').issue, 77, 'an already-filed carried row keeps its issue')
+  // Red by mutation: each clause alone keeps the row filed; dropping both reconciles it.
+  const GUARD = "&& m.recovered !== true && typeof m.issue !== 'number'"
+  assert.ok(src.includes(GUARD), 'the mutation target is the live regressedRow guard')
+  assert.ok(!demotionOf((await run(undefined, src.replace(GUARD, "&& typeof m.issue !== 'number'"))).out, 'carried regressed'), 'without the recovered clause the carried row is reconciled')
+  assert.ok(demotionOf((await run(77, src.replace(GUARD, "&& typeof m.issue !== 'number'"))).out, 'carried regressed'), 'the issue clause alone keeps an already-filed row filed')
+  assert.ok(!demotionOf((await run(77, src.replace(GUARD, ''))).out, 'carried regressed'), 'without both clauses the filed row is reconciled')
+})
+
 test('file-followups: a regressed row touched by a merged sibling is verified before filing', async () => {
   // Arm 1: the filer returns the row in verified_fixed — it lands in notes, never an issue.
   const evidence = 'skills/war/assets/x.js:10 now refreshes before the read'
@@ -20507,6 +20530,8 @@ test('file-followups: a regressed row touched by a merged sibling is verified be
   const fp = filingPromptOf(verified.calls)
   assert.ok(fp.includes('VERIFY FIRST: a merged sibling task changed the file of each row below') && fp.includes('  row 1: task t2 merged at beefcafe12'), 'the filing prompt lists the row under VERIFY FIRST with the sibling and its sha')
   assert.ok(fp.includes('return it in verified_fixed: [{ n, evidence }]'), 'and asks for verified_fixed')
+  assert.ok(fp.includes('Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }], verified_fixed: [{ n, evidence }] }'), 'the return line names verified_fixed')
+  assert.ok(fp.includes('every ordinal above not returned in verified_fixed in exactly ONE cluster'), 'and scopes the cluster rule past it')
   assert.ok(!demotionOf(verified.out, T31_REGRESSED.title), 'a verified row files no issue')
   const note = t31NotesOf(verified.out, T31_REGRESSED.title, 'reconciled:sibling-merge')
   assert.equal(note.length, 1, 'one reconciled:sibling-merge note')

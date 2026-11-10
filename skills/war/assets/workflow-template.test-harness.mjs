@@ -3424,7 +3424,7 @@ const captureRangeRevertScript = async ({ dir, git, quiet, approved }) => {
       return { tip_sha: tip, tip_tree: git('rev-parse', tip + '^{tree}'), pre_sha: git('rev-parse', pre), pre_tree: git('rev-parse', pre + '^{tree}'), approved_tree: git('rev-parse', approved + '^{tree}'),
         count: Number(git('rev-list', '--count', pre + '..' + tip)), pre_is_ancestor: true, files: git('diff', '--no-renames', '--name-only', pre, tip).split('\n') }
     },
-    'ace-gate': { gate_green: false, gate_output: 'red' },
+    'ace-gate': aceJudgedRed('red'),
     'pin-transfer': p => { scripts.push(rangeRevertScriptOf(p)); return { status: 'error' } },
   })
   assert.equal(scripts.length, 1, 'the pin-transfer probe carried the range revert')

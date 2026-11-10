@@ -27,7 +27,7 @@ Plan 2026-11-08-engine-findings-ace-and-late-fix D24 (#2669): an ace-family comm
 Two causes recur in the field:
 
 - `Co-Authored-By` in its own paragraph after the trailer block. git parses trailers only from the last paragraph, so it reads the attribution alone and drops both ace trailers. Put the attribution line inside the trailer block, never after it.
-- An `Ace-Subset:` value that names files the commit did not touch, or leaves out a file it did. The trailer names exactly the files the commit touches.
+- An `Ace-Subset:` value edited away from the one the prompt gives. Copy that value verbatim: it names the listed findings' files, so fix each of them; never rewrite it to list the files the commit touches.
 
 Before you push, check the trailers parse: `git show -s --format='%(trailers:key=Ace-Charge,valueonly)' HEAD` prints the value (and the `Ace-Subset` key likewise when the prompt asks for it). Amend an unpushed commit that lacks one. Report a pushed one in `blocked_reason`, naming the missing trailer, and never force-push.
 
