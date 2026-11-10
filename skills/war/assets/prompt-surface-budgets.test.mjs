@@ -602,6 +602,26 @@ test('derivation guard — default reader tells no-commit from no-path', () => {
   assert.equal(defaultBlobSize('0'.repeat(40), 'CLAUDE.md'), 'no-commit');
 });
 
+// The MEASURE print is a contract the re-baseline preflight reads, so the gate pins it here.
+test('measure line — checkBudget prints one MEASURE line per call', () => {
+  const captured = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => { captured.push(args.join(' ')); };
+  try {
+    checkBudget('fixture', 10, { hard: 2048, advisory: 1024 });
+    checkBudget('fixture-over', 1500, { hard: 2048, advisory: 1024 });
+  } finally {
+    console.warn = realWarn;
+  }
+  const measures = captured.filter((l) => l.startsWith('MEASURE '));
+  assert.deepEqual(measures, [
+    'MEASURE prompt-surface-budgets: fixture 10 B (advisory 1024, hard 2048)',
+    'MEASURE prompt-surface-budgets: fixture-over 1500 B (advisory 1024, hard 2048)',
+  ]);
+  assert.equal(captured[0], measures[0], 'below the advisory line the MEASURE line is the only print');
+  assert.equal(captured.length, 3, 'above the advisory line one WARN line follows the MEASURE line');
+});
+
 for (const [relPath, budget] of Object.entries(FILE_BUDGETS)) {
   test(`surface budget — ${relPath}`, () => {
     const size = Buffer.byteLength(readFileSync(join(repoRoot, relPath), 'utf8'));
