@@ -593,6 +593,16 @@ test('derivation guard — working copy on skips only the cite at its sha', () =
   assert.deepEqual(seen, ['def5678'], 'only the cite at another sha reaches the reader');
   assert.equal(errors.length, 1, 'a wrong byte count at another sha still reds');
   assert.match(errors[0], /cites 9000 B at def5678, but .* blob holds 9001 B/);
+  const longSha = `abc1234${'0'.repeat(33)}`;
+  const arms = [
+    ['a long marker skips a short cite', block.replace('working copy on abc1234', `working copy on ${longSha}`)],
+    ['a short marker skips a long cite', block.replace('@ abc1234', `@ ${longSha}`)],
+  ];
+  for (const [label, armBlock] of arms) {
+    seen.length = 0;
+    checkDerivation(fixtureRow(armBlock, 13312, 11264), reader);
+    assert.deepEqual(seen, ['def5678'], label);
+  }
 });
 
 test('derivation guard — RAISED and placeholder retained skip the arithmetic', () => {
