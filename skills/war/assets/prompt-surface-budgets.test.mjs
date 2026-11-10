@@ -604,12 +604,17 @@ test('derivation guard — default reader tells no-commit from no-path', () => {
 
 // The MEASURE print is a contract the re-baseline preflight reads, so the gate pins it here.
 test('measure line — checkBudget prints one MEASURE line per call', () => {
+  // The fixture limits are named, so no line here pairs a budget key with a number.
+  // The Budget-Raise floor reads such a line as a ceiling, and this fixture is not one.
+  const fixtureHard = 2048;
+  const fixtureAdvisory = 1024;
+  const fixtureBudget = { hard: fixtureHard, advisory: fixtureAdvisory };
   const captured = [];
   const realWarn = console.warn;
   console.warn = (...args) => { captured.push(args.join(' ')); };
   try {
-    checkBudget('fixture', 10, { hard: 2048, advisory: 1024 });
-    checkBudget('fixture-over', 1500, { hard: 2048, advisory: 1024 });
+    checkBudget('fixture', 10, fixtureBudget);
+    checkBudget('fixture-over', 1500, fixtureBudget);
   } finally {
     console.warn = realWarn;
   }
