@@ -2547,7 +2547,10 @@ const corroborateSurvivor = f => {
   // (mergedRowsOf's filter inline: that const is declared after the wave loop)
   if (near != null) {
     hit.merged = (Array.isArray(hit.merged) ? hit.merged : []).filter(x => x && typeof x === 'object')
-    hit.merged.push({ seat: seatRefOf(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)' })
+    // its own line, severity and class too, so a stamp-time unfold never inherits the survivor's
+    // (FINDING_CLASSES inline: findingClassOf is declared later)
+    hit.merged.push({ seat: seatRefOf(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)',
+      ...(Number.isFinite(f.line) ? { line: f.line } : {}), ...(f.severity ? { severity: f.severity } : {}), ...(FINDING_CLASSES.includes(f.findingClass) ? { findingClass: f.findingClass } : {}) })
   }
   // demote()'s corroborating arm stamps its demoteReason onto the survivor
   return hit
@@ -2882,9 +2885,42 @@ const rangeRevertScript = (revertWorktree, revertApproved, revertBranch) =>
   + pt`elif ! git -C ${revertWorktree} merge-base --is-ancestor ${revertApproved} HEAD; then echo NOT-DESCENDANT; `
   + pt`elif ! git -C ${revertWorktree} diff --cached --quiet HEAD; then echo INDEX-DIRTY; `
   + pt`else git -C ${revertWorktree} -c core.hooksPath=/dev/null revert --no-commit ${revertApproved}..HEAD && if [ "$(git -C ${revertWorktree} write-tree)" = "$(git -C ${revertWorktree} rev-parse ${revertApproved}^{tree})" ]; then git -C ${revertWorktree} -c core.hooksPath=/dev/null commit -q -m "Forward-revert ${revertApproved}..HEAD to the last approved tree" --trailer "WAR-Task: ${revertBranch}" && echo RANGE-REVERTED; else echo TREE-MISMATCH; fi; fi`
+// netZeroScript (D19 d, ADR 0061): the clashed task's pin-transfer step after its FORWARD-REVERT. A
+// range above <approved> that is exactly the clash commit and its revert, with HEAD's tree equal to
+// <approved>'s, is net zero: the branch moves back to <approved> (no content changes), so step (2)
+// rebases only through the approved sha and the pair never replays onto the claimant's merged line.
+// Any other range prints NET-ZERO-KEPT and every step runs as written.
+// The clash sha is concatenated, never a pt interpolation: it is an engine-read probe sha.
+const netZeroScript = (revertWorktree, revertApproved, clashSha, revertBranch) =>
+  pt`if [ "$(git -C ${revertWorktree} rev-list --count ${revertApproved}..HEAD)" = 2 ] && [ "$(git -C ${revertWorktree} rev-parse --verify -q HEAD~1)" = "$(git -C ${revertWorktree} rev-parse --verify -q ` + clashSha
+  + pt`^{commit})" ] && [ "$(git -C ${revertWorktree} rev-parse --verify -q HEAD^{tree})" = "$(git -C ${revertWorktree} rev-parse --verify -q ${revertApproved}^{tree})" ]; then git -C ${revertWorktree} checkout -q -B ${revertBranch} ${revertApproved} && echo NET-ZERO-DROPPED; else echo NET-ZERO-KEPT; fi`
+// ---- POLISH CLAIMS (D19, #2578, ADR 0061) ----
+// polishClaims: file → { r, sha, count } for the current wave (cleared at each wave start). The first
+// same-wave polish commit to touch a file no task of the wave lists claims it, in tip-probe return
+// order (claimPolishFiles). A claim ends only when the merge slot can drop the claiming commit and
+// its revert (the net-zero step): the task's ace ladder has ended, the range revert still registered
+// on the task has the claiming commit as its tip, that commit is the only commit of its range, and no
+// panel approved it. releaseClaims reads that state once, at the end of the ace stage. An in-loop
+// revert before a bisection subset or a re-entry worker (aceRevertDispatch) ends no claim: the claiming
+// commit and its revert stay on the branch below the later work and replay at the merge slot, so the
+// file stays claimed for the wave and a later peer commit on it still clashes.
+// An ended claim moves to releasedClaims, so a later claimant of that file also marks the reverted
+// claimant for the net-zero merge-slot step.
+// keepClaims marks a claim whose commit a panel approved. Every later revert starts at an approved
+// sha at or above that commit, so the commit stays on the branch and releaseClaims never ends the
+// claim, even after a later ace moves the approved sha.
+const polishClaims = new Map()
+const releasedClaims = new Map()
+const keepClaims = (r, sha) => { for (const c of polishClaims.values()) if (c.r === r && c.sha === sha) c.approved = true }
+const releaseClaims = r => {
+  const final = rangeRevertOf(r)
+  const gone = final ? [...polishClaims].filter(([, c]) => c.r === r && !c.approved && c.count === 1 && c.sha === final.tip) : []
+  for (const [file, c] of gone) { polishClaims.delete(file); releasedClaims.set(file, c) }
+  if (gone.length) log('polish claim: task ' + r.task.id + ' releases ' + gone.map(([file]) => file).join(', ') + ' — its own commit is reverted (D19).')
+}
 // registerRangeRevert: the merge-slot revert input on r — the pair (<approved>, the pre-revert tip).
 // The tip is null when no Git read placed it (a dead or unusable tip probe); the clause reads HEAD from
-// Git either way.
+// Git either way. It ends no polish claim: aceReentry can take the range over and revert it in-loop.
 const registerRangeRevert = (r, tip) => { r.aceReverted = { approved: approvedShaOf(r), tip: isSha(tip) ? tip : null } }
 const rangeRevertOf = r => r && r.aceReverted && typeof r.aceReverted === 'object' && isSha(r.aceReverted.approved) ? r.aceReverted : null
 // Fix-round doctrine (#2097, D24/PIN-27; #2127 ruling): ONE shared block, interpolated into the
@@ -2919,13 +2955,15 @@ const FIX_ROUND_DOCTRINE_CLAUSE = pt`\nFIX-ROUND DOCTRINE: you are dispatched fo
 // the TERMINAL PASS and the LATE-FIX PASS (late-defects Task 3.1) work from a listed set. Rule 1 still reaches each sibling of a listed finding's class,
 // and any other defect waits for a ruling. The sweep's discard guard depends on this limit (ADR 0012).
 const FIX_ROUND_SCOPE_CLAUSE = pt`FIX-ROUND SCOPE: a sibling site of a listed finding's defect class is in scope under rule 1. List any other defect you find under \`Ignore for now:\`, and never fix it in this commit. Echo that list into \`notes\` too, because the engine reads only \`notes\`.\n`
-// ADVISORY POLISH runs beside its wave peers, so it fixes a sibling site only in its own files or a
-// listed row's file (operator ruling on PR #2577). Its list of other siblings reaches the phase report
-// for a ruling (recordIgnoreList). A cross-file claim rule waits for its own plan and red-team (#2578).
-const POLISH_FILES_CLAUSE = pt`FIX-ROUND FILES: fix a sibling site only in this task's own files or in a listed finding's file. List a sibling site in any other file under \`Ignore for now:\`, and the list reaches the phase report for a ruling.\n`
+// ADVISORY POLISH runs beside its wave peers, so it fixes a sibling site only in its own files, a
+// listed row's file, or a file no wave task lists and no fence names (operator ruling on PR #2577; the
+// claim rule, D19 and ADR 0061). The engine reads the claim from the tip probe (claimPolishFiles). Its
+// list of other siblings reaches the phase report for a ruling (recordIgnoreList).
+const POLISH_FILES_CLAUSE = pt`FIX-ROUND FILES: fix a sibling site only in this task's own files, in a listed finding's file, or in a file no task of this wave lists and the fence does not name. The first polish commit to touch such a file claims it for the wave. A commit that touches a file a peer claimed or lists is forward-reverted, and its rows go to the phase-close sweep. List a sibling site in any other file under \`Ignore for now:\`, and the list reaches the phase report for a ruling.\n`
 // The fence for the bug class limit: a sibling site in a file another task, plan or the release slot
 // owns stays unedited, or that owner rebase-conflicts at its serial merge (sweep-exclusion.md). No floor
-// reads this set, so the prompt is the guard.
+// reads this set, so the prompt is the guard, except at ADVISORY POLISH: there claimPolishFiles reverts a
+// commit on a wave peer's file or a claimed file (D19).
 const fixRoundFenceClause = paths => paths.length
   ? pt`FIX-ROUND FENCE: another task, plan or the release slot owns these files, so never edit them, and list a sibling site in one under \`Ignore for now:\`: ` + [...paths].sort().join(', ') + '\n'
   : ''
@@ -4512,6 +4550,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   }
   const wave = nextWave()
   if (!wave.length) { log(`No runnable tasks remain — the rest are blocked behind escalations.`); break }
+  // a polish claim lasts one wave (D19)
+  polishClaims.clear(); releasedClaims.clear()
 
   // ---- ACE BISECTION (regression-recovery ladder on a failed --ace batch; D1–D4/D6) ----
   // Order (D2, culprit-first): named culprits are excised (demoted) and the remainder re-applies as
@@ -5343,7 +5383,31 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         ...(Array.isArray(A.sweepExclude) ? A.sweepExclude.flatMap(e => e.files) : []),
         ...tasks.filter(t => !succeeded.has(t.id)).flatMap(t => Array.isArray(t.files) ? t.files : []),
         ...RELEASE_SLOT_FILES,
+        // a file a peer already claimed this wave (D19)
+        ...[...polishClaims].filter(([, c]) => c.r !== r).map(([file]) => file),
       ].map(aceRelPath))].filter(p => typeof p === 'string' && p && !polishOwn.has(p))
+      // claimPolishFiles (D19 b, c): reads the polish tip probe's git-derived file list at its return.
+      // A file another task of this wave lists, or one a peer claimed, is a clash: it returns the
+      // [file, owner] hits and records nothing. Otherwise each touched file outside this task's own
+      // files and the fence becomes this task's claim. Synchronous, so return order decides.
+      const claimPolishFiles = probe => {
+        const files = [...new Set((Array.isArray(probe.files) ? probe.files : []).map(aceRelPath))].filter(p => typeof p === 'string' && p)
+        const hits = files.map(file => {
+          const peer = wave.find(t => t.id !== r.task.id && (Array.isArray(t.files) ? t.files : []).map(aceRelPath).includes(file))
+          const c = polishClaims.get(file)
+          return peer ? [file, peer.id] : c && c.r !== r ? [file, c.r.task.id] : null
+        }).filter(Boolean)
+        if (hits.length) return hits
+        const mine = files.filter(file => !polishOwn.has(file) && !polishFence.includes(file) && !polishClaims.has(file))
+        for (const file of mine) {
+          polishClaims.set(file, { r, sha: probe.tip_sha, count: probe.count })
+          // a reverted claimant's pair now replays onto this claim too, so it takes the net-zero step
+          const prev = releasedClaims.get(file)
+          if (prev && prev.r !== r && !prev.r.claimClash) prev.r.claimClash = { sha: prev.sha, files: [file], owners: [r.task.id] }
+        }
+        if (mine.length) log('polish claim: task ' + r.task.id + ' claims ' + mine.join(', ') + ' for the wave (commit ' + probe.tip_sha + ', D19).')
+        return null
+      }
       // A listed row in a fenced file would get two opposed orders, so it goes to the sweep. The sweep
       // demotes it naming its owner if that owner is still unmerged, and fixes it otherwise.
       if (openBlockers === 0) for (const f of aceable.filter(x => polishFence.includes(aceRelPath(x.file)))) {
@@ -5380,13 +5444,24 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // an ace worker death (D21) or a resolved null (#2555 D11) takes the existing failed-attempt arm, site-named
         const aceWhy = deathOf(ace) || nullDied(ace, aceLabel(r, 'polish')) || blockedReason(ace)
         const aceClass = tipClass(aceProbe)
-        if (aceClass === 'moved') {
+        const clash = aceClass === 'moved' ? claimPolishFiles(aceProbe) : null
+        // the batch ace COMMIT charges one absorb slot (D5), a clashed one too (its Ace-Charge trailer
+        // counts at a relaunch) — fixRounds untouched (PIN-7)
+        if (aceClass === 'moved') r.task.absorbRounds++
+        if (clash) {
+          // D19 c: a later commit on a claimed or wave-owned file is forward-reverted and never
+          // re-audited, and its rows go to the sweep. claimClash marks the task for the merge slot's
+          // net-zero step (D19 d), and only that task's pin-transfer prompt carries it.
+          registerRangeRevert(r, aceProbe.tip_sha)
+          r.claimClash = { sha: aceProbe.tip_sha, files: clash.map(h => h[0]), owners: [...new Set(clash.map(h => h[1]))] }
+          const clashWhy = 'polish claim — commit ' + aceProbe.tip_sha + ' touches ' + clash.map(h => h[0] + ' (task ' + h[1] + ')').join(', ') + ', which a wave peer claimed or lists; the commit is forward-reverted'
+          log('polish claim: task ' + r.task.id + ' — ' + clashWhy + ', and its ' + aceable.length + ' row(s) route to the phase-close sweep (D19).')
+          for (const f of aceable) routeToSweep(f, clashWhy)
+        } else if (aceClass === 'moved') {
           trailerGapLog('ace ' + r.task.id, aceProbe, [['Ace-Charge', 'aceCharge', aceCharge]])
           // A descendant tip with a net change is an implemented ace (#2485 D3), whatever the worker
           // reported: charge it, record its fix lines, and re-audit at the probed tip.
           if (aceWhy) log('ace ' + r.task.id + ': the ace worker reported "' + aceWhy + '", but the tip probe found ' + aceProbe.count + ' commit(s) above ' + preAce + ' at ' + aceProbe.tip_sha + ' — re-audited as an implemented ace (PIN-3), never left unjudged.')
-          // the batch ace COMMIT charges one absorb slot (D5) — fixRounds untouched (PIN-7)
-          r.task.absorbRounds++
           // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
           chainRecordFix(r.task, chainRound, ace, 'ace')
           aceSha = aceProbe.tip_sha /* the batch ace commit */
@@ -5418,6 +5493,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             // merge proceeds on the polished tip
             r.seats = reSeats
             r.aceSha = aceSha
+            // the approved polish commit keeps its claims for the wave (D19, ADR 0061)
+            keepClaims(r, aceSha)
             // aced provenance (D3): the findings this ace commit resolved. No splice needed —
             // classify-at-collection never eagerly filed them. A citation-resolved finding's aced
             // record carries the citation (D6).
@@ -5456,6 +5533,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // r.reentryQueue — the ladder re-opens for them here, after the batch/bisection resolved,
           // while absorbRounds < run.absorbRounds (the absorb budget is the sole bound, D5).
           if (r.reentryQueue && r.reentryQueue.length) await aceReentry(r)
+          // the ladder has ended: a claim ends only if the still-registered revert is its own commit (D19)
+          releaseClaims(r)
         } else {
           // A dead or unusable tip probe (PIN-5): the branch tip is unread, so the merge slot reverts
           // whatever sits above the approved tip (its HEAD read from Git; an unmoved tip skips) and the
@@ -5593,8 +5672,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         diffFilesByTask.set(task.id, await probeDiff(task, probeBase, tip))
       }
 
-      // A seeded task starts at its carried fixRounds (D17); every other task starts at 0.
-      let round = task.seed ? spentOf(task.fixRounds) : 0, verdict = null, seats = [], expected = 0, blocked = null, escalateReason = null, died = null, spent = false
+      // A seeded task starts at its carried fixRounds (D17), clamped to roundLimit so its first audit
+      // still runs and the seed cap rule reads it; every other task starts at 0.
+      if (task.seed && spentOf(task.fixRounds) > roundLimit) log('seeded task ' + task.id + ': carried fixRounds ' + spentOf(task.fixRounds) + ' passes run.roundLimit ' + roundLimit + ', so it starts at ' + roundLimit + ': one audit runs, then the seed cap rule.')
+      let round = task.seed ? Math.min(spentOf(task.fixRounds), roundLimit) : 0, verdict = null, seats = [], expected = 0, blocked = null, escalateReason = null, died = null, spent = false
       const workerTests = impl && impl.tests ? impl.tests : null
       // D2: the worker's committed tip — the pin each audit seat's audit_sha must match
       let pin = impl && impl.head_sha
@@ -5897,6 +5978,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + pt`\`${rangeRevertScript(r.task.worktree, revertRange.approved, r.task.branch)}\` `
           + pt`It reads HEAD from Git, never from a worker report; RANGE-CLEAN (the tip already carries the approved tree) and NOT-DESCENDANT skip the revert and the commit. INDEX-DIRTY (staged content no panel judged sits in the index) and TREE-MISMATCH (the reverted index is not the approved tree) make no commit: STOP before the rebase and return status 'error' with the token as detail — the branch tip still carries the unapproved range and is never merged. Do NOT reset --hard. On RANGE-REVERTED or RANGE-CLEAN the approved work still lands.\n`
         : ''
+      // NET-ZERO CLASH RANGE (D19 d, ADR 0061): the pin-transfer probe of a task whose polish commit
+      // clashed with a claim (claimClash, set beside its registered range revert) gains one step after
+      // its FORWARD-REVERT. The revert commit exists only after that step, so the refiner checks the
+      // tree equality, never the engine. Every other task's prompt is byte-unchanged.
+      const clashRec = revertRange && r.claimClash && r.claimClash.sha === revertRange.tip ? r.claimClash : null
+      const netZeroClause = clashRec
+        ? pt`NET-ZERO CLASH RANGE (polish claim): this task's polish commit ` + clashRec.sha + pt` touched ${clashRec.files.join(', ')}, which task ${clashRec.owners.join(', ')} claims or lists, so the step above reverts it. AFTER that step and BEFORE step (1), in the TASK worktree, run exactly: `
+          + pt`\`${netZeroScript(r.task.worktree, revertRange.approved, clashRec.sha, r.task.branch)}\` `
+          + pt`NET-ZERO-DROPPED: the range above ${revertRange.approved} was exactly that commit and its revert, with the approved tree, so the branch now ends at the approved sha and step (2) rebases only through it — the pair never replays onto the claimant's line. NET-ZERO-KEPT: run every step as written. Never reset --hard, never force.\n`
+        : ''
       // ---- PIN TRANSFER AT THE MERGE SLOT (#1913, D2 / PIN-1 / PIN-7 / PIN-14 / PIN-16) ----
       // The panel approved a tip; the merge slot needs the same content, not the same sha. One refiner
       // probe does the conflict-free rebase and then compares `git patch-id --stable` of the TASK'S OWN
@@ -5929,7 +6020,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       pinBefore = firstSnapshot
       const runPinProbe = () => dispatchSite(
         pt`PIN TRANSFER probe for WAR task ${r.task.id} (branch ${r.task.branch}) against ${ph.integrationBranch}. Rebase and measure only — do NOT merge, do NOT push the integration branch, do NOT run the gate or any floor.\n` + DIRTY_TASK_STOP
-        + aceRevertClause
+        + aceRevertClause + netZeroClause
         + pt`  (1) BEFORE the rebase, all in the TASK worktree ${r.task.worktree} (git -C ${r.task.worktree}): BASE=merge-base ${ph.integrationBranch} ${r.task.branch}; N=rev-list --count $BASE..${r.task.branch} (the task's own commit count); PRE=diff $BASE..${r.task.branch} piped to git patch-id --stable, first field (an EMPTY diff prints NOTHING, so PRE is then empty); CHERRY=cherry ${ph.integrationBranch} ${r.task.branch} (leading - = a task commit already upstream by patch, + = unmatched; git cherry names TASK commits, never upstream equivalents). Return BASE as dispatch_base on every result that carries rebased_tip.\n`
         + pt`  (2) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. ${NEVER_MOVE_MERGED} Here that means: when \`git -C ${r.task.worktree} merge-base --is-ancestor ${r.task.branch} ${ph.integrationBranch}\` exits 0, skip the rebase and return { status: 'empty-unmatched', detail: 'already merged: the task tip is an ancestor of the integration tip' } — the engine fails closed and never re-merges it. The task branch is checked out there, so the rebase cannot run in _refinery. On CONFLICT: abort it and return { status: 'conflict', conflict_files: [...] } — never force, never resolve.\n`
         + pt`  (3) TIP=rev-parse ${r.task.branch} (the rebased task tip being approved); POST=diff ${ph.integrationBranch}..$TIP piped to git patch-id --stable, first field (empty on an empty diff).\n`
@@ -7347,8 +7438,10 @@ const lateFixPass = async () => {
     // never cut the same late-fix branch; the old form when runId is absent.
     const runIdShort = runId ? String(runId).slice(0, 8) : null
     const lfBranch = 'war/' + (planSlug || '<plan-slug>') + '/' + (runIdShort ? runIdShort + '/' : '') + id
-    // D18 (#2661.7): every merged sibling's owned files join the fence; the origin's own stay open.
-    const lfFence = [...new Set([...fence, ...tasks.filter(t => t !== origin && succeeded.has(t.id)).flatMap(t => Array.isArray(t.files) ? t.files : []).map(aceRelPath)])]
+    // D18 (#2661.7): every merged sibling's owned files join the fence; the origin's own files and
+    // the defect's own file stay open, even when a sibling also lists them.
+    const lfOpen = new Set([...(Array.isArray(origin.files) ? origin.files : []), f.file].map(aceRelPath))
+    const lfFence = [...new Set([...fence, ...tasks.filter(t => t !== origin && succeeded.has(t.id)).flatMap(t => Array.isArray(t.files) ? t.files : []).map(aceRelPath).filter(p => !lfOpen.has(p))])]
     const lfWorktree = (worktreeRoot || '<worktreeRoot>') + '/' + (runId || '<runId>') + '/' + id
     const lfTask = { id, issue: origin.issue, title: 'late fix for task ' + origin.id, branch: lfBranch, worktree: lfWorktree, roster: origin.roster, manifestTask: origin,
       planSlice: 'fix the late defect "' + (f.title ?? '') + '" of task ' + origin.id + ': ' + (f.suggested_fix ?? '') }
@@ -8571,8 +8664,11 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
     if (!own.length) continue
     m.merged = mergedRowsOf(m).filter(x => !own.includes(x))
     for (const { seat: ref, ...x } of own) {
-      const { merged: _rest, suggested_fix: _fix, ...rep } = m
+      // the representative's own seat, class and drain cause never ride the raiser's row
+      const { merged: _rest, suggested_fix: _fix, seat: _seat, findingClass: _fc, drainCause: _dc, ...rep } = m
       unfolded.push({ ...rep, ...x, seats: ref ? [ref] : seatsListOf(m) })
+      // the raiser leaves the representative's corroboration list (mergeSeat added it at intake)
+      if (ref && ref !== seatRefOf(m)) m.seats = seatsListOf(m).filter(s => s !== ref)
       log('file-followups: "' + (x.title ?? '(untitled finding)') + '" (task ' + m.task + ', ' + m.file + ') leaves the merged[] list of the VERIFY FIRST row "' + (m.title ?? '(untitled finding)') + '": its title or rationale differs, so it keeps its own route.')
     }
   }
