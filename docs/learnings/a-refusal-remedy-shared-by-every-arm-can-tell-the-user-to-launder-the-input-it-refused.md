@@ -27,13 +27,12 @@ metadata:
 
 # A remedy hint must match the refusal arm that fired
 
-Audit finding resolved in a fix round before land, recorded as pattern, not live instance.
-
 The pattern: a floor has several refusal arms, and the CLI prints one fixed remedy after any refusal.
 Some arms then get a remedy that cannot clear them.
 Worse, one arm can get a remedy that clears the check by hiding the problem.
 In this case, "stamp the row with this run's stamp" on a foreign-plan row would launder a cross-plan leak.
 The right remedy for that arm is "drop the row".
+Fixed before land: `provenanceRemedies` in `skills/war/assets/assert-args-complete.mjs` keys one remedy per arm, and `assert-args-complete.test.mjs` asserts the foreign arm says drop, never restamp.
 
 How to avoid it:
 - Key each remedy clause on the arm's own refusal wording.

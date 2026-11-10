@@ -91,44 +91,18 @@ Its own comment rules that second arm a known residual.
 **Moot since this was written:** `PARTIAL_LOG_RULE` was rewritten, so its "you started" and "named
 above" wording is gone, from `agents/war-refiner.md` too.
 
-**Still open at master** (each re-checked; find by construct):
+**Still open at master 4b101693** (a worklist, not a durable fact; file it or absorb it, then cut it here):
 
-- `skills/war/references/refiner-recovery.md`, opening paragraph: unqualified "each moved block was
-  byte-identical", though the `## MergeResult merge-task-only fields` block gained a `gate_segment`
-  clause in the same commit. The assert message in `workflow-template.recovery.test.mjs`, search
-  "617 B evicted parenthetical byte-identical", repeats it.
-- `skills/war/references/schemas.md`, the `citation?` row: says `{ row, threadedRow, rationale }`,
-  while `citationOf` in `workflow-template.js` also returns `cited`.
-- `workflow-template.js`, the `queuedFindingRow` header comment: `#3f55b04` writes a sha like an
-  issue number.
-- `workflow-template.test-harness.mjs`, the `Args for the citation family` comment above `CITE_ARGS`:
-  one line overruns its neighbors' wrap.
-- `workflow-template.js`, the FOLLOW-UP CONSOLIDATION `if (hit)` arm, search `mergeSeat(hit, f)`: no
-  `drainCause` copy onto the survivor. `demote()` has the first-stamp-wins copy.
-- `workflow-template.engine-1.test.mjs`, the `intake normalization: default-deny census` test title:
-  says "strips seats/merged", behind its own assert message
-  ("seats/merged/drainCause/demoteReason").
-- `workflow-template.js`, the `drainCauseOf` header comment: "both sit outside any local try" is false
-  for the filing-prompt row, which runs inside the file-followups `try`.
-- `workflow-template.js`, the ENDSTATE-CHECK DISPATCH prompt, search `STATEMENT BOUNDARIES (#1782`: no
-  clause makes a compound command (`for`, `while`, `{ }`, `( )`) one statement. The
-  `endstate: statement-boundary operator set` test in `workflow-template.engine-1.test.mjs` has no
-  assert for it.
-- `CONTEXT.md`, the `**Disposition**` entry: still says `/release-slot-adjacent)`, though routing is
-  by literal now.
-- `skills/war/references/disposition-eligibility.md`, the `Release-slot eligibility by literal`
-  blockquote: does not state that the CHANGELOG head and the README `## Status` twin must move
-  together.
-- `skills/war/assets/skill-doc-contracts.test.mjs`, the `D20 — release-slot eligibility by literal`
-  test: asserts `RELEASE_SLOT_FILES` against the whole `disposition:'absorb'` block, where
-  older text already carries that token.
-- `skills/war/references/design.md`, the §18 `Disposition routing` bullet: still ends "route to the
-  sweep instead of being refused", the sentence ADR 0013 Decision 5 dropped.
-- `workflow-template.js`, the `throughRound` comment, search "already stamped one round lower": says
-  `chainRecordFix` runs before the `absorbRounds` charge. At all three ace fixer sites the charge
-  comes first.
-- `skills/war-strategy/references/fork-trials.md`, the `**The per-command cap.**` paragraph, search
-  "This host has none": states one machine's fact in a file read on every host.
+- `skills/war/references/schemas.md`, the `citation?` row omits `cited`, which `citationOf` returns.
+- `workflow-template.js`, the `queuedFindingRow` header comment writes sha `#3f55b04` like an issue number.
+- `workflow-template.test-harness.mjs`, the `Args for the citation family` comment: one line overruns its neighbors' wrap.
+- `workflow-template.engine-1.test.mjs`, the `intake normalization: default-deny census` title says "strips seats/merged" behind its assert ("seats/merged/drainCause/demoteReason").
+- `workflow-template.js`, the `drainCauseOf` header comment: "both sit outside any local try" is false for the filing-prompt row inside the file-followups `try`.
+- `GLOSSARY.md`, the **Disposition** entry still says `phaseClose:true`/release-slot-adjacent, though routing is by literal now.
+- `skills/war/references/disposition-eligibility.md`, the `Release-slot eligibility by literal` blockquote does not say the CHANGELOG head and the README `## Status` twin move together.
+- `skills/war/references/design.md`, the §18 `Disposition routing` bullet still ends "route to the sweep instead of being refused".
+- `workflow-template.js`, the `throughRound` comment ("already stamped one round lower") says `chainRecordFix` runs before the `absorbRounds` charge; at the ace fixer sites the charge comes first.
+- `skills/war-strategy/references/fork-trials.md`, the per-command cap paragraph: "This host has none" states one machine's fact.
 
 **Why:** the tags look like "cheap, will be picked up", so the audit log reads as if the fix landed.
 No gate turns that into a duty once the verdict is `approve`.

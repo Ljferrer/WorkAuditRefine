@@ -31,32 +31,12 @@ metadata:
 
 # A required force-with-lease push can be denied by the host classifier
 
-**What happened.** The merge-queue rebase moved a task branch that the worker had already pushed.
-The worker card requires `git push --force-with-lease` after such a divergence.
-The host auto-mode classifier denied that push with "[Git Destructive]".
-Nothing merged and the task escalated.
-The Lead did not merge the unaudited local commits.
-It carried the fix to the next phase.
+**RESOLVED (#2671):** the stop rule and the recovery are now codified. The worker card's "Dep-wave rebase + force-with-lease carve-out" section (`LEASE_DENIED_RULE` in `workflow-template.js`) tells the worker to stop with `blocked_reason` starting `push_denied:`. The recovery is the `push_denied:` arm in `skills/war/references/resume-and-recovery.md`: an operator-approved lease push, then a single-task Recovery relaunch.
 
-**Second cause.** The same task was a docs-only lesson edit with `requiresTest: true`.
-The `no-test` floor tripped before the push problem mattered.
-Set `requiresTest: false` for a docs-only lesson task.
+**What happened.** A merge-queue rebase moved a task branch the worker had already pushed. The host auto-mode classifier denied the required `git push --force-with-lease` as "[Git Destructive]". Nothing merged and the task escalated. It recurred the next phase (seed-1), so it is not a one-off.
 
-**Rule.** Treat the carve-out as permission from WAR, not from the host.
-If the push is denied, escalate with the evidence.
-Do not retry with `--force` and do not work around the classifier.
-When you plan a task that edits an already-pushed branch, expect that a dispatch rebase may force this path.
+**Rule.** The carve-out is permission from WAR, not from the host. Never retry with `--force` or work around the classifier. When you plan a task that edits an already-pushed branch, expect a merge-slot rebase to force this path.
 
-**Recurrence (phase 4, seed-1).**
-The same task, seed-1, escalated again in the next phase for the same reason.
-The merge-slot rebase moved its pushed branch.
-The host classifier denied the worker's `--force-with-lease` push as "[Git Destructive]".
-This is the second phase in a row, so plan for it. It is not a one-off.
+**Second cause.** The same task was a docs-only lesson edit with `requiresTest: true`, so the `no-test` floor tripped first. Set `requiresTest: false` for a docs-only lesson task.
 
-**Lead recovery that worked.**
-1. Dispatch one Lead test-fidelity seat on the unaudited test commit.
-2. Lead runs a `--no-ff` merge of the task branch into the integration branch. This is a fast-forward push, so no force is needed.
-3. Run the escalation-completion land: gate 36/36, one land-advance, then sync-follower.
-
-Locate-cue: verify still present before acting. At landed tip 43eb7d25 the carve-out is the section "Dep-wave rebase + force-with-lease carve-out" in `agents/war-worker.md`.
 Related: [[held-escalation-lead-manual-completion]].

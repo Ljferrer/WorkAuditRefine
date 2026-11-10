@@ -26,20 +26,17 @@ metadata:
 
 # Spreading a sparse record over its representative inherits the representative's identity fields
 
-A late fix in phase 4 unfolds `merged[]` rows out of a VERIFY FIRST representative at the filing stamp.
-It builds each new row as `{ ...rep, ...x, seats: [ref] }`.
-`rep` strips only `merged` and `suggested_fix`.
-A D25 `merged[]` element (written by `corroborateSurvivor`) carries only seat, title and rationale.
-So every field `x` lacks comes from the representative: `seat`, `findingClass`, `line`, `severity`, `demoteReason`, `drainCause`.
-The representative's own `seats` list also still holds the unfolded raiser, so one seat backs two rows.
-Nothing is dropped, but attribution and class can be wrong on the surfaces the Checkpoint reads.
+A row built as `{ ...rep, ...x }` takes every field `x` lacks from `rep`.
+When `x` is sparse (seat, title and rationale only), the new row silently inherits `rep`'s seat, class, line and severity.
+If the base's corroboration list still holds the new row's seat, one seat backs two rows.
+Nothing is dropped, but attribution and class go wrong on the surfaces the Checkpoint reads.
 
-Two auditors raised it as an `absorb` Minor. The late-fix worker listed it under "Ignore for now", and the late-fix re-audit still approved.
+**Fixed (phase-4 instance, late fix on task 4.1, 0b53a8ac):** the VERIFY FIRST unfold in `skills/war/assets/workflow-template.js` now strips `seat`, `findingClass` and `drainCause` from `rep`, and removes the raiser from the representative's seats list. `demoteReason` still rides `...rep`. Before the fix, two auditors raised it as an `absorb` Minor, the late-fix worker listed it under "Ignore for now", and the re-audit still approved.
 
 Rule: when you mint a row from a sparse record, list the fields it may inherit, and strip identity fields from the base.
 Also remove the minted row's seat from the base's corroboration list.
 A fixture that checks only the new row's title cannot see this, so assert the seats cell and the class too.
 
-Locate-cue: verify still present before acting — `const { merged: _rest, suggested_fix: _fix, ...rep } = m` and `unfolded.push({ ...rep, ...x, seats:` in `skills/war/assets/workflow-template.js`, found @ landed tip 0b53a8ac (the run's `_refinery` worktree, HEAD equal to the tip).
+Locate-cue: verify still present before acting — `const { merged: _rest, suggested_fix: _fix, seat: _seat, findingClass: _fc, drainCause: _dc, ...rep } = m` and `unfolded.push({ ...rep, ...x, seats:` in `skills/war/assets/workflow-template.js`; the test comment "late defect of T4.1" in `skills/war/assets/workflow-template.engine-1.test.mjs`.
 
 Also see [[new-record-signal-computed-but-dropped-by-a-pre-existing-explicit-key-projection]].

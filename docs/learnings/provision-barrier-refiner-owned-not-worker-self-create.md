@@ -28,36 +28,15 @@ metadata:
 
 ## The pattern
 
-In `workflow-template.js` the per-phase Workflow now has a **Provision** phase that runs
-*before* the Work fan-out. A single `war-refiner` seat runs `provision-worktrees.sh` to build
-the whole phase's git topology (ensure-exclude → ensure-integration → ensure-worktree per task),
-then workers fan out into worktrees that already exist. Workers no longer run `git worktree add`
-and no longer `export WAR_WORKTREE`; their prompt is "work in the ALREADY-PROVISIONED worktree
-at `${task.worktree}` — do NOT create it yourself."
+In `workflow-template.js`, the `// ---- PROVISION — refiner-owned worktree barrier` section runs *before* the Work fan-out. One `war-refiner` seat runs `provision-worktrees.sh` to build the whole phase's git topology (ensure-exclude, then ensure-integration, then ensure-worktree per task). Workers then fan out into worktrees that already exist. They never run `git worktree add` and never export `WAR_WORKTREE`; the `provisionedLine` builder tells them to work in the "ALREADY-PROVISIONED worktree … do NOT create it yourself and do NOT set any worktree env var". The binding contract is ADR 0021 (`docs/adr/0021-run-lifecycle-provision-contract.md`).
 
-## Why this is the shape (it's load-bearing, not stylistic)
+## Why this shape is load-bearing
 
-This directly resolves the E1 scope-hook finding (`[[scope-guard-needs-agent-type]]`): a worker
-**cannot scope itself** because the PreToolUse hook keys write-scope on `agent_type`, and the env
-var a worker would export is a no-op. The same logic extends to creation — if a worker can't
-fence its own writes, it shouldn't own creating the shared git state either. Moving all shared-git
-mutation to a refiner seat that runs *before* any worker touches the tree means workers never race
-on shared git state, and a resume is a no-op (every subcommand is idempotent "ensure").
+A worker cannot scope itself: the PreToolUse hook keys write scope on `agent_type`, and an env var the worker exports is a no-op ([[scope-guard-needs-agent-type]]). If a worker cannot fence its own writes, it should not own creating shared git state either. With all shared-git mutation in one refiner seat before any worker starts, workers never race on shared git state, and a resume is a no-op because every subcommand is an idempotent "ensure". This is a hard happens-before barrier, not an ordering preference: the worker prompt *asserts* the worktree and its `.war-task` marker already exist.
 
-This is a barrier (a hard happens-before), not just an ordering preference: the worker prompt now
-*asserts* the worktree + `.war-task` marker already exist.
+## Contracts the barrier must honor
 
-## Carry-forward contracts the barrier MUST honor (from Phase 2 coven)
+- **ensure-exclude targets the main checkout explicitly.** The barrier passes `${mainCheckout}` as the optional `<repo-dir>` positional, so the write lands in that repo's git dir whatever the caller's cwd ([[provision-ensure-exclude-cwd-contract]]).
+- **ensure-integration gets `--owned-file <run-ledger>`.** A resume then recognizes its own integration branch as owned; a foreign, unrecorded branch fails loud (the ownership seam described in the `provision-worktrees.sh` header).
 
-- **ensure-exclude runs FROM THE MAIN CHECKOUT, never inside a task worktree** — it no longer
-  resolves its target from cwd: the main checkout is passed explicitly as the optional `<repo-dir>`
-  positional, and the write lands in that repo's git dir regardless of the caller's cwd (see
-  `[[provision-ensure-exclude-cwd-contract]]`). The barrier prompt pins this explicitly with
-  `${mainCheckout}`.
-- **ensure-integration is passed `--owned-file <run-ledger>`** so a resume recognizes its own
-  integration branch as owned; a foreign unrecorded branch exits 3 / fails loud
-  (see `provision-ownership-ledger-gates-create-not-teardown`).
-
-(Part B — repo-derived `run.provision`, the env-blocked/setup-scout phase — has since landed
-*as an addition on top of* this barrier, not a rewrite of it; the barrier ownership invariant
-above is what stayed load-bearing.)
+Later work added to this barrier without rewriting it: repo-derived `run.provision` steps (env-blocked on failure), and the derive-skip, ref-holder auto-free, stale-remote, worktree-hygiene and absorb-charge clauses (`deriveSkipClause`, `holderFreeClause`, `staleRemoteClause`, `worktreeHygieneClause`, `absorbChargesClause`). The ownership invariant above is what stayed load-bearing.

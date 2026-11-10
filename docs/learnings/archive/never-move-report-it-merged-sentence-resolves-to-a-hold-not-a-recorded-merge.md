@@ -50,3 +50,5 @@ Do not "fix" the hold by landing on the probe's report.
 Related: [[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]], [[an-in-run-repo-lesson-edit-leaves-the-same-slug-local-copy-stale]].
 
 Locate-cue: verify still present before acting. Found `NEVER_MOVE_MERGED`, `neverMoveStep` and the probe step (2) `empty-unmatched` clause in `skills/war/assets/workflow-template.js` at landed tip 9bcc4fa6 (phase 2). Re-verified the new D3 sentence in `NEVER_MOVE_MERGED` at landed tip f8ea3b11 (plan 2026-11-08 phase 1), read through the run's `_refinery` worktree. This local copy was synced to the repo copy that late-fix 89a9e678 wrote.
+
+> archived 2026-11-10: resolved: the gap is fixed in the engine and doctrine — moved to archive

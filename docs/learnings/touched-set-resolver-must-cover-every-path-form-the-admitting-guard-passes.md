@@ -53,17 +53,14 @@ The directory operand, the attached short option and the `..` forms are written 
 
 **The cheapest closure.** Resolve EVERY non-flag token against the running base. A token that names no directory (`diff`, `HEAD~1`) resolves to the base, which the `-C` arm or the cwd fallback already touched, and `touch_line` dedupes. Over-touch costs a few subshells per token. A `*/*` filter plus a justification comment bought nothing and hid the slashless hole.
 
-**Still open.** Backstops B1 and B2 of plan 2026-10-26-fingerprint-hook-followups have no record of a run, and `ignored_dir` runs `check-ignore` outside the watchdog. See [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]], items 13 and 14.
+**Still open.** Backstops B1 and B2 of plan 2026-10-26-fingerprint-hook-followups have no record of a run. See [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]], item 14. (`ignored_dir` now runs `check-ignore` under `bounded`, #2742, so that lesson's item 13 is stale on this point.)
 
 **Why the guard permits these.** `hooks/validate-auditor-git.sh` permits the character set `[A-Za-z0-9 ./_=:,@^~%+-]`, so `.`, `/`, `=` and `~` pass. It peels one leading `-C <path>` and allows `diff` and `blame`. On those two verbs its only flag check is the post-subcommand scan that denies `--output` and `-o`. Git implies `--no-index` for a path outside the work tree, so a command can read a sibling worktree without any `-C` token.
 
-**Process trap, seen three times.** A fix-round or polish worker declined or narrowed a resolver finding on a false fact.
-- The worker said the git guard admits neither relative form. A seat showed that false at the pin.
-- The worker said a task worktree sits two levels under the main checkout. It sits four levels under when the root is `<repo>/.claude/worktrees`, and a `-C` also moves the base.
-- The worker said no caller of `canon` needs logical resolution. The Read, Glob and Grep arms reach `canon` too, so the fix moved the hole to the lexical reader.
+**Process trap, seen three times.** Fix-round workers declined or narrowed resolver findings on false facts: that the guard admits no relative form, that a task worktree sits two levels deep (it can sit four), and that no `canon` caller needs logical resolution (Read, Glob and Grep reach it too).
 
 **How to apply.** Before you accept a decline or a narrowing that rests on a guard or layout fact, read the guard's character class and verb list. Read the layout from the `taskWorktree` declaration in `skills/war/assets/workflow-template.js` (`<worktreeRoot>/<runId>/p<phase>-<task>`). `worktreeRoot` is a launch arg, and `skills/war/assets/provision-worktrees.sh` does not fix it. Grep every caller of a shared helper before you change its rule. Then ask whether the resolver's base can move.
 
-**Locate-cue (verify still present before acting).** In `hooks/audit-tree-fingerprint.sh`: the Bash token loop with the `_sub` flag, the `-C)` and `-C?*)` arms gated on `_sub = 0`, the `-[!-]?*` attached-option arm, and the base-relative operand arm that calls `touch_operand`. Also `grep_walk`, which the Glob and Grep arm calls for Grep only, and `tilde`, which returns 1 on `~-` and `~<name>`. The character class is the `tr -d` residue rule in `hooks/validate-auditor-git.sh`.
+**Locate-cue (verify still present before acting).** In `hooks/audit-tree-fingerprint.sh`: the Bash token loop with the `_sub` flag, the `-C)` and `-C?*)` arms gated on `_sub = 0`, the `-[!-]?*` attached-option arm, and the base-relative operand arm that calls `touch_operand`. Also `grep_walk`, which the Glob and Grep arm calls for Grep only; `ignored_dir`, which calls `check-ignore --no-index` through `bounded`; and `tilde`, which returns 1 on `~-` and `~<name>`. The character class is the `tr -d` residue rule in `hooks/validate-auditor-git.sh`.
 
 Related: [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]], [[compound-check-closed-operator-enumeration-drops-one-site-restates-the-dead-operator]], [[scope-hook-blind-to-bash-write-path]].

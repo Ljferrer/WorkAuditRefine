@@ -28,19 +28,18 @@ metadata:
 
 # A new REGISTRY row needs its count literals raised in the same commit
 
-The D3 both-surfaces `REGISTRY` test in `skills/war/assets/workflow-template.engine-1.test.mjs` pins its row count.
-Plans make the no-slack `REGISTRY.length` floor a binding guardrail.
+The D3 both-surfaces `REGISTRY` test in `skills/war/assets/workflow-template.engine-1.test.mjs` pins its row count with a no-slack floor and a matching ceiling.
+Plans make that floor a binding guardrail.
 
-## What went wrong in task 2.1
+## What went wrong in task 2.1 (phase-2 instance)
 
-Round 1 set the floor to the true count of 52.
+Round 1 set the floor to the then-true count of 52.
 Fix round 1 added row 53 (`confirmed tip scope (D28)`) and left the floor at 52.
 One row of slack lets any later row deletion pass the gate.
 All three seats caught it, and two raised it to Major as a guardrail breach.
-The fixer's chain skipped the floor because the floor is a reader of the array, not part of the new row.
-
-Fix round 2 set the floor to `>= 53` and added a ceiling `<= 53`.
-The ceiling message tells the next author to raise both literals.
+The fixer skipped the floor because the floor reads the array; it is not part of the new row.
+Fix round 2 set the floor to `>= 53` and added a ceiling `<= 53`, whose message tells the next author to raise both literals.
+Those 52 and 53 values are the phase-2 instance, not the live count.
 
 ## How to apply
 
@@ -51,4 +50,4 @@ The ceiling message tells the next author to raise both literals.
 
 Related: [[fix-the-finding-class-not-the-site-and-prove-every-new-guard-red-before-commit]].
 
-**Locate-cue (verify still present before acting):** found in `skills/war/assets/workflow-template.engine-1.test.mjs` at `assert.ok(REGISTRY.length <= 53` and `REGISTRY.length >= 53` @ phase 2. Read via the run-scoped `_refinery` worktree, whose HEAD equals the landed tip. The count rots as later tasks add rows.
+**Locate-cue (verify still present before acting):** `assert.ok(REGISTRY.length <= N` and `REGISTRY.length >= N` in `skills/war/assets/workflow-template.engine-1.test.mjs` (N was 53 at phase 2, 58 at master tip 4b101693). The count rots as later tasks add rows.

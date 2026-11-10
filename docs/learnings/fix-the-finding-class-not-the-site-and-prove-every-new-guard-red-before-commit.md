@@ -70,29 +70,11 @@ The reviewer's fix scopes the site. The rule scopes the diff.
 
 ## Instance
 
-Emergency patch 0.21.12 of this plugin (issue #2099, PR #2100): a comment stripper for the
-staged per-phase script. A five-seat review round found only Minors and Nits, all approve. Applied
-as written, the fix text was eight site edits. Applied as a class, it became:
-
-- The shipped-template test compared the stager's output against the stripper's own output. A
-  second scanner (`ptSpanRanges`, seeded on the `pt` tag, with expression ranges) became the
-  prompt-byte oracle, and the oracle got its own synthetic negative because the real template had
-  no line that could exercise it.
-- One or more fixture lines per scanner arm, each arm proven red by deleting it. The reviewer named two
-  undiscriminated arms. The first pass proved those plus four more and claimed completeness. The
-  next round found four further arms (class tracking, escape, string newline stop, brace depth)
-  that survived deletion, because the arms had been enumerated from the reviewer's list and not
-  from the scanner's branches. Rule 4's second sentence is that recurrence.
-- The `scriptPath` cap was restated by hand on three doctrine surfaces. A pin now extracts every
-  restatement and bans a bare rendering outside the grammar. It went red on a one-digit change and
-  on a bare rendering before it went green.
-- A stale sentence the reviewer named ("plain substitution") had three siblings the reviewer did
-  not name: the write-if-absent prose in the glossary, the ADR and the skill card. All four moved.
-- A budget with 20 bytes of headroom was filed as a follow-up by the reviewer. An ADR 0042
-  eviction in the same change lifted the headroom past 900 bytes.
-
-Evidence file for the round count this discipline saves: issue #2097 (fourteen rounds against
-seven, then one).
+Emergency patch 0.21.12 (issue #2099, PR #2100), a comment stripper for the staged per-phase script.
+Eight site edits became a class fix: a second scanner (`ptSpanRanges`) as an independent oracle, every
+scanner arm proven red (arms enumerated from the reviewer's list missed four more, which is rule 4's
+second sentence), and a pin on a cap restated by hand on three doctrine surfaces. Issue #2097 records
+the round count this saves (fourteen rounds against seven, then one).
 
 ## Locate-cue (verify still present before acting)
 

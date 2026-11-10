@@ -30,62 +30,17 @@ metadata:
 
 # The harness's generic `resumeFromRunId` hint is the wrong recovery for a land failure — it replays merges + CAS live
 
-**What happened (code-verified — found at `skills/war/SKILL.md`, the "Resume vs. recovery
-relaunch" paragraph and the §4.3 `held:land-failed` root-cause-(c) bullet; verified via the
-phase's own `_refinery` worktree since the main checkout lagged this phase — see
-[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]):** the Workflow harness prints an
-unconditional `resumeFromRunId` hint on any interrupted/incomplete run, regardless of *why* the
-run ended. That hint is correct for exactly one case (`held:phase-incomplete` — the Workflow timed
-out or was killed before finishing). But a `held:land-failed` phase is a **completed** workflow
-(`status: 'completed'`) whose land dispatch died or returned an unrouted result — the DAG's other
-tasks already merged cleanly to the integration branch, and the gate is already green there.
-Following the printed hint anyway triggers a **live journal replay**: the off-ladder journal
-re-dispatches the already-merged tasks' `merge:*` agents, which re-runs the gate and the
-push-first CAS — exactly the wrong move during the transient-API window that killed the land
-dispatch in the first place (the observed case: the same 529 overload condition would likely
-still be live).
+**What happened (code-verified — now in `skills/war/references/resume-and-recovery.md`, the "Resume vs. recovery relaunch" paragraph and the `held:land-failed` "(c) Dead land agent" bullet):** the Workflow harness prints an unconditional `resumeFromRunId` hint on any interrupted run, whatever the cause. That hint is correct only for `held:phase-incomplete`. A `held:land-failed` phase is a completed workflow whose land dispatch died or returned an unrouted result; its tasks already merged and the gate is green. Following the hint triggers a live journal replay: it re-dispatches the merged tasks' `merge:*` agents, re-running the gate and the push-first CAS, during the same transient-API window that killed the land.
 
-**The fix pattern:** never gate recovery choice on "did the harness print a resume hint" — gate it
-on the **specific `held:*` reason**. `resumeFromRunId` is legitimate **only** for
-`held:phase-incomplete`; every other `held:*` reason (`held:workflow-error`,
-`held:land-failed`, an escalated/`env-blocked` task) uses the **Recovery relaunch** path instead —
-a **fresh** Workflow run (new `runId`) over **reused git state**, never a journal replay of the
-dead run. For `held:land-failed` specifically, the correct first move is a **step-0
-already-landed probe** before any re-merge: `git fetch origin <working>` then
-`git merge-base --is-ancestor <integration-tip> origin/<working>` — if it holds, the land dispatch
-died *after* its CAS push succeeded, so the land already happened and must be **recorded**, never
-re-merged (a second `--no-ff` merge mints an empty phantom phase commit).
+**The fix pattern:** gate recovery on the specific `held:*` reason, never on whether the harness printed a resume hint. `resumeFromRunId` is legitimate only for `held:phase-incomplete`. Every other `held:*` reason uses the Recovery relaunch: a fresh run (new `runId`) over reused git state. For `held:land-failed`, first run the step-0 already-landed probe: `git -C <_refinery> fetch origin <working>` then `git merge-base --is-ancestor <integration-tip> origin/<working>`. If it holds, the land already happened: record it, never re-merge (a second `--no-ff` merge mints an empty phantom phase commit).
 
-**Why this is a generic pattern, not a one-off:** any orchestration harness that prints a single
-generic "resume" affordance regardless of failure class invites the wrong recovery whenever the
-failure happened *after* the harness's own definition of "done" (a completed run that nonetheless
-needs manual follow-up). The fix is never to suppress or edit the harness's hint text (it's
-harness-owned) — it's to counter it in the standing skill/runbook prose exactly at the decision
-point where an operator or `--afk` Lead would otherwise reach for it.
+**Why this is a generic pattern:** any harness that prints one generic "resume" affordance invites the wrong recovery when the failure happened after the harness's own idea of "done". Do not edit the harness text. Counter it in the runbook prose at the decision point.
 
-## Recurrence 1 (2026-08-24, plan `authoring-side-verification`, phase 3, `agent-unverified` —
-the Lead's own recovery narrative; the probe mechanism it invoked is `code-verified` present at
-landed tip `783bd136ea6a9d8da9b73b5dcbf01d1d475a0cef`): **confirms the rule end-to-end via a clean
-manual recovery**, not merely the routing half. A land dispatch died mid-gate (see
-[[merge-task-dispatch-forced-early-return-mid-gate-is-incomplete-not-gate-failed]] Recurrence 3 for
-the dispatch-side shape) and the engine routed the phase to `held:land-failed`; the in-flow
-wrap-up never ran. The Lead did **not** follow any generic resume hint — it applied this lesson's
-root-cause-(c) recipe by hand: verified the merge commit already sitting in `_refinery` had the
-expected parents (origin tip + integration tip, i.e. the land had already progressed correctly
-before the dispatch died), re-ran the already-resolved gate to green in `_refinery`, then did
-**one** `land-advance` + follower sync to finish the land — no re-merge, no journal replay. Phase
-then completed via manual Lead completion, and the servitor pass (this file) ran after the fact
-per the standing WAR wrap-up contract. This is the recipe's first fully-manual (no `--afk` Workflow
-re-invocation) confirmation on record.
+**Recurrence 1 (2026-08-24, plan `authoring-side-verification`, phase 3):** a land dispatch died mid-gate and routed to `held:land-failed`. The Lead recovered fully by hand with this recipe: no re-merge, no journal replay, one `land-advance` plus follower sync.
 
 ## Related
 
-[[null-or-unrouted-land-result-routes-held-land-failed-via-terminal-else]] — the companion routing
-fix in the same phase that makes `held:land-failed` reachable at all for this failure class.
-[[reland-loop-contender-less-transient-vs-real-divergence]] — a related land-retry discrimination
-lesson (transient CAS contention vs. real divergence) in the same subsystem.
-[[merge-task-dispatch-forced-early-return-mid-gate-is-incomplete-not-gate-failed]] — Recurrence 3
-records the land-side dispatch-death shape that triggered this recurrence's recovery.
-
-> archived 2026-08-17: resolved — moved to archive (confirmed again 2026-08-24 via a manual Lead
-> recovery; left in archive since war-memory temperature moves are its own job, not the servitor's)
+[[null-or-unrouted-land-result-routes-held-land-failed-via-terminal-else]] — the companion routing fix that makes `held:land-failed` reachable for this failure class.
+[[reland-loop-contender-less-transient-vs-real-divergence]] — land-retry discrimination (transient CAS contention vs. real divergence).
+[[merge-task-dispatch-forced-early-return-mid-gate-is-incomplete-not-gate-failed]] — Recurrence 3 records the dispatch-death shape behind Recurrence 1.
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] — why the first verification read the phase's `_refinery` worktree.
