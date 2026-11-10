@@ -4,6 +4,7 @@ description: "Hook gates Write/Edit only; Bash write path ungated"
 metadata: 
   node_type: memory
   type: project
+  provenance: code-verified
   keywords: [shell redirect, tee escape, sed -i, advisory warn, capability allowlist, PreToolUse gap, ungated write, confinement residual]
   originSessionId: e7523bdc-9e44-4a06-803d-587632bc5e63
 ---
