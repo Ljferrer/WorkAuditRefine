@@ -2115,7 +2115,9 @@ const NEVER_MOVE_LITERAL = 'never move a version literal or the CHANGELOG head h
 // them. ONE const (the NEVER_MOVE_LITERAL precedent) interpolated at the four ace builds and the chain
 // clause; agents/war-worker.md step 5 carries it verbatim (the `2485/ES11 card mirror` row).
 const TRAILER_BLOCK_RULE = 'Put every trailer, attribution lines included, in one final trailer block: git parses trailers only from the last paragraph of a message.'
-// FIX_GATE_RULE (#2617): fix dispatches skip the full gate. The engine gates the new tip, and agents/war-worker.md carries this text verbatim.
+// FIX_GATE_RULE (#2617): fix dispatches skip the full gate. The engine gates the new tip. Single-layer
+// choice (#2633, D6): this const is the one copy; agents/war-worker.md step 4 carries only the trigger
+// sentence that points here, pinned by `prompt truth (D6, #2617)`.
 const FIX_GATE_RULE = 'Before you commit, run only the tests you touched and any Done when: command. The engine runs the full gate at your new tip, and a red there fails this attempt.'
 const releaseSlotAceClause = t => isReleaseTask(t)
   ? pt`\nRELEASE TASK: version-slots.test.mjs in the gate is the merge guard — a slot moved out of lock-step reds it; the CHANGELOG head entry and the README \`## Status\` blurb are twins that move together or not at all; ${NEVER_MOVE_LITERAL} or the \`## Status\` version token (plugin.json/marketplace.json are refused by basename, never edited here).`
@@ -2952,7 +2954,7 @@ const FIX_ROUND_RULES = pt`1. Sibling sweep before commit: grep every sibling si
 11. A byte-cap breach on a prompt surface is a signal to evict, never to reword: move conditionally needed prose byte-identical to its \`references/\` file, leave a \`when <trigger>, read references/<file>\` pointer (ADR 0042), and never delete an operative rule.`
 const FIX_ROUND_DOCTRINE_CLAUSE = pt`\nFIX-ROUND DOCTRINE: you are dispatched for a fix round or an ace commit, so the rules below scope your diff (canonical home: `
   + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
-  + pt`). Per finding, write the cause line before the fix: cause, then class, then fix (the cause-then-class-then-fix rule). A note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round (the note-absorb rule).\n`
+  + pt`).\n`
   + FIX_ROUND_RULES + '\n'
 // Operator ruling on PR #2577: the bug class limit. ADVISORY POLISH, the PHASE-CLOSE COHERENCE SWEEP,
 // the TERMINAL PASS and the LATE-FIX PASS (late-defects Task 3.1) work from a listed set. Rule 1 still reaches each sibling of a listed finding's class,

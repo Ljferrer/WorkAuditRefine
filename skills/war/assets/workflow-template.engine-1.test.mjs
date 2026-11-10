@@ -8507,18 +8507,21 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     'zero dispatches reach the worker site on the refused launch (the floor is at entry)')
 })
 
-test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RULE, none says keep the gate, and the worker card agrees', async () => {
+test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RULE, none says keep the gate, and the worker card points to it', async () => {
   // Operator ruling 2026-11-05 (#2617 part 2): a fix-applying dispatch runs only the tests it touched and
   // any Done when: command, then commits. The engine's own gate at the new tip is the only full gate.
-  // The rule text is read from the template source, so this test and the card check key on one string.
+  // Single-layer choice (#2633, D6, PIN-6): the prompt's FIX_GATE_RULE is the one copy, and card step 4
+  // carries only the trigger sentence. The rule text is read from the template source.
   const rule = (src.match(/^const FIX_GATE_RULE = '([^']+)'$/m) || [])[1]
   assert.ok(rule && rule.includes('run only the tests you touched') && rule.includes('Done when:'),
     'FIX_GATE_RULE resolves in the template source and names touched tests plus Done when:')
   const workerCard = readFileSync(join(here, '../../../agents/war-worker.md'), 'utf8')
-  assert.ok(workerCard.includes(rule),
-    'agents/war-worker.md carries FIX_GATE_RULE verbatim (standing card and dispatched prompt agree)')
-  assert.ok(workerCard.includes('On a fix-applying dispatch (a `BACKWARD-CHAIN FIX` block), skip the full gate.'),
-    'the card scopes the rule to the BACKWARD-CHAIN FIX trigger, so step 4 "Run the gate command until green" never contradicts a fix prompt')
+  assert.ok(workerCard.includes('On a fix-applying dispatch (a `BACKWARD-CHAIN FIX` block), skip the full gate and follow the gate rule your prompt states.'),
+    'the card carries the trigger sentence, scoped to the BACKWARD-CHAIN FIX block, so step 4 "Run the gate command until green" never contradicts a fix prompt')
+  assert.ok(!workerCard.includes(rule), 'agents/war-worker.md no longer carries the FIX_GATE_RULE body (the prompt is canonical)')
+  for (const part of rule.split(/(?<=\.) /)) {
+    assert.ok(!workerCard.includes(part), `agents/war-worker.md carries no sentence of the rule body: "${part}"`)
+  }
   assert.ok(!workerCard.includes('alongside the gate'),
     'the card Done when: input no longer pairs Done when with the full gate (round 6, #2617)')
   const runs = [
@@ -15466,7 +15469,7 @@ test('held-carry — a held:nothing-merged phase emits carriedPhaseClose on the 
 
 test('fix-round doctrine: every fix-applying build mirrors the reference', async () => {
   const rules = fixRoundRulesSection()
-  assert.ok(/sibling sweep/i.test(rules) && /`note`-rated finding on a surface the same commit edits/.test(rules), 'the section carries the sibling-sweep rule and the note-absorb rule (non-vacuity)')
+  assert.ok(/sibling sweep/i.test(rules) && /`note`-rated finding on a surface the same commit edits/.test(rules), 'the section carries the sibling-sweep rule (rule 1) and the note-rated absorb rule (rule 10) (non-vacuity)')
   assert.ok(rules.includes('A byte-cap breach on a prompt surface is a signal to evict, never to reword: move conditionally needed prose byte-identical to its `references/` file, leave a `when <trigger>, read references/<file>` pointer (ADR 0042), and never delete an operative rule.'), 'the section carries the byte-cap rule (#2167): the equality rows below cannot see a rule dropped from both copies')
   const pointer = '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
   // Interpolation census: one line per fix-applying build, and the worker/auditor prompt builders
@@ -15494,8 +15497,15 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
     assert.ok(live && live.prompt, `${b.site}: dispatched (presence guard)`)
     assert.ok(live.prompt.includes(rules), `${b.site}: carries the reference's rule section byte-equal`)
     assert.ok(live.prompt.includes(pointer), `${b.site}: names the reference by its plugin-root-anchored path`)
-    assert.match(live.prompt, /cause line before the fix: cause, then class, then fix \(the cause-then-class-then-fix rule\)/, `${b.site}: asks for the cause line before the fix`)
-    assert.match(live.prompt, /note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round \(the note-absorb rule\)/, `${b.site}: names the note-absorb rule`)
+    // Rules 9 and 10 are stated once, in the block (#2633, D7, PIN-7): the clause opener that restated
+    // them is cut, so each rule text appears exactly once per prompt.
+    for (const n of ['9', '10']) {
+      const line = rules.split('\n').find(l => l.startsWith(`${n}. `))
+      assert.ok(line, `rule ${n} resolves in the reference section`)
+      assert.equal(live.prompt.split(line).length - 1, 1, `${b.site}: rule ${n} appears once`)
+    }
+    assert.ok(!/cause line before the fix|cause-then-class-then-fix rule|the note-absorb rule|note-rated finding on a surface this commit edits/.test(live.prompt),
+      `${b.site}: the cut opener's restatement of rules 9 and 10 is gone`)
     // The bug class limit (PR #2577 ruling) rides only the four ruled builds. The literal here is the oracle.
     const scoped = /ADVISORY POLISH|SWEEP|TERMINAL PASS|LATE-FIX PASS/.test(b.site)
     assert.equal(live.prompt.includes('FIX-ROUND FENCE:'), scoped, `${b.site}: the fence rides exactly the four ruled builds`)
