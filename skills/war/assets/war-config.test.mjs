@@ -2121,6 +2121,7 @@ test('node-test breadth: skills/ contains at least the expected set of *.test.mj
     // (not a *.test.mjs file). Each part is listed: a lost or renamed part file drops its tests silently.
     'skills/war/assets/workflow-template.engine-1.test.mjs',
     'skills/war/assets/workflow-template.engine-2.test.mjs',
+    'skills/war/assets/workflow-template.frozen-1.test.mjs',
     'skills/war/assets/workflow-template.git-1.test.mjs',
     'skills/war/assets/workflow-template.git-2.test.mjs',
     'skills/war/assets/workflow-template.git-3.test.mjs',
