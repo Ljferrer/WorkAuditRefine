@@ -1455,7 +1455,7 @@ const THREE = (noTest = new Set()) => PROVISION_ARGS({ tasks: [
 // ===========================================================================
 // Task 1.2 (war-room-config-expansion) — tier-aware worker dispatch + task.files plumbing
 // ---------------------------------------------------------------------------
-// First-pass workers dispatch on the docs tier for an all-*.md task (task.files = the plan Files:
+// First-pass workers dispatch on the lite tier for an all-*.md task (task.files = the plan Files:
 // list, NOT the worker's diff); fix-round dispatches on the fix tier when configured, else
 // the base worker; --ace dispatches on the ace tier or its default (#2619). End-to-end (captures the real spawn opts at each dispatch label) so the predicate
 // AND the wiring are exercised together — a reverted tier arg fails these.
@@ -1469,7 +1469,7 @@ const THREE = (noTest = new Set()) => PROVISION_ARGS({ tasks: [
 const firstPassWorkOpts = async (files) => {
   const task = { id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }],
     ...(files !== undefined ? { files } : {}) }
-  const agents = { worker: { model: 'opus', docs: { model: 'sonnet', effort: 'default' } } }
+  const agents = { worker: { model: 'opus', lite: { model: 'sonnet', effort: 'default' } } }
   const { calls } = await runPhase(PROVISION_ARGS({ tasks: [task], agents }), defaultImpl)
   return (calls.find(c => c.opts.label === 'work:t1') || {}).opts || {}
 }
@@ -2326,6 +2326,9 @@ const makeDispatch = (agent, maxParallel) => new Function('agent', 'maxParallel'
   // The prompt prefix is identity here: these rows test the permit seam, and the AUTHORITY_LINE,
   // TOOL ORDER and WORKER_WRITE_TOOL_RULE rows in engine-1 test the real prefix on captured prompts.
   const prefixed = p => p
+  // dispatch() records one dispatchModels row per call (plan 2026-11-08 Task 3.1); its recorder
+  // reads these two engine consts, stubbed here because the slice holds only the function.
+  const dispatchModels = [], AUDIT_FAMILY = []
   ${runForm(dispatchBlock)}
   return { dispatch, dispatchSemaphore }
 `)(agent, maxParallel)
@@ -2372,7 +2375,7 @@ const BARE_INTERPOLATION_CENSUS = [
   'CITATION_MIN_LENGTH',
   // ACE_TRAILER_CHECK (D24, PIN-25): a module const, the pre-push trailer check on the four ace-family prompts.
   'ACE_TRAILER_CHECK',
-  'PLAN_DEFECT_SENTINEL', 'PREFLIGHT', 'SCRIPT', 'artifactLine', 'authArtifactLine', 'authCriteria',
+  'PLAN_DEFECT_SENTINEL', 'PREFLIGHT', 'PROVISION_SCRIPT', 'SCRIPT', 'artifactLine', 'authArtifactLine', 'authCriteria',
   'baseDesc', 'batchSha', 'block', 'depSha', 'depth', 'doneWhenLog', 'e.preMergeTip', 'e.taskId',
   // ev.sha left this census (in-band-absorb-default 4.1 polish): the pinned-sha slot renders the
   // `pin` local (ev.sha, else the row's own sanitized sha for a gate-audit pseudo-task).
@@ -3810,7 +3813,41 @@ const WORKER_SITE_LABELS = [
   [/^label: `terminal:phase-/, /^terminal:/],
 ]
 
+// Refiner provision and evidence tiers (plan 2026-11-08-model-routing-and-prompt-byte-budgets Task 3.1,
+// PIN-9, PIN-14, PIN-34, PIN-35). PROVISION_TIER_KINDS: the four dispatch kinds agents.refiner.provision
+// routes. tierPhaseCalls(agents): the calls of two phases that between them reach all four kinds and a
+// non-intraDep evidence dispatch — a late-fix phase with run.provision (barrier, provision-run,
+// late-fix-worktree, evidence) and a phase-close sweep phase (polish-worktree). spawnOptsOf picks the spawn
+// fields of one call's opts, in the shape spawn('refiner') returns.
+const PROVISION_TIER_KINDS = ['provision-run', 'provision-barrier', 'polish-worktree', 'late-fix-worktree']
+const tierPhaseCalls = async (agents) => {
+  const late = await runPhase(LATE_FIX_ARGS({ agents, run: { provision: PROVISION_LIST, provisionSource: 'ci' } }), lateFixImpl())
+  const sweep = await runPhase(SWEEP_ARGS({ agents }), sweepBase([queuedAbsorb()]))
+  return [...late.calls, ...sweep.calls]
+}
+const spawnOptsOf = o => ({ model: o.model, ...(Object.hasOwn(o, 'effort') ? { effort: o.effort } : {}) })
+// The plugin path a refiner prompt must give before it names the provision script bare (PIN-35).
+const PLUGIN_PROVISION_SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh'
+// scriptPromptCalls(source): every refiner call whose prompt names provision-worktrees.sh, across phases that
+// reach each prompt builder that names it: the barrier (plain and sanctioned-recovery), the per-task
+// provision-run, the late-fix worktree, the polish worktree, the land and both recovery re-lands.
+const scriptPromptCalls = async (source = src) => {
+  const runs = [
+    await runPhase(LATE_FIX_ARGS({ run: { provision: PROVISION_LIST, provisionSource: 'ci' } }), lateFixImpl(), {}, source),
+    await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), defaultImpl, {}, source),
+    await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()]), {}, source),
+    await runPhase(CLS_ARGS(), clsImpl({ landResult: envLandResult }), {}, source),
+    await runPhase(CLS_ARGS(), clsImpl({ landResult: () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' }) }), {}, source),
+  ]
+  return runs.flatMap(r => r.calls).filter(c => seatOf(c.opts) === 'war-refiner' && (c.prompt || '').includes('provision-worktrees.sh'))
+}
+
 export {
+  PROVISION_TIER_KINDS,
+  tierPhaseCalls,
+  spawnOptsOf,
+  PLUGIN_PROVISION_SCRIPT,
+  scriptPromptCalls,
   workerPrefixRuns,
   WORKER_SITE_LABELS,
   test,

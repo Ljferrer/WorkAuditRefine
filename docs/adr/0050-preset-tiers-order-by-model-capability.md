@@ -14,10 +14,11 @@ rule that lived only in the operator's head. This ADR writes that rule down and 
 
 **Model capability is the first axis of every seat.** `MODEL_RANK` in `war-config.mjs` orders
 the models ascending in capability and cost: haiku, sonnet, opus, fable. For every tier a preset
-resolves (worker base, docs, fix, ace, auditor, auditor rebuttal, auditor high and the resolved auditor low, refiner, refiner recovery, servitor, red-team, snipe, snipe low,
+resolves (worker base, lite, fix, ace, auditor, auditor rebuttal, auditor high and the resolved auditor low, refiner, refiner recovery and the resolved refiner provision and evidence, servitor, red-team, snipe, snipe low,
 trial, helper, and each skill seat in `SKILL_SEATS`), the model rank is monotone across presets: `thorough` ≥ `balanced` ≥ `economy`.
 `war-config.test.mjs` asserts that rule over every `TIER_PATHS` tier of the shipped presets, so
 an auditor reads the invariant from the suite instead of inferring one.
+The three un-defaulted tiers (auditor low, refiner provision and refiner evidence) have no `TIER_PATHS` row, so the suite compares the value each preset resolves for them.
 
 **Effort `default` is not the lowest effort.** It means the seat inherits the effort knob of the
 chat session that launched the run. A pinned effort (`low` … `max`) overrides that knob for the
@@ -27,7 +28,7 @@ models carry a pinned effort as compensation (for example sonnet auditors on `xh
 why the effort axis is deliberately *not* monotone across presets and is not an invariant.
 
 **`economy` means cheaper models and a shorter fix budget, not a weaker rule set.** It pins its
-own worker (base and docs), auditor, refiner, servitor, red-team and trial tiers and its skill seats
+own worker (base and lite), auditor, refiner, servitor, red-team and trial tiers and its skill seats
 (`SKILL_SEATS`), each at or below
 `balanced`'s `MODEL_RANK`, and the fix and ace tiers, the refiner recovery tier, the audit rebuttal and high tiers, snipe and its low tier, and the helper tier inherit `DEFAULTS`; the values are the
 `/war-room` economy bullet. `roundLimit: 4` and `redteamRoundLimit: 2` are pinned. `rosterPolicy`
