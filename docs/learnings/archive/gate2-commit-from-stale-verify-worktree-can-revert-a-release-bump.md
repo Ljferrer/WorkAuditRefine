@@ -87,3 +87,5 @@ Related: [[stacked-per-branch-releases-make-main-lag-cumulative]],
 [[gate-audit-end-state-owned-by-downstream-dep-task-is-non-holding-upstream]],
 [[gate-artifact-never-includes-war-memory-lint]] — sibling #1082/#1081 closures landed in the same
 gate-evidence-and-release-integrity phase 1.
+
+> archived 2026-11-10: resolved — moved to archive
