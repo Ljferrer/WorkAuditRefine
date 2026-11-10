@@ -60,3 +60,5 @@ metadata:
 **Locate-cue (verify still present before acting).** `skills/_shared/war-memory-mcp.mjs`: the `LOCAL_ANCHOR` constant, `localPassesAnchor`, and the `appendQueryLogIfPresent` function. `hooks/validate-evidence-auditor-mcp.sh`: the `memory_fence` function. `skills/_shared/war-memory-mcp.test.mjs`: the `RA1:` row.
 
 Related: [[bash-case-glob-path-fence-needs-an-absolute-prefix-arm-and-its-star-spans-slash]], [[evidence-mcp-hook-checks-tool-names-only-so-foreign-server-suffix-and-output-directory-writes-pass]].
+
+> archived 2026-11-10: resolved — moved to archive

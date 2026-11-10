@@ -44,3 +44,5 @@ A possible later design refreshes the marker after the worker's last commit, and
 Locate-cue: verify still present before acting. Found at `skills/war/assets/workflow-template.js` (`PROVISION_TREE_LINE`, `PROVISION_RERUN_CLAUSE`, `provisionStep`) @ phase 4, landed tip 426c70a8.
 
 Related: [[a-new-provision-run-in-a-shared-worktree-must-carry-the-restore-tracked-files-rule]].
+
+> archived 2026-11-10: resolved — moved to archive

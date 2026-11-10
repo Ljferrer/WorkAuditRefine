@@ -44,3 +44,5 @@ Keep the worker cross-check command and the engine source command identical, or 
 - `tipProbe` in `skills/war/assets/workflow-template.js` asks for `files=git diff --no-renames --name-only PRE TIP`.
 - `aceScopeClause` in the same file tells the seat to run `diff --no-renames --name-only <pre> <sha>`.
 - `skills/war/assets/task-integrated.sh` already used `--no-renames --name-only` for owned paths, the precedent the audit cited.
+
+> archived 2026-11-10: resolved — moved to archive

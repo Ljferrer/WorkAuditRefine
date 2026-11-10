@@ -53,3 +53,5 @@ Related: [[a-shell-command-inside-a-prompt-string-needs-a-test-that-runs-the-exa
 
 Locate-cue: verify still present before acting. At landed tip 8c1a7a51, `absorbChargesClause` holds `ms=$(git -C "$W" rev-list --first-parent --merges "$tip..<integration>") && for m in $ms`.
 The test `2485/ES17 a failed merge walk fails the absorb-charge read and never seeds a plausible 0` in `skills/war/assets/workflow-template.git-1.test.mjs` holds the PATH wrapper and the red proof.
+
+> archived 2026-11-10: resolved — moved to archive
