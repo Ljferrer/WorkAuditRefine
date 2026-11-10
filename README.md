@@ -421,7 +421,9 @@ This is the gate in this repository's `.claude/war/config.json`. It runs the ful
 `skills/**/*.test.mjs` glob with four Node test-file workers while four shell workers
 run every discovered `*.test.sh`. Discovery excludes `.git`, `.claude`, and
 `node_modules` directories and does not follow symlinks. New suites are discovered
-on each invocation. Other projects' declared gates retain their existing ordering.
+on each invocation. Shell suites start slowest first, by the seconds each took on the last
+gate run (kept in `war-gate-times.json` in the git common dir, shared by every worktree). A
+suite with no record starts first, largest file first. Other projects' declared gates retain their existing ordering.
 
 Set `WAR_GATE_NODE_JOBS` and `WAR_GATE_SHELL_JOBS` to tune the pools independently
 (each defaults to `4`, accepts `1`–`32`). These limits apply per gate invocation;

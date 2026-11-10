@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // WAR's own full gate: Node files and discovered shell suites run in separate bounded pools.
-import { spawn } from 'node:child_process'
-import { mkdtempSync, mkdirSync, openSync, closeSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { mkdtempSync, mkdirSync, openSync, closeSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -23,10 +23,48 @@ function shellSuites(dir = '.') {
   return paths.sort()
 }
 
+// Each shell suite's seconds from the last gate run, kept in the git common dir so every
+// worktree of the repo shares them. A missing or unreadable file means no record.
+function timesFile() {
+  const git = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' })
+  return git.status === 0 && git.stdout.trim() ? join(git.stdout.trim(), 'war-gate-times.json') : null
+}
+function readTimes(file) {
+  try {
+    const data = JSON.parse(readFileSync(file, 'utf8'))
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : {}
+  } catch { return {} }
+}
+
+// Start the slowest suites first, so a long suite never runs alone at the end of the gate.
+// A suite with no record starts before every recorded one, largest file first.
+function slowestFirst(paths, times) {
+  const seconds = path => (Number.isFinite(times[path]) ? times[path] : Infinity)
+  const size = new Map(paths.map(path => [path, statSync(path).size]))
+  return [...paths].sort((a, b) =>
+    (seconds(b) - seconds(a)) || (size.get(b) - size.get(a)) || (a < b ? -1 : a > b ? 1 : 0))
+}
+
+// Keep only suites that still exist. A failed write only costs the next run its order.
+function writeTimes(file, suites, times, ran) {
+  const next = {}
+  for (const suite of suites) {
+    const seconds = ran.has(suite) ? ran.get(suite) : times[suite]
+    if (Number.isFinite(seconds)) next[suite] = Math.round(seconds * 100) / 100
+  }
+  const tmp = `${file}.${process.pid}.tmp`
+  try {
+    writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n')
+    renameSync(tmp, file)
+  } catch { rmSync(tmp, { force: true }) }
+}
+
 async function main() {
   const shellJobs = jobs('WAR_GATE_SHELL_JOBS'), nodeJobs = jobs('WAR_GATE_NODE_JOBS')
   // Discover before launching anything; an unreadable directory must fail the gate.
-  const suites = shellSuites()
+  const file = timesFile(), times = file ? readTimes(file) : {}
+  const suites = slowestFirst(shellSuites(), times)
+  const ran = new Map()
   const logs = mkdtempSync(join(tmpdir(), 'war-gate-'))
   console.log(`Gate logs: ${logs}`)
   console.log(`Gate workers: ${nodeJobs} Node files + ${shellJobs} shell suites`)
@@ -76,15 +114,18 @@ async function main() {
     // Emit each finished suite as one block so concurrent output cannot mix test evidence.
     process.stdout.write(`\n== ${label} ==\n${readFileSync(log, 'utf8')}\n`)
     if (result.error) console.log(`Launch failed: ${result.error.message}`)
-    console.log(`== gate result: ${label}; exit=${result.code ?? result.signal ?? 'error'}; seconds=${((performance.now() - start) / 1000).toFixed(2)} ==`)
+    const seconds = (performance.now() - start) / 1000
+    console.log(`== gate result: ${label}; exit=${result.code ?? result.signal ?? 'error'}; seconds=${seconds.toFixed(2)} ==`)
     completed++
+    return seconds
   }
 
   let next = 0
   async function shellWorker() {
     while (!interrupted && next < suites.length) {
       const index = next++
-      await run(`gate(bash): ${suites[index]}`, 'bash', [suites[index]], `shell-${index}`)
+      const seconds = await run(`gate(bash): ${suites[index]}`, 'bash', [suites[index]], `shell-${index}`)
+      if (!interrupted && seconds !== undefined) ran.set(suites[index], seconds)
     }
   }
   try {
@@ -96,6 +137,7 @@ async function main() {
       if (result.status === 'rejected') { failed++; console.error(`Gate error: ${result.reason.message}`) }
     }
     if (cancellation) await cancellation
+    if (file && !interrupted) writeTimes(file, suites, times, ran)
     if (interrupted) console.log(`== gate interrupted: ${completed}/${suites.length + 1} jobs ==`)
     else if (completed !== suites.length + 1) console.log(`== gate incomplete: ${completed}/${suites.length + 1} jobs ==`)
     else console.log(`== gate complete: ${completed}/${suites.length + 1} jobs; ${failed} failed ==`)
