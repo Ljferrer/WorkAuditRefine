@@ -9454,8 +9454,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       surfaces: [['ace subset prompt', t31SubsetP], ['ace re-entry prompt', t31ReentryP], ['ace polish prompt', t31PolishP], ['terminal pass prompt', t31TerminalP], ['fix-round-doctrine.md', fixRoundDoctrineMd]],
       anchors: [/Ace-Charge/, /final trailer block/, /%\(trailers:key=Ace-Charge,valueonly\)/, /Before you push/, /naming the missing trailer/] },
     // D33 (#2686): a regressed row a merged sibling touched is verified before it files.
-    { name: 'VERIFY FIRST (D33, #2686): a sibling-merge row is read at the landed tip and returned in verified_fixed — file-followups prompt + refiner-recovery.md',
-      surfaces: [['file-followups prompt', t31FilingP], ['refiner-recovery.md', refinerRecoveryMd]],
+    { name: 'VERIFY FIRST (D33, #2686): a sibling-merge row is read at the landed tip and returned in verified_fixed — file-followups prompt + refiner-recovery.md + file-followups.md',
+      surfaces: [['file-followups prompt', t31FilingP], ['refiner-recovery.md', refinerRecoveryMd], ['file-followups.md', fileFollowupsMd]],
       anchors: [/VERIFY FIRST/, /verified_fixed: \[\{ n, evidence \}\]/, /read its file at the landed tip/, /hen the defect its rationale names is gone/] },
   ]
   // citation row, value half: the doc surfaces state the engine's number; the source interpolates it.
@@ -9466,6 +9466,14 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   assert.ok(!/\b24\b/.test(widenSrc), 'the DISPOSITION WIDENINGS source never carries a bare 24')
   assert.ok(auditP.includes('of at least ' + citeMin + ' characters that no other threaded row contains'), 'the dispatched prompt renders the value')
   assert.ok(reportAuditP.includes(REPORT_NOTES) && reportGateP.includes(REPORT_NOTES), 'both worker-report prompts quote the notes')
+  // VERIFY FIRST cluster exception (late-fix 3.1:2): a returned ordinal needs no filed entry and no
+  // cluster. The filing prompt, refiner-recovery.md and file-followups.md each state it, and
+  // schemas.md names the exception inside its cluster partition rule.
+  const unTick = t => squeeze(t).replace(/`/g, '')
+  for (const [n, t] of [['file-followups prompt', t31FilingP], ['refiner-recovery.md', refinerRecoveryMd], ['file-followups.md', fileFollowupsMd]]) {
+    assert.ok(unTick(t).includes('no filed entry and no cluster'), n + ' states that a verified_fixed ordinal needs no filed entry and no cluster')
+  }
+  assert.match(squeeze(schemasMd), /every ordinal in exactly one cluster \([^)]*`verified_fixed`[^)]*needs no cluster/, 'schemas.md names the verified_fixed exception inside its cluster partition rule')
   // A row added without a floor raise leaves slack, and slack lets a deleted row pass. The ceiling
   // turns that add red, so the floor and the row count move in one commit.
   assert.ok(REGISTRY.length <= 56, 'the registry holds ' + REGISTRY.length + ' rows, above the floor: raise the REGISTRY.length floor and this ceiling to the new row count in the commit that adds the row')
