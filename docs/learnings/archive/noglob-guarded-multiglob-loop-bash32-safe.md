@@ -18,7 +18,6 @@ metadata:
   related:
     - floor-script-discovery-set-must-mirror-gate-exclusions
     - floor-script-exit-codes-1-vs-2-route-differently
-    - tr-escape-single-quote-strips-literal-not-newline
   originSessionId: 1bd064e5-a8af-4b1f-91d5-638887067351
 ---
 
