@@ -55,7 +55,7 @@ Dispatched at the merge slot **before** merge-task; own `PinTransfer` return sha
 2. **Rebase** the task branch onto the integration tip in `<taskWorktree>`. On conflict → `status: "conflict"` with `conflict_files`. Never force, never resolve.
 3. `TIP` = `git rev-parse <taskBranch>` (the rebased task tip); `POST` = `git diff <integrationBranch>..$TIP` piped to `git patch-id --stable`, first field (empty on an empty diff).
 
-Then classify the outcome: when you reach step 4, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) (§ Pin-transfer arms) — the four return arms, in order, with the fail-closed rules.
+Then classify the outcome: when you reach step 4, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) (§ Pin-transfer arms) — the four return arms, in order, with the fail-closed rules, and the NET-ZERO CLASH RANGE step, which replaces step 2's full rebase only when the dispatch names it.
 
 ## merge-task
 
@@ -118,7 +118,7 @@ Return the `ENDSTATE_CHECK_RESULT` JSON: `{ artifacts: [{ n, path, tip_sha, exit
 
 ## File-followups dispatch
 
-After the land decision resolves, unabsorbed `follow-up`-routed findings — consolidated `minorsFiled` rows only; a parked ask is never in the batch (ruled asks file Lead-side, per the pointer) — get ONE **`file-followups:phase-<id>`** run (`dispatchKind: file-followups`) — a gh-write batch, **never out-of-mode: do not decline it** (fail-open — a decline is silent non-filing). When dispatched a file-followups run, read [file-followups.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/file-followups.md) — the preflight / dedup-as-corroboration-comment / cluster-per-root-cause filing procedure and the return contract; your dispatched prompt carries the same instructions verbatim (this pointer is enrichment, never the sole carrier). When the filing prompt lists VERIFY FIRST rows, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md § File-followups filing.
+After the land decision resolves, unabsorbed `follow-up`-routed findings — consolidated `minorsFiled` rows only; a parked ask is never in the batch (ruled asks file Lead-side, per the pointer) — get ONE **`file-followups:phase-<id>`** run (`dispatchKind: file-followups`) — a gh-write batch, **never out-of-mode: do not decline it** (fail-open — a decline is silent non-filing). When dispatched a file-followups run, read [file-followups.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/file-followups.md). When the filing prompt lists VERIFY FIRST rows, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md § File-followups filing.
 
 ## land-phase
 

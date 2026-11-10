@@ -461,6 +461,9 @@ import {
   withoutSweepDebt,
   TWIN_TASKS,
   NON_INFRA_THROW,
+  CLAIM_TASK,
+  CLAIM_ARGS,
+  claimImpl,
 } from './workflow-template.test-harness.mjs'
 
 
@@ -9003,6 +9006,9 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const t41MergeP = ((await runPhase(LATE_FIX_ARGS(), lateFixImpl())).calls.find(c => (c.opts.label || '') === 'merge:p3-latefix-1') || {}).prompt
   const lateFixPassMd = readFileSync(join(here, '../references/late-fix-pass.md'), 'utf8')
   assert.ok(t41MergeP, 'the T4.1 late-fix merge prompt dispatched (presence guard)')
+  // Plan 2026-11-08-engine-findings T5.1 row (D19 d, D22): the clashed task's pin-transfer prompt.
+  const t51PinP = ((await runPhase(CLAIM_ARGS(), claimImpl({ touch: { t1: ['docs/shared.md'], t2: ['docs/shared.md'] } }))).calls.find(c => c.opts.dispatchKind === 'pin-transfer' && c.opts.label === 'pin-transfer:t2') || {}).prompt
+  assert.ok(t51PinP && t51PinP.includes('NET-ZERO CLASH RANGE'), 'the T5.1 clashed pin-transfer prompt dispatched (presence guard)')
   // The exact-id row's shared const: both prompts spell the one ABSORB_CHARGE_READ command.
   const chargeCmdOf = p => (p.match(/run this one bash command with its two angle-bracket placeholders filled: `([^`]+)`/) || [])[1]
   assert.ok(chargeCmdOf(t31BarrierP) && chargeCmdOf(t31BarrierP) === chargeCmdOf(t31ProbeP), 'the barrier and the charge probe spell the same ABSORB_CHARGE_READ command')
@@ -9465,6 +9471,10 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'empty-range conflict (D14, #2661.2): a late-fix range that prints no line returns conflict — late-fix merge prompt + late-fix-pass.md',
       surfaces: [['late-fix merge prompt', t41MergeP], ['late-fix-pass.md', lateFixPassMd]],
       anchors: [/prints no line at all/, /return(s)? `?conflict`? \("empty late-fix branch"\)/] },
+    // D19 d / D22 (#2578): the net-zero clash range rides only the clashed task's pin-transfer prompt.
+    { name: 'net-zero clash range (D19 d, D22, #2578): a clashed task rebases only through the approved sha — clashed pin-transfer prompt + refiner card step-4 pointer + refiner-recovery.md',
+      surfaces: [['clashed pin-transfer prompt', t51PinP], ['war-refiner.md', refinerMd], ['refiner-recovery.md', refinerRecoveryMd]],
+      anchors: [/NET-ZERO CLASH RANGE/, /(only when the dispatch names it|NET-ZERO-DROPPED|rebases only through)/] },
   ]
   // citation row, value half: the doc surfaces state the engine's number; the source interpolates it.
   for (const [n, t] of [['war-auditor.md', auditorMd], ['disposition-eligibility.md', eligibilityMd]]) {
@@ -9484,8 +9494,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   assert.match(squeeze(schemasMd), /every ordinal in exactly one cluster \([^)]*`verified_fixed`[^)]*needs no cluster/, 'schemas.md names the verified_fixed exception inside its cluster partition rule')
   // A row added without a floor raise leaves slack, and slack lets a deleted row pass. The ceiling
   // turns that add red, so the floor and the row count move in one commit.
-  assert.ok(REGISTRY.length <= 57, 'the registry holds ' + REGISTRY.length + ' rows, above the floor: raise the REGISTRY.length floor and this ceiling to the new row count in the commit that adds the row')
-  assert.ok(REGISTRY.length >= 57,'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) + the four plan 2026-11-08 T1.6 prompt-prefix rows (AUTHORITY_LINE, TOOL ORDER, HOST_TURN_TOOL_LINE, WORKER_WRITE_TOOL_RULE) + the push-denied row (#2671) + the three plan 2026-11-08-engine-findings T1.1 rows (citation, parked-ask, worker-report) + the five T2.1 rows (compound-command carve-out, stale-tip phrase, gate scope, confirmed tip, confirmed tip scope) + the three T3.1 rows (exact-id, ace trailers, VERIFY FIRST) + the T4.1 empty-range conflict row — 57 rows, no slack')
+  assert.ok(REGISTRY.length <= 58, 'the registry holds ' + REGISTRY.length + ' rows, above the floor: raise the REGISTRY.length floor and this ceiling to the new row count in the commit that adds the row')
+  assert.ok(REGISTRY.length >= 58,'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) + the four plan 2026-11-08 T1.6 prompt-prefix rows (AUTHORITY_LINE, TOOL ORDER, HOST_TURN_TOOL_LINE, WORKER_WRITE_TOOL_RULE) + the push-denied row (#2671) + the three plan 2026-11-08-engine-findings T1.1 rows (citation, parked-ask, worker-report) + the five T2.1 rows (compound-command carve-out, stale-tip phrase, gate scope, confirmed tip, confirmed tip scope) + the three T3.1 rows (exact-id, ace trailers, VERIFY FIRST) + the T4.1 empty-range conflict row + the T5.1 net-zero clash range row — 58 rows, no slack')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -15620,8 +15630,9 @@ test('fix-round fence: a listed polish row in a fenced file goes to the sweep, n
   assert.ok(polishP, 'the polish worker still runs for the other row (presence guard)')
   assert.ok(!polishP.includes('fenced row'), 'the fenced row never reaches the polish worker')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('"fenced row"') && l.includes('is fenced, so the polish worker never edits it')), 'the fenced row routes to the sweep, logged')
-  // Polish keeps its sibling fixes to its own files and the listed rows' files (operator ruling on PR #2577).
-  assert.ok(polishP.includes("FIX-ROUND FILES: fix a sibling site only in this task's own files or in a listed finding's file. List a sibling site in any other file under `Ignore for now:`, and the list reaches the phase report for a ruling.\n"), 'the polish prompt states its file limit')
+  // Polish keeps its sibling fixes to its own files, the listed rows' files and the files it may claim
+  // (operator ruling on PR #2577; the claim rule, D19, ADR 0061).
+  assert.ok(polishP.includes("FIX-ROUND FILES: fix a sibling site only in this task's own files, in a listed finding's file, or in a file no task of this wave lists and the fence does not name. The first polish commit to touch such a file claims it for the wave. A commit that touches a file a peer claimed or lists is forward-reverted, and its rows go to the phase-close sweep. List a sibling site in any other file under `Ignore for now:`, and the list reaches the phase report for a ruling.\n"), 'the polish prompt states its file limit and the claim rule')
   assert.equal((src.match(/\n[ ]*\+ POLISH_FILES_CLAUSE(?=\n)/g) || []).length, 1, 'the file limit rides ADVISORY POLISH only')
 })
 
@@ -15637,6 +15648,79 @@ test('fix-round fence: the sweep fixes a fenced polish row once its owner merges
   const sweepP = (calls.find(x => (x.opts.label || '') === 'polish:phase-3') || {}).prompt
   assert.ok(sweepP && sweepP.includes('peer row'), 'the sweep carries the row')
   assert.ok(!logs.some(l => typeof l === 'string' && l.includes('"peer row"') && l.includes('demote:exclusion-set')), 'the row is not demoted by the exclusion set')
+})
+
+// Polish claims (plan 2026-11-08-engine-findings T5.1, D19, ADR 0061). CLAIM_ARGS runs two same-wave
+// tasks, t1 (docs/a.md) and t2 (docs/b.md); claimImpl fixes the polish return order.
+test('polish claim: first commit wins — a later same-wave commit on the claimed file is reverted and its rows reach the phase-close queue', async () => {
+  const touch = { t1: ['docs/a.md', 'docs/shared.md'], t2: ['docs/b.md', 'docs/shared.md'] }
+  const pinOf = (calls, id) => (calls.find(c => c.opts.dispatchKind === 'pin-transfer' && c.opts.label === 'pin-transfer:' + id) || {}).prompt || ''
+  const { out, calls, logs } = await runPhase(CLAIM_ARGS(), claimImpl({ touch }), {}, src)
+  assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), 'presence guard: both tasks land')
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 claims docs/shared.md for the wave')), 't1 returns first and claims the unclaimed file')
+  // the polish commits are a1a1a1a1 (t1) and b2b2b2b2 (t2); the sweep later aces at its own sha
+  assert.ok((out.aced || []).some(a => a && a.task === 't1' && a.sha === 'a1a1a1a1'), 't1 keeps its polish')
+  assert.ok(!(out.aced || []).some(a => a && a.sha === 'b2b2b2b2'), 't2 polish is never aced')
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('Re-entry routing:') && l.includes('"t2 polish row"') && l.includes('polish claim') && l.includes('docs/shared.md (task t1)')), 't2 row routes to the phase-close sweep, naming the claimant')
+  const sweepP = (calls.find(c => (c.opts.label || '') === 'polish:phase-3') || {}).prompt || ''
+  assert.ok(sweepP.includes('t2 polish row'), 'the phase-close sweep carries the t2 row')
+  assert.ok(!calls.some(c => /^ace-gate:t2:/.test(c.opts.label || '')), 'the clashing commit is never gated or re-audited')
+  assert.match(pinOf(calls, 't2'), /FORWARD-REVERT \(--ace\)/, 'the t2 pin-transfer probe reverts the clash')
+  assert.match(pinOf(calls, 't2'), /NET-ZERO CLASH RANGE \(polish claim\): this task's polish commit b2b2b2b2 touched docs\/shared\.md, which task t1 claims or lists/, 'and carries the net-zero step')
+  assert.ok(pinOf(calls, 't1') && !pinOf(calls, 't1').includes('NET-ZERO') && !pinOf(calls, 't1').includes('FORWARD-REVERT'), 'the claimant probe carries neither')
+  // Red at base: without the claim check the clashing commit re-audits and aces.
+  const CHECK = "const clash = aceClass === 'moved' ? claimPolishFiles(aceProbe) : null"
+  assert.ok(src.includes(CHECK), 'the mutation target is the live check')
+  const mutant = await runPhase(CLAIM_ARGS(), claimImpl({ touch }), {}, src.replace(CHECK, 'const clash = null'))
+  assert.ok((mutant.out.aced || []).some(a => a && a.sha === 'b2b2b2b2'), 'the mutant aces the clashing commit')
+})
+
+test('polish claim: a wave-owned file reverts on the first return', async () => {
+  const touch = { t1: ['docs/a.md', 'docs/b.md'], t2: ['docs/b.md'] }
+  const { out, calls, logs } = await runPhase(CLAIM_ARGS(), claimImpl({ touch }), {}, src)
+  assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), 'presence guard: both tasks land')
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 — ') && l.includes('docs/b.md (task t2)')), 't1, the first return, is reverted: t2 lists docs/b.md')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 claims')), 'the clashing commit claims nothing, not even its unowned files')
+  assert.ok(!(out.aced || []).some(a => a && a.sha === 'a1a1a1a1') && (out.aced || []).some(a => a && a.sha === 'b2b2b2b2'), 't1 is not aced, t2 on its own file is')
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('Re-entry routing:') && l.includes('"t1 polish row"') && l.includes('polish claim')), 'the t1 row routes to the sweep')
+  const pin = (calls.find(c => c.opts.dispatchKind === 'pin-transfer' && c.opts.label === 'pin-transfer:t1') || {}).prompt || ''
+  assert.match(pin, /NET-ZERO CLASH RANGE \(polish claim\): this task's polish commit a1a1a1a1 touched docs\/b\.md, which task t2 claims or lists/, 'the t1 probe carries the net-zero step')
+  // Red at base: without the wave-owner read the first return touches a peer file unchecked.
+  const PEER = 'const peer = wave.find(t => t.id !== r.task.id && (Array.isArray(t.files) ? t.files : []).map(aceRelPath).includes(file))'
+  assert.ok(src.includes(PEER), 'the mutation target is the live wave-owner read')
+  const mutant = await runPhase(CLAIM_ARGS(), claimImpl({ touch }), {}, src.replace(PEER, 'const peer = null'))
+  assert.ok((mutant.out.aced || []).some(a => a && a.sha === 'a1a1a1a1'), 'the mutant aces the commit on the peer file')
+})
+
+test('polish claim: a claimed file reaches a later peer fence line', async () => {
+  const touch = { t1: ['docs/a.md', 'docs/shared.md'], t2: ['docs/b.md'] }
+  const fenceOf = (calls, id) => ((calls.find(c => new RegExp('^ace:polish:' + id + ':').test(c.opts.label || '')) || {}).prompt || '').split('\n').find(l => l.startsWith('FIX-ROUND FENCE:')) || ''
+  const { calls, logs } = await runPhase(CLAIM_ARGS(), claimImpl({ touch, lateWork: true }), {}, src)
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 claims docs/shared.md')), 'presence guard: t1 claims first')
+  assert.ok(fenceOf(calls, 't2').split(': ').pop().split(', ').includes('docs/shared.md'), 'the later peer t2 fence names the claimed file')
+  assert.ok(!fenceOf(calls, 't1').includes('docs/shared.md'), 'the claimant fence does not')
+  // Red at base: without the claim row the later fence leaves the claimed file open.
+  const ROW = '...[...polishClaims].filter(([, c]) => c.r !== r).map(([file]) => file),'
+  assert.ok(src.includes(ROW), 'the mutation target is the live fence row')
+  const mutant = await runPhase(CLAIM_ARGS(), claimImpl({ touch, lateWork: true }), {}, src.replace(ROW, ''))
+  assert.ok(!fenceOf(mutant.calls, 't2').includes('docs/shared.md'), 'the mutant fence omits the claimed file')
+})
+
+test('polish claim: a reverted claimant releases its claim', async () => {
+  const touch = { t1: ['docs/a.md', 'docs/shared.md'], t2: ['docs/b.md', 'docs/shared.md'] }
+  const seats = { 'ace-gate': (p, o) => /^ace-gate:t1:/.test(o.label || '') ? aceJudgedRed()(p) : NEW_SEAT_DEFAULTS['ace-gate'](p) }
+  const pinOf = (calls, id) => (calls.find(c => c.opts.dispatchKind === 'pin-transfer' && c.opts.label === 'pin-transfer:' + id) || {}).prompt || ''
+  const { out, calls, logs } = await runPhase(CLAIM_ARGS(), claimImpl({ touch }), seats, src)
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 claims docs/shared.md')), 'presence guard: t1 claims first')
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t1 releases docs/shared.md')), 'the red gate reverts t1 and releases the claim')
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('polish claim: task t2 claims docs/shared.md')), 't2 then claims the file')
+  assert.ok((out.aced || []).some(a => a && a.sha === 'b2b2b2b2') && !pinOf(calls, 't2').includes('FORWARD-REVERT'), 't2 keeps its polish and is not reverted')
+  assert.match(pinOf(calls, 't1'), /NET-ZERO CLASH RANGE \(polish claim\): this task's polish commit a1a1a1a1 touched docs\/shared\.md, which task t2 claims or lists/, 'the released claimant takes the net-zero step, since its pair now replays onto t2')
+  // Red at base: a claim that outlives its reverted commit reverts the later peer.
+  const RELEASE = 'const gone = [...polishClaims].filter(([, c]) => c.r === r && c.sha !== approvedShaOf(r))'
+  assert.ok(src.includes(RELEASE), 'the mutation target is the live release')
+  const mutant = await runPhase(CLAIM_ARGS(), claimImpl({ touch }), seats, src.replace(RELEASE, 'const gone = []'))
+  assert.ok(!(mutant.out.aced || []).some(a => a && a.sha === 'b2b2b2b2'), 'the mutant reverts the later peer')
 })
 
 test('backward-chain: fixer rules byte-equal on all seven builds', async () => {
@@ -20631,6 +20715,8 @@ test('file-followups: a VERIFY FIRST row unfolds the merged[] rows it carried be
   const fp = filingPromptOf(calls)
   assert.equal(rowsOf(calls).length, 2, 'the filer sees two rows')
   assert.ok(rowsOf(calls)[0].includes('title: "regressed row"') && !rowsOf(calls)[0].includes('stale cache read'), 'row 1 no longer lists the other row as a corroboration')
+  // The unfolded raiser leaves row 1's seats cell, and its row keeps its own line (late defect of T4.1).
+  assert.ok(rowsOf(calls)[0].includes('seats: ') && !rowsOf(calls)[0].includes('gate-audit:t1:execution-evidence'), 'row 1\'s seats cell no longer names the unfolded raiser')
   assert.ok(rowsOf(calls)[1].includes('title: "stale cache read"') && rowsOf(calls)[1].includes('seats: gate-audit:t1:execution-evidence (task t1)') && rowsOf(calls)[1].includes('why not absorbable: ' + other.rationale), 'row 2 carries its own title, seat and rationale')
   assert.ok(fp.includes('  row 1: task t2 merged at beefcafe12') && fp.includes('  row 2: task t2 merged at beefcafe12'), 'each row has its own VERIFY FIRST line')
   assert.equal(repNote(out).length, 1, 'the verified row moves to notes')
@@ -20638,6 +20724,7 @@ test('file-followups: a VERIFY FIRST row unfolds the merged[] rows it carried be
   assert.equal((out.notes || []).filter(n => n && n.title === other.title).length, 0, 'the differently worded row is not noted')
   const kept = demotionOf(out, other.title)
   assert.ok(kept && kept.issue === 502 && kept.merged === undefined, 'it files as its own row')
+  assert.ok(kept.line === 11 && kept.seat === undefined, 'it carries its own line, never the representative\'s line or raw seat')
   assert.ok(t31Logged(logs, '"stale cache read"', 'leaves the merged[] list of the VERIFY FIRST row "regressed row"'), 'the unfold is logged')
   // Arm 2: the same title under normTitle and a different rationale still unfolds.
   const sameTitle = nit({ title: 'Regressed row!', line: 11, rationale: 'a second defect: the cache is read before the refresh' })
