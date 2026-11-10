@@ -20602,12 +20602,71 @@ test('file-followups: a VERIFY FIRST row never takes a differently worded row in
   assert.ok(kept && kept.issue === 502, 'it stays on its own route and files')
   assert.ok(t31Logged(logs, 'is NOT merged into the VERIFY FIRST row "regressed row"'), 'the unfold is logged')
   // Red at base: without the unfold the second row folds into row 1 and leaves with its note.
-  const UNFOLD = 'if (hit && hit.siblingTouch && ('
+  const UNFOLD = 'if (hit && hit.siblingTouch && wordingDiffers(hit, f)) {'
   assert.ok(src.includes(UNFOLD), 'the mutation target is the live unfold')
-  const mutant = await run({ filed: [], clusters: [], verified_fixed: [{ n: 1, evidence }] }, src.replace(UNFOLD, 'if (false && ('))
+  const mutant = await run({ filed: [], clusters: [], verified_fixed: [{ n: 1, evidence }] }, src.replace(UNFOLD, 'if (false) {'))
   assert.ok(!demotionOf(mutant.out, 'stale cache read'), 'the mutant files no row for the second defect')
   const mNote = t31NotesOf(mutant.out, T31_REGRESSED.title, 'reconciled:sibling-merge')
   assert.ok(mNote.length === 1 && (mNote[0].merged || []).some(m => m.title === 'stale cache read'), 'the mutant notes it by association, inside merged[]')
+})
+
+test('file-followups: a VERIFY FIRST row unfolds the merged[] rows it carried before the stamp', async () => {
+  // t1's batch row regresses and files. Then t1's post-merge gate-audit seat raises `reword` one line
+  // away: a D25 near re-mint, so the engine writes it onto the filed row's merged[] list at intake,
+  // before the stamp and the collapse. The filer verifies only row 1.
+  const run = (reword, filing, source) => {
+    const base = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [T31_REGRESSED]), T31_MAJOR] }, p4Base({ seatsOf: l => l.startsWith('gate-audit:t1') ? { seat: l, lens: 'execution-evidence', verdict: 'approve', findings: [reword], confidence: 'high', audit_sha: 'beefcafe12' } : null }))
+    return runPhase(T31_TWO(), (p, o) => o.dispatchKind === 'file-followups' ? filing : base(p, o),
+      { 'diff-probe': (p, o) => o.label === 'diff-probe:t2' ? { diff_files: ['skills/war/assets/x.js'] } : NEW_SEAT_DEFAULTS['diff-probe'] }, source)
+  }
+  const evidence = 'skills/war/assets/x.js:10 now refreshes before the read'
+  const SPLIT = { filed: [{ n: 2, issue: 502 }], clusters: [{ ordinals: [2], issue: 502 }], verified_fixed: [{ n: 1, evidence }] }
+  const ONE = { filed: [], clusters: [], verified_fixed: [{ n: 1, evidence }] }
+  const rowsOf = calls => filingPromptOf(calls).split('\n').filter(l => /^ {2}\d+\. title: /.test(l))
+  const repNote = out => t31NotesOf(out, T31_REGRESSED.title, 'reconciled:sibling-merge')
+  // Arm 1: a different title. The merged[] row becomes row 2 and files; only row 1 is noted.
+  const other = nit({ title: 'stale cache read', line: 11, rationale: 'a second defect: the cache is read before the refresh' })
+  const { out, calls, logs } = await run(other, SPLIT)
+  assert.ok(t31Logged(logs, 'near re-mint of "regressed row"', '"stale cache read" is the same finding reworded'), 'presence guard: the row reached merged[] as a D25 near re-mint')
+  const fp = filingPromptOf(calls)
+  assert.equal(rowsOf(calls).length, 2, 'the filer sees two rows')
+  assert.ok(rowsOf(calls)[0].includes('title: "regressed row"') && !rowsOf(calls)[0].includes('stale cache read'), 'row 1 no longer lists the other row as a corroboration')
+  assert.ok(rowsOf(calls)[1].includes('title: "stale cache read"') && rowsOf(calls)[1].includes('seats: gate-audit:t1:execution-evidence (task t1)') && rowsOf(calls)[1].includes('why not absorbable: ' + other.rationale), 'row 2 carries its own title, seat and rationale')
+  assert.ok(fp.includes('  row 1: task t2 merged at beefcafe12') && fp.includes('  row 2: task t2 merged at beefcafe12'), 'each row has its own VERIFY FIRST line')
+  assert.equal(repNote(out).length, 1, 'the verified row moves to notes')
+  assert.ok(!(repNote(out)[0].merged || []).some(x => x.title === other.title), 'and its note holds no differently worded row')
+  assert.equal((out.notes || []).filter(n => n && n.title === other.title).length, 0, 'the differently worded row is not noted')
+  const kept = demotionOf(out, other.title)
+  assert.ok(kept && kept.issue === 502 && kept.merged === undefined, 'it files as its own row')
+  assert.ok(t31Logged(logs, '"stale cache read"', 'leaves the merged[] list of the VERIFY FIRST row "regressed row"'), 'the unfold is logged')
+  // Arm 2: the same title under normTitle and a different rationale still unfolds.
+  const sameTitle = nit({ title: 'Regressed row!', line: 11, rationale: 'a second defect: the cache is read before the refresh' })
+  const r2 = await run(sameTitle, SPLIT)
+  assert.equal(rowsOf(r2.calls).length, 2, 'a different rationale alone unfolds the row')
+  assert.ok((demotionOf(r2.out, sameTitle.title) || {}).issue === 502 && repNote(r2.out).length === 1, 'and it files while row 1 is noted')
+  // Arm 3: the same title under normTitle and the same rationale stays on merged[] and rides the note.
+  const same = nit({ title: 'Regressed row!', line: 11, rationale: T31_REGRESSED.rationale })
+  const r3 = await run(same, ONE)
+  assert.equal(rowsOf(r3.calls).length, 1, 'the same wording stays one row')
+  assert.ok(repNote(r3.out).length === 1 && (repNote(r3.out)[0].merged || []).some(x => x.title === same.title), 'and the merged[] row rides the note')
+  assert.ok(!t31Logged(r3.logs, 'leaves the merged[] list'), 'with no unfold logged')
+  // Arm 4: a row no sibling touched keeps its merged[] list, because it has no verified_fixed route.
+  const base4 = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [T31_REGRESSED]), T31_MAJOR] }, p4Base({ seatsOf: l => l.startsWith('gate-audit:t1') ? { seat: l, lens: 'execution-evidence', verdict: 'approve', findings: [other], confidence: 'high', audit_sha: 'beefcafe12' } : null }))
+  const r4 = await runPhase(T31_TWO(), (p, o) => o.dispatchKind === 'file-followups' ? { filed: [{ n: 1, issue: 501 }], clusters: [{ ordinals: [1], issue: 501 }] } : base4(p, o))
+  assert.ok(rowsOf(r4.calls).length === 1 && !filingPromptOf(r4.calls).includes('VERIFY FIRST'), 'an unstamped row stays one row')
+  assert.ok((demotionOf(r4.out, T31_REGRESSED.title).merged || []).some(x => x.title === other.title), 'and keeps its merged[] row')
+  // Red at base: without the stamp-time unfold the row leaves inside the note.
+  const AT_STAMP = 'const own = m.siblingTouch ? mergedRowsOf(m).filter(x => wordingDiffers(m, x)) : []'
+  assert.ok(src.includes(AT_STAMP), 'the mutation target is the live stamp-time unfold')
+  const mutant = await run(other, ONE, src.replace(AT_STAMP, 'const own = []'))
+  assert.equal(rowsOf(mutant.calls).length, 1, 'the mutant shows the filer one row')
+  assert.ok(!demotionOf(mutant.out, other.title), 'the mutant files no row for the second defect')
+  assert.ok(repNote(mutant.out).length === 1 && (repNote(mutant.out)[0].merged || []).some(x => x.title === other.title), 'the mutant notes it by association, inside merged[]')
+  // Red at base: without the rationale clause of wordingDiffers, arm 2 stays folded.
+  const RATIONALE = " || String(a.rationale ?? '').trim() !== String(b.rationale ?? '').trim()"
+  assert.ok(src.includes(RATIONALE), 'the mutation target is the live rationale clause')
+  const m2 = await run(sameTitle, ONE, src.replace(RATIONALE, ''))
+  assert.ok(rowsOf(m2.calls).length === 1 && (repNote(m2.out)[0].merged || []).some(x => x.rationale === sameTitle.rationale), 'the title-only mutant notes the differently reasoned row by association')
 })
 
 // D12 / D40: the absorb-budget seed. T31_ONE: the one task t1-1, whose bare id is never "1.1".

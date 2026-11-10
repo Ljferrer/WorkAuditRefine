@@ -8503,6 +8503,10 @@ if (wrapUpDecision && memoryLocalRoot) {
 // element shape at every read: array-normalize the container, drop non-object elements. Hoisted
 // above BOTH consumer blocks (the filing block's braces close before the handoff assembly opens).
 const mergedRowsOf = m => (Array.isArray(m.merged) ? m.merged : []).filter(x => x && typeof x === 'object')
+// wordingDiffers: two rows differ in title (under normTitle) or in trimmed rationale. The stamp-time
+// unfold and the pre-filing collapse both read it, so a VERIFY FIRST row never decides for a row
+// whose wording the filer did not judge.
+const wordingDiffers = (a, b) => normTitle(a.title) !== normTitle(b.title) || String(a.rationale ?? '').trim() !== String(b.rationale ?? '').trim()
 // findingClassOf (ADR 0058 floor, D26 fix round): the `findingClass` key of a filed row or a merged[] row, as a
 // spreadable object — present only for a FINDING_CLASSES member. The pre-filing collapse and the handoff
 // followUps projection both spread it, so a `behavior` row folded under another row keeps its class on
@@ -8555,6 +8559,24 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       if (set instanceof Set && set.has(aceRelPath(m.file))) { m.siblingTouch = { task, sha }; break }
     }
   }
+  // Unfold at the stamp (operator ruling 2026-11-10): a stamped row can already carry merged[] rows
+  // (a D25 near re-mint writes them at intake). The filer judges only the row's own rationale, so
+  // each merged[] row whose wording differs leaves merged[] and becomes its own row, with its own
+  // VERIFY FIRST line. The D4 reconcile above differs: it decides by file and line window, which a
+  // merged[] row shares with its row.
+  const unfolded = []
+  for (const m of minorsFiled) {
+    unfolded.push(m)
+    const own = m.siblingTouch ? mergedRowsOf(m).filter(x => wordingDiffers(m, x)) : []
+    if (!own.length) continue
+    m.merged = mergedRowsOf(m).filter(x => !own.includes(x))
+    for (const { seat: ref, ...x } of own) {
+      const { merged: _rest, suggested_fix: _fix, ...rep } = m
+      unfolded.push({ ...rep, ...x, seats: ref ? [ref] : seatsListOf(m) })
+      log('file-followups: "' + (x.title ?? '(untitled finding)') + '" (task ' + m.task + ', ' + m.file + ') leaves the merged[] list of the VERIFY FIRST row "' + (m.title ?? '(untitled finding)') + '": its title or rationale differs, so it keeps its own route.')
+    }
+  }
+  minorsFiled.splice(0, minorsFiled.length, ...unfolded)
 }
 if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDecision === 'held:land-failed') && minorsFiled.length > 0) {
   // ---- FOLLOW-UP CONSOLIDATION (Task 2.1, #1566; D8 seat discrimination + merged[] fidelity, Phase 5
@@ -8592,7 +8614,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
     // route through verified_fixed, and the filer judges only its own rationale. So a row whose title
     // or rationale differs from it stays its own row, keeps its own VERIFY FIRST line, and files
     // unless the filer verifies it too. It never becomes a note by association.
-    if (hit && hit.siblingTouch && (normTitle(hit.title) !== normTitle(f.title) || String(hit.rationale ?? '').trim() !== String(f.rationale ?? '').trim())) {
+    if (hit && hit.siblingTouch && wordingDiffers(hit, f)) {
       log('file-followups consolidation: "' + (f.title ?? '(untitled finding)') + '" (task ' + f.task + ', ' + f.file + ') is NOT merged into the VERIFY FIRST row "' + (hit.title ?? '(untitled finding)') + '": its title or rationale differs, so it keeps its own route.')
       collapsed.push(f)
       continue
