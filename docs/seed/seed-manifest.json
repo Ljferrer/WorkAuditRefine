@@ -97,6 +97,14 @@
       "provenance": "code-verified"
     },
     {
+      "slug": "cdk-stack-needs-a-resource-count-guard-near-the-cfn-500-limit",
+      "bytes": 2727,
+      "sha256": "0726a89d5c2c8aba6ac60c95199c17a7faad10b10a42b6d232e911e85c464d1a",
+      "description": "A large CDK stack can hit CloudFormation's 500-resource limit, so pin each stack to a resource budget in a unit test and move monitors to a sibling stack for headroom",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "cli-main-guard-equality-check-silently-noops-under-relative-invocation",
       "bytes": 2862,
       "sha256": "bb74849456bb53d83b31e370a204393160633a0a650bcb87182dcfca6f9ab154",
@@ -157,6 +165,14 @@
       "bytes": 2086,
       "sha256": "f570906dd8c85bbaac6b3cbbd86524f2a4996618a5ceabacfef4c88f45079777",
       "description": "A cross-process request_hash test runs children under distinct PYTHONHASHSEED values with a timeout and expects the job_name to differ",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "ddb-fake-table-does-not-model-reserved-word-paths",
+      "bytes": 1929,
+      "sha256": "d361430305fb8ac5290d8daf626526adab407a806909aad1d1c6be8dee591709",
+      "description": "A hand-written fake DynamoDB table in unit tests accepts bare reserved-word attribute paths that live DynamoDB rejects",
       "type": "project",
       "provenance": "code-verified"
     },
@@ -281,6 +297,14 @@
       "provenance": "user-confirmed"
     },
     {
+      "slug": "forked-process-test-asserts-need-controls-that-run-in-the-child",
+      "bytes": 2452,
+      "sha256": "dba9acb18dfc51f8d753dd68418756856eb1e486cfd7a9e071102368b41e373a",
+      "description": "In a forked-process test, an assert on the child's behavior needs a control that ran in the child",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
       "slug": "git-common-dir-anchor-idiom-fail-open-gotchas",
       "bytes": 4341,
       "sha256": "f349db1ef31ccda6e4afe454bb3822a4d4b4d67ba3566de0fd45114bd0a4c8e9",
@@ -345,6 +369,14 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "in-handler-degrade-forfeits-the-sfn-retry-ladder",
+      "bytes": 2504,
+      "sha256": "8c1c0ba6915ebc1842c36852893b1de44d4657595b972b8824292ffefadd878f",
+      "description": "Turning a raise into an in-handler degrade forfeits the Step Functions retry ladder, so a transient fault longer than the handler's own backoff budget drops data",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "jest-agent-reporter-hides-passing-suites-in-gate-log",
       "bytes": 1766,
       "sha256": "dfb71ad5cedd952ca031d3c1508cc0cb61f8a9def322e273a6cddea764788c67",
@@ -385,6 +417,14 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "lambda-layer-bundler-ships-sibling-layer-symlinks-broken",
+      "bytes": 1821,
+      "sha256": "869b6acdd21b3cea750130162f07f2d608561adca0dcb42de02ea81205b395de",
+      "description": "A Lambda layer bundler that packs one layer folder alone ships a symlink to a sibling layer as a dangling link, so share a module by placing its one copy in a layer the functions already attach",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "lambda-layer-wheels-built-native-to-arm-synth-host",
       "bytes": 1852,
       "sha256": "3146fb7a5f943bfe2a68630715941f452a81fb7afb8a25adfb94c5a1076422f9",
@@ -409,6 +449,14 @@
       "provenance": "code-verified"
     },
     {
+      "slug": "logs-insights-startquery-rejects-the-widget-source-prefix",
+      "bytes": 1570,
+      "sha256": "c018080cf4d55f047438a44b6179955cc459d8dbd76f1ea0f76a3c7d1ceef7fb",
+      "description": "CloudWatch Logs Insights StartQuery rejects the dashboard widget form's SOURCE prefix and a query that opens with a pipe, so run any printed query through StartQuery once before a runbook depends on it",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "mechanical-tag-sweep-can-corrupt-backtick-quoted-comment-tokens",
       "bytes": 2711,
       "sha256": "54fa7678be71243946c41899ad40f4c76e5381567eaa023b6dd4234fc2d0559e",
@@ -421,6 +469,14 @@
       "bytes": 2797,
       "sha256": "41ffb8ad313e055502e2681cbbe3e48b72705edbcd1d3090fb3f45c46c2cf50a",
       "description": "A fork-per-item parallel helper copies static_args dicts, so child mutations never reach parent or siblings",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "moving-explicitly-named-monitors-between-stacks-deletes-first-and-loses-a-metric-window",
+      "bytes": 2664,
+      "sha256": "ac9b84a06131453f10bb4b17ede1bdadbfd3698b8f6206f10840312ec51b370b",
+      "description": "Moving explicitly named CloudWatch monitors to another stack deletes before it creates, which loses a metric window and resets alarm state",
       "type": "project",
       "provenance": "code-verified"
     },
@@ -465,6 +521,14 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "optional-fast-dependency-fallback-runs-untested-on-a-layer-that-omits-it",
+      "bytes": 2341,
+      "sha256": "ffa036939fc3cfdcad7e0a4dd0676914cb71926be31e5848c3ef7469ebf1dab1",
+      "description": "A module with an optional fast dependency and a pure-Python fallback silently runs the slow fallback on a Lambda layer that omits the dependency, and no test forces that path",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "overrides-loop-lacks-nonobject-type-guard-unlike-memory-block",
       "bytes": 2152,
       "sha256": "90a5b6cfbc78bd58bfd6c00a1b971823295a9b731b0b3d4450017d0d8b692478",
@@ -477,6 +541,14 @@
       "bytes": 4162,
       "sha256": "e4f92d3fe2f950178679cc5854726ac4c8b2dd3a92c5de4f276196f84fbeab1f",
       "description": "Plain git check-ignore reads the index, so a hook walk that mirrors ripgrep skips must ask with --no-index",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "port-plan-literals-lose-to-live-source-capture-at-deployed-sha",
+      "bytes": 2136,
+      "sha256": "b2499e2598ef183c2b1ea701373fc2260834c88a7abeee45f24e140cde85a139",
+      "description": "A plan's claims about the source system of a port were wrong five times in one phase, so capture fixtures from the deployed commit",
       "type": "project",
       "provenance": "code-verified"
     },
@@ -677,6 +749,30 @@
       "bytes": 3565,
       "sha256": "84c850ad39e837283b0b1a2f58ac34c81afb583274666b0bf290b4a62cc3ea17",
       "description": "A stranded remote tip makes `git branch -d` refuse a local branch that IS merged into master — unset the upstream, don't escalate to -D",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "submodule-file-move-dangles-superproject-symlinks-until-the-bump-commit-retargets-them",
+      "bytes": 2050,
+      "sha256": "97ce593d5a82fcc7dd7e4924777fc6fd0d668f637c4195be6b604f5b6471e2e3",
+      "description": "Moving or renaming a file in a shared-library submodule leaves superproject symlinks to it dangling until the submodule bump commit retargets them",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "submodule-helper-param-removal-breaks-superproject-consumer-test",
+      "bytes": 1908,
+      "sha256": "82c1f46c3c74eb5b975d4ae0916a078db186e322d5686b85bd78fe9a340d3b4c",
+      "description": "A sweep for callers of a shared-library helper that covers only the library missed a superproject test passing the removed parameter, so the submodule bump broke it",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "submodule-reads-use-git-show-at-the-gitlink-not-the-working-tree",
+      "bytes": 1650,
+      "sha256": "f09ab4b4ccda39654cfb6ad75a0f25668d725742358fd92513c3666d298a2539",
+      "description": "A submodule working tree can lag the commit the superproject pins, so read submodule code with git show at the pinned SHA",
       "type": "project",
       "provenance": "code-verified"
     },
