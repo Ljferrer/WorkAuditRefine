@@ -17,75 +17,17 @@ metadata:
   created: 2026-07-10
   updated: 2026-08-05
   keywords:
-    - phase boundary persistence
-    - cross-phase gitdir sweep
-    - trailing release phase persistence check
-    - p2-2.17
+    - servitor cwd
+    - stale worktree
+    - worktree lag
+    - landed phase
     - landed tip anchor
-    - Landed tip prompt line
     - landedTipAnchor
     - grounding ladder
-    - tipSha hoist
-    - ADR 0034
-    - premise retired
-    - stale worktree
     - D3 verify-on-write
-    - servitor cwd
-    - landed phase
-    - worktree lag
     - absence check
-    - branch mismatch
+    - cross-phase gitdir sweep
     - phase wrap-up
-    - checkout stale
-    - gate-audit rationale
-    - positive confirmation
-    - session-stable lag
-    - HEAD ref check
-    - task worktree gitdir
-    - war-worktrees
-    - worktree name collision
-    - reserved worktree name _refinery
-    - gitdir numeric suffix
-    - reaped task worktree
-    - gate-audit confirmed-tip fallback
-    - main checkout no worktree
-    - branch not locally fetched
-    - packed-refs absent
-    - version-slots test
-    - release version bump verification
-    - loose ref present no checkout
-    - same branch reused across phases
-    - campaign branch persistence
-    - servitor cwd is a linked worktree
-    - Glob bare directory pattern returns nothing
-    - Glob wildcard file suffix required
-    - false negative live worktree enumeration
-    - HEAD suffix glob pattern
-    - nested task worktree under session worktree
-    - war/wt path convention
-    - task worktree naming scheme drift
-    - release phase version bump confirmed via task worktree
-    - p3-3.1
-    - cross-phase fix persistence
-    - trailing release phase wrap-up
-    - test orchestration harness gap not phase-specific
-    - p2-2.13
-    - p2-2.16
-    - _refinery6
-    - persistent worktree fixture
-    - cross-campaign recurrence
-    - long-lived session worktree
-    - war-memory-hardening
-    - cli-main-guard-normalization
-    - realpathSync gitdir sweep
-    - refinery worktree resets after land
-    - ort strategy merge tree-identical
-    - first-parent ancestor merge commit
-    - Landed tip line present but sweep still short
-    - _refinery7
-    - p5-polish worktree
-    - reflog HEAD history
-    - dev branch ref matches but no live worktree
     - run-UUID worktree directory
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
   modified: 2026-08-07T00:16:06.428Z

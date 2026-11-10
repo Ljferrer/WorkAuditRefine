@@ -91,18 +91,7 @@ Its own comment rules that second arm a known residual.
 **Moot since this was written:** `PARTIAL_LOG_RULE` was rewritten, so its "you started" and "named
 above" wording is gone, from `agents/war-refiner.md` too.
 
-**Still open at master 4b101693** (a worklist, not a durable fact; file it or absorb it, then cut it here):
-
-- `skills/war/references/schemas.md`, the `citation?` row omits `cited`, which `citationOf` returns.
-- `workflow-template.js`, the `queuedFindingRow` header comment writes sha `#3f55b04` like an issue number.
-- `workflow-template.test-harness.mjs`, the `Args for the citation family` comment: one line overruns its neighbors' wrap.
-- `workflow-template.engine-1.test.mjs`, the `intake normalization: default-deny census` title says "strips seats/merged" behind its assert ("seats/merged/drainCause/demoteReason").
-- `workflow-template.js`, the `drainCauseOf` header comment: "both sit outside any local try" is false for the filing-prompt row inside the file-followups `try`.
-- `GLOSSARY.md`, the **Disposition** entry still says `phaseClose:true`/release-slot-adjacent, though routing is by literal now.
-- `skills/war/references/disposition-eligibility.md`, the `Release-slot eligibility by literal` blockquote does not say the CHANGELOG head and the README `## Status` twin move together.
-- `skills/war/references/design.md`, the §18 `Disposition routing` bullet still ends "route to the sweep instead of being refused".
-- `workflow-template.js`, the `throughRound` comment ("already stamped one round lower") says `chainRecordFix` runs before the `absorbRounds` charge; at the ace fixer sites the charge comes first.
-- `skills/war-strategy/references/fork-trials.md`, the per-command cap paragraph: "This host has none" states one machine's fact.
+**Still open:** the stale doc and comment nits this lesson collected are tracked in #2660. Fix them there, not here.
 
 **Why:** the tags look like "cheap, will be picked up", so the audit log reads as if the fix landed.
 No gate turns that into a duty once the verdict is `approve`.
