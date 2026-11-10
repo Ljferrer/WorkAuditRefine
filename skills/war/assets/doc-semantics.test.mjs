@@ -618,6 +618,12 @@ const SEED_AND_RED_ROWS = [
     extract: (r) => lineStarting(r, '- 2026-11-09 · Amendment: the relaunch seed has a third source'),
     old: [],
     new: ['read once more by one `charge-probe` dispatch', 'the keys each map carried and the shape of each return that had no map'] },
+  // The 2026-09-03 policy bullet itself: it must stop teaching the retired 0-on-absence seed.
+  { name: 'ADR 0013 relaunch seed policy bullet', file: 'docs/adr/0013-commanders-intent-and-disposition-routing.md',
+    extract: (r) => between(r, '- **The trailer and the relaunch seed.**', '- **Exhaustion routes to the sweep'),
+    old: ['0 with a loud log on error or absence'],
+    new: ['read once more by one `charge-probe` dispatch (D40, #2676)', 'only a task still unseeded seeds 0 with a loud log',
+      'the map keys and each return\'s shape'] },
   // The card sentence and the barrier prompt sentence are twins: both rows pin the same phrase.
   { name: 'refiner card barrier item, failing read', file: REFINER_CARD,
     extract: (r) => lineStarting(r, '1. **Phase git-topology barrier'),
