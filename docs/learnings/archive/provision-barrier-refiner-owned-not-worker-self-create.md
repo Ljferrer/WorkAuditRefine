@@ -40,3 +40,5 @@ A worker cannot scope itself: the PreToolUse hook keys write scope on `agent_typ
 - **ensure-integration gets `--owned-file <run-ledger>`.** A resume then recognizes its own integration branch as owned; a foreign, unrecorded branch fails loud (the ownership seam described in the `provision-worktrees.sh` header).
 
 Later work added to this barrier without rewriting it: repo-derived `run.provision` steps (env-blocked on failure), and the derive-skip, ref-holder auto-free, stale-remote, worktree-hygiene and absorb-charge clauses (`deriveSkipClause`, `holderFreeClause`, `staleRemoteClause`, `worktreeHygieneClause`, `absorbChargesClause`). The ownership invariant above is what stayed load-bearing.
+
+> archived 2026-11-10: resolved — moved to archive

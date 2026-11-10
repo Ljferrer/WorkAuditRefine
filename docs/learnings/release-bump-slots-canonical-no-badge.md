@@ -32,4 +32,6 @@ metadata:
 
 **Rule.** A release bumps `.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `metadata.version` and `plugins[0].version`, and the README `## Status` paragraph, which is replaced, never appended ([[release-status-is-replace-slot-not-empty-field]]). Bumping only one `marketplace.json` slot is a silent partial bump. The README has no version badge: a plan slice that says "bump the README badge" is a reused-template artifact, so skip it and never add one.
 
+**The Status slot (merged from [[release-status-is-replace-slot-not-empty-field]]).** `## Status` holds exactly one current-release paragraph and is never empty after the first release. Overwrite the whole paragraph, and diff the whole region from the heading through the next `## `, because a partial replace once left a stale bullet that contradicted the new headline. Read any "populate" wording on a single-value slot as "replace and verify the baseline".
+
 **How to apply:** bump the four slots, skip any badge mention, and read "populate empty Status" as "replace the current paragraph". Related: [[audit-baseline-must-pin-integration-branch-not-main-checkout]].

@@ -47,3 +47,5 @@ Without that, the field keeps its old trust level in prose but loses it in code.
 Related: [[audit-log-finding-can-be-stale-by-land-time]].
 
 Locate-cue: verify still present before acting. Found `gitBoundGateSha` and its two callers in `skills/war/assets/workflow-template.js` at landed tip 9bcc4fa6 (phase 2).
+
+> archived 2026-11-10: resolved — moved to archive

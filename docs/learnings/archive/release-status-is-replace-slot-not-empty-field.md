@@ -54,3 +54,7 @@ metadata:
 **Recurrence 1 (2026-08-18, task #1544, fixed before land in `e68ee16`).** A release worker replaced only the Status headline and left the prior release's bullet list under it, and one stale bullet contradicted the new headline. No check caught it, only the Lead reading the diff. README Status no longer carries a bullet block, but the generic rule stands: diff the whole `## Status` region (heading through the next `## `), not just the paragraph you touched.
 
 Related: [[release-blurb-overstates-guard-semantics]] (precision of a claim within the paragraph); [[audit-log-finding-can-be-stale-by-land-time]] (same "fixed before land" shape — record the pattern, not the resolved instance); [[readme-markdown-links-excluded-from-reference-link-integrity-sweep]] (README sits outside the mechanical sweeps); [[retire-token-needs-clean-surface-gate-test]].
+
+merged into [[release-bump-slots-canonical-no-badge]]
+
+> archived 2026-11-10: resolved — moved to archive

@@ -35,3 +35,5 @@ A worker that matches the adjudicated version is correct.
 A worker that matches neither the literal nor the adjudication is a defect.
 
 See also [[stacked-release-plan-version-literal-lags-operator-target]] for the case where only the task instruction differs. Related: [[release-status-is-replace-slot-not-empty-field]], [[release-bump-slots-canonical-no-badge]].
+
+> archived 2026-11-10: resolved — moved to archive
