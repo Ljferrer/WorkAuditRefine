@@ -106,7 +106,7 @@ const SKELETON = {
       'The rules': [
         [/Chain from the cited End state to the tip YOURSELF first/, /Outcome:/, /Chain:/, /Bottleneck:/, /Fix:/, /Ignore for now:/],
         [/outcome citation/, /severity/],
-        [/`relation: <tag>`/, /LAST line/],
+        [/`relation: <tag>`/, /LAST line/, /`upstream link:`/],
         [/bottleneck/, /sibling finding/],
         [/Thin evidence/, /at most Minor/],
         [/Off the chain lowers no Critical/, /Minor or Nit never holds a task/],
@@ -386,6 +386,7 @@ const CONTROLS = [
   { check: 'rule counts and construct keys per enumerated list', file: 'fix', name: 'fixer Build variants: clause 4 adds the word floor', mutate: (t) => t.replace("the outcome is the surface's byte budget", "the outcome is the surface's byte budget floor"), red: /backward-chain-fix\.md ## Build variants item 4: names the byte budget, never a floor or a cap/ },
   { check: 'rule counts and construct keys per enumerated list', file: 'fix', name: 'fixer Round 3: drop the third move', mutate: (t) => t.replace(/\n3\. Ask the Focusing Question over the whole history[^\n]*\n/, '\n'), red: /backward-chain-fix\.md ## Round 3 and later: 3 items, numbered 1\.\.3 contiguous/ },
   { check: 'rule counts and construct keys per enumerated list', file: 'audit', name: 'audit rules: drop rule 3 and renumber', mutate: (t) => t.replace(/\n3\. Write exactly one line `relation: <tag>`[^\n]*\n/, '\n').replace('\n4. Name the bottleneck.', '\n3. Name the bottleneck.').replace('\n5. Thin evidence', '\n4. Thin evidence').replace('\n6. Off the chain', '\n5. Off the chain').replace('\n7. Audit the', '\n6. Audit the').replace('\n8. State what', '\n7. State what'), red: /backward-chain-audit\.md ## The rules: 8 items, numbered 1\.\.8 contiguous/ },
+  { check: 'rule counts and construct keys per enumerated list', file: 'audit', name: 'audit rules: rule 3 drops the upstream link sentence (#2302)', mutate: (t) => t.replace(/ Just before that line, write `upstream link:`[^\n]*/, ''), red: /backward-chain-audit\.md ## The rules item 3: carries the record's construct key \/`upstream link:`\// },
   { check: 'rule counts and construct keys per enumerated list', file: 'audit', name: 'audit Variants: drop the pin-content bullet', mutate: (t) => t.replace(/\n- Pin-content re-audit:[^\n]*\n/, '\n'), red: /backward-chain-audit\.md ## Variants: 2 items, numbered 1\.\.2 contiguous/ },
   { check: 'rule counts and construct keys per enumerated list', file: 'worker', name: 'worker rules: drop rule 8', mutate: (t) => t.replace(/\n8\. A link you cannot make true[^\n]*\n/, '\n'), red: /backward-chain-worker\.md ## The rules: 8 items, numbered 1\.\.8 contiguous/ },
   { check: 'rule counts and construct keys per enumerated list', file: 'worker', name: 'worker rules: rule 1 loses the DEPS ALREADY MERGED sub-clause', mutate: (t) => t.replace(' When the prompt carries the prepended `DEPS ALREADY MERGED:` dispatch clause, the rebase is still the first act, and the chain ends at the rebased tip.', ''), red: /backward-chain-worker\.md ## The rules item 1: carries the record's construct key \/DEPS ALREADY MERGED\// },
