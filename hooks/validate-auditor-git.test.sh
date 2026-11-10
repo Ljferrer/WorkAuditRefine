@@ -1389,7 +1389,7 @@ expect_deny_teach "GF31: git blame -e '--porcelain' hooks/f → denied (a git-va
 expect_deny_lacks "GF32: a dash-led quote deny hides the mask word" \
   "$(q_cmd "git blame -e '--porcelain' hooks/f")" "QUOTEDVALUE"
 
-# git_runs <command>: copied from audit-tree-fingerprint.test.sh. The command
+# git_runs <command>: copied from audit-tree-fingerprint-marks.test.sh. The command
 # runs under real git in a scratch repo and exits 0, or 1 with no `error:` or
 # `fatal:` line on stderr (a grep with no match). Every GF admit row must name
 # a command git accepts (operator ruling 2026-11-05, constraint 8).
