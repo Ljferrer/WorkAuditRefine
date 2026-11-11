@@ -86,14 +86,17 @@ record('end')
 for (const failure of ['node', 'shell', 'both']) test(`a ${failure} failure cannot hide other suites or produce a green gate`, t => {
   const { put, run } = fixture(t)
   if (failure !== 'shell') put('skills/basic.test.mjs', "throw new Error('node-failure')\n")
+  // The smaller file starts second in each pool, so it proves a failure drains the pool.
+  put('skills/z.test.mjs', "console.log('last-node')\n")
   put('a.test.sh', `echo first-suite; exit ${failure !== 'node' ? 7 : 0}\n`)
   put('z.test.sh', 'echo last-suite\n')
   const result = run({ WAR_GATE_SHELL_JOBS: '1', WAR_GATE_NODE_JOBS: '1' })
   assert.equal(result.status, 1, result.stdout + result.stderr)
-  assert.match(result.stdout, /first-suite/)
-  assert.match(result.stdout, /last-suite/)
-  assert.match(result.stdout, /== gate complete: 3\/3 jobs; [12] failed ==/)
-  assert.match(result.stdout, /== gate\(node\): \.\/skills\/basic\.test\.mjs ==/)
+  for (const text of ['first-suite', 'last-suite', 'last-node']) assert.match(result.stdout, new RegExp(text))
+  assert.match(result.stdout, new RegExp(`== gate complete: 4/4 jobs; ${failure === 'both' ? 2 : 1} failed ==`))
+  assert.match(result.stdout, new RegExp(`== gate result: gate\\(node\\): \\./skills/basic\\.test\\.mjs; exit=${failure === 'shell' ? 0 : 1};`))
+  assert.match(result.stdout, new RegExp(`== gate result: gate\\(bash\\): \\./a\\.test\\.sh; exit=${failure === 'node' ? 0 : 7};`))
+  assert.match(result.stdout, /== gate result: gate\(node\): \.\/skills\/z\.test\.mjs; exit=0;/)
 })
 
 test('zero shell suites still runs the Node gate', t => {
@@ -101,6 +104,39 @@ test('zero shell suites still runs the Node gate', t => {
   const result = run()
   assert.equal(result.status, 0, result.stdout + result.stderr)
   assert.match(result.stdout, /== gate complete: 1\/1 jobs; 0 failed ==/)
+})
+
+for (const shape of ['an empty skills folder', 'no skills folder']) test(`zero Node files (${shape}) still runs the shell suites`, t => {
+  const { root, put, run } = fixture(t)
+  rmSync(join(root, 'skills'), { recursive: true, force: true })
+  if (shape === 'an empty skills folder') mkdirSync(join(root, 'skills'))
+  put('a.test.sh', 'echo only-suite\n')
+  const result = run()
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  assert.match(result.stdout, /only-suite/)
+  assert.match(result.stdout, /== gate complete: 1\/1 jobs; 0 failed ==/)
+  assert.doesNotMatch(result.stdout, /gate\(node\)/)
+})
+
+test('the Node file set matches the old skills glob, and odd file names run as themselves', t => {
+  const { root, put, run } = fixture(t)
+  rmSync(join(root, 'skills/basic.test.mjs'))
+  const job = name => `import { appendFileSync } from 'node:fs'\nappendFileSync('ran', ${JSON.stringify(name)} + '\\n')\n`
+  // Run: plain, nested, glob characters, a symlinked file.
+  for (const name of ['plain', 'nested/deep', 'odd[1]', 'br{a}ce', 'pa(r)en', 'st*r', 'n!(o)']) put(`skills/${name}.test.mjs`, job(name))
+  put('skills/odd1.test.mjs', job('odd1'))
+  symlinkSync(join(root, 'skills/plain.test.mjs'), join(root, 'skills/link.test.mjs'))
+  // Left out: hidden folders, node_modules, files outside skills/, a symlinked folder.
+  for (const dir of ['.hid', '.claude', 'node_modules', 'nested/node_modules']) put(`skills/${dir}/x.test.mjs`, job(`wrong:${dir}`))
+  put('hooks/outside.test.mjs', job('wrong:outside'))
+  mkdirSync(join(root, 'elsewhere'))
+  put('elsewhere/linked.test.mjs', job('wrong:linkdir'))
+  symlinkSync(join(root, 'elsewhere'), join(root, 'skills/linkdir'))
+  const result = run()
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  const ran = readFileSync(join(root, 'ran'), 'utf8').trim().split('\n').sort()
+  assert.deepEqual(ran, ['br{a}ce', 'n!(o)', 'nested/deep', 'odd1', 'odd[1]', 'pa(r)en', 'plain', 'plain', 'st*r'])
+  assert.match(result.stdout, /== gate complete: 9\/9 jobs; 0 failed ==/)
 })
 
 test('a shell launch error fails visibly and drains every queued suite', t => {
@@ -210,16 +246,17 @@ test('Node test files start slowest first by the last run, and their times are r
   // (0, 0.7 and 1.4 s) stay wider than process start-up noise on a loaded machine.
   const job = (name, ms) => `import { appendFileSync } from 'node:fs'; import { test } from 'node:test'\n` +
     `appendFileSync('order', '${name}\\n')\ntest('${name}', async () => { await new Promise(r => setTimeout(r, ${ms})) })\n`
-  // Padding makes the size order the reverse of the slowest order.
-  put('skills/a-fast.test.mjs', job('fast', 0) + '// ' + 'x'.repeat(300) + '\n')
+  // Padding makes the size order the reverse of the slowest order, and the names make
+  // the path order the reverse of the size order, so each run tells the three apart.
+  put('skills/c-fast.test.mjs', job('fast', 0) + '// ' + 'x'.repeat(300) + '\n')
   put('skills/b-mid.test.mjs', job('mid', 700) + '// ' + 'x'.repeat(100) + '\n')
-  put('skills/c-slow.test.mjs', job('slow', 1400))
+  put('skills/a-slow.test.mjs', job('slow', 1400))
   let result = run({ WAR_GATE_NODE_JOBS: '1' })
   assert.equal(result.status, 0, result.stdout + result.stderr)
   assert.deepEqual(order(root), ['fast', 'mid', 'slow'], 'the first run has no record, so size order')
   const recorded = JSON.parse(readFileSync(times, 'utf8'))
-  assert.ok(recorded['./skills/c-slow.test.mjs'] > recorded['./skills/b-mid.test.mjs'], JSON.stringify(recorded))
-  assert.ok(recorded['./skills/b-mid.test.mjs'] > recorded['./skills/a-fast.test.mjs'], JSON.stringify(recorded))
+  assert.ok(recorded['./skills/a-slow.test.mjs'] > recorded['./skills/b-mid.test.mjs'], JSON.stringify(recorded))
+  assert.ok(recorded['./skills/b-mid.test.mjs'] > recorded['./skills/c-fast.test.mjs'], JSON.stringify(recorded))
   rmSync(join(root, 'order'))
   result = run({ WAR_GATE_NODE_JOBS: '1' })
   assert.equal(result.status, 0, result.stdout + result.stderr)

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // WAR's own full gate: Node files and discovered shell suites run in separate bounded pools.
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, openSync, closeSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, openSync, closeSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -13,18 +13,34 @@ function jobs(name, fallback) {
   return Number(value)
 }
 
-function discover(dir, suffix) {
+// skip(name) says which folders to leave out. linkedFiles also takes a symlink to a file.
+// No walk enters a symlinked folder.
+function discover(dir, suffix, skip, linkedFiles = false) {
   const paths = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = `${dir}/${entry.name}`
     if (entry.isDirectory()) {
-      if (!['.git', '.claude', 'node_modules'].includes(entry.name)) paths.push(...discover(`${dir}/${entry.name}`, suffix))
-    } else if (entry.isFile() && entry.name.endsWith(suffix)) paths.push(`${dir}/${entry.name}`)
+      if (!skip(entry.name)) paths.push(...discover(path, suffix, skip, linkedFiles))
+    } else if (entry.name.endsWith(suffix)
+      && (entry.isFile() || (linkedFiles && entry.isSymbolicLink() && statSync(path, { throwIfNoEntry: false })?.isFile()))) {
+      paths.push(path)
+    }
   }
   return paths.sort()
 }
-const shellSuites = () => discover('.', '.test.sh')
-// The same set as the `skills/**/*.test.mjs` glob, listed so the gate can order it.
-const nodeFiles = () => { try { return discover('./skills', '.test.mjs') } catch (error) { if (error.code === 'ENOENT') return []; throw error } }
+const shellSuites = () => discover('.', '.test.sh', name => ['.git', '.claude', 'node_modules'].includes(name))
+// The same set the `skills/**/*.test.mjs` glob gave `node --test`, listed so the gate can
+// order it: no hidden folder, no node_modules, symlinked files in, symlinked folders out.
+// A repo with no skills/ folder has no Node files. Any other read error fails the gate.
+const nodeFiles = () => (existsSync('./skills')
+  ? discover('./skills', '.test.mjs', name => name.startsWith('.') || name === 'node_modules', true)
+  : [])
+// `node --test` reads each argument as a glob, so a file name with glob characters
+// would match nothing and fail as "Could not find". Wrap each such character in a
+// one-character class so the argument names exactly that file. A `!` is left bare:
+// it acts only at the start of a pattern or before `(`, and every path starts with
+// `./` and every `(` is wrapped.
+const literalGlob = path => path.replace(/[*?[\]{}()+@]/g, ch => `[${ch}]`)
 
 // Each shell suite's and Node test file's seconds from the last gate run, kept in the git common dir so every
 // worktree of the repo shares them. A missing or unreadable file means no record.
@@ -131,7 +147,7 @@ async function main() {
     return async function worker() {
       while (!interrupted && next < items.length) {
         const index = next++
-        const seconds = await run(`gate(${kind}): ${items[index]}`, command, prefix ? [prefix, items[index]] : [items[index]], `${id}-${index}`)
+        const seconds = await run(`gate(${kind}): ${items[index]}`, command, prefix ? [prefix, literalGlob(items[index])] : [items[index]], `${id}-${index}`)
         if (!interrupted && seconds !== undefined) ran.set(items[index], seconds)
       }
     }

@@ -429,8 +429,8 @@ Set `WAR_GATE_NODE_JOBS` and `WAR_GATE_SHELL_JOBS` to tune the pools independent
 (Node defaults to `6` and shell to `4`, each accepts `1`–`32`). These limits apply per gate invocation;
 concurrent WAR runs share the machine, so start with the defaults.
 
-The Node invocation and each shell suite get separate temporary directories and
-logs under the printed `Gate logs:` path. Completed suite output is emitted as a contiguous block, with
+Each Node test file and each shell suite gets its own temporary directory and log
+under the printed `Gate logs:` path. Completed suite output is emitted as a contiguous block, with
 its exit status and elapsed time. Logs remain for inspection; scratch directories
 are removed after the jobs stop. Failures do not skip queued suites: the gate waits
 for all jobs and exits nonzero if any fail. `== gate complete:` marks a fully
