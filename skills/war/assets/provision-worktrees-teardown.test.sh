@@ -777,7 +777,7 @@ expect "RWB.d: dedicated branch did NOT move (never re-cut)" \
 # (git wording varies across versions; on a future miss EXTEND the fragment list,
 # never weaken to "any non-static content"). RWB.c above stays the success /
 # idempotency control, unmodified. Die stderr captured via the T2.3/T2.6
-# hand-rolled inline idiom (run_in echoes only the exit code; run_in_detached
+# hand-rolled inline idiom (rows in provision-worktrees.test.sh) (run_in echoes only the exit code; run_in_detached
 # swallows both streams — neither can assert die text). ---
 RWB_E="$(new_repo)"
 git -C "$RWB_E" remote add origin "/nonexistent/path/that/cannot/be/a/repo-eo.git"
@@ -816,7 +816,7 @@ expect "RWB.f: the nested derived name was NOT created" \
 # fixture repo with a leaf branch `war/<slug>` blocks the task-branch namespace,
 # so resolve-working-branch must die at Setup — BEFORE any task dispatch could
 # hit the block mid-phase — naming the leaf in stderr. Die text captured via the
-# T2.3/T2.6 inline idiom (run_in echoes only the exit code). The probe precedes
+# T2.3/T2.6 inline idiom (rows in provision-worktrees.test.sh) (run_in echoes only the exit code). The probe precedes
 # the branch_checked_out_anywhere collision fork, so this one no-collision shape
 # suffices for both paths. Exit is pinned to 1 (the plain-die default): this is
 # a namespace/argument problem, deliberately NOT EX_FOREIGN(3).
@@ -1784,7 +1784,8 @@ expect "large-registry: sync-follower leaves a checked-out branch in place" \
 # Case (PIPE) one row per site converted from `printf | grep` to a case match.
 # Each hit sits in the first line of an output over 64 KiB, so the old pipeline
 # went red here too. A shim stands in for the two git calls that produce the
-# output. Rows MG.2-MG.3 and T2.1/T2.9 pin the same sites with real git output.
+# output. Rows MG.2-MG.3 here and T2.1/T2.9 in provision-worktrees.test.sh
+# pin the same sites with real git output.
 # ---------------------------------------------------------------------------
 PIPE_FILLER="$(dirname "$(new_wt_path)")/filler.txt"
 awk 'BEGIN { for (i = 0; i < 2000; i++) printf "filler line %060d\n", i }' > "$PIPE_FILLER"

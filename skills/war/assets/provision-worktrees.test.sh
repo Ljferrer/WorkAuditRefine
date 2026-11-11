@@ -1172,7 +1172,7 @@ expect "T2.4: origin/branch-b == new_sha_B (no cross-bleed)" \
 # because the precheck now intercepts pre-push (plan Notes / adjudication 10).
 # The step-3 post-push origin readback (`ls-remote origin == new_sha`) and its
 # comment STAY as defense in depth for a mid-push origin race. The lagging-ls-remote
-# rows LA.1 to LA.4 at the end of this file fixture that branch.
+# rows LA.1 to LA.4 in provision-worktrees-land.test.sh fixture that branch.
 #
 # CRUCIAL: this case does NOT use run_in_detached — that helper detaches HEAD to
 # <new-sha>, making HEAD == new_sha so the precheck passes and the push is a real

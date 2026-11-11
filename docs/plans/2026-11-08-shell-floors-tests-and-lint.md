@@ -483,7 +483,7 @@ Shell row labels: every shell suite this plan touches prints `ok - <label>`, and
 
 ## Notes / conscious deviations
 
-- The spec's Phases 1–3 fold into one Phase 1 (PIN-21). They share no landing edge, and the only in-phase dependency is T1.7 on T1.6. The spec's T1.6 and T2.1 both edit `provision-worktrees.sh` and its test, so they merge into one task.
+- The spec's Phases 1–3 fold into one Phase 1 (PIN-21). They share no landing edge, and the only in-phase dependency is T1.7 on T1.6. The spec's T1.6 and T2.1 both edit `provision-worktrees.sh` and its tests, so they merge into one task.
 - The spec put `skills/war/references/setup.md`, `skills/war/SKILL.md`, `skills/war-room/SKILL.md` and ADR 0044 in its done-when task. Here the setup.md and SKILL.md doctrine rides T2.1 with the engine that implements it, `/war-room` rides T2.2 with the config key, and the ADR lines ride T2.5. The done-when floor (T1.7) only names the knob.
 - The spec's §5 Phase 2 list names `GLOSSARY.md` and ADR 0021 with no owning task. T2.5 owns both. Only three of the spec's five terms get entries (PIN-23), because `GLOSSARY.md` has 455 B of headroom at 35aa4144.
 - The task brief asked for a separate eviction task in the same phase. `agents/war-refiner.md` is in T2.1's `Files:`, and two tasks may not share a file in one phase, so the eviction is part of T2.1.
