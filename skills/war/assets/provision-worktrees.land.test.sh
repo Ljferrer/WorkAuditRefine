@@ -2,12 +2,12 @@
 # Tests for the WAR provisioning script (skills/war/assets/provision-worktrees.sh):
 # the ensure-worktree existing-branch path (EB rows), the land-advance post-push
 # readback (LA rows), and the remote-rejected retry (RR rows).
-# The shared helpers live in provision-worktrees.test-lib.sh (its header
+# The shared helpers live in provision-worktrees.test-harness.sh (its header
 # describes the runner and the ownership seam). #2824 split the suite into
 # three files so they run in parallel. Plain-bash assertion runner, bash 3.2
 # safe, cwd-independent. Exit 0 = all cases passed.
 HERE="$(cd "$(dirname "$0")" && pwd)"
-. "$HERE/provision-worktrees.test-lib.sh"
+. "$HERE/provision-worktrees.test-harness.sh"
 
 # ---------------------------------------------------------------------------
 # #2493: ensure-worktree's existing-branch path. After the add, a branch that the
@@ -770,4 +770,4 @@ expect "RR doc: each Lead land-advance recipe runs with the raised tool timeout"
 expect "RR doc: the script still prints the quoted die" yes "$(la_has "$(cat "$SCRIPT")" 'git push failed (rc=$push_rc) after $retries retries:')"
 
 # ---------------------------------------------------------------------------
-finish provision-worktrees-land.test.sh
+finish provision-worktrees.land.test.sh

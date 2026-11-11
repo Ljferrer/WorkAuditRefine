@@ -43,4 +43,4 @@ metadata:
 
 **Coverage.** Since #2742 (`ec3e7ae7`, "bound every fingerprint git call") `git rev-parse HEAD` in `fingerprint` runs through `bounded`, and `git worktree list` in `marked_worktrees_of` runs through `bcap` (`bounded` with stdout captured in a temp file). For the hook's other residuals, see [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]].
 
-**Locate-cue (verify still present before acting).** In `hooks/audit-tree-fingerprint.sh`: `bounded()`, `bcap()`, the `>/dev/null 2>&1 &` watchdog line, the `[ "$_crc" = 143 ] && expired && return 3` line, and the `DEADLINE=$((10#$DEADLINE))` line. In `hooks/audit-tree-fingerprint-deadline.test.sh` (#2823 split the suite): the `SHIM_SLOW` and `SHIM_TERM` shim and rows d6 to d8.
+**Locate-cue (verify still present before acting).** In `hooks/audit-tree-fingerprint.sh`: `bounded()`, `bcap()`, the `>/dev/null 2>&1 &` watchdog line, the `[ "$_crc" = 143 ] && expired && return 3` line, and the `DEADLINE=$((10#$DEADLINE))` line. In `hooks/audit-tree-fingerprint.deadline.test.sh` (#2823 split the suite): the `SHIM_SLOW` and `SHIM_TERM` shim and rows d6 to d8.

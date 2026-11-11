@@ -14,7 +14,7 @@ metadata:
     - uniqueness claim
     - count-free invariant
     - route identity
-    - provision-worktrees.test.sh
+    - provision-worktrees.core.test.sh
     - cmd_land_advance
     - readback mismatch
     - audit disposition note vs absorb
@@ -47,7 +47,7 @@ prose accuracy. The correct audit disposition for a plan-mandated inaccuracy is 
 pass explicitly scoped to the wording, not the landing task.
 
 **What happened:** plan `2026-07-24-land-advance-exit-contract-truth` Task 1.2 replaced the T2.9
-census comment in `skills/war/assets/provision-worktrees.test.sh` with a count-free invariant that
+census comment in `skills/war/assets/provision-worktrees.core.test.sh` with a count-free invariant that
 called the push-error branch "the only SILENT exit-3 route". A trace of `cmd_land_advance` in
 `skills/war/assets/provision-worktrees.sh` showed a **second** silent `exit 3`: the post-push
 origin-readback-mismatch arm on the push-**success** path. The plan mandated the wording verbatim,
@@ -61,14 +61,14 @@ task corrected the census to name both silent routes, but kept a "route identity
 disposed it `note`, since it was the plan's own mandated shape.
 
 **Resolved in the live census:** the T2.9 case-comment block (immediately preceding
-`PAIR9="$(setup_origin_pair)"` in `skills/war/assets/provision-worktrees.test.sh`) now proves route
+`PAIR9="$(setup_origin_pair)"` in `skills/war/assets/provision-worktrees.core.test.sh`) now proves route
 identity in TWO steps — (b)+(d) exclude the LOUD routes; (c)+(e) then discriminate between the two
 silent ones — explicitly naming (c) push-declined and (e) origin-tip-unchanged as the
 discriminators. Both the headline uniqueness falsehood and the non-following-inference wrinkle are
 fixed.
 
 **Former anchors (both search strings are now gone from the file):** the T2.9 block comment's
-invariant sentence in `skills/war/assets/provision-worktrees.test.sh` (search
+invariant sentence in `skills/war/assets/provision-worktrees.core.test.sh` (search
 `the only SILENT exit-3 route`, later "route identity rests on (b)+(c)+(d) TOGETHER"); the
 post-push readback-mismatch line in `cmd_land_advance`, `skills/war/assets/provision-worktrees.sh`
 (search `[ "$actual" = "$new_sha" ] || exit 3`).

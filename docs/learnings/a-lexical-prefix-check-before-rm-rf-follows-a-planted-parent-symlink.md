@@ -36,4 +36,4 @@ A weaker `[ -L "$_pr" ]` guard would pass that row, so it did not prove the pare
 The fix made the tree a real directory under a linked parent, and asserted exit 2 with the old directory still present.
 A symlink oracle must isolate each link position the guard claims to cover.
 
-Locate-cue (verify still present before acting): the `is not a real record tree` infra exit in the `--prune` branch of `hooks/audit-tree-fingerprint.sh`, and the PR7 row in `hooks/audit-tree-fingerprint-marks.test.sh` (#2823 split the suite). Found at landed tip 242704f4 @ phase 1.
+Locate-cue (verify still present before acting): the `is not a real record tree` infra exit in the `--prune` branch of `hooks/audit-tree-fingerprint.sh`, and the PR7 row in `hooks/audit-tree-fingerprint.marks.test.sh` (#2823 split the suite). Found at landed tip 242704f4 @ phase 1.

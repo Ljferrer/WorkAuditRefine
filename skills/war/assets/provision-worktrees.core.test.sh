@@ -3,12 +3,12 @@
 # ensure-integration, ensure-exclude, ensure-worktree (with the reuse-path
 # submodule hygiene and RG rows), teardown-task, teardown-phase and prune,
 # ensure-refinery-worktree, and land-advance (T2 rows).
-# The shared helpers live in provision-worktrees.test-lib.sh (its header
+# The shared helpers live in provision-worktrees.test-harness.sh (its header
 # describes the runner and the ownership seam). #2824 split the suite into
 # three files so they run in parallel. Plain-bash assertion runner, bash 3.2
 # safe, cwd-independent. Exit 0 = all cases passed.
 HERE="$(cd "$(dirname "$0")" && pwd)"
-. "$HERE/provision-worktrees.test-lib.sh"
+. "$HERE/provision-worktrees.test-harness.sh"
 
 # ---------------------------------------------------------------------------
 # Case 1: ensure-integration <slug> 1 <working-tip> creates
@@ -601,8 +601,8 @@ expect "holder-die(ensure-publication-worktree): die names the holder path (chec
 # only clears THIS repo's stale registry — a worktree registered to a different
 # repo (a different run) lives in a different .git and is never pruned.
 #
-# Helpers:
-#   branch_exists_in <repo> <ref> -> "yes"/"no"
+# Helpers (defined in provision-worktrees.test-harness.sh):
+#   branch_exists_in <repo> <ref> -> "yes"/"no", and mk_run_dir
 # run-dir layout used by these cases mirrors production:
 #   <repo>/.claude/teams/<run-id>/worktrees/<task-id>
 # ---------------------------------------------------------------------------
@@ -938,6 +938,8 @@ expect "non-empty unregistered dir: precious file NOT deleted" \
 # deterministically (same method as spec §12):
 #   setup_origin_pair <slug> -> creates origin.git + clone1 + clone2;
 #     echoes "clone1_path clone2_path origin_path" space-separated.
+#   It is defined in provision-worktrees.test-harness.sh, with run_in_detached
+#   and seed_working_branch.
 # ---------------------------------------------------------------------------
 
 
@@ -1172,7 +1174,7 @@ expect "T2.4: origin/branch-b == new_sha_B (no cross-bleed)" \
 # because the precheck now intercepts pre-push (plan Notes / adjudication 10).
 # The step-3 post-push origin readback (`ls-remote origin == new_sha`) and its
 # comment STAY as defense in depth for a mid-push origin race. The lagging-ls-remote
-# rows LA.1 to LA.4 in provision-worktrees-land.test.sh fixture that branch.
+# rows LA.1 to LA.4 in provision-worktrees.land.test.sh fixture that branch.
 #
 # CRUCIAL: this case does NOT use run_in_detached — that helper detaches HEAD to
 # <new-sha>, making HEAD == new_sha so the precheck passes and the push is a real
@@ -1598,4 +1600,4 @@ expect "T2.9: push-error leaves the origin tip unchanged (still the seed)" \
 
 
 # ---------------------------------------------------------------------------
-finish provision-worktrees.test.sh
+finish provision-worktrees.core.test.sh

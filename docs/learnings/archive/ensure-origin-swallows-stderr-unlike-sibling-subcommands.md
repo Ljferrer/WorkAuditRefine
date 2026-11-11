@@ -42,7 +42,7 @@ The static never-force guidance **SURVIVED** — it was NOT deleted or replaced.
 `…refusing to force). git: <git's own stderr>`: the operator keeps the never-force context AND now
 also sees git's ground truth (e.g. `does not appear to be a git repository`). The push command, its
 refspec, and the `-u` flag are byte-identical (ADR 0004 never-force). Regression coverage:
-`provision-worktrees.test.sh` case `RWB.e` (a broken-origin-URL failure fixture); `RWB.c` stays the
+`provision-worktrees.core.test.sh` case `RWB.e` (a broken-origin-URL failure fixture); `RWB.c` stays the
 success/idempotency control, unmodified.
 
 **How to apply:** when a subcommand in this file needs better failure diagnosis, reuse the

@@ -2,15 +2,15 @@
 # Tests for the WAR audit tree fingerprint hook (hooks/audit-tree-fingerprint.sh):
 # the Task 8.1 operand forms, the Grep walk-down and Glob non-walk, grep_walk search roots, the grep_walk_root cache, and content sensitivity.
 # The shared fixture, payload builders and helpers live in
-# audit-tree-fingerprint.test-lib.sh (its header describes the hook and the
+# audit-tree-fingerprint.test-harness.sh (its header describes the hook and the
 # fixture). #2823 split the suite into four files so they run in parallel.
 # Plain-bash assertion runner, bash 3.2 safe, cwd-independent.
 # Exit 0 = all cases passed.
 HERE="$(cd "$(dirname "$0")" && pwd)"
-. "$HERE/audit-tree-fingerprint.test-lib.sh"
+. "$HERE/audit-tree-fingerprint.test-harness.sh"
 
 # Fixture state the old single suite built before these rows: row e1 (in
-# audit-tree-fingerprint.test.sh) committed g in wtB, and row t18 made wtA/sub.
+# audit-tree-fingerprint.core.test.sh) committed g in wtB, and row t18 made wtA/sub.
 # Row c4 renames that g, and row t30 walks through wtA/sub.
 printf 'new\n' > "$TMP/wtB/g"
 git -C "$TMP/wtB" add g
@@ -531,4 +531,4 @@ if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass "a symlink whose out-of-worktree ta
 
 
 # ---------------------------------------------------------------------------
-finish audit-tree-fingerprint-operands.test.sh
+finish audit-tree-fingerprint.operands.test.sh

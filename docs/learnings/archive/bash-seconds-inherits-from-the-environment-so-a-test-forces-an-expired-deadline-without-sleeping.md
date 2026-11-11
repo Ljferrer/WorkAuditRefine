@@ -34,6 +34,6 @@ metadata:
 
 **What it cannot reach.** Expiry is immediate, so the row exercises the entry pre-checks only: `expired` at `fingerprint` entry, and the pre-checks in `compare` and the SubagentStart loop. It never reaches the arms that fire mid-call: the `_frc = 3` branches ("still hashing" in `compare`, the marker write in the SubagentStart loop) and the per-path check in `blob_lines`. The rows in the section "the per-call watchdog (Task 8.1, ruling A, 2026-10-24)" now reach the `_frc = 3` branches: a `git` shim sleeps 5 s in `status`, `hash-object` or `ls-files`, and the hook kills the call at a 2 s deadline. The row "a start-arm watchdog kill records the stop point and lists every worktree it skipped" reaches the marker write. The per-path check in `blob_lines` still has no discriminating row: see the pinned list in [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]]. A row for a mid-call arm needs a call that is slow on purpose, which brings back the granularity problem. Give it a margin of several seconds, not one.
 
-**Locate-cue (verify still present before acting).** In `hooks/audit-tree-fingerprint-deadline.test.sh` (#2823 split the suite), the row titled "deadline override at or above 600 is clamped" runs the hook with `SECONDS=1000`.
+**Locate-cue (verify still present before acting).** In `hooks/audit-tree-fingerprint.deadline.test.sh` (#2823 split the suite), the row titled "deadline override at or above 600 is clamped" runs the hook with `SECONDS=1000`.
 
 > archived 2026-11-05: resolved — moved to archive
