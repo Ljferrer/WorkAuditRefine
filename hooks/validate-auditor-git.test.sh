@@ -736,10 +736,10 @@ hr_allow "helper relay twin: one -C <path> peel on each side of the pipe is allo
   'git -C . diff main...war-x | git -C . patch-id --stable'
 expect_deny "helper relay twin: a -C with no subcommand on the right side is denied" \
   "$(hr_cmd war-helper 'git -C . diff main...war-x | git -C .')"
-expect_deny "helper relay twin: a second pipe is denied" \
-  "$(hr_cmd war-helper 'git diff main...war-x | git patch-id --stable | git hash-object --stdin')"
-expect_deny "helper relay twin: || is denied" \
-  "$(hr_cmd war-helper 'git diff main...war-x || git patch-id --stable')"
+expect_deny_teach "helper relay twin: a second pipe is denied" \
+  "$(hr_cmd war-helper 'git diff main...war-x | git patch-id --stable | git hash-object --stdin')" "pipe bytes"
+expect_deny_teach "helper relay twin: || is denied" \
+  "$(hr_cmd war-helper 'git diff main...war-x || git patch-id --stable')" "pipe bytes"
 expect_deny "helper relay twin: |& is denied" \
   "$(hr_cmd war-helper 'git diff main...war-x |& git patch-id --stable')"
 expect_deny "helper relay twin: a redirect on a pipe side is denied" \
@@ -752,26 +752,26 @@ expect_deny "helper relay twin: a variable is denied" \
   "$(hr_cmd war-helper 'git rev-list --count $BASE..war-x')"
 expect_deny "helper relay twin: an empty pipe side is denied" \
   "$(hr_cmd war-helper 'git diff main...war-x |')"
-expect_deny "helper relay twin: ls-remote --exec= is denied" \
-  "$(hr_cmd war-helper 'git ls-remote --exec=touch . refs/heads/main')"
-expect_deny "helper relay twin: ls-remote --exec with a space value is denied" \
-  "$(hr_cmd war-helper 'git ls-remote --exec touch . refs/heads/main')"
-expect_deny "helper relay twin: ls-remote --upload-pack with a space value is denied" \
-  "$(hr_cmd war-helper 'git ls-remote --upload-pack touch . refs/heads/main')"
-expect_deny "helper relay twin: ls-remote abbreviated --up= is denied" \
-  "$(hr_cmd war-helper 'git ls-remote --up=touch . refs/heads/main')"
-expect_deny "helper relay twin: ls-remote -u is denied" \
-  "$(hr_cmd war-helper 'git ls-remote -u touch . refs/heads/main')"
+expect_deny_teach "helper relay twin: ls-remote --exec= is denied" \
+  "$(hr_cmd war-helper 'git ls-remote --exec=touch . refs/heads/main')" "run a command"
+expect_deny_teach "helper relay twin: ls-remote --exec with a space value is denied" \
+  "$(hr_cmd war-helper 'git ls-remote --exec touch . refs/heads/main')" "run a command"
+expect_deny_teach "helper relay twin: ls-remote --upload-pack with a space value is denied" \
+  "$(hr_cmd war-helper 'git ls-remote --upload-pack touch . refs/heads/main')" "run a command"
+expect_deny_teach "helper relay twin: ls-remote abbreviated --up= is denied" \
+  "$(hr_cmd war-helper 'git ls-remote --up=touch . refs/heads/main')" "run a command"
+expect_deny_teach "helper relay twin: ls-remote -u is denied" \
+  "$(hr_cmd war-helper 'git ls-remote -u touch . refs/heads/main')" "run a command"
 expect_deny "helper relay twin: ls-remote -qu cluster is denied" \
   "$(hr_cmd war-helper 'git ls-remote -qu touch . refs/heads/main')"
-expect_deny "helper relay twin: ls-remote of a URL repository is denied" \
-  "$(hr_cmd war-helper 'git ls-remote ext::touch refs/heads/main')"
-expect_deny "helper relay twin: ls-remote of a quoted repository is denied" \
-  "$(hr_cmd war-helper "git ls-remote 'ext::sh -c x' refs/heads/main")"
-expect_deny "helper relay twin: hash-object -tw cluster is denied" \
-  "$(hr_cmd war-helper 'git hash-object -tw --stdin')"
-expect_deny "helper relay twin: hash-object --write is denied" \
-  "$(hr_cmd war-helper 'git hash-object --write --stdin')"
+expect_deny_teach "helper relay twin: ls-remote of a URL repository is denied" \
+  "$(hr_cmd war-helper 'git ls-remote ext::touch refs/heads/main')" "never a URL or a quoted value"
+expect_deny_teach "helper relay twin: ls-remote of a quoted repository is denied" \
+  "$(hr_cmd war-helper "git ls-remote 'ext::sh -c x' refs/heads/main")" "never a URL or a quoted value"
+expect_deny_teach "helper relay twin: hash-object -tw cluster is denied" \
+  "$(hr_cmd war-helper 'git hash-object -tw --stdin')" "-w writes an object"
+expect_deny_teach "helper relay twin: hash-object --write is denied" \
+  "$(hr_cmd war-helper 'git hash-object --write --stdin')" "-w writes an object"
 expect_deny "helper relay twin: hash-object of a path is denied" \
   "$(hr_cmd war-helper 'git hash-object hooks/f')"
 expect_deny "helper relay twin: patch-id with another flag is denied" \
@@ -1544,11 +1544,20 @@ else
 fi
 # HR: every helper allow row names a command git accepts (operator ruling
 # 2026-11-05). The scratch repo has main and war-x, and . is a repository.
+# pipefail makes a refused left side of a pipe row red the row, because
+# patch-id and hash-object --stdin exit 0 on empty input.
+n=$((n + 1))
+_hr_c1=0; git_runs "set -o pipefail; git diff --no-such-flag | git patch-id --stable" || _hr_c1=1
+if [ "$_hr_c1" = 1 ]; then
+  printf 'ok %d - HR control: git_runs fails on a refused left side of a pipe\n' "$n"
+else
+  printf 'FAIL %d - HR control: git_runs passed a refused left side of a pipe\n' "$n"; fails=$((fails + 1))
+fi
 _hr_checked=0; _hr_bad=""
 while IFS= read -r _c; do
   [ -n "$_c" ] || continue
   _hr_checked=$((_hr_checked + 1))
-  git_runs "$_c" || _hr_bad="$_hr_bad[$_c: $(head -c 200 "$_GFR/gr.err" | tr '\n' ' ')] "
+  git_runs "set -o pipefail; $_c" || _hr_bad="$_hr_bad[$_c: $(head -c 200 "$_GFR/gr.err" | tr '\n' ' ')] "
 done <<EOF
 $_hr_cmds
 EOF
