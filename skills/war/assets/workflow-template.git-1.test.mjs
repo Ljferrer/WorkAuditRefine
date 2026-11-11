@@ -906,6 +906,22 @@ test('relay routing — every spelled command passes the helper arm', async () =
       assert.equal(g.status, 0, `${kind}: the helper arm admits ${command}\n${g.stderr}`)
     }
   }
+  // The revert_range sentence renders only when a dead tip probe registers a range revert, so a
+  // second run registers one and sends the snapshot commands that name the approved sha through the arm.
+  const ranged = await relayRun({}, { 'tip-probe': INFRA, 'pin-transfer': { status: 'error' } })
+  const snaps = ranged.calls.filter(c => c.opts.dispatchKind === 'merge-snapshot' || c.opts.dispatchKind === 'pin-snapshot')
+  const approved = snaps.map(c => snapshotContextOf(c.prompt).revert_range).find(Boolean)?.approved
+  assert.match(String(approved), /^[0-9a-f]{7,40}$/, 'non-vacuity: a snapshot names the registered revert_range')
+  const rangedCommands = snaps.flatMap(c => relayCommandsOf(c.prompt))
+  assert.ok(rangedCommands.some(c => c.includes(approved)), 'a revert_range command naming the approved sha is extracted')
+  for (const command of rangedCommands) {
+    const g = helperGuard(command)
+    assert.equal(g.status, 0, `revert_range snapshot: the helper arm admits ${command}\n${g.stderr}`)
+  }
+  // Proven red: a $(...) range in the revert_range patch command is denied in the ranged run only.
+  const rangedMutant = await relayRun({}, { 'tip-probe': INFRA, 'pin-transfer': { status: 'error' } }, mutate('(\\`git diff ${T}...${A} | git patch-id --stable\\`)', '(\\`git diff $(git merge-base ${T} ${A})..${A} | git patch-id --stable\\`)'))
+  assert.ok(rangedMutant.calls.filter(c => c.opts.dispatchKind === 'merge-snapshot' || c.opts.dispatchKind === 'pin-snapshot')
+    .flatMap(c => relayCommandsOf(c.prompt)).some(c => helperGuard(c).status !== 0), 'the revert_range mutant spells a command the helper arm denies')
   // Each relay's pipe reaches the guard as a pipe: the extraction keeps both sides.
   assert.ok(commandsOf(calls).every(([kind, commands]) => kind === 'tip-probe' || commands.some(c => / \| git -C \S+ (patch-id|hash-object) /.test(c))), 'the piped commands are extracted whole')
   // Proven red: the retired ^{commit} spelling (snapshot), and a $(...) merge-base range (confirm).
