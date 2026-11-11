@@ -24,6 +24,9 @@ import {
   nit,
   withBarrier,
   MODEL_RANK,
+  isMergeTask,
+  aceOk,
+  ACE_FILE,
 } from './workflow-template.test-harness.mjs'
 
 // The baseline: each resolver's definition line is replaced by the pre-existing helper it routes over.
@@ -94,6 +97,18 @@ test('routing set — changes spawn opts', async () => {
   assert.ok(out.some(m => /work:t1: spawn/.test(m)), `the differential reds on the routed work: dispatch (got ${JSON.stringify(out)})`)
   assert.deepEqual(optsOf(live.calls, 'work:t1'), { model: 'haiku', effort: 'low' }, 'the routine class tier spawns the worker')
   assert.equal(live.out.handoff.dispatchModels.find(r => r.label === 'work:t1').taskClass, 'routine', 'the dispatchModels row carries taskClass')
+  // PIN-11: each role reads its own class tier. Read the worker tier for every role, or drop the auditor arm, → red.
+  const TIERS = { fix: { model: 'haiku', effort: 'low' }, ace: { model: 'haiku', effort: 'medium' }, auditor: { model: 'haiku', effort: 'high' } }
+  const [rolesArgs, rolesImpl] = SCENARIOS({ classes: { routine: TIERS } }, 'routine')[0]
+  const roles = await runPhase(rolesArgs, rolesImpl())
+  assert.deepEqual(optsOf(roles.calls, 'fix:t1:r1'), TIERS.fix, 'routing.classes.routine.fix spawns the fix round')
+  assert.deepEqual(optsOf(roles.calls, 'ace:polish:t1:a1'), TIERS.ace, 'routing.classes.routine.ace spawns the ace commit')
+  assert.deepEqual(optsOf(roles.calls, 'audit:t1:correctness'), TIERS.auditor, 'routing.classes.routine.auditor spawns the seat')
+  // The floor retry is a fix-tier dispatch: spawn it through spawnWorker('fix') and the class fix tier is lost → red.
+  let merges = 0
+  const floor = await runPhase(PROVISION_ARGS({ tasks: [T({ class: 'routine' })], agents: AGENTS, routing: { classes: { routine: TIERS } } }),
+    (p, o) => isMergeTask({ opts: o }) && ++merges === 1 ? { mode: 'merge-task', status: 'no-test' } : defaultImpl(p, o))
+  assert.deepEqual(optsOf(floor.calls, 'add-test:t1:r1'), TIERS.fix, 'routing.classes.routine.fix spawns the add-test floor retry')
 })
 
 // D11: drop the boundary lift in routeSeat and the sonnet seats dispatch below opus → red.
@@ -126,6 +141,12 @@ test('ace edit class — exact row routes', async () => {
   assert.deepEqual(optsOf(await aceRun(nit(), routing), 'ace:polish:t1:a1'), { model: 'sonnet', effort: 'medium' }, 'a row with no line is broad: the ace tier')
   assert.deepEqual(optsOf(await aceRun(exactNit({ suggested_fix: '' }), routing), 'ace:polish:t1:a1'), { model: 'sonnet', effort: 'medium' }, 'a row with no suggested_fix is broad')
   assert.deepEqual(optsOf(await aceRun(exactNit(), undefined), 'ace:polish:t1:a1'), { model: 'sonnet', effort: 'medium' }, 'no aceEdit key: the ace tier')
+  // A mixed batch is broad: read rows.some for rows.every and the exact row routes the whole batch → red.
+  const mixed = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [exactNit(), nit({ title: 'tidy export', file: 'skills/war/assets/y.js' })]), approveWith('audit:t1:correctness', [])] }, aceBase([]))
+  const { calls } = await runPhase(ACE_ARGS({ agents: AGENTS, routing }), mixed)
+  const ace = calls.find(c => c.opts.label === 'ace:polish:t1:a1')
+  assert.ok(ace && ace.prompt.includes('tidy import') && ace.prompt.includes('tidy export'), 'non-vacuity: both rows ride one ace batch')
+  assert.deepEqual(spawnOptsOf(ace.opts), { model: 'sonnet', effort: 'medium' }, 'an exact row beside a broad row keeps the ace tier')
 })
 
 // aceSpawn: route charges 5 and 6 through routeAce and they leave the fix tier → red.
@@ -200,6 +221,26 @@ test('sampled review — seat passes the pair rule', async () => {
   const lens = 'correctness'
   const r = inlineHelpers(AGENTS).validateRoster([{ lens, model: partner.opts.model }, { lens, depth: 'deep', model: sampled.opts.model }])
   assert.deepEqual(r, { valid: true, errors: [] }, 'the appended seat validates under the inline copy beside its partner\'s resolved model')
+})
+
+// aceReaudit: drop the !s.sampled filter on the carried seats and the sampled seat transfers → red.
+test('sampled review — an ace subset never carries the sampled seat', async () => {
+  // The security seat raises the exact absorb row, so the subset re-runs security and carries correctness.
+  const impl = (p, o) => {
+    if (seatOf(o) !== 'war-auditor' || !/^audit:t1:/.test(o.label || '')) return aceBase([])(p, o)
+    const lens = o.label.split(':')[2]
+    const ace = /ace00001/.test(p)
+    return { seat: o.label, lens, verdict: 'approve', confidence: 'high', audit_sha: ace ? 'ace00001' : 'deadbeef',
+      findings: !ace && lens === 'security' && !/:opus/.test(o.label) ? [exactNit({ file: ACE_FILE })] : [] }
+  }
+  const worker = (p, o) => seatOf(o) === 'war-worker' && o.phase !== 'Work' ? aceOk() : impl(p, o)
+  const tasks = [T({ roster: [{ lens: 'correctness' }, { lens: 'security' }] })]
+  const { calls, out } = await runPhase(ACE_ARGS({ tasks, agents: AGENTS, routing: SAMPLE }), worker)
+  assert.ok(calls.some(c => c.opts.label === 'audit:t1:correctness:opus'), 'non-vacuity: the sampled seat ran')
+  const row = (out.pinTransfers || []).find(t => t && t.kind === 'ace')
+  assert.equal(row && row.mode, 'subset', 'non-vacuity: the ace re-audit ran as a subset')
+  assert.deepEqual(row.seats.map(s => [s.lens, s.outcome]).sort(), [['correctness', 'transferred'], ['security', 're-ran']], 'one seat re-ran, one transferred')
+  assert.ok(!row.seats.some(s => s.seat === 'correctness:opus' || /:opus$/.test(s.seat || '')), 'no transfer row names the sampled seat')
 })
 
 // D30: read anything but the stamp (the retired all-*.md route) and one half reds.
