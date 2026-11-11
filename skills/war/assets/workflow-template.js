@@ -825,10 +825,14 @@ const intentClause = intent
 // VERBATIM in agents/war-auditor.md (the both-surfaces drift test asserts both surfaces).
 const adjudications = Array.isArray(A.adjudications)
   ? A.adjudications.filter(r => r && (typeof r === 'string' || typeof r === 'object')) : []
+// The value-row citation words (#2198): adjRow renders them and isValueRow's string arm matches them, so
+// the render and the floor read one spelling. Bound in assert-args-complete.mjs FLOOR_BINDINGS
+// (constraint 9; the args-floor plan's PIN-12).
+const SUPERSEDES_LITERAL = 'supersedes plan literal: '
 const adjRow = r => typeof r === 'string' ? r
   // pt-tagged prompt-feeding row (adjudicationClause → auditPrompt): every interpolation is guarded/defaulted
   // (r.adjudicated/r.value ?? '', r.supersedes ternary-gated) — a behavioral no-op tag for census uniformity.
-  : pt`${r.adjudicated ?? r.value ?? ''}${r.supersedes ? pt` (supersedes plan literal: ${r.supersedes})` : ''}`
+  : pt`${r.adjudicated ?? r.value ?? ''}${r.supersedes ? ' (' + SUPERSEDES_LITERAL + pt`${r.supersedes})` : ''}`
 const adjudicationClause = adjudications.length
   ? pt`\nVERSION-PRECEDENCE RULE: the authoritative version is task instruction > red-team adjudication > plan body literal. Before scoring a version/release-slot mismatch as a defect, consult the adjudicated rows below; a value matching the adjudication is correct even when it differs from the plan body literal.\nADJUDICATION-MATCH RULE: a finding whose substance matches an adjudicated row below is a confirmation note, never an escalation — cite the matching row; the delta is pre-adjudicated and not re-litigable this run. A candidate that deviates from BOTH the plan and the adjudicated row is not a match — judge it normally.\n`
     + adjudications.map(r => pt`- ${adjRow(r)}`).join('\n') + '\n'
@@ -1387,7 +1391,10 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   const PROVENANCE_TOKEN_STOPLIST = new Set(['and', 'the', 'for', 'with', 'from', 'into', 'over', 'not', 'all',
     'war', 'plan', 'plans', 'phase', 'phases', 'task', 'tasks', 'test', 'tests', 'fix', 'fixes', 'docs',
     'run', 'runs', 'gate', 'gates', 'audit', 'merge', 'land', 'issue', 'issues', 'release', 'follow', 'when'])
-  const ownPlanStem = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').replace(/\.md$/i, '') : null
+  // The plan-file basename (#2199): derived once from the guarded plan.file; ownPlanStem drops its .md.
+  const baseOf = p => String(p).replace(/^.*\//, '').toLowerCase()
+  const ownPlanBase = (plan && typeof plan.file === 'string' && plan.file) ? baseOf(plan.file) : null
+  const ownPlanStem = ownPlanBase ? ownPlanBase.replace(/\.md$/i, '') : null
   let ownTokens = [...new Set([planSlug, ownPlanStem]
     .filter(Boolean)
     .flatMap(s => String(s).toLowerCase().split(/[^a-z0-9]+/))
@@ -1402,16 +1409,17 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     log('workflow-template: #1413 own-token floor — every slug word is stoplisted or too short; falling back to the plan basename ' + JSON.stringify(ownTokens[0]) + ' as the single anchor token (#1767). The floor still fires.')
   }
   const tokenRe = t => new RegExp('(?<![A-Za-z0-9])' + String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![A-Za-z0-9])', 'i')
-  const ownPlanBase = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').toLowerCase() : null
-  const baseOf = p => String(p).replace(/^.*\//, '').toLowerCase()
   // Predecessor-citation strip for a preformatted STRING row (#1751): the citation segment is the
   // plan id DIRECTLY after `supersedes` (`supersedes docs/plans/<x>.md`, `supersedes: docs/plans/<x>.md`
   // or the adjRow render `(supersedes plan literal: docs/plans/<x>.md)`) — the object form's
   // `supersedes` field, never a leak — drop it before the foreign-id match. The strip is anchored to
   // that shape: a plan id at any distance after a bare `supersedes` word is NOT a citation and stays
   // for the scan. The own-token search keeps the citation, because the foreign-id match never sees it.
+  // The plan-id class is written once (#2203): the strip and isValueRow's bare-citation arm build
+  // their regexes from PLAN_ID_RE.source, each with its own flags.
   const PLAN_ID_RE = /docs\/plans\/[A-Za-z0-9._/-]+\.md/g
-  const stripSupersedes = text => String(text).replace(/supersedes[\s:]*(?:plan literal:\s*)?docs\/plans\/[A-Za-z0-9._/-]+\.md/gi, 'supersedes <predecessor citation>')
+  const SUPERSEDES_CITATION_RE = new RegExp('supersedes[\\s:]*(?:plan literal:\\s*)?' + PLAN_ID_RE.source, 'gi')
+  const stripSupersedes = text => String(text).replace(SUPERSEDES_CITATION_RE, 'supersedes <predecessor citation>')
   // Canonical value-row detection (D10, #1480): the schemas.md `{ adjudicated|value, supersedes }` object
   // (a VALUE-SHAPED string — one whitespace-free token of at most 64 chars, never prose — plus a string
   // supersedes; a Lead-stamped planFile may ride beside them), the string adjRow renders —
@@ -1421,8 +1429,10 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // prose `supersedes` bypass the own-token floor, so the value field must look like a value — in
   // BOTH arms: the string arm anchors the same one-token value segment before the citation, so
   // a preformatted prose ruling never launches un-doped where its object form refuses.
+  const VALUE_ROW_RENDER_RE = new RegExp('^\\S{1,64} \\(' + SUPERSEDES_LITERAL + '[^\\n]+\\)\\s*$')
+  const VALUE_ROW_CITATION_RE = new RegExp('^\\S{1,64} supersedes:? ' + PLAN_ID_RE.source + '\\s*$')
   const isValueRow = row => typeof row === 'string'
-    ? /^\S{1,64} \(supersedes plan literal: [^\n]+\)\s*$/.test(row) || /^\S{1,64} supersedes:? docs\/plans\/[A-Za-z0-9._/-]+\.md\s*$/.test(row)
+    ? VALUE_ROW_RENDER_RE.test(row) || VALUE_ROW_CITATION_RE.test(row)
     : !!row && typeof row === 'object' && typeof (row.adjudicated ?? row.value) === 'string' && typeof row.supersedes === 'string'
       && /^\S{1,64}$/.test(row.adjudicated ?? row.value)
       && Object.keys(row).every(k => ['adjudicated', 'value', 'supersedes', 'planFile', 'source'].includes(k))
@@ -1471,10 +1481,11 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   const slugAnchorOf = s => baseOf(s).replace(/\.md$/i, '')
   const hasOwnSlug = row => typeof row.planSlug === 'string' && !!row.planSlug
   const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
-  // The #1751 predecessor-citation strip (stripSupersedes / idText) is deliberately adjudications-only:
-  // the `supersedes` citation idiom is an adjudication-row shape. A foreign path here never refuses
-  // or warns (#2208), so its only effect is the own-token read-past, which also covers a citation
-  // because these rows carry no idText. The planSlug stamp and the own-token check below still apply.
+  // The #1751 predecessor-citation strip (stripSupersedes / idText) rides rowText, so it reads the
+  // string rows of backstops and adjudications. It never applies to ruledAsks, seededPhaseClose or
+  // seededTasks. A foreign path here never refuses or warns (#2208), so its only effect is the
+  // own-token read-past, which also covers a citation because these rows carry no idText.
+  // The planSlug stamp and the own-token check below still apply.
   const ruledAskRowText = row => {
     // a string row is its own scannable text (the sibling rowText discipline)
     if (typeof row === 'string') return { text: row, exempt: false }
@@ -1519,24 +1530,24 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
       provenanceProblems.push('workflow-template: args.' + argName + ' carries a ' + (stamped.stampNoun || 'planFile') + ' provenance stamp naming a foreign plan (' + stamped.foreignStamp + ') differing from ' + (stamped.stampAnchor || 'plan.file') + ' — a cross-plan args leak; refused at entry (#1413)')
       continue
     }
-    // scanText: non-exempt, non-value rows only (the own-token refusal surface — a surface whose rows
-    // are all exempt or all value rows never has to carry a token). evidenceText: EVERY row's text —
-    // own-token satisfaction may come from an exempt row (#1666 stands, never narrowed). The
-    // foreign-plan-id scan reads every row's text, exempt rows included (#1749), with citations
-    // stripped only where a row sets idText. Intent warns and launches (#2375), backstops and
-    // adjudications refuse, and ruledAsks, seededPhaseClose and seededTasks rows neither refuse nor warn (#2208,
-    // #2197). A foreign path outside a stripped citation never vouches for the plan, so the own-token
-    // search reads past each one: else a path like docs/plans/<own-word>-sibling.md would pass an
-    // intent the foreign arm no longer refuses. A stripped citation stays evidence, because stacked
-    // plans share slug words.
-    const scanText = rows.filter(r => !r.exempt && !r.value && r.text).map(r => r.text).join('\n')
+    // hasScanRows: a non-exempt, non-value row carries text (the own-token refusal surface — a
+    // surface whose rows are all exempt or all value rows never has to carry a token). evidenceText:
+    // EVERY row's text — own-token satisfaction may come from an exempt row (#1666 stands, never
+    // narrowed). The foreign-plan-id scan reads every row's text, exempt rows included (#1749), with
+    // citations stripped only where a row sets idText. Intent warns and launches (#2375), backstops
+    // and adjudications refuse, and ruledAsks, seededPhaseClose and seededTasks rows neither refuse
+    // nor warn (#2208, #2197). A foreign path outside a stripped citation never vouches for the
+    // plan, so the own-token search reads past each one: else a path like
+    // docs/plans/<own-word>-sibling.md would pass an intent the foreign arm no longer refuses. A
+    // stripped citation stays evidence, because stacked plans share slug words.
+    const hasScanRows = rows.some(r => !r.exempt && !r.value && r.text)
     const evidenceText = rows.filter(r => r.text).map(r => r.text).join('\n')
     const idText = rows.filter(r => r.text).map(r => r.idText ?? r.text).join('\n')
     if (!evidenceText) continue
     const planIds = idText.match(PLAN_ID_RE) || []
     const foreignIds = [...new Set(ownPlanBase ? planIds.filter(id => baseOf(id) !== ownPlanBase) : [])]
     const tokenText = foreignIds.reduce((t, id) => t.split(id).join(' '), evidenceText)
-    const ownTokenMiss = scanText && ownTokens.length && !ownTokens.some(t => tokenRe(t).test(tokenText))
+    const ownTokenMiss = hasScanRows && ownTokens.length && !ownTokens.some(t => tokenRe(t).test(tokenText))
     // Coordinate-less pre-check (#1882): a ruled-ask record without its REQUIRED planSlug coordinate
     // is the shape a legacy `{ title, suggested_fix, ruling }` record arrives in. When such a record
     // is what fails the own-token floor, the refusal names the missing coordinate — the actual
@@ -2071,7 +2082,8 @@ const parkAsk = f => {
     const same = c => c.seat === e.seat && c.file === e.file && c.title === e.title
     const recorded = !same(own) && !dup.corroborators.some(same)
     if (recorded) dup.corroborators.push(e)
-    log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + (e.file ? ' on ' + e.file : '') + ' — one parked record survives, ' + (recorded ? 'the re-raise recorded on its corroborators list' : 'already a corroborator, not recorded again') + ' (#1790).')
+    const outcome = recorded ? 'the re-raise recorded on its corroborators list' : 'already a corroborator, not recorded again'
+    log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + (e.file ? ' on ' + e.file : '') + ' — one parked record survives, ' + outcome + ' (#1790).')
     return
   }
   const record = { task: f.task ?? null, seat: f.seat ?? null, sha: f.sha ?? null,
@@ -3638,6 +3650,22 @@ const segmentLoop = async (result, isSegment, redispatch) => {
   for (let segments = 0; isSegment(result) && segments < roundLimit; segments++) result = await redispatch(result, segments + 2)
   return result
 }
+// segmentedDispatch(body, opts, capture, seg): the segmented wrapper segmentedMerge and segmentedLand share
+// (#2552). It owns the re-dispatch log, the continuation dispatch and the exhaustion log. seg names the four
+// points the two copies differ: field (the marker riding status 'error'), noun ('gate' or 'land'), header
+// (opts, result) => the continuation header, and tail (the exhaustion log's closing text). It reads only
+// its arguments and module consts. Log lines are concatenation-built.
+const segmentedDispatch = async (body, opts, capture, seg) => {
+  const isSegment = res => !!res && res.status === 'error' && res[seg.field] === 'incomplete'
+  const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
+    log('Phase ' + ph.id + ': segmented ' + seg.noun + ' — ' + opts.label + ' returned ' + seg.field + ':\'incomplete\' (' + (result.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
+    return admitGateResult(await dispatchSite(seg.header(opts, result) + body, { ...opts, label: opts.label + ':segment-' + segment }), capture)
+  })
+  if (isSegment(result)) {
+    log('Phase ' + ph.id + ': segmented-' + seg.noun + ' budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — ' + seg.tail)
+  }
+  return result
+}
 // segmentedMerge(prompt, opts): one helper on all six merge-task dispatch sites: the four per-task
 // sites (initial merge, floor-retry re-merge, environment-proceed and baseline-proceed re-merges) and
 // the two sweep-family merges (merge:p<id>-polish and merge:p<id>-terminal, #2189). Appends
@@ -3651,21 +3679,11 @@ const segmentLoop = async (result, isSegment, redispatch) => {
 // concatenation-built.
 // A dispatch death enters Git reconciliation; only a proved-unmerged death reaches the merge slot. A
 // snapshot death, or TARGET_LOST or TARGET_LATE, returns before any merge dispatch.
-const segmentedMerge = async (prompt, opts, context) => {
-  const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
-  return reconciledMerge(DIRTY_TASK_STOP + prompt + segmentedGateClause, opts, context, async (body, opts, capture) => {
-    const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
-      log('Phase ' + ph.id + ': segmented gate — ' + opts.label + ' returned gate_segment:\'incomplete\' (' + (result.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
-      return admitGateResult(await dispatchSite(
-        pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior merge-task dispatch returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST; every step is idempotent (a done rebase re-resolves clean, a green gate re-runs green), so run the FULL sequence to completion.\n` + body,
-        { ...opts, label: opts.label + ':segment-' + segment }), capture)
-    })
-    if (isSegment(result)) {
-      log('Phase ' + ph.id + ': segmented-gate budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — the final still-incomplete result routes by its ridden status (error).')
-    }
-    return result
-  })
-}
+const segmentedMerge = async (prompt, opts, context) =>
+  reconciledMerge(DIRTY_TASK_STOP + prompt + segmentedGateClause, opts, context, (body, opts, capture) => segmentedDispatch(body, opts, capture, {
+    field: 'gate_segment', noun: 'gate',
+    header: (opts, result) => pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior merge-task dispatch returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST; every step is idempotent (a done rebase re-resolves clean, a green gate re-runs green), so run the FULL sequence to completion.\n`,
+    tail: 'the final still-incomplete result routes by its ridden status (error).' }))
 // Every logical gate owns a fresh artifact. Segmented continuations carry the returned path;
 // a missing result never aliases an earlier same-tip log (#2182/#2168).
 const gateCaptureClause = (refineryP, prefix) =>
@@ -3754,7 +3772,7 @@ const DISPOSITION_RULE_CLAUSE = pt`\nDISPOSITION RULE: every Minor/Nit finding c
 // section, so an edit lands in the reference first and here second. Pointer paths use the agent-resolved
 // '${CLAUDE_PLUGIN_ROOT}' literal idiom (plain strings, never pt interpolations). The bounded round count
 // is a safety precaution and never an obstacle (PIN-2): the round-5 tier is a completed outcome.
-const BACKWARD_CHAIN_WORKER_RULES = pt`1. Lock the finish line in this order: the task's \`Done when:\` command; else the End state numbers the slice serves; else the gate plus the slice's named deliverable. All three absent is the slice-level \`PLAN-DEFECT:\` route: return \`blocked\` with that prefix. Two equivalent readings of the finish line: lock one and state it in \`notes\`. Two non-equivalent readings: return \`blocked\` naming both. When the prompt carries the prepended \`DEPS ALREADY MERGED:\` dispatch clause, the rebase is still the first act, and the chain ends at the rebased tip.
+const BACKWARD_CHAIN_WORKER_RULES = pt`1. Lock the finish line in this order: the task's \`Done when:\` command; else the End state numbers the slice serves; else the gate plus the slice's named deliverable. All three absent is the slice-level \`PLAN-DEFECT:\` route: return \`blocked\` with that prefix. Two equivalent readings of the finish line: lock one and state it in \`notes\`. Two non-equivalent readings: return \`blocked\` naming both. When the task text opens with the \`DEPS ALREADY MERGED:\` dispatch clause (after the authority line), the rebase is still the first act, and the chain ends at the rebased tip.
 2. Chain backward from the finish line to the tip. Each link is a condition that must hold for the next link to hold. Number the links; the last link is the tip you were cut from.
 3. The bottleneck is the earliest unmet link. Work it first. A later link worked first is a site patch that the bottleneck can invalidate.
 4. Chunk every link with a done test: the command or assertion that proves the link true, and the token it prints. The printed-token duty is scoped to the \`Done when:\` command and the tests the task ships; nothing else needs a token.
@@ -4051,7 +4069,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     + pt`\nCOST-CLAIM RULE: a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.`
     // RELEASE-BASELINE RULE (D3) — verbatim-mirrored in agents/war-auditor.md (same commit). The literal
     // ${integrationBranch}...${task.branch} is escaped so the emitted prose byte-matches the static mirror.
-    + pt`\nRELEASE-BASELINE RULE: judge a release/version-bump diff against the three-dot \`\${integrationBranch}...\${task.branch}\` merge-base set (exactly what this task added), never against a main checkout; an N-step main-lag when N stacked plans have not yet landed on main is the expected stacked-release lag, not a scope error.`
+    // Gated (#2783): a release task (its own Files:, or the origin a late fix carries as manifestTask) and
+    // the phase-close sweep of a phase holding one (releaseSweep) carry it; every other task renders ''.
+    + ((isReleaseTask(task.manifestTask || task) || task.releaseSweep) ? pt`\nRELEASE-BASELINE RULE: judge a release/version-bump diff against the three-dot \`\${integrationBranch}...\${task.branch}\` merge-base set (exactly what this task added), never against a main checkout; an N-step main-lag when N stacked plans have not yet landed on main is the expected stacked-release lag, not a scope error.` : '')
     // STALE-LOOKING-BUT-CORRECT CALIBRATION (Task 1.4, ADR 0030) — the full rule bodies live in
     // skills/war/references/finding-class.md (evicted from the standing card's "### Stale-looking-but-
     // correct calibration" subsection, late-defects Task 2.1, ADR 0042); this dispatched copy is a TOKEN SKELETON (prompt-surface simplification, spec §4.3/§4.4 —
@@ -4068,7 +4088,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // D8/D9/D12/D6 registry-row anchor token (policy-table/attribution, comment/lag/retired,
     // invariant/guard that holds/snapshot|line-number, preset/matrix) — the both-surfaces registry
     // test anchors them on BOTH surfaces. Reaches the inline gate-audit seat ONLY via the standing card.
-    + pt`\nCASCADING-IMPACT DOC CASCADE (when your lens is cascading-impact, ADR 0025): a diff that changes a mechanism's behavior or attribution cascades into the docs and mirrors that describe it — the drift a name-grep misses. Four checks (full bodies: the cascading-impact lens bullet in agents/war-auditor.md): (1) ADR policy-table attribution — read the mechanism's chosen-option / policy-table row (under-attribution is invisible to a grep); (2) mechanism-style narrative — assert the invariant and name the guard that holds it, never a snapshot member-count or line-number reference; (3) comment-lag — the touched files leave no lagging comment/JSDoc naming the OLD behavior's retired values or stale counts; (4) preset matrix — a new PRESETS entry or role is covered by the enumerated matrix exported from war-config.mjs.`
+    // Gated on lens === 'cascading-impact' (#2783): only that seat runs the checks, so every other lens
+    // renders '' and reads the rule from its card's lens bullet alone (the single-layer choice).
+    + (lens === 'cascading-impact' ? pt`\nCASCADING-IMPACT DOC CASCADE (when your lens is cascading-impact, ADR 0025): a diff that changes a mechanism's behavior or attribution cascades into the docs and mirrors that describe it — the drift a name-grep misses. Four checks (full bodies: the cascading-impact lens bullet in agents/war-auditor.md): (1) ADR policy-table attribution — read the mechanism's chosen-option / policy-table row (under-attribution is invisible to a grep); (2) mechanism-style narrative — assert the invariant and name the guard that holds it, never a snapshot member-count or line-number reference; (3) comment-lag — the touched files leave no lagging comment/JSDoc naming the OLD behavior's retired values or stale counts; (4) preset matrix — a new PRESETS entry or role is covered by the enumerated matrix exported from war-config.mjs.` : '')
     // COMMITTED-TREE GROUNDING (spec §8, ADR 0029) — the full paragraph lives in agents/war-auditor.md
     // (the standing card); this dispatched copy is a TOKEN SKELETON (prompt-surface simplification,
     // spec §4.3/§4.4) that must keep the both-surfaces registry row's anchor tokens (committed-tree
@@ -7026,19 +7048,17 @@ if (mergedTasksForGateAudit.length > 0) {
     taskId: m.taskId, gateHeadSha: m.gateHeadSha,
     // A null/absent stamp (the first landed task, or a barrier-recovery preMerged residual) falls back to
     // the SAME phaseBaseCmd const — byte-identity by reference, never a re-typed literal.
-    preMergeTip: m.preMergeTip || phaseBaseCmd,
-    // Unthreaded paths are evidence absence; never guess a previous dispatch artifact.
-    gateLogPath: gateLogPathOf(m.gateLogPath) || GATE_LOG_UNTHREADED }))
+    preMergeTip: m.preMergeTip || phaseBaseCmd }))
   const evidenceCapture = newGateCapture(refineryPath, 'phase-' + ph.id)
   let evidence = await dispatchSite(
     pt`EVIDENCE DISPATCH for WAR phase ${ph.id} (mode=merge-task post-merge evidence; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
     + pt`This is a READ-ONLY proof computation — do NOT merge, push, rebase, or edit. Run the two floor scripts (siblings of assert-test-in-diff.sh, invoked the same bare way) per merged task and return the tokens.\n`
     + pt`observedHead — the _refinery tip you compute every proof against — is \`git -C ${refineryPath} rev-parse HEAD\`; return it per task.\n`
-    + pt`For EACH merged task below (taskId · gateHeadSha · preMergeTip · gateLogPath):\n`
+    + pt`For EACH merged task below (taskId · gateHeadSha · preMergeTip):\n`
     // pt-tagged prompt-feeding row builder (evidence dispatch, top-level-catch): e.taskId is task.id (entry-validated,
     // bare), e.preMergeTip is constructed with a || phaseBaseCmd fallback; ${e.gateHeadSha ?? …} absence-tolerant.
-    + evItems.map(e => pt`  - ${e.taskId} · gateHeadSha=${e.gateHeadSha ?? '<gateHeadSha>'} · preMergeTip=${e.preMergeTip} · gateLogPath=${e.gateLogPath}`).join('\n') + '\n'
+    + evItems.map(e => pt`  - ${e.taskId} · gateHeadSha=${e.gateHeadSha ?? '<gateHeadSha>'} · preMergeTip=${e.preMergeTip}`).join('\n') + '\n'
     + pt`  1. PIN STATUS — run: gate-pin-status.sh <gateHeadSha> $(git -C ${refineryPath} rev-parse HEAD) --mapped "$(git -C ${refineryPath} diff --name-only <preMergeTip> <gateHeadSha>)". `
     + pt`The --mapped set is THIS task's OWN changed files (the <preMergeTip>..<gateHeadSha> range — <preMergeTip> is the previous task's merge commit, the tip this task rebased onto, and <gateHeadSha> the gated task tip, the merge commit's second parent, so the range is exactly what the task brought in), NOT the global gate-discovery set. Record pin_status = CONFIRMED (exit 0, equal shas) | BENIGN-ADVANCE (exit 0, tip descends gateHeadSha and no mapped file changed in between) | STALE-MISMATCH (exit 1, a mapped file changed or not an ancestor) | ERROR (exit 2, git/ref error or the '(integration_sha …)' sentinel), plus pin_evidence (the script's printed intervening/offending file list or error text).\n`
     + pt`  2. GUARD SPECIFICITY — run: assert-guard-specificity-in-diff.sh <preMergeTip> <gateHeadSha> (SAME pre-merge base). Record guard_specificity = covered (exit 0) | uncovered (exit 1 — capture the printed uncovered guard message + defining file as guard_evidence) | ERROR (exit 2).\n`
@@ -7910,6 +7930,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     const polishTask = { id: `p${ph.id}-polish`, issue: ph.epicIssue || `<phase-${ph.id}-epic>`,
       title: `phase-close coherence sweep (phase ${ph.id})`, branch: polishBranch, worktree: polishWorktree,
       roster: defaultRoster,
+      // a sweep in a release phase audits as a release task: its seats keep the RELEASE-BASELINE RULE (#2783)
+      releaseSweep: tasks.some(isReleaseTask),
       // the terminal pass's telemetry counter (D3a) — seeded here, charged by its one commit, never a gate
       absorbRounds: 0,
       planSlice: `drain the phase-close queue (${phaseCloseQueue.length} finding(s)) and each sibling site of their defect class + cross-task coherence at the integrated tip of ${ph.integrationBranch}` }
@@ -8427,22 +8449,11 @@ if (landDecision === 'landed') {
   // routes by its RIDDEN status ('error' → held:land-failed — the Lead re-runs the land per SKILL.md
   // §4.3). Continuation labels and log lines are concatenation-built (census-safe — #931).
   // A dispatch death enters Git reconciliation first; landDied sees only a proved-unlanded death.
-  const segmentedLand = async (prompt, opts) => {
-    const isSegment = res => !!res && res.status === 'error' && res.land_segment === 'incomplete'
-    const body = prompt + segmentedLandClause
-    return reconciledMerge(body, opts, { task: 'phase-' + ph.id, repo: submodLandTask && submodLandTask.targetRepo || refineryLandPath, source: ph.integrationBranch, target: workingBranchFor(submodLandTask), land: true }, async (body, opts, capture) => {
-      const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
-        log('Phase ' + ph.id + ': segmented land — ' + opts.label + ' returned land_segment:\'incomplete\' (' + (result.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
-        return admitGateResult(await dispatchSite(
-          pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate job died before exit_code:). Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
-          { ...opts, label: opts.label + ':segment-' + segment }), capture)
-      })
-      if (isSegment(result)) {
-        log('Phase ' + ph.id + ': segmented-land budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — the final result routes by its ridden status.')
-      }
-      return result
-    })
-  }
+  const segmentedLand = async (prompt, opts) =>
+    reconciledMerge(prompt + segmentedLandClause, opts, { task: 'phase-' + ph.id, repo: submodLandTask && submodLandTask.targetRepo || refineryLandPath, source: ph.integrationBranch, target: workingBranchFor(submodLandTask), land: true }, (body, opts, capture) => segmentedDispatch(body, opts, capture, {
+      field: 'land_segment', noun: 'land',
+      header: (opts, result) => pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate job died before exit_code:). Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n`,
+      tail: 'the final result routes by its ridden status.' }))
   // Land death arm (D21, PIN-25): a land dispatch (initial or either re-land) that died post-spawn
   // is read FIRST at each site — the phase holds held:land-failed (the Lead re-runs the land per
   // SKILL.md §4.3) with the escalation record naming the site and the harness cause under reason
