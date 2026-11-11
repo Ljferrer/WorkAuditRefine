@@ -7987,19 +7987,14 @@ test('T2.1 (D1/D8) — the escalate reservation ("NEVER escalate" on a cannot-co
   assert.ok(/NEVER 'escalate'/.test(es.prompt), 'the end-state-only prompt reserves escalate away from the cannot-confirm case')
 })
 
-test('Task 1.2 — lite tier: an all-*.md task dispatches its first-pass worker on the lite tier (sonnet); a non-*.md entry or an absent/empty files list stays base (opus, the fail-safe)', async () => {
-  const allMd = await firstPassWorkOpts(['docs/a.md', 'skills/war/SKILL.md'])
-  assert.equal(allMd.model, 'sonnet', 'all-*.md task → lite tier model (the configured agents.worker.lite)')
-  assert.equal(allMd.effort, undefined, "lite effort is 'default' ⇒ omitted from spawn opts")
-
-  const mixed = await firstPassWorkOpts(['docs/a.md', 'skills/war/assets/x.js'])
-  assert.equal(mixed.model, 'opus', 'a single non-*.md entry keeps the base worker tier (opus)')
-
-  const absent = await firstPassWorkOpts(undefined)   // task carries NO files field
-  assert.equal(absent.model, 'opus', 'ABSENT files list ⇒ base worker tier (fail-safe: an undefined list never vacuously reads as all-*.md)')
-
-  const empty = await firstPassWorkOpts([])
-  assert.equal(empty.model, 'opus', 'EMPTY files list ⇒ base worker tier (fail-safe)')
+// PIN-30 (D30): the engine no longer reads the file list; only a Lead-stamped workerTier 'lite' spawns the lite tier.
+test('Task 1.2 — lite tier: only a workerTier lite stamp dispatches the first-pass worker on the lite tier (sonnet); an all-*.md, mixed, absent or empty files list stays base (opus)', async () => {
+  const stamped = await firstPassWorkOpts(['skills/war/assets/x.js'], { workerTier: 'lite' })
+  assert.equal(stamped.model, 'sonnet', 'a workerTier lite stamp → lite tier model (the configured agents.worker.lite)')
+  assert.equal(stamped.effort, undefined, "lite effort is 'default' ⇒ omitted from spawn opts")
+  for (const files of [['docs/a.md', 'skills/war/SKILL.md'], ['docs/a.md', 'skills/war/assets/x.js'], undefined, []]) {
+    assert.equal((await firstPassWorkOpts(files)).model, 'opus', `${JSON.stringify(files)} with no stamp keeps the base worker tier (opus)`)
+  }
 })
 
 test('Task 1.2 — fix tier set: the fix-round worker dispatches on agents.worker.fix, and an unset ace takes the ace default, not the fix model (#2619)', async () => {
@@ -8070,7 +8065,7 @@ test('ace charges 5 and 6 dispatch on agents.worker.fix; charge 4 stays on agent
 
 test('ace charge tiers: the subset, re-entry and polish ace workers all spawn through aceSpawn, and only the terminal pass keeps spawnWorker(\'ace\')', () => {
   const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'workflow-template.js'), 'utf8')
-  const sites = [...src.matchAll(/label: aceLabel\(r, '(\w+)'\), schema: WORKER_RESULT, \.\.\.aceSpawn\(r\) \}\)/g)].map(m => m[1])
+  const sites = [...src.matchAll(/label: aceLabel\(r, '(\w+)'\), schema: WORKER_RESULT, \.\.\.aceSpawn\(r, [\w.]+\) \}\)/g)].map(m => m[1])
   assert.deepEqual(sites.sort(), ['polish', 'reentry', 'subset'], 'exactly three ace sites spawn through aceSpawn')
   const direct = src.split('\n').filter(l => l.includes("...spawnWorker('ace')"))
   assert.equal(direct.length, 1, 'one direct ace-tier spawn is left')

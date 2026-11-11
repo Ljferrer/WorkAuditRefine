@@ -29,7 +29,8 @@
 //       its ledger source). The checks run in order and the first failing one exits: on a sanctioned
 //       recovery with --prior-manifest, a plugin root or version that differs from the prior
 //       manifest's (stderr prints both values and the `claude --plugin-dir <prior root>` form); a
-//       missing required field; an End state `check` or task `doneWhen` that does not parse as shell, or a
+//       missing required field; a refused task routing field (routingRefusals: a bad class or
+//       workerTier, or a lite or opusFloor task with no opus seat); an End state `check` or task `doneWhen` that does not parse as shell, or a
 //       `None — …` doneWhen; a staged doneWhen string that equals no plan `Done when:` bullet; a
 //       provenance floor refusal, printed verbatim from the template plus one line telling the
 //       Lead to fix the row at its ledger source, not the launch copy (provenanceRemedies names
@@ -371,6 +372,31 @@ export function boundaryWarnings (args) {
     if (signals.length && !seats.some(s => strong(seatModel(s)))) {
       out.push(`task ${(t && t.id) ?? '?'} has a boundary signal (${signals.join(', ')}) and no seat resolves to opus or above — give a boundary-heavy seat tier 'high' (ADR 0056)`)
     }
+    // D11, D31: a boundary-signal task the Lead stamps class routine or workerTier lite warns, never refuses.
+    if (signals.length && t.class === 'routine') out.push(`task ${t.id ?? '?'} has a boundary signal (${signals.join(', ')}) and is stamped class 'routine' — stamp it 'boundary' unless the signal is a false alarm (skills/war/references/model-routing.md)`)
+    if (signals.length && t.workerTier === 'lite') out.push(`task ${t.id ?? '?'} has a boundary signal (${signals.join(', ')}) and is stamped workerTier 'lite' — a boundary-heavy task keeps the base worker (skills/war/references/model-routing.md)`)
+  }
+  return out
+}
+
+// ---- Routing fields (#2534 D11, D30, D31, D36) ------------------------------------------------
+// A per-task `class` is absent or routine|boundary, and a per-task `workerTier` is absent or 'lite': an
+// absent value never trips the floor. A lite task (D31), and every task while args.routing.opusFloor is
+// true (D36), must hold a seat on tier 'high' or a seat whose explicit model ranks at or above opus.
+// Returns one refusal line per failure (exit 1).
+export const TASK_CLASSES = ['routine', 'boundary']
+export function routingRefusals (args) {
+  const out = []
+  const floor = !!(args && args.routing && typeof args.routing === 'object' && args.routing.opusFloor === true)
+  const opusSeat = s => s && typeof s === 'object' && (s.tier === 'high' || MODEL_RANK.indexOf(s.model) >= MODEL_RANK.indexOf('opus'))
+  for (const t of (args && Array.isArray(args.tasks) ? args.tasks : [])) {
+    if (!t || typeof t !== 'object') continue
+    const id = t.id ?? '?'
+    if (t.class !== undefined && !TASK_CLASSES.includes(t.class)) out.push(`tasks[${id}].class must be one of ${TASK_CLASSES.join('|')} when present (got ${JSON.stringify(t.class)})`)
+    if (t.workerTier !== undefined && t.workerTier !== 'lite') out.push(`tasks[${id}].workerTier must be 'lite' when present (got ${JSON.stringify(t.workerTier)})`)
+    const covered = (Array.isArray(t.roster) ? t.roster : []).some(opusSeat)
+    if (t.workerTier === 'lite' && !covered) out.push(`tasks[${id}] is stamped workerTier 'lite' and its roster holds no seat on tier 'high' and no seat with a model at or above opus — give one seat tier 'high' (D31)`)
+    else if (floor && !covered) out.push(`tasks[${id}]: routing.opusFloor is true and its roster holds no seat on tier 'high' and no seat with a model at or above opus — give one seat tier 'high' (D36)`)
   }
   return out
 }
@@ -659,6 +685,12 @@ if (invokedDirectly) {
   if (missing.length) {
     process.stderr.write(`assert-args-complete: launch args are dispatch-INCOMPLETE (${missing.length} missing field(s)):\n`)
     for (const line of missing) process.stderr.write(`  - ${line}\n`)
+    process.exit(1)
+  }
+  const routed = routingRefusals(parsed)
+  if (routed.length) {
+    process.stderr.write(`assert-args-complete: ${routed.length} task routing field(s) refused:\n`)
+    for (const line of routed) process.stderr.write(`  - ${line}\n`)
     process.exit(1)
   }
   const tooling = err => {

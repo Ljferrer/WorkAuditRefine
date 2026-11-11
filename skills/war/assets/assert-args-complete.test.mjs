@@ -396,6 +396,70 @@ test('CLI: a boundary warning goes to stderr and keeps exit 0 (warn, never refus
 })
 
 // ---------------------------------------------------------------------------
+// Task routing fields (#2534 D11, D30, D31, D36): class, workerTier and the opus floor
+// ---------------------------------------------------------------------------
+const routedCli = (task, over = {}) => runCli([], JSON.stringify({ ...COMPLETE(), agents: SONNET, tasks: [btask(task)], ...over }))
+
+// D11: drop the class arm in boundaryWarnings and the routine stamp is silent → red.
+test('boundary signal stamped routine warns', () => {
+  const w = warnsFor(btask({ class: 'routine', files: ['server/auth/session.ts'], roster: [{ lens: 'security', tier: 'high' }] }))
+  assert.equal(w.length, 1, 'one warning: the opus seat covers the seat floor, so only the routine stamp warns')
+  assert.match(w[0], /task t1 .*session\.ts.*class 'routine'/)
+  assert.deepEqual(warnsFor(btask({ class: 'routine' })), [], 'a routine task with no boundary signal is silent')
+  assert.deepEqual(warnsFor(btask({ class: 'boundary', files: ['server/auth/session.ts'], roster: [{ lens: 'security', tier: 'high' }] })), [], 'a boundary stamp is silent')
+  const r = routedCli({ class: 'routine', files: ['server/auth/session.ts'], roster: [{ lens: 'security', tier: 'high' }] })
+  assert.equal(r.status, 0, `a warning never refuses — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /warning: task t1 .*class 'routine'/)
+  assert.equal(routedCli({ class: 'urgent' }).status, 1, 'a class outside routine|boundary is refused')
+  assert.equal(routedCli({}).status, 0, 'an absent class never trips the floor')
+})
+
+// D31: drop the lite arm in routingRefusals and the uncovered lite task certifies → red.
+test('worker tier — a lite task with no high seat is refused', () => {
+  const r = routedCli({ workerTier: 'lite', roster: [{ lens: 'correctness' }, { lens: 'security', model: 'sonnet' }] })
+  assert.equal(r.status, 1, `exit 1 — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /tasks\[t1\] is stamped workerTier 'lite' .*no seat on tier 'high'/)
+  assert.equal(routedCli({ workerTier: 'lite', roster: [{ lens: 'correctness', tier: 'high' }] }).status, 0, 'a tier-high seat covers a lite task')
+  assert.equal(routedCli({ workerTier: 'lite', roster: [{ lens: 'correctness', model: 'opus' }] }).status, 0, 'an explicit opus seat covers a lite task')
+})
+
+// D31: drop the workerTier arm in boundaryWarnings and the lite stamp is silent → red.
+test('worker tier — a boundary-signal task stamped lite warns', () => {
+  const w = warnsFor(btask({ workerTier: 'lite', files: ['hooks/validate-auditor-git.sh'], roster: [{ lens: 'correctness', tier: 'high' }] }))
+  assert.equal(w.length, 1)
+  assert.match(w[0], /task t1 .*validate-auditor-git\.sh.*workerTier 'lite'/)
+  assert.deepEqual(warnsFor(btask({ workerTier: 'lite', files: ['docs/guide.md'], roster: [{ lens: 'correctness', tier: 'high' }] })), [], 'a lite task with no boundary signal is silent')
+})
+
+// D30: drop the workerTier value check and the unknown tier certifies → red.
+test('worker tier — an unknown workerTier is refused', () => {
+  const r = routedCli({ workerTier: 'docs', roster: [{ lens: 'correctness', tier: 'high' }] })
+  assert.equal(r.status, 1, `exit 1 — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /tasks\[t1\]\.workerTier must be 'lite' when present \(got "docs"\)/)
+  assert.equal(routedCli({ roster: [{ lens: 'correctness' }] }).status, 0, 'an absent workerTier never trips the floor')
+})
+
+// D36: drop the opusFloor arm and the all-sonnet roster certifies under a set floor → red.
+test('opus floor — a set floor refuses a task with no opus seat', () => {
+  const r = routedCli({ roster: [{ lens: 'correctness' }, { lens: 'security', model: 'sonnet' }] }, { routing: { opusFloor: true } })
+  assert.equal(r.status, 1, `exit 1 — stderr: ${r.stderr}`)
+  assert.match(r.stderr, /tasks\[t1\]: routing\.opusFloor is true/, 'the refusal names the task and the key')
+})
+
+test('opus floor — an absent floor admits an all-sonnet roster', () => {
+  for (const over of [{}, { routing: {} }, { routing: { opusFloor: false } }]) {
+    const r = routedCli({ roster: [{ lens: 'correctness' }, { lens: 'security', model: 'sonnet' }] }, over)
+    assert.equal(r.status, 0, `${JSON.stringify(over)}: exit 0 — stderr: ${r.stderr}`)
+  }
+})
+
+test('opus floor — a set floor admits a tier-high seat', () => {
+  const r = routedCli({ roster: [{ lens: 'correctness' }, { lens: 'security', tier: 'high' }] }, { routing: { opusFloor: true } })
+  assert.equal(r.status, 0, `exit 0 — stderr: ${r.stderr}`)
+  assert.equal(routedCli({ roster: [{ lens: 'correctness', model: 'fable' }] }, { routing: { opusFloor: true } }).status, 0, 'a model above opus meets the floor too')
+})
+
+// ---------------------------------------------------------------------------
 // Tokenizer: comments and strings outside spans open no span (#1775); bracket chains (#1760)
 // ---------------------------------------------------------------------------
 

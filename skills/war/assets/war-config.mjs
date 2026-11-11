@@ -53,7 +53,7 @@ export const DEFAULTS = {
   version: 1,
   profile: 'balanced',
   agents: {
-    // worker.lite dispatches all-*.md tasks; worker.fix dispatches fix rounds and floor retries; worker.ace
+    // worker.lite dispatches tasks the Lead stamps workerTier 'lite'; worker.fix dispatches fix rounds and floor retries; worker.ace
     // dispatches --ace and the terminal pass (#2519). Ace has its own default (#2619), so an unset ace never
     // runs on fix. Ace charges 5 and 6 always run on fix, and validate checks fix ranks >= ace. The worker tiers (base, lite, fix, ace) are defaulted here; a preset may re-pin any of them (see PRESETS) and a config may
     // override any tier per run. Every prose surface that restates a value from this object is bound
@@ -293,7 +293,7 @@ export function agentMatrix() {
 
 // Enumerated (preset, tier, model, effort) worker-tier matrix — the worker-role sibling of
 // agentMatrix() (ADR 0025 drift-guard discipline). One row per (preset × PRESENT worker tier):
-// 'base' (the worker role's own model/effort), 'lite' (defaulted in DEFAULTS — the all-*.md tier),
+// 'base' (the worker role's own model/effort), 'lite' (defaulted in DEFAULTS — the workerTier-stamped tier),
 // 'fix' (the fix-round tier) and 'ace' (the --ace + terminal-pass tier, #2619) — both defaulted in DEFAULTS
 // too, so every preset emits a fix and an ace row). Reuses presetConfig()'s merge and iterates the live PRESETS, so a new preset or tier is
 // enumerated automatically. The doc-honesty lens consults it to prove documented tier values (the
@@ -338,7 +338,7 @@ export function validate(input) {
     if (!MODELS.includes(a.model)) errors.push(`agents.${role}.model must be one of ${MODELS.join('|')} (got ${JSON.stringify(a.model)})`)
     if (!EFFORTS.includes(a.effort)) errors.push(`agents.${role}.effort must be one of ${EFFORTS.join('|')} (got ${JSON.stringify(a.effort)})`)
   }
-  // Worker tiers: agents.worker.lite (all-*.md dispatch tier), agents.worker.fix (fix-round + floor-retry
+  // Worker tiers: agents.worker.lite (the workerTier-stamped first-pass tier), agents.worker.fix (fix-round + floor-retry
   // tier) and agents.worker.ace (--ace + terminal-pass tier, #2619), all three defaulted in DEFAULTS. Each a
   // { model, effort } tier validated like a role when present (unknown sub-keys rejected).
   // The lite tier was once named `docs` (PIN-29): that key is refused, never read as an alias.
@@ -401,6 +401,40 @@ export function validate(input) {
   const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe', 'trial', 'helper', ...Object.keys(SKILL_SEATS)]
   for (const key of Object.keys(c.agents)) {
     if (!KNOWN_AGENT_KEYS.includes(key)) errors.push(`agents.${key} is not a known agent key (${KNOWN_AGENT_KEYS.join('|')}) — run /war-room to regenerate the config`)
+  }
+
+  // routing (#2534, D11-D13, D36; doctrine: skills/war/references/model-routing.md): optional, with no DEFAULTS
+  // entry and no preset value, so absent the engine routes nothing. classes.<routine|boundary>.<worker|fix|ace|auditor>
+  // and aceEdit.exact are { model, effort } tiers; sampleOpusReview is a share from 0 to 1 and opusFloor a
+  // boolean, each unset when null. Unknown keys are courtesy errors at every level.
+  if (c.routing != null) {
+    const rt = c.routing
+    const known = (obj, keys, path) => { for (const k of Object.keys(obj)) if (!keys.includes(k)) errors.push(`${path}.${k} is not a known key (${keys.join('|')}) — run /war-room to regenerate the config`) }
+    if (!isObj(rt)) errors.push('routing must be an object when set')
+    else {
+      known(rt, ['classes', 'aceEdit', 'sampleOpusReview', 'opusFloor'], 'routing')
+      if (rt.classes !== undefined) {
+        if (!isObj(rt.classes)) errors.push('routing.classes must be an object of task classes (routine|boundary)')
+        else {
+          known(rt.classes, ['routine', 'boundary'], 'routing.classes')
+          for (const cls of ['routine', 'boundary']) {
+            if (rt.classes[cls] === undefined) continue
+            if (!isObj(rt.classes[cls])) { errors.push(`routing.classes.${cls} must be an object of roles (worker|fix|ace|auditor)`); continue }
+            known(rt.classes[cls], ['worker', 'fix', 'ace', 'auditor'], `routing.classes.${cls}`)
+            for (const role of ['worker', 'fix', 'ace', 'auditor']) if (rt.classes[cls][role] !== undefined) validateAgentTier(rt.classes[cls][role], `routing.classes.${cls}.${role}`, errors)
+          }
+        }
+      }
+      if (rt.aceEdit !== undefined) {
+        if (!isObj(rt.aceEdit)) errors.push('routing.aceEdit must be an object { exact }')
+        else {
+          known(rt.aceEdit, ['exact'], 'routing.aceEdit')
+          if (rt.aceEdit.exact !== undefined) validateAgentTier(rt.aceEdit.exact, 'routing.aceEdit.exact', errors)
+        }
+      }
+      if (rt.sampleOpusReview != null && (typeof rt.sampleOpusReview !== 'number' || !(rt.sampleOpusReview >= 0 && rt.sampleOpusReview <= 1))) errors.push(`routing.sampleOpusReview must be a number from 0 to 1 when set (got ${JSON.stringify(rt.sampleOpusReview)})`)
+      if (rt.opusFloor != null && typeof rt.opusFloor !== 'boolean') errors.push(`routing.opusFloor must be a boolean when set (got ${JSON.stringify(rt.opusFloor)})`)
+    }
   }
 
   const au = c.audit
@@ -546,7 +580,9 @@ export function resolveProvision(config) {
 }
 
 // Roster validation (D8): a roster is an array of 1–5 seats; each seat an object with a
-// non-empty string lens; depth absent or one of neighbors|deep; lenses distinct; agentType absent or a
+// non-empty string lens; depth absent or one of neighbors|deep; lenses distinct, except one repeat whose two
+// seats both carry an explicit model with the later ranked strictly above the earlier in MODEL_RANK (the
+// lens pair, #2706, D22); agentType absent or a
 // SEAT_AGENT_TYPES member; model/effort absent or a MODELS/EFFORTS member (#2519: a per-seat override of
 // the seat tier); tier absent or an AUDITOR_TIERS member (#2534). `evidence` is the run.evidence knob: an evidence-type row is rejected unless
 // it is exactly true (REA artifact evidence D8/D12). Beside an evidence seat the non-evidence seats cap
@@ -562,12 +598,11 @@ export function validateRoster(roster, evidence) {
   if (evidenceSeats > 0 && roster.length - evidenceSeats > 4) errors.push(`roster carries ${roster.length - evidenceSeats} non-evidence seats beside an evidence seat (max 4: the five-seat ceiling holds)`)
   else if (roster.length < 1 || roster.length > 5) errors.push(`roster must be an array of 1-5 seats (got ${JSON.stringify(roster)})`)
   if (errors.length > 0) return { valid: false, errors }
-  const seen = []
   roster.forEach((seat, i) => {
     if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth?, agentType?, model?, effort?, tier? }`); return }
+    const prior = roster.slice(0, i).filter(s => s !== null && typeof s === 'object' && !Array.isArray(s) && s.lens === seat.lens)
     if (typeof seat.lens !== 'string' || !seat.lens) errors.push(`roster[${i}].lens must be a non-empty string`)
-    else if (seen.includes(seat.lens)) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
-    else seen.push(seat.lens)
+    else if (prior.length && !(prior.length === 1 && prior[0].model && seat.model && MODEL_RANK.indexOf(seat.model) > MODEL_RANK.indexOf(prior[0].model))) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
     if (seat.depth !== undefined && seat.depth !== 'neighbors' && seat.depth !== 'deep') errors.push(`roster[${i}].depth must be "neighbors" or "deep" when present (got ${JSON.stringify(seat.depth)})`)
     if (seat.agentType !== undefined && !SEAT_AGENT_TYPES.includes(seat.agentType)) errors.push(`roster[${i}].agentType must be one of ${SEAT_AGENT_TYPES.join('|')} when present (got ${JSON.stringify(seat.agentType)})`)
     else if (seat.agentType === 'war-evidence-auditor' && evidence !== true) errors.push(`roster[${i}].agentType "war-evidence-auditor" needs run.evidence: true (the evidence seat is off by default)`)
