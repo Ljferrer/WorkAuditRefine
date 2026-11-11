@@ -1664,8 +1664,8 @@ const DOC_TIER_PINS = [
   ['README.md', /^By default WAR runs (\w+) workers on `(\w+)` effort and/m, 'balanced', 'worker'],
   ['README.md', /^By default WAR runs \w+ workers on `\w+` effort and (\w+) auditors on `(\w+)`/m, 'balanced', 'auditor'],
   ['README.md', /built-in `DEFAULTS`: (\w+) workers on `(\w+)` effort/, 'balanced', 'worker'],
-  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, fix and ace tiers, with docs-only tasks on \w+\/`\w+`\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
-  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, fix and ace tiers, with docs-only tasks on (\w+)\/`(\w+)`\)/, 'balanced', 'worker.lite'],
+  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, fix and ace tiers, with the lite tier \(\w+\/`\w+` by default\) running the first worker of a task the Lead stamps lite\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
+  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, fix and ace tiers, with the lite tier \((\w+)\/`(\w+)` by default\) running the first worker of a task the Lead stamps lite\)/, 'balanced', 'worker.lite'],
   ['README.md', /built-in `DEFAULTS`: (\w+) workers on `(\w+)` effort \(base, fix and ace tiers/, 'balanced', 'worker.ace'],
   // ADR 0050's effort-compensation example names the economy auditor seat.
   ['docs/adr/0050-preset-tiers-order-by-model-capability.md', /for example (\w+) auditors on `(\w+)`\)/, 'economy', 'auditor'],
