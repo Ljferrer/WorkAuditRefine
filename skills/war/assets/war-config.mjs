@@ -86,7 +86,7 @@ export const DEFAULTS = {
     // agents/*.md card: the subagent is a general-purpose agent instructed by fork-trials.md.
     // Defaulted here (the balanced value); every preset re-pins it (see PRESETS, A9).
     trial:    { model: 'opus',   effort: 'default' },
-    // helper: the tier of the tiny read-only Git dispatches (audit-pin, diff-probe) on the war-helper card
+    // helper: the tier of the tiny read-only Git dispatches (audit-pin, diff-probe, the Git relays) on the war-helper card
     // (#2497, ADR 0057). NOT a phase role (never in ROLES/agentMatrix). Every preset inherits it.
     helper:   { model: 'haiku',  effort: 'low' },
     // Skill seats (SKILL_SEATS above), operator ruling 2026-10-30: plan conversion runs opus, and its revise

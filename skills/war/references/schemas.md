@@ -321,7 +321,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     servitor: { model, effort },
     redteam?: { model, effort },             // not a phase role — /red-team reads it fail-open; every preset populates it (values in `war-config.mjs` PRESETS); only a MISSING config file → red-team inherits the session
     trial?: { model, effort },               // not a phase role — the fork-trial subagent tier (D18) `/war-strategy`'s plan interview reads fail-open like redteam; defaulted in `war-config.mjs` DEFAULTS and re-pinned by every preset; validated like redteam; no `agents/*.md` card
-    helper?: { model, effort },              // not a phase role — the audit-pin and diff-probe tier on the war-helper card (ADR 0057); defaulted in DEFAULTS, every preset inherits it
+    helper?: { model, effort },              // not a phase role — the audit-pin, diff-probe and Git relay tier on the war-helper card (ADR 0057); defaulted in DEFAULTS, every preset inherits it
     machine?: { drafter, derive, apply, revise },              // skill seats (ADR 0056): each seat a { model, effort } tier; seat names are SKILL_SEATS in war-config.mjs; defaulted in DEFAULTS; thorough and economy pin their own
     survey?: { miner, reader, cluster, synth, critic },        // skill seats for /survey-corps, read fail-open: a missing config uses the balanced defaults, an invalid one the session model
     lessons?: { investigate, edit, retype, keywords },         // skill seats for /lessons-learned, read fail-open: a missing config uses the balanced defaults, an invalid one the session model
