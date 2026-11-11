@@ -12,7 +12,7 @@ config.
 ## Decision
 
 **The balanced defaults (`DEFAULTS.agents` in `war-config.mjs`) move down one model tier.** The
-base and fix worker tiers run opus, docs-only tasks run sonnet, and auditors run sonnet. The
+base and fix worker tiers run opus, the lite worker tier runs sonnet (the Lead picks it per task, ADR 0062), and auditors run sonnet. The
 values live in `war-config.mjs` and the `/war-room` preset bullets, never restated here.
 
 **`thorough` pins its base, lite and fix worker tiers at fable**, so it stays at or above `balanced` on every tier.
