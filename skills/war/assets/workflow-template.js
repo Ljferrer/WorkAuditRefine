@@ -939,8 +939,8 @@ const spawnSeat = (s, rebut) => {
   const e = r ? r.effort : s.effort ?? t.effort ?? a.effort
   return { model: (r && r.model) || s.model || t.model || a.model || ROLE_MODEL.auditor, ...(e && e !== 'default' && { effort: e }) }
 }
-// helperOpts(...words): the spawn opts of a tiny read-only Git dispatch (#2497, ADR 0057). The helper card
-// allows no shell syntax, so a word it cannot pass bare routes that one dispatch to the refiner, and shq quotes it there.
+// helperOpts(...words): the spawn opts of a tiny read-only Git dispatch (#2497, ADR 0057): audit-pin, diff-probe and the
+// five Git relays (PIN-25). The helper card allows no quoting, so a word it cannot pass bare routes that one dispatch to the refiner, and shq quotes it there.
 const bareWord = w => /^[\w./=:,@^~%+-]+$/.test(w)
 const shq = w => bareWord(w) ? w : "'" + w.split("'").join("'\\''") + "'"
 const helperOpts = (...words) => words.every(bareWord)
@@ -1112,7 +1112,9 @@ const atLeastOpus = m => MODEL_RANK.indexOf(m) >= MODEL_RANK.indexOf('opus')
 const routeSeat = (task, seat, rebut) => {
   const t = !rebut && !seat.model && seat.tier !== 'high' && classTierOf(task, 'auditor')
   const o = t ? overTier(spawnSeat(seat, rebut), seat.effort ? { ...t, effort: seat.effort } : t) : spawnSeat(seat, rebut)
-  return withClass(task, task.class === 'boundary' && !atLeastOpus(o.model) ? { ...o, model: 'opus' } : o)
+  // a boundary seat, and a sampled seat in a rebuttal round (PIN-13), never resolve below opus
+  const lift = task.class === 'boundary' || (rebut && sampledSeats.has(seat))
+  return withClass(task, lift && !atLeastOpus(o.model) ? { ...o, model: 'opus' } : o)
 }
 // Ace edit class (D12): an absorb row with file, line and suggested_fix is exact. An ace batch whose rows are
 // all exact runs on routing.aceEdit.exact when set; any other batch is broad and keeps the ace tier.
@@ -2881,8 +2883,19 @@ const mergeGitMatches = (proof, before, context) => fullSha(proof.local_sha) && 
     : context.kind === 'task' ? taskMergeMatches(proof, before, context)
     : proof.source_tip === proof.local_sha && proof.base_is_ancestor === true)
 // MERGE_FACTS_RULE: the base_is_ancestor read and the task-merge facts that both the confirmation and
-// the reconciliation prompt ask for — one sentence, so the two arms cannot drift apart.
-const MERGE_FACTS_RULE = 'base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <X> (true ONLY on exit 0), where X is the current source branch for a task merge (context kind task) and the local target otherwise. For a task merge also return parents (git show -s --format=%P <local target>), tree { target: <local target>^{tree}, source: <current source>^{tree} } as full SHAs, and trailer: the raw unedited output of git show -s --format=\'%(trailers:key=WAR-Task)\' <local target>.'
+// the reconciliation prompt ask for — one sentence, so the two arms cannot drift apart. Its commands are
+// in the forms the helper arm admits (PIN-27), which the refiner also runs.
+const MERGE_FACTS_RULE = 'base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <X> (true ONLY on exit 0), where X is the current source branch for a task merge (context kind task) and the local target otherwise. For a task merge also return parents (git show -s --format=%P <local target>), tree { target: git show -s --format=%T <local target>, source: git show -s --format=%T <current source> } as full SHAs, and trailer: the raw unedited output of git show -s --format=\'%(trailers:key=WAR-Task)\' <local target>.'
+// ---- GIT RELAYS ON THE HELPER (PIN-25, PIN-27, ADR 0057) ----
+// The snapshot, confirm and pin-confirm relays spell their commands without -C, so relayRepo names the
+// repository once. identityCmd is the Exact Git diff identity command of refiner-recovery.md with its two
+// revs filled in and its set -o pipefail line dropped (the helper arm admits no option line), so
+// identityFatal makes a fatal: on either side of the pipe a Git error.
+const relayRepo = repo => pt` Run each git command this prompt names as git -C ${repo} <command>, on each side of a pipe.`
+const identityCmd = (idBase, idTip) => pt`the Exact Git diff identity command \`git diff --raw -z --no-abbrev --no-renames --ignore-submodules=none --no-relative -O/dev/null ${idBase} ${idTip} -- | git hash-object --stdin\``
+const identityFatal = what => pt`A \`fatal:\` on stderr from either side of the pipe is ${what}: without pipefail a failed left side is otherwise silent.`
+// nullFullPin (#2497): a null for a request value that is 40 lowercase hex characters is a malformed reply.
+const nullFullPin = (pins, asked) => pins.some((sha, i) => sha === null && fullSha(asked[i]))
 // NEVER_MOVE_MERGED (#2485 D11, PIN-11 ‡): the one never-move sentence carried verbatim by the
 // pin-transfer probe step (2), all four merge-task step (a) copies and the refiner card step 1 (ES9).
 // D3 (#2662, PIN-3): it names the engine's hold, because the engine never records a merge from the report.
@@ -2916,10 +2929,17 @@ const mergeSnapshot = async (opts, context) => {
   let before, outOfSync = false, lastWhy = null
   const seed = context.seed ?? context.target
   const label = (context.pin ? 'git-pin-snapshot:' : 'git-snapshot:') + context.task
+  const approved = context.revert_range && context.revert_range.approved
+  const words = [context.repo, context.target, context.source, seed ?? '<target>', ...(approved ? [approved] : [])]
+  const [, T, S, SEED, A] = words.map(shq)
+  const tipText = approved ? S + ', or ' + A + ' for the approved patch' : S
   for (let attempt = 0; attempt < roundLimit; attempt++) {
   before = await readSite(
-    pt`GIT MERGE SNAPSHOT (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Before any merge mutation, read the local target and source refs as full commit SHAs (git rev-parse --verify <ref>^{commit}); query origin's exact refs/heads/<target> with git ls-remote. remote_sha is null ONLY on a successful query proving that ref absent, never on a transport/auth error. When the target remote is absent, also query origin's exact refs/heads/${seed ?? '<target>'} and return seed_sha (its full published tip or null); a fresh integration branch is safe only at that published seed, never at local-only history. Return base_sha (local target), source_sha (local source), remote_sha and patch_id (git diff <merge-base target source>..<source> | git patch-id --stable, first field). If the context names revert_range and its approved commit is an ancestor of source HEAD, the expected patch is instead the approved commit's patch (git diff <merge-base target approved>..<approved>): the merge forward-reverts that range to the approved tree. Also return content_id for that same expected diff using the Exact Git diff identity procedure in refiner-recovery.md. No writes, no checkout, no rebase, no merge, no push. On any unresolved Git error return base_sha, source_sha, remote_sha, patch_id and content_id as empty strings plus git_error (the stderr tail), never invented values.`,
-    { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: context.pin ? 'pin-snapshot' : 'merge-snapshot', label, schema: MERGE_SNAPSHOT, ...(attempt ? spawnRefinerRecovery() : spawn('refiner')) })
+    pt`GIT MERGE SNAPSHOT (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Before any merge mutation, read the local target and source refs as full commit SHAs (\`git rev-parse --verify refs/heads/${T}^0\`, \`git rev-parse --verify refs/heads/${S}^0\`); query origin's exact refs/heads/${T} with \`git ls-remote origin refs/heads/${T}\`. remote_sha is null ONLY on a successful query proving that ref absent, never on a transport/auth error. When the target remote is absent, also query origin's exact refs/heads/${SEED} and return seed_sha (its full published tip from \`git ls-remote origin refs/heads/${SEED}\`, or null); a fresh integration branch is safe only at that published seed, never at local-only history. Return base_sha (local target), source_sha (local source), remote_sha and patch_id (\`git diff ${T}...${S} | git patch-id --stable\`, first field). `
+    + (approved ? pt`If the context names revert_range and its approved commit is an ancestor of source HEAD (\`git merge-base --is-ancestor ${A} refs/heads/${S}\` exits 0), the expected patch is instead the approved commit's patch (\`git diff ${T}...${A} | git patch-id --stable\`): the merge forward-reverts that range to the approved tree. ` : '')
+    + pt`Also return content_id for that same expected diff: read <base> from \`git merge-base ${T} <tip>\`, where <tip> is ${tipText}, then run ${identityCmd('<base>', '<tip>')}. ${identityFatal('a git_error')} No writes, no checkout, no rebase, no merge, no push. On any unresolved Git error return base_sha, source_sha, remote_sha, patch_id and content_id as empty strings plus git_error (the stderr tail), never invented values.`
+    + relayRepo(shq(context.repo)),
+    { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: context.pin ? 'pin-snapshot' : 'merge-snapshot', label, schema: MERGE_SNAPSHOT, ...(attempt ? spawnRefinerRecovery() : helperOpts(...words)) })
   // the last caught reason, else the last unusable reply's git_error (#2589 D4/D5), for the HARD message
   lastWhy = before && before[CAUGHT] ? label + ': ' + before[CAUGHT] : before && typeof before.git_error === 'string' && before.git_error ? label + ': ' + before.git_error : null
   if (before && fullSha(before.base_sha) && fullSha(before.source_sha) && (before.remote_sha === null || fullSha(before.remote_sha)) && typeof before.patch_id === 'string' && fullSha(before.content_id)) {
@@ -3060,7 +3080,8 @@ const fixRoundFenceClause = paths => paths.length
 // (subset, re-entry, polish, terminal); its standing home is fix-round-doctrine.md § Ace commit messages.
 const ACE_TRAILER_CHECK = pt`Before you push, check each asked trailer parses: \`git show -s --format='%(trailers:key=Ace-Charge,valueonly)' HEAD\` prints its value (Ace-Subset likewise). Amend an unpushed commit that lacks one; report a pushed one in blocked_reason, naming the missing trailer.`
 // ---- TIP PROBE (#2485 D2, PIN-2) ----
-// After EVERY ace dispatch, dead or not, one read-only refiner reads the branch the ace wrote to (the
+// After EVERY ace dispatch, dead or not, one read-only helper (the refiner for a non-bare word, and for
+// the D36 re-ask; PIN-25) reads the branch the ace wrote to (the
 // task branch, or the polish branch at the terminal site) from Git. `blocked` never means no commit,
 // and a dead dispatch reports nothing, so the worker result is never the source. "Tip probe" is this
 // ace-arm dispatch; the "pin-transfer probe" is the merge-slot rebase dispatch. Its own dispatchKind,
@@ -3079,11 +3100,12 @@ const CHARGE_PROBE = { type: 'object', properties: { absorbCharges: { type: 'obj
 // TIP_TREE_FIELDS (D36, #2690): the tree fields a partial reply can miss while its shas are usable.
 const TIP_TREE_FIELDS = ['tip_tree', 'pre_tree', 'approved_tree']
 const tipProbe = async ({ probeId, probeSite, probeWorktree, probeBranch, probePre, probeApproved, label, partialRetry }) => {
+  const words = [probeWorktree, probeBranch, probePre, probeApproved], [W, Br, P, A] = words.map(shq)
   const body =
     pt`TIP PROBE (read-only) for ${probeId} after its ${probeSite} ace dispatch, in the worktree ${probeWorktree} (branch ${probeBranch}). Read Git only: never commit, revert, push, rebase or run the gate, and never use a worker report.\n`
-    + pt`PRE=${probePre} (the pre-dispatch tip) and APPROVED=${probeApproved} (the last approved tip). Let TIP=\`git -C ${probeWorktree} rev-parse --verify refs/heads/${probeBranch}^{commit}\`. Return tip_sha=TIP, tip_tree=TIP^{tree}, pre_sha=\`rev-parse --verify PRE^{commit}\`, pre_tree=PRE^{tree}, approved_tree=APPROVED^{tree}, and pre_is_ancestor: true ONLY when \`git -C ${probeWorktree} merge-base --is-ancestor PRE TIP\` exits 0. When pre_is_ancestor is true, also return count=\`git rev-list --count PRE..TIP\` and files=\`git diff --no-renames --name-only PRE TIP\` (one repo-relative path per entry); otherwise count 0 and files []. Also return tip_trailers: { aceSubset, aceCharge }, each the trimmed \`git -C ${probeWorktree} show -s --format='%(trailers:key=Ace-Subset,valueonly)' TIP\` (Ace-Charge for aceCharge), '' when absent. Every SHA is a full 40-hex Git object name. Any Git error: return {} — never an invented value.`
+    + pt`PRE=${probePre} (the pre-dispatch tip) and APPROVED=${probeApproved} (the last approved tip). Read TIP from \`git -C ${W} rev-parse --verify refs/heads/${Br}^0\`, and write TIP's full SHA where a command below says <TIP>. Return tip_sha=TIP, tip_tree=\`git -C ${W} show -s --format=%T <TIP>\`, pre_sha=\`git -C ${W} rev-parse --verify ${P}^0\`, pre_tree=\`git -C ${W} show -s --format=%T ${P}\`, approved_tree=\`git -C ${W} show -s --format=%T ${A}\`, and pre_is_ancestor: true ONLY when \`git -C ${W} merge-base --is-ancestor ${P} <TIP>\` exits 0. When pre_is_ancestor is true, also return count=\`git -C ${W} rev-list --count ${P}..<TIP>\` and files=\`git -C ${W} diff --no-renames --name-only ${P} <TIP>\` (one repo-relative path per entry); otherwise count 0 and files []. Also return tip_trailers: { aceSubset, aceCharge }, each the trimmed \`git -C ${W} show -s --format='%(trailers:key=Ace-Subset,valueonly)' <TIP>\` (Ace-Charge for aceCharge), '' when absent. Every SHA is a full 40-hex Git object name. Any Git error: return {} — never an invented value.`
   const opts = { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'tip-probe', label, schema: TIP_PROBE, ...spawn('refiner') }
-  let p = await dispatchSite(body, opts)
+  let p = await dispatchSite(body, { ...opts, ...helperOpts(...words) })
   // D36: a reply whose shas are usable and that misses only a tree field is re-asked ONCE, naming the
   // field. A second partial reply is unusable as before; usableTipProbe and tipClass do not change.
   const missing = partialRetry && p && !deathOf(p) && !usableTipProbe(p) && isSha(p.tip_sha) && isSha(p.pre_sha)
@@ -3160,12 +3182,13 @@ const verifyPinTransfer = async (r, before, probe, context) => {
     ...(probe && Array.isArray(probe.already_upstream_commits) ? probe.already_upstream_commits : [])]
   let proof
   r.pinGitError = null
+  const words = [context.repo, context.target, context.source], [, I, K] = words.map(shq), B = before.base_sha
   for (let attempt = 0; attempt < roundLimit; attempt++) {
     proof = await readSite(
       pt`PIN TRANSFER GIT VERIFICATION (read-only). Context: ${JSON.stringify(context)}. Immutable BEFORE: ${JSON.stringify(before)}. REPORTED PINS: ${JSON.stringify(reported)}
 CLAIMED RESULT: ${JSON.stringify(probe ?? null)}
-Resolve every reported pin separately with git rev-parse --verify --end-of-options <pin>^{commit} only for 7–40 lowercase hex, returning pins in exactly that order (null for missing, malformed, nonexistent or ambiguous values). Never infer identity from reported strings. Read actual task head_sha, integration local_sha and the exact origin refs/heads/<integration branch> remote_sha (the integration branch's own origin ref, NEVER the task branch's pushed tip; null ONLY after a successful query proving absence). If the integration refs stay stable but differ from BEFORE, report the actual local_sha and remote_sha and still return every other field: the engine reads that as a target move. content_sha is BEFORE.source_sha, except when the context names revert_range: then return approved_ancestor (true ONLY when git merge-base --is-ancestor pin[0] BEFORE.source_sha exits 0), and when it is true content_sha is pin[0] (the registered range revert restores the approved content). Read approved_tree from pin[0]^{tree}, content_tree from content_sha^{tree}, and head_tree from head_sha^{tree}; these must be actual Git objects, not echoed identities. Compute dispatch_base = git merge-base BEFORE.base_sha content_sha; pre_patch_id = git diff dispatch_base..content_sha | git patch-id --stable (first field); task_count = git rev-list --count dispatch_base..content_sha; cherry = git cherry BEFORE.base_sha C as [{sign, sha}] with full TASK commit SHAs, where C is BEFORE.cherry_sha when BEFORE names it, else content_sha. Compute post_patch_id from git diff <integration>..<task head> | git patch-id --stable, post_empty from git diff --quiet <integration> <task head> (true ONLY on exit 0), and target_ancestor from git merge-base --is-ancestor <integration> <task head>. Compute pre_content_id for dispatch_base..content_sha and post_content_id for integration..task head using Exact Git diff identity in refiner-recovery.md. Re-read all refs after computing evidence; any movement or Git error returns {"remote_sha":""}, which the engine reads as no proof; on a Git error add git_error (the stderr tail). Movement here means a change between your two reads, never a stable difference from BEFORE. No writes, checkout, rebase, merge, push or gate.`,
-      { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-confirm', label: 'git-pin:' + r.task.id, schema: PIN_GIT_PROOF, ...(attempt ? spawnRefinerRecovery() : spawn('refiner')) })
+Resolve every reported pin separately with \`git rev-parse --verify --end-of-options <pin>^0\` only for 7–40 lowercase hex, returning pins in exactly that order (null for missing, malformed, nonexistent or ambiguous values). Never infer identity from reported strings. Read actual task head_sha (\`git rev-parse --verify refs/heads/${K}^0\`), integration local_sha (\`git rev-parse --verify refs/heads/${I}^0\`) and the exact origin refs/heads/<integration branch> remote_sha (the integration branch's own origin ref, NEVER the task branch's pushed tip; null ONLY after a successful query proving absence) from \`git ls-remote origin refs/heads/${I}\`. If the integration refs stay stable but differ from BEFORE, report the actual local_sha and remote_sha and still return every other field: the engine reads that as a target move. content_sha is BEFORE.source_sha, except when the context names revert_range: then return approved_ancestor (true ONLY when \`git merge-base --is-ancestor <pin[0]> ${before.source_sha}\` exits 0), and when it is true content_sha is pin[0] (the registered range revert restores the approved content). Read approved_tree from pin[0]^{tree}, content_tree from content_sha^{tree}, and head_tree from head_sha^{tree}, each <rev>^{tree} as \`git show -s --format=%T <rev>\`; these must be actual Git objects, not echoed identities. Compute dispatch_base = \`git merge-base ${B} <content_sha>\`; pre_patch_id = \`git diff <dispatch_base>..<content_sha> | git patch-id --stable\` (first field); task_count = \`git rev-list --count <dispatch_base>..<content_sha>\`; cherry = \`git cherry ${B} <C>\` as [{sign, sha}] with full TASK commit SHAs, where C is BEFORE.cherry_sha when BEFORE names it, else content_sha. Compute post_patch_id from \`git diff ${I}..${K} | git patch-id --stable\`, post_empty from \`git diff --quiet ${I} ${K}\` (true ONLY on exit 0), and target_ancestor from \`git merge-base --is-ancestor ${I} ${K}\`. Compute pre_content_id with ${identityCmd('<dispatch_base>', '<content_sha>')} and post_content_id with ${identityCmd(I, K)}. ${identityFatal('a Git error')} Re-read all refs after computing evidence; any movement or Git error returns {"remote_sha":""}, which the engine reads as no proof; on a Git error add git_error (the stderr tail). Movement here means a change between your two reads, never a stable difference from BEFORE. No writes, checkout, rebase, merge, push or gate.` + relayRepo(shq(context.repo)),
+      { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-confirm', label: 'git-pin:' + r.task.id, schema: PIN_GIT_PROOF, ...(attempt ? spawnRefinerRecovery() : helperOpts(...words)) })
     // a git_error rides the pin-transfer:unverified row (#2589 D5), only while no well-formed proof was read
     if (proof && typeof proof.git_error === 'string' && proof.git_error) r.pinGitError = proof.git_error
     if (deathOf(proof)) continue
@@ -3175,7 +3198,7 @@ Resolve every reported pin separately with git rev-parse --verify --end-of-optio
     if (!proof || ![proof.head_sha, proof.local_sha, proof.content_sha, proof.dispatch_base, proof.approved_tree, proof.content_tree, proof.pre_content_id, proof.post_content_id].every(fullSha) ||
         !Array.isArray(proof.pins) || proof.pins.length !== reported.length ||
         proof.pins.some((sha, i) => sha !== null && (!isSha(reported[i]) || !fullSha(sha) || !sha.startsWith(reported[i]))) ||
-        !fullSha(proof.pins[0]) ||
+        nullFullPin(proof.pins, reported) || !fullSha(proof.pins[0]) ||
         proof.content_sha !== (range && proof.approved_ancestor === true ? proof.pins[0] : before.source_sha) ||
         typeof proof.pre_patch_id !== 'string' || typeof proof.post_patch_id !== 'string' || remoteMisread(proof, before)) continue
     // A well-formed proof was read: an earlier attempt's git_error did not cause any later hold.
@@ -3207,17 +3230,18 @@ const confirmMerge = async (result, opts, context, before) => {
   const mode = context.land ? 'land-phase' : 'merge-task'
   const success = context.land ? 'landed' : 'merged'
   const claimed = result[context.land ? 'working_sha' : 'integration_sha'] ?? null
+  const words = [context.repo, context.target, context.source], [, T, S] = words.map(shq), B = before.base_sha
   const proof = await dispatchSite(
     pt`GIT MERGE CONFIRMATION (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Immutable pre-dispatch snapshot: ${JSON.stringify(before)}. Reported result: ${JSON.stringify({ mode: result.mode, status: result.status, claimed })}.
-Read local target and source branch tips with git rev-parse --verify <ref>^{commit}; query origin's exact refs/heads/<target> with git ls-remote. Return local_sha, remote_sha (null ONLY on a successful query proving absence), source_tip. Resolve the claimed SHA separately through git rev-parse --verify --end-of-options <claimed>^{commit} ONLY if it is 7–40 lowercase hex; return reported_sha as the full resolved commit or null on missing/malformed/ambiguous/nonexistent input. Never infer Git identity from matching strings. For BOTH modes return ${MERGE_FACTS_RULE} For merge-task return patch_id from git diff <merge-base snapshot-base current-source>..<current source> | git patch-id --stable (first field). Also return content_id for that same diff using Exact Git diff identity in refiner-recovery.md; never echo the snapshot identity. For land-phase return the target commit's actual ordered parents via git show -s --format=%P <local target>. Read refs again after computing evidence; any movement or Git error returns {"remote_sha":""}, which the engine reads as no proof. No writes, checkout, rebase, merge or push.`,
-    { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'merge-confirm', label: 'git-confirm:' + opts.label, schema: MERGE_CONFIRMATION, ...spawn('refiner') })
+Read local target and source branch tips with \`git rev-parse --verify refs/heads/${T}^0\` and \`git rev-parse --verify refs/heads/${S}^0\`; query origin's exact refs/heads/${T} with \`git ls-remote origin refs/heads/${T}\`. Return local_sha, remote_sha (null ONLY on a successful query proving absence), source_tip. Resolve the claimed SHA separately through \`git rev-parse --verify --end-of-options <claimed>^0\` ONLY if it is 7–40 lowercase hex; return reported_sha as the full resolved commit or null on missing/malformed/ambiguous/nonexistent input. Never infer Git identity from matching strings. For BOTH modes return ${MERGE_FACTS_RULE} For merge-task return patch_id from \`git diff ${B}...${S} | git patch-id --stable\` (first field). Also return content_id for that same diff: read <base> from \`git merge-base ${B} ${S}\`, then run ${identityCmd('<base>', S)}. ${identityFatal('a Git error')} Never echo the snapshot identity. For land-phase return the target commit's actual ordered parents via git show -s --format=%P <local target>. Read refs again after computing evidence; any movement or Git error returns {"remote_sha":""}, which the engine reads as no proof. No writes, checkout, rebase, merge or push.` + relayRepo(shq(context.repo)),
+    { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'merge-confirm', label: 'git-confirm:' + opts.label, schema: MERGE_CONFIRMATION, ...helperOpts(...words) })
   const died = deathOf(proof)
   if (died) {
     auditLog.push({ task: context.task, verdict: 'git-confirmation:unresolved', findings: [], site: opts.label, blocked: died })
     // a read-only death after a mutation cannot establish Git certainty
     return false
   }
-  const confirmed = !!proof && result.mode === mode && (result.status === success
+  const confirmed = !!proof && result.mode === mode && !nullFullPin([proof.reported_sha], [claimed]) && (result.status === success
     ? mergeGitMatches(proof, before, context) && isSha(claimed) && proof.reported_sha === proof.local_sha && proof.local_sha.startsWith(claimed)
     : !['merged', 'landed'].includes(result.status) && proof.local_sha === before.base_sha && sameRemote(proof.remote_sha, before.remote_sha) && sourceGitMatches(proof, before, context.land))
   auditLog.push({ task: context.task, verdict: confirmed ? 'git-confirmed:' + result.status : 'git-confirmation:unresolved', findings: [], site: opts.label, reported: result, before, after: proof })
@@ -4163,7 +4187,8 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
   // D36 (#2704): a malformed reply is re-dispatched once; a second one takes the dropped-seat arm below.
   const pinShape = x => !x ? 'no reply' : !fullSha(x.head_sha) ? 'head_sha not a full SHA' : !Array.isArray(x.pins) ? 'pins not an array'
     : x.pins.length !== reported.length ? 'pins length ' + x.pins.length + ' for ' + reported.length + ' requested'
-    : x.pins.some((sha, i) => sha !== null && (!isSha(reported[i]) || !fullSha(sha) || !sha.startsWith(reported[i]))) ? 'a pin fails the prefix check' : null
+    : x.pins.some((sha, i) => sha !== null && (!isSha(reported[i]) || !fullSha(sha) || !sha.startsWith(reported[i]))) ? 'a pin fails the prefix check'
+    : nullFullPin(x.pins, reported) ? 'a null pin for a full SHA' : null
   let resolved
   for (let attempt = 0; attempt < 2; attempt++) {
   resolved = await dispatchSite(
@@ -4472,7 +4497,7 @@ if (tasks.length) {
     if (causes) unseeded.push([t, chargeMaps[1][1] ? causes : causes.concat('barrier returned no absorbCharges map (' + chargeShapeOf(barrierOut) + ')')])
   }
   // CHARGE PROBE (D40, #2676): a running task neither map seeded is read from Git ONCE more, by one
-  // read-only refiner for the phase (the tip-probe pattern, no card twin). Its reply is the third
+  // read-only refiner for the phase (the read-only probe pattern, no card twin). Its reply is the third
   // source; a dead or malformed reply keeps the 0 seed and the log names its shape. Never a hold.
   if (unseeded.length) {
     const probe = await dispatchSite(
@@ -8900,7 +8925,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // its DEMOTE_REASONS prefix on a FIXED line; a seat-filed row carries its barrier tag, and a
       // seat row that no intake floor ran on carries demote:floor-skipped (#2051).
       + pt`EACH filed issue's body carries, as its FIRST line, \`Demote-Reason: <value>\` copied verbatim from the row's \`filed-by\` field below — the engine's \`demote:<reason>\` prefix on an engine-demoted row, \`demote:floor-skipped\` on a seat row that no intake floor ran on (a failed probe, or a row raised at the escalation arm, the sweep, or the terminal pass), or \`seat-filed (barrier: <tag>)\` otherwise; when the row carries a \`drain cause:\` cell, append it to that same line verbatim (the dispatch that died and why); a clustered issue lists one such line per member row.\n`
-      + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at) — for a \`requiresTest:false\` task this is its landed integration tip (never gate-audited, the D7 skip) — the file path with its line when present, the raising seat lenses (from the row's seats list — every row renders one, the corroboration list on a merged row or the single raising seat otherwise; each seat entry's lens follows the FAMILY-PREFIX rule: a seat label whose FIRST \`:\`-segment is \`gate-audit\` yields the lens \`execution-evidence\` whatever its trailing segments (a phase-level segment like \`phase-1\` or a dispatch suffix like \`integrated-tip\`/\`end-state\` is never a lens); otherwise the lens is the trailing \`:<lens>\` segment, read before any \` (task <id>)\` attribution suffix — and a trailing \`:rebut\` is a dispatch label, never the lens: take the segment before it; a bare \`task <id>\`/'unattributed' entry verbatim), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
+      + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at) — for a \`requiresTest:false\` task this is its landed integration tip (never gate-audited, the D7 skip) — the file path with its line when present, the raising seat lenses (from the row's seats list — every row renders one, the corroboration list on a merged row or the single raising seat otherwise; each seat entry's lens follows the FAMILY-PREFIX rule: a seat label whose FIRST \`:\`-segment is \`gate-audit\` yields the lens \`execution-evidence\` whatever its trailing segments (a phase-level segment like \`phase-1\` or a dispatch suffix like \`integrated-tip\`/\`end-state\` is never a lens); otherwise the lens is the trailing \`:<lens>\` segment, read before any \` (task <id>)\` attribution suffix — and a trailing \`:rebut\` is a dispatch label, never the lens: take the segment before it; then a trailing \`:opus\` is a pair suffix, never the lens: take the segment before it; a bare \`task <id>\`/'unattributed' entry verbatim), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
       // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).
       // The title span is DELIMITED (quoted, `title:`-prefixed) so the dedup instruction's

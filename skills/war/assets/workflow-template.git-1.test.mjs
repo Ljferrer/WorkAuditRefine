@@ -430,6 +430,17 @@ import {
   provisionSiteCensus,
   PROVISION_SITE_CENSUS,
   provisionFailure,
+  RELAY_KINDS,
+  RELAY_FILL,
+  relayImpl,
+  relayRun,
+  relayCall,
+  relayCommandsOf,
+  helperGuard,
+  mutate,
+  RELAY_SITES,
+  NULL_PIN_OFF,
+  unprefixed,
 } from './workflow-template.test-harness.mjs'
 
 
@@ -823,6 +834,193 @@ test('war-helper (ADR 0057): a word the guard denies bare routes that dispatch t
   assert.equal(seatOf(c.opts), 'war-helper')
   assert.equal(c.opts.model, 'sonnet')
   assert.equal(c.opts.effort, 'medium')
+})
+
+// ---- plan 2026-11-08-model-routing-and-prompt-byte-budgets, Task 5.3 (PIN-25, PIN-27, End states 26 and 33) ----
+// The five Git relays spawn the helper on their first attempt. Each `spawns war-helper` row is proven red
+// by a copy of the template whose relay site spawns spawn('refiner') in place of helperOpts (RELAY_SITES).
+for (const kind of RELAY_KINDS) test(`relay routing — ${kind} spawns war-helper`, async () => {
+  const { out, calls } = await relayRun()
+  const first = relayCall(calls, kind)
+  assert.ok(first, `non-vacuity: a ${kind} dispatch ran`)
+  assert.equal(seatOf(first.opts), 'war-helper', `the first ${kind} attempt spawns the helper`)
+  assert.equal(first.opts.model, 'haiku', 'on the helper tier')
+  assert.ok(calls.filter(c => c.opts.dispatchKind === kind).every(c => seatOf(c.opts) === 'war-helper'), `every first-attempt ${kind} runs on the helper`)
+  assert.equal(out.landDecision, 'landed', 'the helper replies land the phase')
+  const mutant = await relayRun({}, {}, mutate(...RELAY_SITES[kind]))
+  assert.equal(seatOf(relayCall(mutant.calls, kind).opts), 'war-refiner', 'proven red: the spawn(\'refiner\') copy spawns the refiner')
+})
+
+test('relay routing — a repeat attempt keeps the recovery refiner', async () => {
+  const seatsOf = () => {
+    let snaps = 0, pins = 0
+    return {
+      'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' && ++snaps === 1 ? (() => { throw new Error('529 overloaded') })() : NEW_SEAT_DEFAULTS['merge-snapshot'],
+      'pin-confirm': p => ++pins === 1 ? { ...NEW_SEAT_DEFAULTS['pin-confirm'](p), head_sha: 'abc12' } : NEW_SEAT_DEFAULTS['pin-confirm'](p),
+    }
+  }
+  // The tip-probe re-ask (#2704 D36) answers a reply that misses only approved_tree.
+  const tipSeats = { 'tip-probe': (p, o, w) => /^TIP PROBE RE-ASK/.test(unprefixed(p)) ? NEW_SEAT_DEFAULTS['tip-probe'](p, o, w) : { ...NEW_SEAT_DEFAULTS['tip-probe'](p, o, w), approved_tree: undefined } }
+  const pairOf = (calls, kind, label) => {
+    const runs = calls.filter(c => c.opts.dispatchKind === kind && (!label || c.opts.label === label))
+    assert.equal(runs.length, 2, `non-vacuity: ${kind} ran twice`)
+    return [seatOf(runs[0].opts), seatOf(runs[1].opts), runs[1].opts.model]
+  }
+  const live = await relayRun({}, seatsOf())
+  assert.deepEqual(pairOf(live.calls, 'merge-snapshot', 'git-snapshot:t1'), ['war-helper', 'war-refiner', 'opus'], 'the snapshot repeat spawns the recovery refiner')
+  assert.deepEqual(pairOf(live.calls, 'pin-confirm'), ['war-helper', 'war-refiner', 'opus'], 'the pin-confirm repeat spawns the recovery refiner')
+  assert.equal(live.out.landDecision, 'landed')
+  const tip = await relayRun({}, tipSeats)
+  assert.deepEqual(pairOf(tip.calls, 'tip-probe'), ['war-helper', 'war-refiner', 'sonnet'], 'the tip-probe re-ask keeps today\'s spawn(\'refiner\')')
+  // Proven red: a repeat that spawns through helperOpts stays on the helper.
+  const mutant = await relayRun({}, seatsOf(), mutate(RELAY_SITES['merge-snapshot'][0], 'schema: MERGE_SNAPSHOT, ...helperOpts(...words)'))
+  assert.equal(pairOf(mutant.calls, 'merge-snapshot', 'git-snapshot:t1')[1], 'war-helper', 'the mutant repeats the snapshot on the helper')
+  const reAsk = mutate("p = await dispatchSite(pt`TIP PROBE RE-ASK: your prior reply had no usable ${missing.join(', ')}. Return every field below, ${missing.join(', ')} included.\\n` + body, opts)",
+    "p = await dispatchSite(pt`TIP PROBE RE-ASK: your prior reply had no usable ${missing.join(', ')}. Return every field below, ${missing.join(', ')} included.\\n` + body, { ...opts, ...helperOpts(...words) })")
+  assert.equal(pairOf((await relayRun({}, tipSeats, reAsk)).calls, 'tip-probe')[1], 'war-helper', 'the mutant re-asks the tip probe on the helper')
+})
+
+test('relay routing — a non-bare word keeps the refiner', async () => {
+  const root = '/abs/war helper/worktrees'
+  const { out, calls } = await relayRun({ worktreeRoot: root })
+  for (const kind of RELAY_KINDS) {
+    const c = relayCall(calls, kind)
+    assert.ok(c, `non-vacuity: ${kind} ran`)
+    assert.equal(seatOf(c.opts), 'war-refiner', `${kind}: a path with a space keeps the refiner`)
+    assert.equal(c.opts.model, 'sonnet', `${kind}: on spawn('refiner')`)
+    assert.ok(c.prompt.includes(`git -C '${root}/`), `${kind}: the refiner arm quotes the path through shq`)
+  }
+  assert.equal(out.landDecision, 'landed')
+  // Proven red: a bareWord that admits every word sends the spaced path to the helper.
+  const mutant = await relayRun({ worktreeRoot: root }, {}, mutate('const bareWord = w => /^[\\w./=:,@^~%+-]+$/.test(w)', 'const bareWord = w => true'))
+  assert.ok(RELAY_KINDS.every(kind => seatOf(relayCall(mutant.calls, kind).opts) === 'war-helper'), 'the mutant routes the spaced path to the helper')
+})
+
+test('relay routing — every spelled command passes the helper arm', async () => {
+  const commandsOf = calls => RELAY_KINDS.map(kind => [kind, calls.filter(c => c.opts.dispatchKind === kind).flatMap(c => relayCommandsOf(c.prompt))])
+  const { calls } = await relayRun({}, { 'pin-transfer': { status: 'transferred', rebased_tip: 'beef0001', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1' } })
+  for (const [kind, commands] of commandsOf(calls)) {
+    assert.ok(commands.length >= 7, `non-vacuity: ${kind} spells its commands (${commands.length})`)
+    for (const command of commands) {
+      const g = helperGuard(command)
+      assert.equal(g.status, 0, `${kind}: the helper arm admits ${command}\n${g.stderr}`)
+    }
+  }
+  // Each relay's pipe reaches the guard as a pipe: the extraction keeps both sides.
+  assert.ok(commandsOf(calls).every(([kind, commands]) => kind === 'tip-probe' || commands.some(c => / \| git -C \S+ (patch-id|hash-object) /.test(c))), 'the piped commands are extracted whole')
+  // Proven red: the retired ^{commit} spelling (snapshot), and a $(...) merge-base range (confirm).
+  for (const [from, to, kind] of [['refs/heads/${T}^0\\`, \\`git rev-parse', 'refs/heads/${T}^{commit}\\`, \\`git rev-parse', 'merge-snapshot'],
+    ['patch_id from \\`git diff ${B}...${S} | git patch-id --stable\\`', 'patch_id from \\`git diff $(git merge-base ${B} ${S})..${S} | git patch-id --stable\\`', 'merge-confirm']]) {
+    const m = await relayRun({}, {}, mutate(from, to))
+    const denied = commandsOf(m.calls).find(([k]) => k === kind)[1].filter(c => helperGuard(c).status !== 0)
+    assert.ok(denied.length > 0, `the ${kind} mutant spells a command the helper arm denies`)
+  }
+})
+
+test('relay routing — a malformed reply holds', async () => {
+  const SHORT = 'abc12'
+  const cases = {
+    'merge-snapshot': { 'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? { ...NEW_SEAT_DEFAULTS['merge-snapshot'], base_sha: SHORT } : NEW_SEAT_DEFAULTS['merge-snapshot'] },
+    'pin-snapshot': { 'pin-snapshot': { ...NEW_SEAT_DEFAULTS['pin-snapshot'], source_sha: SHORT } },
+    'merge-confirm': { 'merge-confirm': (p, o, w) => ({ ...NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w), ...(o.label === 'git-confirm:merge:t1' ? { local_sha: SHORT } : {}) }) },
+    'pin-confirm': { 'pin-confirm': p => ({ ...NEW_SEAT_DEFAULTS['pin-confirm'](p), head_sha: SHORT }) },
+    'tip-probe': { 'tip-probe': (p, o, w) => ({ ...NEW_SEAT_DEFAULTS['tip-probe'](p, o, w), tip_sha: SHORT }) },
+  }
+  const outcome = r => [r.out.landDecision, r.out.landed.includes('t1'), (r.out.aced || []).length]
+  for (const [kind, seats] of Object.entries(cases)) {
+    const helper = await relayRun({}, seats), refiner = await relayRun({ worktreeRoot: '/abs/war helper/worktrees' }, seats)
+    assert.equal(seatOf(relayCall(helper.calls, kind).opts), 'war-helper', `non-vacuity: ${kind} replied as the helper`)
+    assert.equal(seatOf(relayCall(refiner.calls, kind).opts), 'war-refiner', `non-vacuity: ${kind} replied as the refiner`)
+    assert.deepEqual(outcome(helper), outcome(refiner), `${kind}: a short-SHA helper reply lands where a refiner reply lands`)
+    if (kind === 'tip-probe') assert.ok(helper.logs.some(l => /the tip probe returned no usable Git read/.test(l)) && !helper.out.aced.length, 'the short tip is unusable: no ace is recorded')
+    else assert.ok(helper.out.landDecision !== 'landed' || !helper.out.landed.includes('t1'), `${kind}: the short SHA holds the task`)
+  }
+  // Proven red: drop head_sha from pin-confirm's full-SHA list and the short head merges.
+  const m = await relayRun({}, cases['pin-confirm'], mutate('[proof.head_sha, proof.local_sha, proof.content_sha,', '[proof.local_sha, proof.content_sha,'))
+  assert.ok(m.out.landed.includes('t1'), 'the mutant accepts the short head and lands')
+})
+
+// Amended 2026-11-09 (#2497): a null for a 40-hex request value is a malformed reply. Proven red by a
+// copy whose nullFullPin never fires (NULL_PIN_OFF).
+test('null full-SHA pin — the relays hold', async () => {
+  const FULL = 'beef0001'.padEnd(40, '0'), UPSTREAM = 'cafe0001'.padEnd(40, '0')
+  const probe = { 'pin-transfer': { status: 'transferred', rebased_tip: FULL, dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1', already_upstream_commits: [UPSTREAM] } }
+  const control = await relayRun({}, probe)
+  assert.ok(control.out.landed.includes('t1'), 'control: every 40-hex pin resolves and the task lands')
+  // pin-confirm: pins[4] asks for the 40-hex already-upstream commit and the reply nulls it.
+  let asked = null
+  const nullPin = { ...probe, 'pin-confirm': p => { asked = JSON.parse(p.match(/REPORTED PINS: ([^\n]+)/)[1]); const r = NEW_SEAT_DEFAULTS['pin-confirm'](p); return { ...r, pins: r.pins.map((x, i) => i === 4 ? null : x) } } }
+  const pin = await relayRun({}, nullPin)
+  assert.equal(asked[4], UPSTREAM, 'non-vacuity: the nulled pin asks for a 40-hex value')
+  assert.ok(!pin.out.landed.includes('t1') && pin.out.auditLog.some(r => r.verdict === 'pin-transfer:unverified'), 'pin-confirm: the null pin holds the task as unverified')
+  assert.ok(pin.calls.filter(c => c.opts.dispatchKind === 'pin-confirm').length > 1, 'pin-confirm: the malformed proof is re-read')
+  // merge-confirm: the claimed 40-hex integration_sha of a conflict reply resolves to null.
+  const conflictImpl = () => { const base = relayImpl(); return (p, o) => o.label === 'merge:t1' ? { mode: 'merge-task', status: 'conflict', integration_sha: FULL, conflict_files: ['a.js'] } : base(p, o) }
+  const confirmSeat = { 'merge-confirm': (p, o, w) => ({ ...NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w), ...(o.label === 'git-confirm:merge:t1' ? { reported_sha: null } : {}) }) }
+  const confirm = await runPhase(ACE_ARGS(), conflictImpl(), confirmSeat)
+  assert.ok(confirm.out.auditLog.some(r => r.verdict === 'git-confirmation:unresolved' && r.site === 'merge:t1'), 'merge-confirm: the null reported_sha is no Git proof')
+  assert.ok(!confirm.out.landed.includes('t1'), 'merge-confirm: the task holds')
+  // merge-snapshot and tip-probe: a null for the full SHA the request names holds as a short one does.
+  const snap = await relayRun({}, { 'merge-snapshot': (p, o) => ({ ...NEW_SEAT_DEFAULTS['merge-snapshot'], ...(o.label === 'git-snapshot:t1' ? { source_sha: null } : {}) }) })
+  assert.ok(!snap.out.landed.includes('t1'), 'merge-snapshot: the null source_sha holds the task')
+  const tip = await relayRun({}, { 'tip-probe': (p, o, w) => ({ ...NEW_SEAT_DEFAULTS['tip-probe'](p, o, w), pre_sha: null }) })
+  assert.ok(tip.logs.some(l => /the tip probe returned no usable Git read/.test(l)), 'tip-probe: the null pre_sha is unusable')
+  // Proven red: with nullFullPin off, pin-confirm lands the null pin and merge-confirm confirms the conflict.
+  const off = NULL_PIN_OFF()
+  assert.ok((await relayRun({}, nullPin, off)).out.landed.includes('t1'), 'the mutant accepts the null pin')
+  assert.ok((await runPhase(ACE_ARGS(), conflictImpl(), confirmSeat, off)).out.auditLog.some(r => r.verdict === 'git-confirmed:conflict'), 'the mutant confirms the conflict')
+})
+
+// wf_f1da25ea-d41: the haiku helper returned the right head_sha and pins [null, null, null, null] for four
+// valid 40-hex SHAs. The reply is re-dispatched once, and the corrected second reply keeps the panel.
+test('null full-SHA pin — audit-pin re-dispatches once', async () => {
+  const HEAD = 'feedface'.padEnd(40, '0')
+  const tasks = [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'security' }, { lens: 'plan-faithfulness' }] }]
+  const impl = (p, o) => {
+    if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: HEAD }
+    if (/^audit:t1:/.test(o.label || '')) return { seat: o.label, lens: o.label.split(':')[2], verdict: 'approve', confidence: 'high', audit_sha: HEAD, findings: [] }
+    return defaultImpl(p, o)
+  }
+  const pinSeat = () => { let n = 0; return p => {
+    const asked = fixturePinRequest(p)
+    return ++n === 1 ? { head_sha: HEAD, pins: asked.map(() => null) } : { head_sha: HEAD, pins: asked.map(() => HEAD) }
+  } }
+  const live = await runPhase(PROVISION_ARGS({ tasks }), impl, { 'audit-pin': pinSeat() })
+  const pins = live.calls.filter(c => c.opts.dispatchKind === 'audit-pin')
+  assert.deepEqual(fixturePinRequest(pins[0].prompt), [HEAD, HEAD, HEAD, HEAD], 'non-vacuity: four 40-hex values are asked')
+  assert.equal(pins.length, 2, 'the null-pin reply is re-dispatched once')
+  assert.ok(live.logs.some(l => /audit-pin:t1: malformed reply \(a null pin for a full SHA\); re-dispatched once/.test(l)), 'the log names the null pin')
+  assert.equal(live.calls.filter(c => /^audit:t1:/.test(c.opts.label || '')).length, 3, 'the corrected reply keeps the panel: no seat re-runs')
+  assert.ok(live.out.landed.includes('t1'), 'the task lands on the corrected pins')
+  // Proven red: with nullFullPin off the null reply passes the shape check, so no re-dispatch runs.
+  const mutant = await runPhase(PROVISION_ARGS({ tasks }), impl, { 'audit-pin': pinSeat() }, NULL_PIN_OFF())
+  assert.ok(!mutant.logs.some(l => /re-dispatched once/.test(l)), 'the mutant takes the null pins as a mismatch')
+  assert.notEqual(mutant.calls.filter(c => /^audit:t1:/.test(c.opts.label || '')).length, 3, 'and re-runs the panel')
+})
+
+// PIN-27 (red-team 2026-11-10): the relay prompts carry the Exact Git diff identity command of
+// refiner-recovery.md with its two revs filled in and its set -o pipefail line dropped, byte for byte.
+test('relay identity — the inlined command is the reference recipe with its revs filled in', async () => {
+  const [set, recipe] = exactGitDiffRecipe.trim().split('\n')
+  assert.equal(set, 'set -o pipefail', 'the reference opens with the pipefail line the helper arm cannot run')
+  const fill = (base, tip) => recipe.replace('"$1"', base).replace('"$2"', tip)
+  const { calls } = await relayRun()
+  const spelled = kind => [...relayCall(calls, kind).prompt.matchAll(/the Exact Git diff identity command `([^`]+)`/g)].map(m => m[1])
+  for (const kind of ['merge-snapshot', 'pin-snapshot']) assert.deepEqual(spelled(kind), [fill('<base>', '<tip>')], kind)
+  assert.deepEqual(spelled('merge-confirm'), [fill('<base>', 'war/wtprov-a/p3-t1')], 'merge-confirm')
+  assert.deepEqual(spelled('pin-confirm'), [fill('<dispatch_base>', '<content_sha>'), fill('integration/wtprov-a/phase-3', 'war/wtprov-a/p3-t1')], 'pin-confirm')
+  for (const kind of ['merge-snapshot', 'merge-confirm', 'pin-confirm']) assert.ok(relayCall(calls, kind).prompt.includes('A `fatal:` on stderr from either side of the pipe is'), kind + ' names the fatal: rule')
+  // The filled command reads the same identity as the reference recipe from a real repo.
+  const dir = mkdtempSync(join(tmpdir(), 'war-relay-identity-'))
+  try {
+    const git = (...a) => { const r = spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+    git('init', '-q', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(dir, 'a'), 'base'); git('add', '.'); git('commit', '-q', '-m', 'base'); const base = git('rev-parse', 'HEAD')
+    writeFileSync(join(dir, 'a'), 'tip'); git('commit', '-q', '-am', 'tip'); const tip = git('rev-parse', 'HEAD')
+    const run = spawnSync('bash', ['-c', fill(base, tip)], { cwd: dir, encoding: 'utf8' })
+    assert.equal(run.status, 0, run.stderr)
+    assert.equal(run.stdout.trim(), fixtureContentId(dir, base, tip), 'the dropped pipefail line changes no identity')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
 // ---- plan 2026-11-08-engine-recovery-relaunch-and-land, Task 4.1: the dispatched spellings, run through bash ----

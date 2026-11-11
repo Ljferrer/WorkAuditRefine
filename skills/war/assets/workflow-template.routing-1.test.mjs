@@ -27,6 +27,12 @@ import {
   isMergeTask,
   aceOk,
   ACE_FILE,
+  HANDOFF_ARGS,
+  handoffImpl,
+  mutate,
+  readFileSync,
+  join,
+  here,
 } from './workflow-template.test-harness.mjs'
 
 // The baseline: each resolver's definition line is replaced by the pre-existing helper it routes over.
@@ -191,6 +197,52 @@ test('sampled review — stable replay', async () => {
   const first = await sampledIds()
   assert.ok(first.length > 0 && first.length < tasks.length, `non-vacuity: a 0.5 share samples some tasks, not all (got ${first.join(',')})`)
   for (let i = 0; i < 3; i++) assert.deepEqual(await sampledIds(), first, 'the same inputs sample the same tasks')
+})
+
+// PIN-13 (carried from Task 4.1, seeded into Task 5.3): a sonnet rebuttal tier never drops the sampled seat
+// below opus. Remove the sampled lift in routeSeat and the rebuttal seat spawns sonnet → red.
+test('sampled review — a split rebuttal with a sonnet rebuttal tier keeps the sampled seat on opus', async () => {
+  const agents = { ...AGENTS, auditor: { ...AGENTS.auditor, rebuttal: { model: 'sonnet', effort: 'high' } } }
+  const block = () => buildSeqImpl({ 'audit:t1:correctness:opus': [blockingMajor('audit:t1:correctness:opus')], 'audit:t1:correctness:opus:rebut': [blockingMajor('audit:t1:correctness:opus:rebut')] }, defaultImpl)
+  const rebutOf = calls => calls.find(c => c.opts.label === 'audit:t1:correctness:opus:rebut')
+  const { calls } = await sampledRun({ agents }, block())
+  assert.ok(rebutOf(calls), 'non-vacuity: the split rebuttal re-ran the sampled seat')
+  assert.equal(rebutOf(calls).opts.model, 'opus', 'the sampled seat keeps opus in the rebuttal round')
+  assert.equal(calls.find(c => c.opts.label === 'audit:t1:correctness:rebut').opts.model, 'sonnet', 'a roster seat takes the rebuttal tier')
+  const mutant = await runPhase(PROVISION_ARGS({ tasks: [T()], agents, routing: SAMPLE }), block(), {},
+    mutate('const lift = task.class === \'boundary\' || (rebut && sampledSeats.has(seat))', 'const lift = task.class === \'boundary\''))
+  assert.equal(rebutOf(mutant.calls).opts.model, 'sonnet', 'proven red: without the lift the sampled seat drops to the rebuttal tier')
+})
+
+// Carried from Task 4.1, seeded into Task 5.3: a trailing ':opus' is a pair suffix, so a finding from
+// seat correctness:opus files with lens correctness. The reference reader applies each carve-out only
+// when the dispatched prompt carries it, so dropping the ':opus' clause reads the lens 'opus' → red.
+test('follow-up filing — a finding from seat correctness:opus files with lens correctness', async () => {
+  const OPUS_RULE = 'then a trailing `:opus` is a pair suffix, never the lens: take the segment before it'
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-auditor') return { seat: 'audit:t1:correctness:opus', lens: 'correctness', verdict: 'approve', confidence: 'high',
+      findings: (opts.label || '').startsWith('gate-audit:') ? [] : [{ severity: 'Minor', title: 'opus-raised row', rationale: 'r', file: 'r.js' }] }
+    if (seatOf(opts) === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const lensOf = (fp, entry) => {
+    let segs = entry.split(' (task ')[0].split(':')
+    if (fp.includes('a trailing `:rebut` is a dispatch label') && segs.at(-1) === 'rebut') segs = segs.slice(0, -1)
+    if (fp.includes(OPUS_RULE) && segs.at(-1) === 'opus') segs = segs.slice(0, -1)
+    return segs.at(-1)
+  }
+  const filing = async source => {
+    const { out, calls } = await runPhase(HANDOFF_ARGS(), impl, {}, source)
+    assert.equal(out.landDecision, 'landed', 'presence guard')
+    const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+    const entry = (fp.match(/"opus-raised row"[^\n]* · seats: (audit:t1:correctness:opus \(task t1\))/) || [])[1]
+    assert.ok(entry, 'the :opus-suffixed seat label rides the candidate row')
+    return lensOf(fp, entry)
+  }
+  assert.equal(await filing(), 'correctness', 'the dispatched rule reads the lens before the pair suffix')
+  const md = readFileSync(join(here, '../references/file-followups.md'), 'utf8')
+  assert.ok(md.includes('then a trailing `:opus` is a pair suffix, never the lens — take the segment before it'), 'file-followups.md mirrors the :opus carve-out')
+  assert.equal(await filing(mutate('; ' + OPUS_RULE.replace(/`/g, '\\`'), '')), 'opus', 'proven red: without the clause the pair suffix reads as the lens')
 })
 
 // D13: read an absent share as anything but 0 and the opus seat joins → red.

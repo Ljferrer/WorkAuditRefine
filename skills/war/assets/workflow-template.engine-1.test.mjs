@@ -17354,8 +17354,9 @@ test('Git reconciliation: snapshot transport death retries read-only with the st
   let count = 0
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
     'merge-snapshot': (p, o) => {
-      if (++count === 1) { assert.equal(o.model, 'sonnet'); throw new Error('529 overloaded') }
-      assert.equal(o.model, count === 2 ? 'opus' : 'sonnet')
+      // Task 5.3 (PIN-25): a first attempt spawns the haiku helper, a repeat the recovery refiner.
+      if (++count === 1) { assert.equal(o.model, 'haiku'); throw new Error('529 overloaded') }
+      assert.equal(o.model, count === 2 ? 'opus' : 'haiku')
       return NEW_SEAT_DEFAULTS['merge-snapshot']
     },
   })
@@ -19238,7 +19239,7 @@ test('2485/ES1 polish site: a blocked batch ace whose tip moved is probed, then 
   const ace = labelIdx(calls, 'ace:polish:t1:a1'), probe = labelIdx(calls, 'tip-probe:polish:t1:a1')
   const reaudit = calls.findIndex((c, i) => i > probe && isAuditor(c) && c.prompt.includes(ACE_TIP))
   assert.ok(ace >= 0 && probe > ace && reaudit > probe, 'the probe label, then a re-audit label, follow the blocked result')
-  assert.equal(calls[probe].opts.dispatchKind, 'tip-probe'); assert.equal(calls[probe].opts.phase, 'Audit'); assert.equal(seatOf(calls[probe].opts), 'war-refiner')
+  assert.equal(calls[probe].opts.dispatchKind, 'tip-probe'); assert.equal(calls[probe].opts.phase, 'Audit'); assert.equal(seatOf(calls[probe].opts), 'war-helper')
   assert.ok(calls.some(c => isAceGate(c) && c.prompt.includes(ACE_TIP)), 'the gate runs at the probed tip first')
   assert.ok((out.aced || []).some(a => a.sha === ACE_TIP && a.finding.title === 'tidy import'), 'aced at the probed tip')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('never left unjudged')), 'the reported-blocked, Git-moved case is logged')
