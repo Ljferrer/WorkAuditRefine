@@ -57,3 +57,11 @@ The predecessor plan used about 7.2 KB of literal share after `ed183b08`. Phase 
 - Several absence greps (End states 6 and 7) are case-sensitive and line-bound. They are red at base and pass only after the edit. A reworded survivor would slip through, and the plan-faithfulness seat reads the diff.
 - The literal lint reports PIN-20 and PIN-21 as uncited in their landing sections. Both are advisory.
 - A25 (deferred REA schemas with `ToolSearch`) was not re-proven here. Backstop row 2 measures first-turn context on the first run after land.
+
+## Amendment 2026-11-10 (phase 4 PLAN-DEFECT, AI-declared)
+
+Task 4.1 escalated `PLAN-DEFECT` at bbdb3cdc. Node's TAP reporter prints a `#` in a test name as `\#`, so the grep `\(#2706\)$` in the Task 4.1 Done when and End state 22 counted 0 on two passing rows. The Lead reproduced it at bbdb3cdc: the rows print as `ok 113 - validateRoster: admits one opus-over-sonnet lens pair (\#2706)` and `ok 114 - ... still reds (\#2706)`. Both checks now match `\(\\?#2706\)$`, which counts 2 at bbdb3cdc and 0 at the phase 4 base. No other check in the plan greps a `#` inside a test name.
+
+| Value | Supersedes | Provenance |
+|---|---|---|
+| End state 22 and Task 4.1 Done when match `\(\\?#2706\)$` | `\(#2706\)$` | AI-declared |
