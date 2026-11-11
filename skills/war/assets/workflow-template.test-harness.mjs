@@ -1455,21 +1455,20 @@ const THREE = (noTest = new Set()) => PROVISION_ARGS({ tasks: [
 // ===========================================================================
 // Task 1.2 (war-room-config-expansion) — tier-aware worker dispatch + task.files plumbing
 // ---------------------------------------------------------------------------
-// First-pass workers dispatch on the docs tier for an all-*.md task (task.files = the plan Files:
-// list, NOT the worker's diff); fix-round dispatches on the fix tier when configured, else
+// First-pass workers dispatch on the lite tier only for a task the Lead stamps workerTier: 'lite' (D30;
+// the all-*.md route is retired); fix-round dispatches on the fix tier when configured, else
 // the base worker; --ace dispatches on the ace tier or its default (#2619). End-to-end (captures the real spawn opts at each dispatch label) so the predicate
 // AND the wiring are exercised together — a reverted tier arg fails these.
 // ---------------------------------------------------------------------------
 
 // Run a single-task happy-path phase and return the first-pass worker's captured spawn opts.
-// files === undefined ⇒ NO files field on the task (the absent-list fail-safe case).
-// Threads an EXPLICIT agents config with distinct base/docs models (opus/sonnet) so the tier
-// predicate stays observable by model — the DEFAULTS tiers are both fable, which would make the
-// docs-vs-base distinction vacuous here (the D2 registry row pins the defaults mirror itself).
-const firstPassWorkOpts = async (files) => {
+// files === undefined ⇒ NO files field on the task; `over` adds task fields (a workerTier stamp).
+// Threads an EXPLICIT agents config with distinct base/lite models (opus/sonnet) so the tier
+// stays observable by model (the D2 registry row pins the defaults mirror itself).
+const firstPassWorkOpts = async (files, over = {}) => {
   const task = { id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }],
-    ...(files !== undefined ? { files } : {}) }
-  const agents = { worker: { model: 'opus', docs: { model: 'sonnet', effort: 'default' } } }
+    ...(files !== undefined ? { files } : {}), ...over }
+  const agents = { worker: { model: 'opus', lite: { model: 'sonnet', effort: 'default' } } }
   const { calls } = await runPhase(PROVISION_ARGS({ tasks: [task], agents }), defaultImpl)
   return (calls.find(c => c.opts.label === 'work:t1') || {}).opts || {}
 }
@@ -1556,7 +1555,7 @@ const inlineHelperBlock = (() => {
   return { ok: s !== -1 && e > s, block: s !== -1 && e > s ? src.slice(s, e) : '' }
 })()
 const inlineHelpers = (agents = {}) =>
-  new Function('agents', runForm(inlineHelperBlock.block) + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, AUDITOR_TIER_DEFAULTS, isDocsTask, resolveGate }')(agents)
+  new Function('agents', runForm(inlineHelperBlock.block) + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, AUDITOR_TIER_DEFAULTS, resolveGate }')(agents)
 
 const AGENTS_FIXTURES = [
   {},                                                                          // all omitted → ROLE_MODEL/DEFAULTS fallback
@@ -2109,7 +2108,7 @@ const LITERAL_REGISTRY = [
   ["Task ${taskId}: normalized main-checkout-roo"],
   [", repo: ${learningsTarget}` : ''\nconst MEMOR"],
   ["baseline gate debt: ${idset.join(', ') || '("],
-  ["audit:${task.id}:${seat.lens}${peers ? ':reb"],
+  ["audit:${task.id}:${key}${peers ? ':rebut' : "],
   ["Phase ${ph.id} \"${ph.title}\": ${tasks.length"],
   [" --owned-file ${ownedFile}` : ''\n  // --recl"],
   ["   provision-worktrees.sh ensure-worktree ${"],
@@ -2326,6 +2325,9 @@ const makeDispatch = (agent, maxParallel) => new Function('agent', 'maxParallel'
   // The prompt prefix is identity here: these rows test the permit seam, and the AUTHORITY_LINE,
   // TOOL ORDER and WORKER_WRITE_TOOL_RULE rows in engine-1 test the real prefix on captured prompts.
   const prefixed = p => p
+  // dispatch() records one dispatchModels row per call (plan 2026-11-08 Task 3.1); its recorder
+  // reads these two engine consts, stubbed here because the slice holds only the function.
+  const dispatchModels = [], AUDIT_FAMILY = []
   ${runForm(dispatchBlock)}
   return { dispatch, dispatchSemaphore }
 `)(agent, maxParallel)
@@ -2372,7 +2374,7 @@ const BARE_INTERPOLATION_CENSUS = [
   'CITATION_MIN_LENGTH',
   // ACE_TRAILER_CHECK (D24, PIN-25): a module const, the pre-push trailer check on the four ace-family prompts.
   'ACE_TRAILER_CHECK',
-  'PLAN_DEFECT_SENTINEL', 'PREFLIGHT', 'SCRIPT', 'artifactLine', 'authArtifactLine', 'authCriteria',
+  'PLAN_DEFECT_SENTINEL', 'PREFLIGHT', 'PROVISION_SCRIPT', 'SCRIPT', 'artifactLine', 'authArtifactLine', 'authCriteria',
   'baseDesc', 'batchSha', 'block', 'depSha', 'depth', 'doneWhenLog', 'e.preMergeTip', 'e.taskId',
   // ev.sha left this census (in-band-absorb-default 4.1 polish): the pinned-sha slot renders the
   // `pin` local (ev.sha, else the row's own sanitized sha for a gate-audit pseudo-task).
@@ -2489,6 +2491,12 @@ const BARE_INTERPOLATION_CENSUS = [
   // three params are r.task.worktree, r.task.branch and ph.integrationBranch at all four step (a) copies,
   // each entry-validated — all construction-guaranteed strings.
   'MERGE_FACTS_RULE', 'NEVER_MOVE_MERGED', 'nmBranch', 'nmTarget', 'nmWorktree',
+  // Plan 2026-11-08-model-routing-and-prompt-byte-budgets Task 5.3 (PIN-27): the relay prompts' shq-quoted
+  // words (A, Br, I, K, P, S, SEED, T, W: each shq of a context, task or probe string), the engine-read
+  // snapshot shas (B, before.source_sha: fullSha-checked by mergeSnapshot), tipText (built from S and A),
+  // and the params of relayRepo (repo), identityCmd (idBase, idTip) and identityFatal (what), each a
+  // string at every caller — all construction-guaranteed.
+  'A', 'B', 'Br', 'I', 'K', 'P', 'S', 'SEED', 'T', 'W', 'before.source_sha', 'idBase', 'idTip', 'repo', 'tipText', 'what',
 ]
 
 // #1767 (D10): every slug word stoplisted or sub-length used to EMPTY ownTokens and silently switch the
@@ -3813,7 +3821,74 @@ const WORKER_SITE_LABELS = [
   [/^label: `terminal:phase-/, /^terminal:/],
 ]
 
+// Refiner provision and evidence tiers (plan 2026-11-08-model-routing-and-prompt-byte-budgets Task 3.1,
+// PIN-9, PIN-14, PIN-34, PIN-35). PROVISION_TIER_KINDS: the four dispatch kinds agents.refiner.provision
+// routes. tierPhaseCalls(agents): the calls of two phases that between them reach all four kinds and a
+// non-intraDep evidence dispatch — a late-fix phase with run.provision (barrier, provision-run,
+// late-fix-worktree, evidence) and a phase-close sweep phase (polish-worktree). spawnOptsOf picks the spawn
+// fields of one call's opts, in the shape spawn('refiner') returns.
+const PROVISION_TIER_KINDS = ['provision-run', 'provision-barrier', 'polish-worktree', 'late-fix-worktree']
+const tierPhaseCalls = async (agents) => {
+  const late = await runPhase(LATE_FIX_ARGS({ agents, run: { provision: PROVISION_LIST, provisionSource: 'ci' } }), lateFixImpl())
+  const sweep = await runPhase(SWEEP_ARGS({ agents }), sweepBase([queuedAbsorb()]))
+  return [...late.calls, ...sweep.calls]
+}
+const spawnOptsOf = o => ({ model: o.model, ...(Object.hasOwn(o, 'effort') ? { effort: o.effort } : {}) })
+// The plugin path a refiner prompt must give before it names the provision script bare (PIN-35).
+const PLUGIN_PROVISION_SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh'
+// scriptPromptCalls(source): every refiner call whose prompt names provision-worktrees.sh, across phases that
+// reach each prompt builder that names it: the barrier (plain and sanctioned-recovery), the per-task
+// provision-run, the late-fix worktree, the polish worktree, the land and both recovery re-lands.
+const scriptPromptCalls = async (source = src) => {
+  const runs = [
+    await runPhase(LATE_FIX_ARGS({ run: { provision: PROVISION_LIST, provisionSource: 'ci' } }), lateFixImpl(), {}, source),
+    await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), defaultImpl, {}, source),
+    await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()]), {}, source),
+    await runPhase(CLS_ARGS(), clsImpl({ landResult: envLandResult }), {}, source),
+    await runPhase(CLS_ARGS(), clsImpl({ landResult: () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' }) }), {}, source),
+  ]
+  return runs.flatMap(r => r.calls).filter(c => seatOf(c.opts) === 'war-refiner' && (c.prompt || '').includes('provision-worktrees.sh'))
+}
+// ---- plan 2026-11-08-model-routing-and-prompt-byte-budgets, Task 5.3: the Git relays on the helper ----
+// relayRun: one ace phase that dispatches all five relays (tip-probe, pin-snapshot, pin-confirm,
+// merge-snapshot, merge-confirm) and lands t1. relayCommandsOf: each git command a relay prompt
+// spells, in backticks or in MERGE_FACTS_RULE's bare form, with every <placeholder> filled by a full
+// SHA and, when the prompt names its repo in the relayRepo lead-in, -C <repo> on each side of a pipe.
+const RELAY_KINDS = ['merge-snapshot', 'pin-snapshot', 'merge-confirm', 'pin-confirm', 'tip-probe']
+const RELAY_FILL = 'c0ffee'.padEnd(40, '0')
+const relayImpl = () => buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]), approveWith('audit:t1:correctness', [])] }, aceBase([]))
+const relayRun = (over = {}, seats = {}, source = src) => runPhase(ACE_ARGS(over), relayImpl(), seats, source)
+const relayCall = (calls, kind) => calls.find(c => c.opts.dispatchKind === kind)
+const relayCommandsOf = prompt => {
+  const p = String(prompt)
+  const repo = (p.match(/ Run each git command this prompt names as git -C (\S+) <command>/) || [])[1]
+  const ticked = [...p.matchAll(/`(git [^`]+)`/g)].map(m => m[1])
+  const bare = [...p.replace(/`[^`]*`/g, '').matchAll(/git (?:merge-base|show) (?:'[^']*'|[^'(),}<])*<[^>]+>(?: <[^>]+>)?/g)].map(m => m[0])
+  return [...ticked, ...bare].map(c => c.replace(/<[^>]+>/g, RELAY_FILL))
+    .map(c => repo ? c.split(' | ').map(s => s.replace(/^git /, 'git -C ' + repo + ' ')).join(' | ') : c)
+}
+// mutate(from, to): a template copy with one live site replaced, for a row's mutation-red proof.
+// RELAY_SITES: each relay's first-attempt spawn site and its spawn('refiner') mutant. NULL_PIN_OFF: a
+// copy whose nullFullPin never fires.
+const mutate = (from, to) => { assert.equal(src.split(from).length, 2, 'the mutation target is one live site: ' + from); return src.replace(from, to) }
+const RELAY_SNAPSHOT_SITE = ['schema: MERGE_SNAPSHOT, ...(attempt ? spawnRefinerRecovery() : helperOpts(...words))', "schema: MERGE_SNAPSHOT, ...(attempt ? spawnRefinerRecovery() : spawn('refiner'))"]
+const RELAY_SITES = {
+  'merge-snapshot': RELAY_SNAPSHOT_SITE,
+  'pin-snapshot': RELAY_SNAPSHOT_SITE,
+  'merge-confirm': ['schema: MERGE_CONFIRMATION, ...helperOpts(...words)', "schema: MERGE_CONFIRMATION, ...spawn('refiner')"],
+  'pin-confirm': ['schema: PIN_GIT_PROOF, ...(attempt ? spawnRefinerRecovery() : helperOpts(...words))', "schema: PIN_GIT_PROOF, ...(attempt ? spawnRefinerRecovery() : spawn('refiner'))"],
+  'tip-probe': ['dispatchSite(body, { ...opts, ...helperOpts(...words) })', 'dispatchSite(body, opts)'],
+}
+const NULL_PIN_OFF = () => mutate('const nullFullPin = (pins, asked) => pins.some((sha, i) => sha === null && fullSha(asked[i]))', 'const nullFullPin = () => false')
+const helperGuard = command => spawnSync('bash', [join(here, '../../../hooks/validate-auditor-git.sh')], { encoding: 'utf8',
+  input: JSON.stringify({ agent_type: 'work-audit-refine:war-helper', tool_input: { command } }) })
+
 export {
+  PROVISION_TIER_KINDS,
+  tierPhaseCalls,
+  spawnOptsOf,
+  PLUGIN_PROVISION_SCRIPT,
+  scriptPromptCalls,
   workerPrefixRuns,
   WORKER_SITE_LABELS,
   test,
@@ -4282,4 +4357,14 @@ export {
   CLAIM_ARGS,
   claimImpl,
   netZeroClash,
+  RELAY_KINDS,
+  RELAY_FILL,
+  relayImpl,
+  relayRun,
+  relayCall,
+  relayCommandsOf,
+  helperGuard,
+  mutate,
+  RELAY_SITES,
+  NULL_PIN_OFF,
 }

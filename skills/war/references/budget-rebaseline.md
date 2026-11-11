@@ -21,11 +21,12 @@ mirror that rots.
 
 ## The five steps (strict order)
 
-1. **Preflight** (read-only — nothing edited yet). Measure every budgeted surface: `wc -c` each
-   `FILE_BUDGETS` path, and for the `workflow-template.js` prompt-literal share run the budget
-   suite (`node --test skills/war/assets/prompt-surface-budgets.test.mjs`) and read its logged
-   measurement — the suite's pinned extraction algorithm is the authority; never re-derive the
-   literal share by hand. Compare each measurement against that surface's current constants as
+1. **Preflight** (read-only — nothing edited yet). Measure every budgeted surface: run the budget
+   suite (`node --test skills/war/assets/prompt-surface-budgets.test.mjs`) and read its
+   `MEASURE prompt-surface-budgets: <label> <size> B (advisory <a>, hard <h>)` lines. The suite
+   prints one per `FILE_BUDGETS` path and one for the `workflow-template.js` prompt-literal share,
+   on every run, below the advisory line too. The suite's pinned extraction algorithm is the
+   authority for the literal share; never re-derive it by hand. Compare each measurement against that surface's current constants as
    read from the suite. **No surface over its advisory line and no sanctioned shrink or
    growth-adjudication pending ⇒ report "nothing to re-baseline" and stop** — no later step
    runs.

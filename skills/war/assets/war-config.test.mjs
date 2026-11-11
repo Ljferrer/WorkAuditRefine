@@ -106,7 +106,7 @@ test('thorough preset', () => {
   assert.equal(c.agents.servitor.effort, 'high')
   assert.deepEqual(c.agents.snipe, { model: 'fable', effort: 'default', low: { model: 'opus', effort: 'default' } })
   assert.deepEqual(PRESETS.thorough.agents, {
-    worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
+    worker:   { model: 'fable',  effort: 'default', lite: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
     auditor:  { model: 'fable',  effort: 'default', rebuttal: { model: 'fable', effort: 'default' }, low: { model: 'opus', effort: 'default' }, high: { model: 'fable', effort: 'default' } },
     refiner:  { model: 'sonnet', effort: 'xhigh' },
     servitor: { model: 'opus',   effort: 'high' },
@@ -136,7 +136,7 @@ test('economy preset (sonnet review seats and trial tier, opus workers, a 4-roun
   // Pins whose merged value equals DEFAULTS (refiner, worker effort, servitor model) cannot be
   // discriminated through presetConfig(), so the whole agents literal is pinned as written.
   assert.deepEqual(PRESETS.economy.agents, {
-    worker:   { model: 'opus',   effort: 'default', docs: { model: 'sonnet', effort: 'high' } },
+    worker:   { model: 'opus',   effort: 'default', lite: { model: 'sonnet', effort: 'high' } },
     auditor:  { model: 'sonnet', effort: 'xhigh' },
     refiner:  { model: 'sonnet', effort: 'high' },
     servitor: { model: 'sonnet', effort: 'high' },
@@ -219,7 +219,7 @@ test('agentMatrix: each row equals the presetConfig() merge (reuses the canonica
 
 // --- agents.redteam (validator-only, NOT a phase ROLE) + worker tiers (T1.1) --------------------
 // redteam joins validation only: it must NEVER enter ROLES or the (preset, role) agentMatrix — the
-// per-phase spawn path stays four roles (/red-team consumes redteam fail-open). worker.docs/fix are
+// per-phase spawn path stays four roles (/red-team consumes redteam fail-open). worker.lite/fix are
 // per-tier { model, effort } refinements of the worker role, validated exactly like a role tier.
 
 test('matrix stays four roles: ROLES is exactly the four phase roles and excludes redteam (T1.1)', () => {
@@ -302,33 +302,44 @@ test('agents.redteam is tolerated by the unknown-agent-key loop; a genuine unkno
   assert.match(msg, /\/war-room/)
 })
 
-test('agents.worker.docs: DEFAULTS value plus a per-preset table (T1.1)', () => {
-  // Delete-the-feature: remove docs from DEFAULTS.agents.worker → the DEFAULTS deepEqual fails.
-  assert.deepEqual(DEFAULTS.agents.worker.docs, { model: 'sonnet', effort: 'high' })
-  const DOCS = { balanced: { model: 'sonnet', effort: 'high' }, thorough: { model: 'fable', effort: 'default' }, economy: { model: 'sonnet', effort: 'high' } }
-  for (const [preset, expected] of Object.entries(DOCS)) {
-    assert.deepEqual(presetConfig(preset).agents.worker.docs, expected, `${preset} preset docs tier must be ${JSON.stringify(expected)}`)
+test('agents.worker.lite: DEFAULTS value plus a per-preset table (T1.1)', () => {
+  // Delete-the-feature: remove lite from DEFAULTS.agents.worker → the DEFAULTS deepEqual fails.
+  assert.deepEqual(DEFAULTS.agents.worker.lite, { model: 'sonnet', effort: 'high' })
+  const LITE = { balanced: { model: 'sonnet', effort: 'high' }, thorough: { model: 'fable', effort: 'default' }, economy: { model: 'sonnet', effort: 'high' } }
+  for (const [preset, expected] of Object.entries(LITE)) {
+    assert.deepEqual(presetConfig(preset).agents.worker.lite, expected, `${preset} preset lite tier must be ${JSON.stringify(expected)}`)
   }
 })
 
-test('legacy worker block without a docs tier fills it from DEFAULTS and validates (criterion-12 style) (T1.1)', () => {
-  const legacy = { version: 1, agents: { worker: { model: 'opus', effort: 'max' } } } // no docs key
+// PIN-29: the lite tier was once the `docs` key of agents.worker. That key is refused at launch, never
+// read as an alias. Delete-the-feature: drop the refusal in validate → valid flips true and this reds.
+test('agents.worker.docs is refused and the message names agents.worker.lite', () => {
+  const r = validate({ agents: { worker: { docs: { model: 'sonnet', effort: 'high' } } } })
+  assert.equal(r.valid, false, 'a config that still carries the old worker tier key must not validate')
+  const msg = r.errors.join('\n')
+  assert.match(msg, /agents\.worker\.lite/)
+  assert.match(msg, /\/war-room/)
+  assert.deepEqual(fillDefaults({ agents: { worker: { docs: { model: 'haiku', effort: 'low' } } } }).agents.worker.lite, DEFAULTS.agents.worker.lite, 'the old key is never read as the lite tier')
+})
+
+test('legacy worker block without a lite tier fills it from DEFAULTS and validates (criterion-12 style) (T1.1)', () => {
+  const legacy = { version: 1, agents: { worker: { model: 'opus', effort: 'max' } } } // no lite key
   const c = fillDefaults(legacy)
-  assert.deepEqual(c.agents.worker.docs, { model: 'sonnet', effort: 'high' })
+  assert.deepEqual(c.agents.worker.lite, { model: 'sonnet', effort: 'high' })
   assert.equal(validate(legacy).valid, true, validate(legacy).errors.join('\n'))
 })
 
-test('agents.worker.docs rejects bad model / bad effort / unknown sub-key (validated like a role tier) (T1.1)', () => {
-  const rm = validate({ agents: { worker: { docs: { model: 'gpt-5', effort: 'default' } } } })
+test('agents.worker.lite rejects bad model / bad effort / unknown sub-key (validated like a role tier) (T1.1)', () => {
+  const rm = validate({ agents: { worker: { lite: { model: 'gpt-5', effort: 'default' } } } })
   assert.equal(rm.valid, false)
-  assert.match(rm.errors.join('\n'), /agents\.worker\.docs\.model/)
-  const re = validate({ agents: { worker: { docs: { model: 'sonnet', effort: 'ultrathink' } } } })
+  assert.match(rm.errors.join('\n'), /agents\.worker\.lite\.model/)
+  const re = validate({ agents: { worker: { lite: { model: 'sonnet', effort: 'ultrathink' } } } })
   assert.equal(re.valid, false)
-  assert.match(re.errors.join('\n'), /agents\.worker\.docs\.effort/)
-  const rk = validate({ agents: { worker: { docs: { model: 'sonnet', effort: 'default', tier: 'x' } } } })
+  assert.match(re.errors.join('\n'), /agents\.worker\.lite\.effort/)
+  const rk = validate({ agents: { worker: { lite: { model: 'sonnet', effort: 'default', tier: 'x' } } } })
   assert.equal(rk.valid, false)
   const msg = rk.errors.join('\n')
-  assert.match(msg, /agents\.worker\.docs\.tier/)
+  assert.match(msg, /agents\.worker\.lite\.tier/)
   assert.match(msg, /\/war-room/)
 })
 
@@ -401,31 +412,31 @@ test('audit.roster seat model/effort (#2519): accepted when valid, refused when 
 })
 
 // --- workerTierMatrix (T1.1): sibling canonical export the doc-honesty lens consults -------------
-// Mirrors the agentMatrix pattern: base + docs + fix + ace rows per preset — docs, fix and ace are all
+// Mirrors the agentMatrix pattern: base + lite + fix + ace rows per preset — lite, fix and ace are all
 // defaulted in DEFAULTS (fix flipped from absent-by-default once /war-room began asking for the fix-worker
 // tier, and ace since #2619).
 
-test('workerTierMatrix: base + docs + fix + ace row per preset; fix and ace defaulted; exact tier values pinned elsewhere (fix + red-team asks)', () => {
+test('workerTierMatrix: base + lite + fix + ace row per preset; fix and ace defaulted; exact tier values pinned elsewhere (fix + red-team asks)', () => {
   const matrix = workerTierMatrix()
   const presets = Object.keys(PRESETS)
   for (const preset of presets) {
     const base = matrix.filter(r => r.preset === preset && r.tier === 'base')
-    const docs = matrix.filter(r => r.preset === preset && r.tier === 'docs')
+    const lite = matrix.filter(r => r.preset === preset && r.tier === 'lite')
     const fix = matrix.filter(r => r.preset === preset && r.tier === 'fix')
     assert.equal(base.length, 1, `workerTierMatrix must carry exactly one base row for ${preset}`)
-    assert.equal(docs.length, 1, `workerTierMatrix must carry exactly one docs row for ${preset}`)
+    assert.equal(lite.length, 1, `workerTierMatrix must carry exactly one lite row for ${preset}`)
     assert.equal(fix.length, 1, `workerTierMatrix must carry exactly one fix row for ${preset} (fix is now defaulted)`)
-    // Exact per-preset docs/fix values live in the dedicated docs + fix tests and the
+    // Exact per-preset lite/fix values live in the dedicated lite + fix tests and the
     // "each row equals presetConfig() merge" delegation test below (balanced and thorough inherit
-    // docs fable/default; economy overrides it to opus/default).
+    // lite fable/default; economy overrides it to opus/default).
   }
   // fix is now defaulted in DEFAULTS → every preset emits a fix row. Delete-the-feature: drop the fix
   // block from DEFAULTS and every preset, and the per-preset fix.length===1 check above goes red (the
   // push stays isObj(w.fix)-guarded, so an unset fix would omit its row — the derivation is real).
   assert.ok(presets.every(p => matrix.some(r => r.preset === p && r.tier === 'fix')),
     'fix is defaulted in DEFAULTS, so every preset must emit a fix row')
-  // Total rows: base + docs + fix + ace per preset (4 × |PRESETS|, ace defaulted since #2619), no phantom tier.
-  assert.equal(matrix.length, presets.length * 4, `workerTierMatrix must have base+docs+fix+ace per preset = ${presets.length}×4 rows`)
+  // Total rows: base + lite + fix + ace per preset (4 × |PRESETS|, ace defaulted since #2619), no phantom tier.
+  assert.equal(matrix.length, presets.length * 4, `workerTierMatrix must have base+lite+fix+ace per preset = ${presets.length}×4 rows`)
   // Every row's model/effort is a valid enum value (an out-of-enum tier literal goes red here).
   for (const r of matrix) {
     assert.ok(MODELS.includes(r.model), `workerTierMatrix (${r.preset}, ${r.tier}).model ${JSON.stringify(r.model)} must be a valid model`)
@@ -1386,6 +1397,51 @@ test('validateRoster: rejects duplicate lenses (distinct-lens rule)', () => {
   assert.match(r.errors.join('\n'), /duplicat/i)
 })
 
+// D22: drop the pair arm and the opus-over-sonnet pair reds with the duplicate text → this row reds.
+test('validateRoster: admits one opus-over-sonnet lens pair (#2706)', () => {
+  const r = validateRoster([{ lens: 'correctness', model: 'sonnet' }, { lens: 'correctness', model: 'opus' }])
+  assert.deepEqual(r, { valid: true, errors: [] })
+  assert.equal(validateRoster([{ lens: 'correctness', model: 'haiku' }, { lens: 'security' }, { lens: 'correctness', model: 'fable', depth: 'deep' }]).valid, true, 'any strictly higher explicit model pairs, with a seat between')
+})
+
+// D22: widen the pair arm to a same-model or a model-less seat, or to a third repeat, and this row reds.
+test('validateRoster: a same-model or model-less lens pair still reds (#2706)', () => {
+  for (const roster of [
+    [{ lens: 'correctness', model: 'sonnet' }, { lens: 'correctness', model: 'sonnet' }],
+    [{ lens: 'correctness' }, { lens: 'correctness', model: 'opus' }],
+    [{ lens: 'correctness', model: 'sonnet' }, { lens: 'correctness' }],
+    [{ lens: 'correctness', model: 'opus' }, { lens: 'correctness', model: 'sonnet' }],
+    [{ lens: 'correctness', model: 'haiku' }, { lens: 'correctness', model: 'sonnet' }, { lens: 'correctness', model: 'opus' }],
+  ]) {
+    const r = validateRoster(roster)
+    assert.equal(r.valid, false, JSON.stringify(roster))
+    assert.match(r.errors.join('\n'), /duplicates an earlier seat \(lenses must be distinct\)/, `${JSON.stringify(roster)}: today's text`)
+  }
+})
+
+// routing (#2534 D11-D13, D36): every key validated, no DEFAULTS entry, no preset value. Delete the routing
+// block in validate and the unknown and wrong-typed keys pass → red.
+test('routing: validate accepts every known key and refuses unknown keys and bad values', () => {
+  const T = { model: 'sonnet', effort: 'high' }
+  const full = { routing: { classes: { routine: { worker: T, fix: T, ace: T, auditor: T }, boundary: { auditor: { model: 'opus', effort: 'default' } } }, aceEdit: { exact: T }, sampleOpusReview: 0.25, opusFloor: false } }
+  assert.deepEqual(validate(full).errors, [])
+  assert.deepEqual(validate({ routing: { sampleOpusReview: null, opusFloor: null } }).errors, [], 'null is unset')
+  assert.ok(!Object.hasOwn(DEFAULTS, 'routing'), 'no DEFAULTS entry')
+  for (const p of Object.keys(PRESETS)) assert.ok(!Object.hasOwn(presetConfig(p), 'routing'), `${p}: no preset value`)
+  for (const [bad, re] of [
+    [{ routing: [] }, /routing must be an object/],
+    [{ routing: { tiers: {} } }, /routing\.tiers is not a known key/],
+    [{ routing: { classes: { urgent: {} } } }, /routing\.classes\.urgent is not a known key/],
+    [{ routing: { classes: { routine: { refiner: T } } } }, /routing\.classes\.routine\.refiner is not a known key/],
+    [{ routing: { classes: { routine: { worker: { model: 'gpt', effort: 'high' } } } } }, /routing\.classes\.routine\.worker\.model must be one of/],
+    [{ routing: { aceEdit: { broad: T } } }, /routing\.aceEdit\.broad is not a known key/],
+    [{ routing: { aceEdit: { exact: { model: 'sonnet' } } } }, /routing\.aceEdit\.exact\.effort must be one of/],
+    [{ routing: { sampleOpusReview: 1.5 } }, /routing\.sampleOpusReview must be a number from 0 to 1/],
+    [{ routing: { sampleOpusReview: '0.5' } }, /routing\.sampleOpusReview must be a number from 0 to 1/],
+    [{ routing: { opusFloor: 'yes' } }, /routing\.opusFloor must be a boolean/],
+  ]) assert.match(validate(bad).errors.join('\n'), re, JSON.stringify(bad))
+})
+
 test('validateRoster: rejects empty and non-string lens', () => {
   assert.equal(validateRoster([{ lens: '' }]).valid, false)
   assert.equal(validateRoster([{ lens: 42 }]).valid, false)
@@ -1608,8 +1664,8 @@ const DOC_TIER_PINS = [
   ['README.md', /^By default WAR runs (\w+) workers on `(\w+)` effort and/m, 'balanced', 'worker'],
   ['README.md', /^By default WAR runs \w+ workers on `\w+` effort and (\w+) auditors on `(\w+)`/m, 'balanced', 'auditor'],
   ['README.md', /built-in `DEFAULTS`: (\w+) workers on `(\w+)` effort/, 'balanced', 'worker'],
-  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, fix and ace tiers, with docs-only tasks on \w+\/`\w+`\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
-  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, fix and ace tiers, with docs-only tasks on (\w+)\/`(\w+)`\)/, 'balanced', 'worker.docs'],
+  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, fix and ace tiers, with the lite tier \(\w+\/`\w+` by default\) running the first worker of a task the Lead stamps lite\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
+  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, fix and ace tiers, with the lite tier \((\w+)\/`(\w+)` by default\) running the first worker of a task the Lead stamps lite\)/, 'balanced', 'worker.lite'],
   ['README.md', /built-in `DEFAULTS`: (\w+) workers on `(\w+)` effort \(base, fix and ace tiers/, 'balanced', 'worker.ace'],
   // ADR 0050's effort-compensation example names the economy auditor seat.
   ['docs/adr/0050-preset-tiers-order-by-model-capability.md', /for example (\w+) auditors on `(\w+)`\)/, 'economy', 'auditor'],
@@ -1639,7 +1695,7 @@ const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetCo
 // Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
 // SKILL_SEAT_PATHS: every agents.<skill>.<seat> tier (ADR 0056). The skill block itself is a seat map, not a tier.
 const SKILL_SEAT_PATHS = Object.entries(SKILL_SEATS).flatMap(([skill, seats]) => seats.map(seat => `${skill}.${seat}`))
-const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'worker.ace', 'auditor', 'auditor.rebuttal', 'auditor.high', 'snipe.low', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', 'helper', ...SKILL_SEAT_PATHS]
+const TIER_PATHS = ['worker', 'worker.lite', 'worker.fix', 'worker.ace', 'auditor', 'auditor.rebuttal', 'auditor.high', 'snipe.low', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', 'helper', ...SKILL_SEAT_PATHS]
 test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
   // A new agents.<tier> in DEFAULTS, or a new object-valued worker sub-tier, must join both lists.
   const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -1667,6 +1723,11 @@ test('MODEL_RANK is a permutation of MODELS, its ADR 0050 order sentence matches
   // auditor.low has no default (#2534), so TIER_PATHS cannot hold it: compare the low tier each preset resolves.
   const low = p => { const a = presetConfig(p).agents.auditor; return (a.low || a).model }
   assert.ok(rank(low('thorough')) >= rank(low('balanced')) && rank(low('balanced')) >= rank(low('economy')), 'the resolved auditor low tier is monotone across presets')
+  // refiner.provision and refiner.evidence have no default either (#2549, #2550): each resolves to agents.refiner when unset.
+  const ref = (p, k) => { const r = presetConfig(p).agents.refiner; return (r[k] || r).model }
+  for (const k of ['provision', 'evidence']) {
+    assert.ok(rank(ref('thorough', k)) >= rank(ref('balanced', k)) && rank(ref('balanced', k)) >= rank(ref('economy', k)), 'the resolved refiner provision and evidence tiers are monotone across presets')
+  }
 })
 
 // ADR 0050: every fable seat carries effort 'default' — the session's knob decides fable's effort.
@@ -1696,10 +1757,11 @@ test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig
 // once, no unknown label (the label group is open, so a stray `planner opus/`high`` token reaches the
 // census and fails it), every value equal to presetConfig(). A new preset without a bullet, a bullet
 // that drops a tier, or a reworded token all red here.
-const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', 'ace-tier': 'worker.ace', auditors: 'auditor', 'rebuttal-tier': 'auditor.rebuttal', 'audit-high-tier': 'auditor.high', 'snipe-low-tier': 'snipe.low', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial', 'helper-tier': 'helper' }
-// OPTIONAL_BULLET_LABELS: a tier with no DEFAULTS value (auditor.low, #2534). Its token sits in a preset's
-// bullet exactly when that preset sets the tier, and then equals presetConfig().
-const OPTIONAL_BULLET_LABELS = { 'audit-low-tier': 'auditor.low' }
+const BULLET_LABELS = { workers: 'worker', 'lite-tier': 'worker.lite', 'fix-tier': 'worker.fix', 'ace-tier': 'worker.ace', auditors: 'auditor', 'rebuttal-tier': 'auditor.rebuttal', 'audit-high-tier': 'auditor.high', 'snipe-low-tier': 'snipe.low', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial', 'helper-tier': 'helper' }
+// OPTIONAL_BULLET_LABELS: a tier with no DEFAULTS value (auditor.low, #2534; refiner.provision and
+// refiner.evidence, #2549, #2550). Its token sits in a preset's bullet exactly when that preset sets the
+// tier, and then equals presetConfig().
+const OPTIONAL_BULLET_LABELS = { 'audit-low-tier': 'auditor.low', 'provision-tier': 'refiner.provision', 'evidence-tier': 'refiner.evidence' }
 const tierSet = (preset, path) => path.split('.').reduce((o, k) => o && o[k], presetConfig(preset).agents) !== undefined
 test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens all equal presetConfig()', () => {
   const text = readDoc('skills/war-room/SKILL.md')
@@ -1821,17 +1883,17 @@ const DEMIRRORED = [
   ['skills/war/references/design.md', /^Per-role models are the `war-config\.mjs` DEFAULTS[^\n]*$/m],
   ['skills/war/references/design.md', /^- \*\*New role — `war-servitor`\*\*[^\n]*$/m],
   ['GLOSSARY.md', /tier ladder `agents\.snipe`[^\n]*$/m],
-  ['GLOSSARY.md', /\*\*Docs tier\*\*:\n[\s\S]*?\n_Avoid_/],
+  ['GLOSSARY.md', /\*\*Lite worker tier\*\*:\n[\s\S]*?\n_Avoid_/],
   ['GLOSSARY.md', /\*\*Fix bump\*\*:\n[\s\S]*?\n_Avoid_/],
   ['skills/war/SKILL.md', /^- Models\/effort come from the resolved run config[^\n]*$/m],
-  ['skills/war/SKILL.md', /runs its worker on the \*\*docs\*\* tier \([^\n]*$/m],
+  ['skills/war/SKILL.md', /runs on the \*\*lite\*\* tier \([^\n]*$/m],
   ['skills/snipe/SKILL.md', /resolved from the WAR config ladder \([^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*redteam\?: \{ model, effort \},[^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*trial\?: \{ model, effort \},[^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*snipe\?: \{ model, effort \} \},[^\n]*$/m],
-  ['skills/war/references/schemas.md', /^\s*\/\/\s+agents\.worker\.docs \{ model, effort \}[^\n]*$/m],
+  ['skills/war/references/schemas.md', /^\s*\/\/\s+agents\.worker\.lite \{ model, effort \}[^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*\/\/\s+agents\.worker\.fix\s+\{ model, effort \}[^\n]*$/m],
-  ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.docs` \([^\n]*$/m],
+  ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.lite` \([^\n]*$/m],
   ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.fix` \([^\n]*$/m],
   ['skills/war-room/SKILL.md', /\*\*every preset sets it\*\* \([^\n]*$/m],
   ['skills/war-room/SKILL.md', /Not a phase role; preset-populated \([^\n]*$/m],
@@ -2133,7 +2195,9 @@ test('node-test breadth: skills/ contains at least the expected set of *.test.mj
     'skills/war/assets/workflow-template.late-defect-3.test.mjs',
     'skills/war/assets/workflow-template.late-defect-4.test.mjs',
     'skills/war/assets/workflow-template.late-defect-5.test.mjs',
+    'skills/war/assets/workflow-template.prompt-size-1.test.mjs',
     'skills/war/assets/workflow-template.recovery.test.mjs',
+    'skills/war/assets/workflow-template.routing-1.test.mjs',
     'skills/war/assets/workflow-template.submodule-1.test.mjs',
     'skills/war/assets/workflow-template.submodule-2.test.mjs',
     'skills/war/assets/workflow-template.submodule-3.test.mjs',
@@ -3358,3 +3422,20 @@ test('refiner recovery tier: defaults, partial overrides and validation are inde
     assert.ok(v.errors.some(e => e.includes('agents.refiner.recovery')))
   }
 })
+
+// #2549 / #2550 (PIN-9, PIN-14): the provision and evidence tiers have no DEFAULTS entry and no preset
+// value, and are validated like agents.refiner.recovery. Delete-the-feature: drop either key from the
+// validate loop → the bad blocks below validate and these rows red.
+for (const tier of ['provision', 'evidence']) {
+  test(`agents.refiner.${tier}: no default, no preset value, a set tier validates, a bad block or unknown sub-key reds`, () => {
+    assert.equal(DEFAULTS.agents.refiner[tier], undefined, `agents.refiner.${tier} has no DEFAULTS entry`)
+    for (const preset of Object.keys(PRESETS)) assert.equal(presetConfig(preset).agents.refiner[tier], undefined, `${preset} sets no agents.refiner.${tier}`)
+    const ok = validate({ agents: { refiner: { [tier]: { model: 'haiku', effort: 'low' } } } })
+    assert.equal(ok.valid, true, ok.errors.join('\n'))
+    for (const block of [null, [], { model: 'invalid', effort: 'low' }, { model: 'haiku', effort: 'invalid' }, { model: 'haiku', effort: 'low', surprise: true }]) {
+      const v = validate({ agents: { refiner: { [tier]: block } } })
+      assert.equal(v.valid, false, JSON.stringify(block))
+      assert.ok(v.errors.some(e => e.includes(`agents.refiner.${tier}`)), v.errors.join('\n'))
+    }
+  })
+}

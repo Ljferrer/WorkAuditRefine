@@ -301,12 +301,7 @@ provision-dispatch contract failure.
 _Avoid_: accepting any `ok:false` as `env-blocked`; inventing a `failedCommand` the worker never ran.
 
 **Worker block**:
-A worker — initial *or* fix — returning `status:'blocked'` (or dying / returning null), which
-**escalates the task immediately** carrying the worker's `blocked_reason`, decided uniformly by the
-`blockedReason` predicate at every worker-dispatch site.
-_Avoid_: conflating it with `env-blocked` (a provision failure — the worker was never spawned) or
-`audit-blocked` (the audit/fix loop exhausted `roundLimit` without unanimous approve). All three hold
-the land, but a *worker block* is the worker itself reporting it cannot proceed, with a reason.
+when a worker returns `status:'blocked'`, dies or returns null, read skills/war/references/glossary-cold.md
 
 ### Cross-repo tasks (submodules)
 
@@ -317,80 +312,17 @@ to it is therefore **two** tasks, not one (an edit in the submodule + a bump in 
 _Avoid_: "the repo" (which one?), conflating a task's *worktree* with its target repo.
 
 **Repo-per-phase** (cross-repo structure):
-A phase targets **exactly one** repo, so cross-repo work is a **phase→phase** edge in the existing phase
-DAG, never a mix inside one phase. A submodule change is its **own phase** that lands into the submodule
-repo (its integration branch, task worktrees, and land all in that repo); the dependent **superproject**
-phase runs after and reads the landed/merged SHA from the **ledger** to drive its gitlink-bump task. The
-serialization is intrinsic — a superproject task cannot consume new submodule code before the pin is
-bumped, which cannot happen before the submodule SHA exists — so the phase boundary costs no ordering
-that was not already required.
-_Avoid_: a mixed-repo phase; a mid-phase cross-repo barrier; threading the SHA outside the ledger.
+when a plan carries cross-repo work, read skills/war/references/glossary-cold.md
 
 **Submodule task**:
 A task whose target repo is a submodule — its worker implements, its auditor reviews, and its land all
 operate in the **nested** repo, against that repo's own branches, not the superproject's.
 _Avoid_: submodule step, nested task.
 
-**Submodule-as-repo** (topology stance):
-For the duration of its phase a submodule is driven as a **standalone repo** — its own integration branch,
-its own task worktrees, its own provision list and gate, all in the nested repo; the auditor reviews
-**inside** it (a real file diff, no gitlink in view). The superproject's pin is irrelevant until the later
-gitlink-bump task. This is *why* the auditor-blindness failure cannot occur on a submodule task: there is
-no superproject gitlink in the diff to be blind to.
-_Avoid_: editing the in-place gitlink working tree; treating the submodule as a sub-area of the
-superproject's worktree.
-
-**Gitlink-bump task**:
-A superproject task whose entire diff is advancing a submodule **gitlink** (the pin the superproject
-records for a submodule path) to a SHA produced by a submodule task it **depends on**. Mechanical, but
-a first-class task so the cross-repo SHA dependency is an explicit graph edge, not hidden in a body.
-_Avoid_: "the bump" as a refiner step; pin task.
-
-**Pin-validity** (auditor lens for gitlink diffs):
-The lens that judges a submodule-**gitlink** change. A gitlink-only diff is **valid** only on a declared
-**gitlink-bump task**, and only if the new SHA is (1) **reachable on the submodule remote** — pushed, so
-a fresh clone/CI can resolve it (a *local-only* commit fails) — and (2) the SHA the depended-on submodule
-task produced. The remote ref it is reachable from need **not** be the default branch: a submodule
-legitimately pinned to a feature branch is allowed, so the bar is *reachable on the remote*, not
-*merged-to-mainline*. A gitlink move on **any other** task — one no bump task declared — is a hard
-**refuse**; the same lens thereby guards against accidental or invisible submodule edits.
-_Avoid_: requiring the pin to track the default branch; approving a pin to a local-only SHA.
-
-**PR-and-hold landing** (default submodule-landing authority):
-WAR pushes the submodule task's *branch* and opens a **PR in the submodule repo**, then **holds** the
-phase (`held:submodule-pr`) until an external actor merges it; on resume WAR reads the *actual merged
-SHA* and runs the dependent gitlink-bump task. The default because it respects the submodule repo's own
-review/CI and is squash/rebase-merge-correct (only the merge author knows the SHA a pin may reference).
-_Avoid_: auto-merging the submodule PR; bumping the gitlink to the pre-merge branch tip.
-
-**WAR-owned submodule** (opt-in landing authority):
-A submodule the operator **declares** WAR may land on directly — WAR runs the submodule's own
-integration→working CAS land (mirroring the superproject), authoring the merge commit itself, so it
-knows the landed SHA immediately and the run completes straight through with no hold. For submodules
-this superproject solely controls; never the default.
-_Avoid_: assuming WAR owns every submodule; landing on a shared library's mainline by default.
-
-**AFK landing confirmation**:
-Because `--afk` removes the human who would merge a `held:submodule-pr`, an AFK run cannot clear that
-hold. So at **launch** WAR must confirm every touched submodule is a **WAR-owned submodule** (2A);
-an un-owned submodule under `--afk` is **refused up front**, never started and left to stall on a hold
-nobody can clear.
-_Avoid_: entering an AFK run that will deadlock on a submodule PR.
-
-**Submodule reachability precondition** (red-team check):
-A submodule WAR will land into must be **reachable by `gh`** from the run's account. A submodule on a
-non-GitHub host — or one needing a different account — is **out of scope**: WAR does not land it, and
-`/red-team` must **flag the unreachable submodule up front** rather than letting a run discover it at
-resume. Reachability is a launch-time precondition, not a runtime surprise.
-_Avoid_: starting a submodule phase whose remote `gh` cannot resolve; deferring the check to resume.
-
-**Submodule base branch**:
-The branch a submodule phase's integration branch is cut from and (under PR-and-hold) the PR targets.
-Resolved by **explicit signal only**: a run-config override → the `.gitmodules` `branch` field → otherwise
-**raised to the human** at launch. The remote default branch may be *offered* as a suggestion but is
-**never silently adopted**. Ambiguity is escalated, not guessed — consistent with WAR's worker/auditor
-"stop and escalate instead of guessing" rule.
-_Avoid_: silently assuming `main`/`master`/the remote default; inferring the base mid-run.
+**Submodule-as-repo**, **Gitlink-bump task**, **Pin-validity**, **PR-and-hold landing**, **WAR-owned
+submodule**, **AFK landing confirmation**, **Submodule reachability precondition**, **Submodule base
+branch**:
+when a phase targets a submodule or bumps its gitlink, read skills/war/references/glossary-cold.md
 
 **`held:submodule-pr`** (cross-repo hold):
 The phase outcome when a submodule task has produced a reviewed PR in the submodule repo that has not
@@ -403,13 +335,7 @@ auto-detect, operator-SHA fallback) in `skills/war/references/submodule-flows.md
 _Avoid_: treating it as a failure; resuming before the submodule PR actually merged; building a watcher.
 
 **Undeclared submodule touch** (the fail-closed guard):
-Any submodule mutation **not** routed through a declared submodule task (content) or gitlink-bump task
-(pin) — an in-place gitlink edit, an accidental pin move, or a worker whose target falls under a
-`.gitmodules` path without the `target repo` tag. It is **refused** wherever caught (worker block, auditor
-hard-refuse, refiner push-refuse). The guard runs in two modes: **refuse-all** (increment 1, before
-first-class support) and **refuse-undeclared / route-declared** (increment 2); the net survives the relax —
-anything off the explicit first-class path is still refused.
-_Avoid_: treating a gitlink-only diff as reviewable; letting an untagged submodule-path edit through.
+when a diff moves a submodule path with no declared task, read skills/war/references/glossary-cold.md
 
 ### Concurrent-run isolation
 
@@ -578,7 +504,7 @@ without its status pair; a new status enum member for the marker.
 ### Audit
 
 **Audit roster**:
-The per-task ordered list of **1–5 distinct-lens seats** that convene to audit the task's diff. Seat
+The per-task ordered list of **1–5 distinct-lens seats** (one lens pair is the exception: `skills/war/references/model-routing.md`) that convene to audit the task's diff. Seat
 count *is* the roster's length — there is no separate size knob — and the ruling is **unanimous**
 regardless of parity (even counts are legal; nothing tie-breaks because nothing votes by majority).
 _Avoid_: covenSize, panel size, seat count as a knob independent of the lens list.
@@ -710,13 +636,7 @@ _Avoid_: reading silence as `met` (the failure mode the status exists to close);
 `intake_lint:` or `cmd_bytes_mismatch:` artifact `unmet` because its exit line is not `0`.
 
 **Gate-evidence artifact**:
-The tee'd full gate stdout+stderr file under `_refinery/.war/gate-<taskId>.<unique>/gate.log`; the `execution-evidence`
-seat's source of per-mapped-test PASS evidence (inline `gate_output` is context only). Phase-ephemeral
-(fresh directory per logical gate attempt; destroyed by `_refinery` heal and phase teardown) —
-audit input, never a resume/adjudication record.
-_Avoid_: minting a HARD provably-unrun finding from a possibly-curated inline `gate_output` paste (the
-HARD determination is made only against the captured file); treating a missing artifact as a hold (missing
-⇒ SOFT cannot-confirm).
+when a seat reads the captured gate log for test evidence, read skills/war/references/glossary-cold.md
 
 **Gate-log stamp**:
 The two lines every captured gate log carries — `tip_sha:` first and `exit_code:` last — written by
@@ -799,12 +719,35 @@ The payload-free manifest a worker commits at the path `MANIFEST_PATH_TEMPLATE` 
 
 ### Worker tiers (dispatch)
 
-**Docs tier**:
-The worker spawn tier for a task whose `Files:` list is entirely `*.md` — mechanically classified
-at dispatch (never a plan field), configured at `agents.worker.docs` (defaulted in `war-config.mjs`). Mixed
-docs+code tasks stay on the base worker tier; auditors review docs-tier work at full strength.
-_Avoid_: low-complexity flag (nothing is authored); re-tiering mid-flight (the predicate reads the
-plan's file list, not the diff).
+**Lite worker tier**:
+The cheaper first-pass worker tier, configured at `agents.worker.lite` (defaulted in
+`war-config.mjs`). The Lead picks it per task at the approval gate and carries the pick in the
+task's args as `workerTier`; an unstamped task runs the base worker. A lite task keeps one seat on
+the high seat tier, and its fix and ace rounds keep their own tiers. Pick rule:
+`skills/war/references/model-routing.md`.
+_Avoid_: docs tier (retired name); the all-`*.md` test as the pick (it is one input); a step up to
+the base worker after a failed audit.
+
+**Task class**:
+The Lead's per-task stamp at Decompose that picks each role's routing tier and binds the boundary
+floor (ADR 0062). Values and rules: `skills/war/references/model-routing.md`.
+_Avoid_: an engine-derived class; a file-extension classifier.
+
+**Ace edit class**:
+The engine's split of an ace batch into exact or broad edits, read from its absorb rows; an exact
+batch may run on its own tier (ADR 0062). Rule: `skills/war/references/model-routing.md`.
+_Avoid_: an auditor-stamped edit field.
+
+**Sampled Opus review**:
+One extra opus seat on a stably sampled share of clean approvals whose seats all resolve below
+opus. Sampling only adds a seat (ADR 0062, `skills/war/references/model-routing.md`).
+_Avoid_: skipping review on a clean approval; a random (non-replayable) sample.
+
+**Provision tier / evidence tier**:
+The optional refiner spawn tiers `agents.refiner.provision` (the worktree provisioning dispatches)
+and `agents.refiner.evidence` (the phase evidence dispatch, except on an `intraDep` phase). No
+default and no preset value: absent, those dispatches spawn as the plain refiner.
+_Avoid_: a refiner role split (one card, two optional tiers).
 
 **Fix bump**:
 The optional distinct model/effort (`agents.worker.fix`) applied to fix-round and floor-retry
@@ -817,7 +760,8 @@ _Avoid_: fix model (it's an optional override, not a standing role).
 
 **Helper**:
 The small read-only agent (`agents/war-helper.md`, tier `agents.helper`) that runs the `audit-pin`
-and `diff-probe` dispatches: Bash only, confined by the auditor git guard (ADR 0057). A word the
+and `diff-probe` dispatches and the `merge-snapshot`, `pin-snapshot`, `merge-confirm`, `pin-confirm`
+and `tip-probe` relays: Bash only, confined by its own arm of `validate-auditor-git.sh` (ADR 0057). A word the
 guard cannot pass bare routes that one dispatch to the refiner.
 _Avoid_: fifth role (it is a dispatch tier, never in `ROLES`).
 
@@ -856,15 +800,7 @@ _Avoid_: a fifth restatement of the tag set; a second tag line; a tag at round 1
 to); a schema field (the tag rides `rationale`).
 
 **Critical path block**:
-The worker's or the plan's numbered backward chain from the finish line to the tip: each link a
-condition with a done test, exactly one link marked as the bottleneck (the earliest unmet link).
-The worker writes `Critical path:` then `Ignore for now:` into `WorkerResult.notes` (shape:
-`backward-chain-worker.md` `## Chunk shape`); the plan author writes one line per End state in Part
-1 (placement latitude, never under `## Build order`; `backward-chain-plan.md`). The fixer's
-counterpart is the commit-body block `Outcome:` `Chain:` `Bottleneck:` `Fix:` `Ignore for now:`,
-echoed into `notes`.
-_Avoid_: a new schema field or plan H2; a link without a done test (a guess, not a link); reading
-the block as evidence (the seat runs its own chain and diffs the two).
+when writing or reading a `Critical path:` block, read skills/war/references/glossary-cold.md
 
 **History digest**:
 The compact per-round record the engine builds from the in-memory audit log and threads to the
@@ -997,15 +933,7 @@ instrumentation-first refinement (a per-round `auditLog` row), never to a silent
 _Avoid_: reading ambiguity as absence of grinding.
 
 **Pin transfer**:
-An audit approval carried to a new SHA by a mechanical predicate, not a re-convened panel (canonical:
-`pinTransfers` in `skills/war/assets/workflow-template.js`). *Seat-approval transfer*: a wave-side
-ace whose git-derived file set (the tip probe's read) is a subset of the findings' file set re-runs only
-the originating seats; the rest transfer to the ace sha. *Rebase pin transfer*: at the merge slot, a
-conflict-free rebase plus `git patch-id --stable` equality of the task's own diff, before and after,
-carries the panel pin to the rebased tip. Neither accounts an approval at a SHA the gate never
-passed; a mismatch degrades to the in-lock full panel for that task alone. After a target move, a
-mismatch holds the task instead (#2309).
-Arms and shape: `skills/war/references/schemas.md`.
+when an approval is carried to a new SHA without a re-convened panel, read skills/war/references/glossary-cold.md
 
 **Tip probe**:
 when an ace result returns, read skills/war/references/glossary-cold.md
@@ -1210,26 +1138,8 @@ distinct from the auditor's semantic *ceiling* (it is the right test, exercises 
 weakened or skipped).
 _Avoid_: test coverage, test gate (the gate runs the suite; the floor inspects the diff).
 
-**test-floor pattern** (`overrides.testPattern`):
-The glob set the **Test floor** matches a task's diff against, pinned at Setup *together with* the gate
-so floor ⊆ gate holds on any target repo, then **resolved per phase** (see **Pending testPattern
-proposal**). Threaded end-to-end like `plan.gate`, never parsed out of the gate command (the globs live
-in the target's test-runner config, not the command line). The gate's unconditional `*.test.sh`
-discovery is always unioned in; `null` (default) = the built-in WAR-repo gate-mirror defaults,
-byte-identical to today.
-_Avoid_: deriving it by parsing the gate command; pinning a pattern independent of the confirmed gate
-(floor ⊆ gate is one decision).
-
-**Pending testPattern proposal**:
-A Setup-proposed **test-floor pattern** the `--afk` sanity floor rejected (it had zero-match tokens),
-recorded verbatim in the ledger and re-checked at each phase launch until adopted (or closed — a
-validator-failing proposal cannot self-heal and is never re-checked). Adoption is
-monotonic (`null` → the Setup proposal, once, for that and every subsequent phase) and never a fresh
-interactive ask — it is why `overrides.testPattern` is *per-phase-resolved* rather than decided once
-per run.
-_Avoid_: treating the Setup confirmation as the final word on the value; minting a new pattern at
-re-check time (the pending proposal is the only adoptable value); reading the ledger note as a resume
-authority (git > labels > ledger).
+**test-floor pattern** (`overrides.testPattern`), **Pending testPattern proposal**:
+when setting or resolving `overrides.testPattern`, read skills/war/references/glossary-cold.md
 
 **Near-miss diagnostic**:
 when a `no-test` result carries a `floor_diagnostic`, read skills/war/references/glossary-cold.md
@@ -1245,28 +1155,9 @@ The refiner's merge-task result when a `requiresTest` task's diff contains no te
 failing gate — it routes a bounded fix-worker + full re-audit, and escalates only on budget exhaustion.
 _Avoid_: gate-failed (the suite is green; the *diff* lacks a test).
 
-**Packaging floor**:
-The deterministic guarantee that a file a task adds beside individually-COPY'd siblings of a
-Dockerfile is either packaged (a `COPY` line), excluded (`.dockerignore`), or exempted
-(`requiresPackaging: false`) before it can merge — enforced by a tested shell assertion at
-merge-task, the artifact-side sibling of the **Test floor**. Coarse and heuristic by design: the
-floor proves enumerated packaging kept up with the diff; the opt-in docker-build gate (when the
-operator accepts it at Setup) is the definitive artifact check. When unsure (unparseable
-`.dockerignore` pattern), it flags — never silently excuses.
-_Avoid_: docker gate (that is the executed build, a separate mechanism); treating a floor pass as
-proof the image builds.
-
-**`requiresPackaging`** (task field):
-Whether the packaging floor applies to a task's diff. Defaults `true`; the Lead sets it `false` at
-decompose for tasks whose added files legitimately never ship in an image. Independent of
-`requiresTest` — a task can require a test but not packaging, and vice versa.
-_Avoid_: packagingExempt (state the requirement positively, default-on).
-
-**`unpackaged`** (merge outcome):
-The refiner's merge-task result when the packaging floor flags an added file. Not a failing gate —
-it routes a bounded fix-worker (add the `COPY`, or `.dockerignore` it; never delete the file) plus
-a full re-audit, and escalates hard only on budget exhaustion.
-_Avoid_: gate-failed (the suite is green; the *image manifest* lags the diff).
+**Packaging floor**, **`requiresPackaging`** (task field), **`unpackaged`** (merge outcome):
+when a task adds a file beside a Dockerfile's `COPY`'d siblings, or a merge returns `unpackaged`, read
+skills/war/references/glossary-cold.md
 
 **done-unmet route**:
 when `assert-done-when.sh` returns the `done-unmet` floor route, read skills/war/references/glossary-cold.md
@@ -1352,12 +1243,7 @@ to general prose claims — those stay governed by the evidence-tag discipline (
 ### Red-team plan-vs-state grading (ADR 0032 / ADR 0033)
 
 **Artifact-kind**:
-The class of artifact `/red-team` is verifying (`impl-plan` / `tdd-plan` / `design-doc` / `prd`), computed
-by the Lead pre-flight and threaded into every probe. Drives whether a claimed-but-absent symbol is a
-deliverable baseline (suppressed) or a precondition failure (a finding). Defaults to `impl-plan` when
-absent — the suppression-safe choice.
-_Avoid_: "plan type", "mode" — and never default to a kind that *un*-suppresses future-work absence;
-`impl-plan` leans safe because the reverse direction re-opens the false-Critical misfire.
+when `/red-team` classes the artifact it verifies, read skills/war/references/glossary-cold.md
 
 **Deliverable-absence**:
 A symbol/test/file the plan *promises to build* whose absence from the current repo is the expected
@@ -1367,33 +1253,9 @@ NLP). Distinct from a **precondition-missing** anchor (a real finding).
 _Avoid_: "missing code", "gap" — and never conflate it with the retained-findings carve-out (a false
 claim about EXISTING code still blocks).
 
-**env-gap finding**:
-A probe finding flagged `envGap: true` — recording a PROVISION-STEP failure inside an executed probe's
-own sandbox (the setup broke; the artifact under test did not). `classify()` demotes it to an
-informational Minor regardless of severity or probe status, checked adjacent to and after the
-`deliverableAbsence` flag (a finding carrying both demotes via `deliverableAbsence` first). `needsDecision`
-is not cleared by the flag — a self-declared ambiguity still blocks.
-_Avoid_: conflating it with /war's **`env-blocked`** — that is a per-task *provisioning* outcome (the
-worker is never spawned); an env-gap finding is a /red-team probe-*result* flag (the probe ran to
-completion and reports the broken environment as a note).
-
-**Sandbox-escape guard**:
-The deterministic post-run check (`assert-no-repo-escape.sh`, floor exit contract 0/1/2) that no executed
-probe mutated the real repo working tree or pushed a junk remote ref. Runs between the Workflow return and
-the gate; a positive result routes the verdict through the self-confound gate (ADR 0020), never `CLEARED`
-until the state is clean (a provenance-cleared foreign delta is clean state and does not block `CLEARED`).
-The hardened `git -C` scope-lock is prevention (Layer 2); this guard is the detection authority (Layer 3).
-_Avoid_: "cleanup", "sandbox jail" — it is detection, not confinement; the agent-type probe jail is a
-recorded non-goal (D6).
-
-**Ref-diff baseline**:
-The pre-run ref-set snapshot `assert-no-repo-escape.sh --snapshot` writes outside the `--repo` working
-tree (the full local `git for-each-ref` set) — the exact half of the post-run `--baseline` check: a
-name-agnostic diff over `refs/heads/`/`refs/tags/` that closes the #1244 pattern-slipping-branch hole a
-name allowlist could not, and that excludes `refs/remotes/*` (which moves on an ordinary `fetch`).
-_Avoid_: conflating it with the unconditional pre-run local-integrity refusal (clean porcelain, no
-junk-pattern ref) — that refusal runs first and blocks baselining pre-existing residue; the baseline
-file is the separate artifact the post-run diff compares against.
+**env-gap finding**, **Sandbox-escape guard**, **Ref-diff baseline**:
+when a red-team probe flags `envGap` or `assert-no-repo-escape.sh` runs, read
+skills/war/references/glossary-cold.md
 
 **Adjudication**:
 An authoritative resolved ruling threaded to audit seats as an `args.adjudications` row — produced by
@@ -1415,19 +1277,9 @@ zero blockers/`needsDecision` can never emit it.
 _Avoid_: "CLEARED by adjudication" or other Lead-invented prose — the verdict is emitted by `verdict()`
 alone, never hand-written, and it always means at least one finding stayed probe-unverified.
 
-**Adjudicated flag**:
-The typed per-finding `adjudicated: true` the Lead stamps on a finding object in the gate-input working
-copy at grill time, then re-pipes through the gate via `--stdin` — the only channel by which adjudication
-reaches `verdict()`.
-_Avoid_: a string `'true'`, a truthy value, or NLP over finding text — the gate reads a strict boolean
-`=== true` on the finding itself, matching the `deliverableAbsence`/`envGap` typed-flag pattern.
-
-**Adjudication provenance marker**:
-The per-row `operator-ratified (<date>)` / `AI-declared` token every row of a report's `## Adjudications`
-block carries (ADR 0014 family) — finer-grained than the heading-level intent marker, because one run
-can mix operator rulings with Lead self-adjudication (`--afk`) inside the same report.
-_Avoid_: a block-level provenance stamp — the marker is per-row precisely because a single report can
-mix operator-ratified and AI-declared rows side by side.
+**Adjudicated flag**, **Adjudication provenance marker**:
+when stamping a red-team adjudication on a finding or a report row, read
+skills/war/references/glossary-cold.md
 
 **topology-void**:
 A plan clause anchored on git topology that WAR's task merges lack. Each task lands as a `--no-ff` merge
@@ -1438,14 +1290,7 @@ degenerate/empty diff for the claimed anchor.
 _Avoid_: conflating with a merge *conflict* — the anchor is void, not contested.
 
 **analyzed-agent fallback**:
-The red-team scaffold's sticky re-route of analyzed probes/confirms from the preferred read-only agent
-type to `general-purpose` when the harness lacks the preferred type: the FIRST dead preferred dispatch
-pins the whole run (#890), and every later analyzed dispatch routes to `general-purpose` proactively —
-not a per-item re-dispatch. The Lead's SKILL.md Step-3 pre-flight can pre-empt it entirely by passing
-`analyzedAgentType` up front; the pin is the in-run backstop when the Lead doesn't (or can't enumerate
-the registry).
-_Avoid_: "capability check" — the scaffold fallback is reactive (detect the first dead dispatch, pin,
-re-route), never itself a pre-flight harness query (that is the separate Lead-side Step-3 check).
+when a red-team analyzed dispatch finds no preferred agent type, read skills/war/references/glossary-cold.md
 
 ### Red-team loop budget & route-upstream (ADR 0045)
 
@@ -1562,58 +1407,9 @@ NotebookEdit over it (the provenance-presence discriminator, enforced fail-close
 _Avoid_: "verified file" (presence of the *key*, not any tier value, is the discriminator); assuming an
 untagged file is agent-authored (untagged ≈ hand-authored).
 
-**Verify-on-write**:
-The servitor's discipline of Read/Grep-confirming a named file/flag/symbol exists before recording a
-fact about it: found → `code-verified`; absent → `agent-unverified` with an absence-note. Distinct
-from running the gate (which the servitor cannot do).
-_Avoid_: fact-checking, validation (it confirms *existence*, not *truth*).
-
-**Memory root**:
-One of the two directories a lesson can canonically live in: the **repo root** (committable — travels
-with clones, merges across users, reviewed like code) or the **local root** (private to one
-machine/user, never committed). A lesson belongs to exactly one root, routed by its `metadata.type`
-and the redaction lint.
-_Avoid_: "the memory dir" (which one?); treating the roots as mirrors (they hold different lessons).
-
-**Promotion**:
-The Lead's Gate-2 act of publishing a `type: project` lesson from the local root into the repo root — a
-**copy-with-marker**, completed only **after the push succeeds**: the repo copy rides the phase PR (a
-same-slug repo file is **overwritten on recurrence**), and the local original gains a nested
-`metadata.promoted: <workingBranch>@phase-<N>` marker and is **never deleted** — it stays recall-visible
-(to `render-index`/prefetch/`/lessons-learned`) and is retired only by a future `/lessons-learned` pass
-once the merge is confirmed. A failed push or a redaction flag leaves the lesson unmarked in the local
-root — never dropped. The servitor never promotes; the Lead is the sole repo-root writer
-([ADR 0022](docs/adr/0022-servitor-local-root-writes-gate-2-promotion.md)).
-_Avoid_: "move" / "publish-and-delete" (the local original survives); treating it as a servitor write.
-
-**Hot set** / **Cold set**:
-The temperature split of a memory root, encoded by *location*: hot lessons sit in the root itself and
-each gets one row in the index projection; cold lessons sit in `archive/` — no projection row, still
-indexed and retrievable by query, forever. Archiving is a file move plus a dated body note; it is
-never a deletion.
-_Avoid_: deleted/retired-as-removed (cold lessons remain queryable); a status field (the path *is* the
-state).
-
-**Index projection**:
-The generated, size-capped rendering of both roots' hot sets into the **local** `MEMORY.md` (the
-session auto-load file) — a two-column router (`[[slug]]` + summary cell), one row per hot lesson,
-capped by *selection* (archive candidates) **and per-cell budgets** (the cell budget). Both are
-view-mechanisms: neither drops knowledge, which stays whole in the lesson files (deep recall is the
-`query` path, not the projection). Generated-only: no process or person edits it in place; writers write
-lesson files and the projection is re-rendered atomically. The repo root carries no projection — a
-committed generated file is a merge-conflict surface.
-_Avoid_: "the index" as a hand-maintained file; compaction (the projection is regenerated, not
-trimmed); a committed copy; reading a terse or truncated row as lost detail (the row routes; `query`
-retrieves the full lesson).
-
+**Verify-on-write**, **Memory root**, **Promotion**, **Hot set** / **Cold set**, **Index projection**,
 **Cell budget**:
-The per-cell render cap on a projection row's summary cell (`SUMMARY_CELL_BYTES`) — a *view-only*
-truncation: the lesson file keeps its full text, only the row's rendering is bounded, and the trailing
-provenance tier / `[repo]` markers are never cut (the `safe-swap` extractors and row classifiers key on
-them). One of the index projection's two cap mechanisms; the other is *selection*.
-_Avoid_: treating a capped cell as lost content (the file is intact; `query` returns it in full);
-conflating it with the advisory line (the cell budget caps one cell, the advisory line caps the whole
-projection).
+when routing, promoting, archiving or rendering a memory lesson, read skills/war/references/glossary-cold.md
 
 **Advisory line**:
 The index projection's advisory byte ceiling — the soft WARN threshold that sits below the hard
@@ -1635,39 +1431,10 @@ _Avoid_: an auto-run or cron (tighten is only suggested); a per-lesson re-ask lo
 then a shortfall report); equating it with the bare `/lessons-learned` housekeeping pass (that pass stays
 local-only — tighten is this skill's sole repo-side actor, and only through its gate + PR).
 
-**Usage-scored eviction**:
-The tighten ranking of eviction candidates by ascending uses, then descending redundancy, then ascending
-hits, behind hard floors: `user-confirmed` tier, concept hubs (≥2 hot citers), and lessons under 8 days old.
-A silent log degrades to tier + age order. Nothing is blended into a weighted composite.
-_Avoid_: reading zero as zero value (the log misses the operator's own reading); a weighted score.
-
-**Always-loaded test**:
-A lesson keeps its index row if a session needs it before it knows to query: a standing operator rule,
-or a trap that fires where no task text would surface it. Query and prefetch reach the rest from the cold
-set ([ADR 0055](docs/adr/0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md)).
-_Avoid_: reading eviction as a loss (it removes a row, never a lesson).
-
-**Derived memory index**:
-The SQLite/FTS5 index built **in memory, per invocation**, from both roots' lesson files (hot + cold).
-It never exists on disk — nothing to commit, back up, corrupt, or heal. The canonical store is always
-the text.
-_Avoid_: memory database as a source of truth or as a file; index staleness (it is rebuilt on every
-use).
-
-**Redaction lint**:
-The deterministic, fail-closed content check a lesson must pass to sit in the repo root: a flagged
-lesson (home paths, emails, account handles, credential-shaped strings) is demoted to the local root
-and reported — never committed, never dropped. First of three publication gates (lint → PR review →
-repo CI).
-_Avoid_: treating it as truth- or quality-checking (it checks *publishability*).
-
+**Usage-scored eviction**, **Always-loaded test**, **Derived memory index**, **Redaction lint**,
 **Memory prefetch**:
-The Lead-side retrieval step at phase launch: one query per prospective seat (task text plus the
-seat's role/lens), each result capped and injected into that agent's spawn prompt. Per-seat queries
-mean different auditor lenses receive different lessons. Fails open — a phase without memory runs
-lesson-less, logged.
-_Avoid_: agents querying at spawn time (seats may, mid-task, as an extra); a shared identical
-memory block for all seats.
+when ranking evictions, linting a lesson, or prefetching lessons for a seat, read
+skills/war/references/glossary-cold.md
 
 **Memory query tool**:
 The plugin's one MCP tool (`memory_query`; its full name is the `MEMORY_TOOL=` line of
@@ -1682,14 +1449,7 @@ when running the `/lessons-learned` housekeeping pass over a memory store, read
 skills/war/references/glossary-cold.md
 
 **Finding-match check**:
-The servitor's obligation to re-confirm that an audit finding's *named construct* (the specific defect,
-not merely the file) still matches at the landed tip before recording it as a live gotcha — match →
-`code-verified` with the file/line locate-cue; no match (fixed in-flight) → the generic pattern at
-`agent-unverified`, never a live file/line. Extends verify-on-write (which checks referent *existence*
-only) ([ADR 0029](docs/adr/0029-capture-grounds-on-committed-tip.md)).
-_Avoid_: recording a stale audit-log finding's file/line as a current instance (the log outlives the
-fix round that resolved it); conflating file-exists with finding-still-matches; assuming the wrap-up
-cwd is the committed tip (ground on the threaded landed-tip anchor via the grounding ladder instead).
+when the servitor records an audit finding as a live gotcha, read skills/war/references/glossary-cold.md
 
 **Committed-tree grounding**:
 Resolving an "already-done" / verify-and-close no-op claim against a pinned committed SHA
@@ -1716,11 +1476,7 @@ budgeting `references/` (cold storage is unbudgeted, like `archive/`); not the i
 **Advisory line** (a different mechanism, different caps).
 
 **Budget-Raise trailer**:
-The machine-checkable citation a merge diff must carry when it *raises* any `hard:`/`advisory:`
-ceiling constant in `prompt-surface-budgets.test.mjs` — a `Budget-Raise:` commit trailer citing
-ADR 0042, the surface, and the byte delta (exact form: `assert-budget-raise-cited.sh`, a landed
-merge-path floor that refuses an uncited raise). Ratchet-downs need no trailer.
-_Avoid_: prose justification alone (the floor greps the trailer, not the commit body's argument).
+when a diff raises a surface budget ceiling, read skills/war/references/glossary-cold.md
 
 **Prose temperature**:
 A block's branch-frequency tier — every-phase / once-per-run / branch-gated / incident-only — i.e.
@@ -1795,28 +1551,9 @@ when recording a relaunch attempt in the run manifest, read skills/war/reference
 
 ### GitHub side-effects
 
-**gh preflight**:
-The pre-batch assertion (`gh-preflight.sh <overrides.ghUser>`) that the active `gh` account is the run's
-`overrides.ghUser`, re-switching on drift (`gh auth switch`) and re-verifying via `gh api user --jq
-.login`, failing loud on an unrecoverable mismatch, so a mid-run account flip never silently drops a
-write batch. Unset `ghUser` ⇒ exit 0 no-op (single-account repos and the shipped default untouched).
-_Avoid_: relying on a once-at-session-start auth check.
-
-**issue-lifecycle floor**:
-The Lead-invoked check (`assert-issues-filed.sh`) that phase epics and task sub-issues named in the
-ledger actually exist on `gh`, and are closed with `status:done` on a landed phase. A hard gate at the
-checkpoint keyed on the ledger's own fields (orthogonal to any plan's `No GitHub issue filed` line);
-issue filing is verified, not doctrinal. Mirrors the `assert-*-in-diff.sh` `0/1/2` exit contract — a `2`
-(gh/ledger/ref error) never collapses into the `1` named route.
-_Avoid_: trusting the ledger's `epic_issue`/`issue` fields as proof of filing.
-
-**acknowledged-stranded**:
-An aftermath report bucket for remote branches an operator has permanently accepted as stranded (content
-landed under rewritten SHAs), recorded in `docs/aftermath/known-stranded.tsv` with a landing PR (or a
-documented PR-less `note`). Suppressed from needs-human, never auto-deleted, the tip-reachable +
-PR-merged deletion bar unchanged. Matched by exact `refs/heads/<ref>` name, never a substring.
-_Avoid_: re-deriving them as fresh needs-human rows every run; treating an allowlist row as a deletion
-license.
+**gh preflight**, **issue-lifecycle floor**, **acknowledged-stranded**:
+when a `gh` write batch starts, a checkpoint checks issue filing, or `/aftermath` buckets a stranded
+branch, read skills/war/references/glossary-cold.md
 
 **patch-equivalence probe**:
 when an `/aftermath` candidate fails the tip-reachability gate, read skills/war/references/glossary-cold.md
@@ -1846,29 +1583,12 @@ _Avoid_: putting an auxiliary table before it (silently mis-ingested); assuming 
 (it reads only the first).
 
 **Campaign ledger**:
-The uncommitted per-run state of a campaign at `.claude/campaigns/<id>/ledger.json` — the plan queue
-plus per-plan outcome — the entry shape's maintained home is `makePlanEntry` in `campaign-ledger.mjs`
-(ADR 0046), cited rather than re-enumerated here so the field set cannot rot on this surface
-(ADR 0025). **Single-writer** (the campaign
-Lead), written atomically (temp file + rename), owned by `campaign-ledger.mjs`. The resume source: a
-re-invoked campaign re-reads ledger + **Inbox** and continues; on resume the Lead reconciles the ledger
-*toward git* (`git ls-remote`, `gh pr view`) before trusting it.
-_Avoid_: committing it (that's the **Roadmap** snapshot's job); editing it by hand mid-run.
+when reading or resuming a campaign's `ledger.json`, read skills/war/references/glossary-cold.md
 
 ### Pipeline (outer loop)
 
-**Memory mining**:
-The survey's opening step: turning qualifying hot lessons from both memory roots into real
-tracker issues — lint-guarded (a redaction hit withholds the issue, never scrubs it) and
-slug-deduped (open or closed prior filing → never re-filed) — before the issue sweep runs, so
-lesson-recorded debt enters the pipeline as ordinary issues.
-_Avoid_: memory sweep (the sweep is the issue step); treating mined lessons as a parallel channel
-(they become real issues or are reported, nothing else).
-
-**memory-mined**:
-The provenance label on an issue that originated as a lesson; the body's lesson citation is the
-durable issue↔lesson link. Distinct from `war-followup` (a run's own deferred debt).
-_Avoid_: reusing `war-followup` for mined issues (conflates two provenances).
+**Memory mining**, **memory-mined**:
+when `/survey-corps` turns lessons into issues, read skills/war/references/glossary-cold.md
 
 **/war-review**:
 The post-run skill that turns a run manifest plus its transcripts into a telemetry and friction

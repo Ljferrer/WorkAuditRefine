@@ -5,9 +5,9 @@
     "worker": {
       "model": "opus",
       "effort": "default",
-      "docs": {
-        "model": "opus",
-        "effort": "default"
+      "lite": {
+        "model": "sonnet",
+        "effort": "high"
       },
       "fix": {
         "model": "fable",

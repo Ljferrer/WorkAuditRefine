@@ -9,7 +9,10 @@
 # ls-files/ls-tree/cat-file/blame, plus read-form branch, plus the one policed
 # grep form `git grep -F|-E -e <token>...` — groups P and GF) with no shell
 # metacharacters outside an admitted quoted value (group Q). Anything else → DENY
-# (exit 2). Non-auditor agent types → exit 0 (pass-through).
+# (exit 2). The war-helper arm has its own policy: the same set plus
+# ls-remote, rev-list, patch-id, hash-object and cherry, and one pipe between
+# two admitted git commands (group HR, PIN-26). Non-auditor agent types → exit
+# 0 (pass-through).
 #
 # CRITICAL ASSERTION DESIGN:
 #   Deny cases assert a SPECIFIC deny message on stderr, NOT merely exit != 0.
@@ -687,6 +690,101 @@ expect_deny "I0b: war-helper git push is denied" \
   "$(typed_cmd "work-audit-refine:war-helper" "git push")"
 expect_deny "I0c: war-helper cannot run command substitution" \
   "$(typed_cmd "work-audit-refine:war-helper" 'git diff $(git merge-base a b)..b')"
+
+# ---------------------------------------------------------------------------
+# CASE GROUP HR: the helper relay arm (PIN-26, End state 25). The helper policy
+# adds ls-remote, rev-list, patch-id, hash-object and cherry, and one pipe
+# between two admitted git commands. Each allow row has a deny twin that
+# differs in one token or in the seat (ADR 0031). The eleven End state 25 rows
+# carry the `helper relay arm:` prefix; the twins and spelling rows carry
+# `helper relay twin:` so that count stays eleven. Mutation-red: make the
+# `*war-helper` arm leave is_helper=0 and the five allow rows fail. Every allow
+# row's command is collected in _hr_cmds and run under real git at the end.
+# ---------------------------------------------------------------------------
+hr_cmd() { jq -nc --arg t "work-audit-refine:$1" --arg c "$2" '{agent_type:$t,tool_input:{command:$c}}'; }
+_hr_cmds=""
+hr_allow() { expect_allow "$1" "$(hr_cmd war-helper "$2")"; _hr_cmds="$_hr_cmds$2
+"; }
+HR_ID='git diff --raw -z --no-abbrev --no-renames --ignore-submodules=none --no-relative -O/dev/null main war-x --'
+
+hr_allow "helper relay arm: ls-remote of one ref is allowed" 'git ls-remote . refs/heads/main'
+hr_allow "helper relay arm: rev-list --count is allowed" 'git rev-list --count main..war-x'
+hr_allow "helper relay arm: a pipe into patch-id is allowed" 'git diff main...war-x | git patch-id --stable'
+hr_allow "helper relay arm: a pipe into hash-object --stdin is allowed" "$HR_ID | git hash-object --stdin"
+hr_allow "helper relay arm: cherry of two revs is allowed" 'git cherry main war-x'
+expect_deny "helper relay arm: hash-object -w is denied" \
+  "$(hr_cmd war-helper "$HR_ID | git hash-object -w --stdin")"
+expect_deny "helper relay arm: ls-remote --upload-pack is denied" \
+  "$(hr_cmd war-helper 'git ls-remote --upload-pack=touch . refs/heads/main')"
+expect_deny "helper relay arm: a pipe into a non-git command is denied" \
+  "$(hr_cmd war-helper 'git diff main...war-x | patch-id --stable')"
+expect_deny "helper relay arm: command substitution is still denied" \
+  "$(hr_cmd war-helper 'git rev-list --count $(git merge-base main war-x)..war-x')"
+expect_deny "helper relay arm: war-auditor is denied the same pipe" \
+  "$(hr_cmd war-auditor 'git diff main...war-x | git patch-id --stable')"
+expect_deny "helper relay arm: war-evidence-auditor is denied ls-remote" \
+  "$(hr_cmd war-evidence-auditor 'git ls-remote . refs/heads/main')"
+
+# Twins and spellings.
+expect_deny "helper relay twin: war-auditor is denied rev-list --count" \
+  "$(hr_cmd war-auditor 'git rev-list --count main..war-x')"
+expect_deny "helper relay twin: war-auditor is denied cherry of two revs" \
+  "$(hr_cmd war-auditor 'git cherry main war-x')"
+expect_deny "helper relay twin: war-evidence-auditor is denied a pipe into hash-object --stdin" \
+  "$(hr_cmd war-evidence-auditor "$HR_ID | git hash-object --stdin")"
+hr_allow "helper relay twin: one -C <path> peel on each side of the pipe is allowed" \
+  'git -C . diff main...war-x | git -C . patch-id --stable'
+expect_deny "helper relay twin: a -C with no subcommand on the right side is denied" \
+  "$(hr_cmd war-helper 'git -C . diff main...war-x | git -C .')"
+expect_deny_teach "helper relay twin: a second pipe is denied" \
+  "$(hr_cmd war-helper 'git diff main...war-x | git patch-id --stable | git hash-object --stdin')" "pipe bytes"
+expect_deny_teach "helper relay twin: || is denied" \
+  "$(hr_cmd war-helper 'git diff main...war-x || git patch-id --stable')" "pipe bytes"
+expect_deny "helper relay twin: |& is denied" \
+  "$(hr_cmd war-helper 'git diff main...war-x |& git patch-id --stable')"
+expect_deny "helper relay twin: a redirect on a pipe side is denied" \
+  "$(hr_cmd war-helper 'git diff main...war-x > x | git patch-id --stable')"
+expect_deny "helper relay twin: ; is denied" \
+  "$(hr_cmd war-helper 'git diff main...war-x ; git patch-id --stable')"
+expect_deny "helper relay twin: && is denied" \
+  "$(hr_cmd war-helper 'git rev-list --count main..war-x && git cherry main war-x')"
+expect_deny "helper relay twin: a variable is denied" \
+  "$(hr_cmd war-helper 'git rev-list --count $BASE..war-x')"
+expect_deny "helper relay twin: an empty pipe side is denied" \
+  "$(hr_cmd war-helper 'git diff main...war-x |')"
+expect_deny_teach "helper relay twin: ls-remote --exec= is denied" \
+  "$(hr_cmd war-helper 'git ls-remote --exec=touch . refs/heads/main')" "run a command"
+expect_deny_teach "helper relay twin: ls-remote --exec with a space value is denied" \
+  "$(hr_cmd war-helper 'git ls-remote --exec touch . refs/heads/main')" "run a command"
+expect_deny_teach "helper relay twin: ls-remote --upload-pack with a space value is denied" \
+  "$(hr_cmd war-helper 'git ls-remote --upload-pack touch . refs/heads/main')" "run a command"
+expect_deny_teach "helper relay twin: ls-remote abbreviated --up= is denied" \
+  "$(hr_cmd war-helper 'git ls-remote --up=touch . refs/heads/main')" "run a command"
+expect_deny_teach "helper relay twin: ls-remote -u is denied" \
+  "$(hr_cmd war-helper 'git ls-remote -u touch . refs/heads/main')" "run a command"
+expect_deny "helper relay twin: ls-remote -qu cluster is denied" \
+  "$(hr_cmd war-helper 'git ls-remote -qu touch . refs/heads/main')"
+expect_deny_teach "helper relay twin: ls-remote of a URL repository is denied" \
+  "$(hr_cmd war-helper 'git ls-remote ext::touch refs/heads/main')" "never a URL or a quoted value"
+expect_deny_teach "helper relay twin: ls-remote of a quoted repository is denied" \
+  "$(hr_cmd war-helper "git ls-remote 'ext::sh -c x' refs/heads/main")" "never a URL or a quoted value"
+expect_deny_teach "helper relay twin: hash-object -tw cluster is denied" \
+  "$(hr_cmd war-helper 'git hash-object -tw --stdin')" "-w writes an object"
+expect_deny_teach "helper relay twin: hash-object --write is denied" \
+  "$(hr_cmd war-helper 'git hash-object --write --stdin')" "-w writes an object"
+expect_deny "helper relay twin: hash-object of a path is denied" \
+  "$(hr_cmd war-helper 'git hash-object hooks/f')"
+expect_deny "helper relay twin: patch-id with another flag is denied" \
+  "$(hr_cmd war-helper 'git diff main...war-x | git patch-id --stable --x')"
+expect_deny "helper relay twin: cherry with a non-digit --abbrev is denied" \
+  "$(hr_cmd war-helper 'git cherry --abbrev=x main war-x')"
+expect_deny "helper relay twin: fetch stays denied for the helper" \
+  "$(hr_cmd war-helper 'git fetch origin')"
+hr_allow "helper relay twin: a | inside a quoted grep value is not a pipe" "git grep -F -e '|' main"
+expect_deny_teach "helper relay twin: a helper denial names the helper policy" \
+  "$(hr_cmd war-helper 'git push')" "helper policy: "
+expect_deny_lacks "helper relay twin: an auditor denial does not name the helper policy" \
+  "$(hr_cmd war-auditor 'git push')" "helper policy"
 
 # I1: trailing-junk agent type → arm no longer captures → falls through to the
 # pass-through `*) exit 0`, so a write command that WOULD be denied when gated
@@ -1443,6 +1541,31 @@ if git_runs "git blame -e '--porcelain' hooks/f"; then
   printf 'ok %d - GF31 git_runs: git blame -e '"'"'--porcelain'"'"' hooks/f is git-valid\n' "$n"
 else
   printf 'FAIL %d - GF31 git_runs: git refused git blame -e '"'"'--porcelain'"'"' hooks/f: %s\n' "$n" "$(head -c 200 "$_GFR/gr.err")"; fails=$((fails + 1))
+fi
+# HR: every helper allow row names a command git accepts (operator ruling
+# 2026-11-05). The scratch repo has main and war-x, and . is a repository.
+# pipefail makes a refused left side of a pipe row red the row, because
+# patch-id and hash-object --stdin exit 0 on empty input.
+n=$((n + 1))
+_hr_c1=0; git_runs "set -o pipefail; git diff --no-such-flag | git patch-id --stable" || _hr_c1=1
+if [ "$_hr_c1" = 1 ]; then
+  printf 'ok %d - HR control: git_runs fails on a refused left side of a pipe\n' "$n"
+else
+  printf 'FAIL %d - HR control: git_runs passed a refused left side of a pipe\n' "$n"; fails=$((fails + 1))
+fi
+_hr_checked=0; _hr_bad=""
+while IFS= read -r _c; do
+  [ -n "$_c" ] || continue
+  _hr_checked=$((_hr_checked + 1))
+  git_runs "set -o pipefail; $_c" || _hr_bad="$_hr_bad[$_c: $(head -c 200 "$_GFR/gr.err" | tr '\n' ' ')] "
+done <<EOF
+$_hr_cmds
+EOF
+n=$((n + 1))
+if [ -z "$_hr_bad" ] && [ "$_hr_checked" = 7 ]; then
+  printf 'ok %d - HR git_runs: all %d helper allow rows run under real git\n' "$n" "$_hr_checked"
+else
+  printf 'FAIL %d - HR git_runs: checked %d of 7, git refused: %s\n' "$n" "$_hr_checked" "$_hr_bad"; fails=$((fails + 1))
 fi
 
 # ---------------------------------------------------------------------------

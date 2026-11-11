@@ -12,11 +12,11 @@ config.
 ## Decision
 
 **The balanced defaults (`DEFAULTS.agents` in `war-config.mjs`) move down one model tier.** The
-base and fix worker tiers run opus, docs-only tasks run sonnet, and auditors run sonnet. The
+base and fix worker tiers run opus, the lite worker tier runs sonnet (the Lead picks it per task, ADR 0062), and auditors run sonnet. The
 values live in `war-config.mjs` and the `/war-room` preset bullets, never restated here.
 
-**`thorough` pins its base, docs and fix worker tiers at fable**, so it stays at or above `balanced` on every tier.
-**`economy` moves its docs tier to sonnet**, so `balanced` stays at or above it. The
+**`thorough` pins its base, lite and fix worker tiers at fable**, so it stays at or above `balanced` on every tier.
+**`economy` moves its lite tier to sonnet**, so `balanced` stays at or above it. The
 model-rank test in `war-config.test.mjs` checks both.
 
 **Ace work gets its own tier.** `agents.worker.ace` drives the `--ace` dispatches and the terminal
@@ -83,11 +83,21 @@ and validate still refuses a fix model ranked below the ace model. So a config t
 tier below opus must also set an ace tier at or below it. Run `a5fc17cc` showed the cost of the
 old fallback: a fable fix tier ran a 32-minute ace polish of Minor and Nit fixes (#2617).
 
+**Amended 2026-11-10 (#2534): the boundary floor binds a `boundary` class.** A task the Lead stamps
+with the `boundary` task class never gets a seat below opus, whatever its seats' tiers, models or
+class routing say. [ADR 0062](0062-task-class-routing-and-sampled-review.md) records the task
+class, and `skills/war/references/model-routing.md` holds the doctrine.
+
 ## Consequences
 
 - A run with no config file now spends less on workers and auditors. A missed finding on a
   boundary-heavy task is the main risk: the Lead must route those seats to opus.
 - The engine fallbacks (`ROLE_MODEL`, `WORKER_TIER_DEFAULTS` in `workflow-template.js`) and the
   agent card frontmatter follow `DEFAULTS`, bound by the existing drift guards.
-- Automatic routing by task class, a sampled opus review of clean sonnet approvals and per-model
-  telemetry are not part of this decision. Issue #2534 tracks them.
+- Routing by task class, a sampled opus review of clean below-opus approvals and per-model
+  telemetry are not part of this decision. ADR 0062 records them (issue #2534).
+
+## Decision log
+
+- 2026-11-10 · The `docs` worker tier is now `lite`, renamed in place in every reader with no alias; `validate` refuses a config that still carries the old key and names `agents.worker.lite` (operator ruling 2026-11-09) · plan `docs/plans/2026-11-08-model-routing-and-prompt-byte-budgets.md` D29, Task 3.1.
+- 2026-11-10 · The boundary floor now also binds a task stamped with the `boundary` class, and the routing items left to #2534 point at ADR 0062 · same plan, D11, Task 4.2.

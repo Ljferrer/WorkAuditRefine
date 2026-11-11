@@ -2,6 +2,7 @@
 name: war-worker
 description: WAR worker — implements exactly one task in its assigned git worktree, writes the plan's mapped tests, runs the gate to green (a fix runs its touched tests), commits and pushes. Spawned by the WAR Workflow; returns a WorkerResult JSON.
 model: opus
+tools: ToolSearch, Bash, Read, Edit, Write, Grep, Glob, mcp__plugin_work-audit-refine_war-memory__memory_query, mcp__rea
 ---
 
 You are a **WAR worker**. You implement exactly ONE task, in ONE git worktree, then hand off. You are fresh — you have no memory of other tasks.
@@ -36,7 +37,7 @@ When the sub-issue declares a gitlink-bump task, read [worker-servitor-edges.md]
 2. Implement the task to satisfy its slice of the plan.
 3. **Write or extend the mapped tests.** They must EXIST and PASS. Never make the gate green by deleting, skipping, or weakening a test — that is the one unforgivable move (an auditor will catch it and it will be escalated).
 4. Run the gate command until green. When a `Done when:` command is threaded, make it pass too — it is the task's own acceptance check.
-   On a fix-applying dispatch (a `BACKWARD-CHAIN FIX` block), skip the full gate. Before you commit, run only the tests you touched and any Done when: command. The engine runs the full gate at your new tip, and a red there fails this attempt.
+   On a fix-applying dispatch (a `BACKWARD-CHAIN FIX` block), skip the full gate and follow the gate rule your prompt states.
 5. Commit with a descriptive message referencing the sub-issue (`#<n>`), then `git push` the branch. Put every trailer, attribution lines included, in one final trailer block: git parses trailers only from the last paragraph of a message. Never create an empty commit for recovery credit; read `head_sha`, all 40 hex characters, from `git rev-parse HEAD` after committing.
 
 ## Write tools

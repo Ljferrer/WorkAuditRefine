@@ -53,16 +53,16 @@ export const DEFAULTS = {
   version: 1,
   profile: 'balanced',
   agents: {
-    // worker.docs dispatches all-*.md tasks; worker.fix dispatches fix rounds and floor retries; worker.ace
+    // worker.lite dispatches tasks the Lead stamps workerTier 'lite'; worker.fix dispatches fix rounds and floor retries; worker.ace
     // dispatches --ace and the terminal pass (#2519). Ace has its own default (#2619), so an unset ace never
-    // runs on fix. Ace charges 5 and 6 always run on fix, and validate checks fix ranks >= ace. The worker tiers (base, docs, fix, ace) are defaulted here; a preset may re-pin any of them (see PRESETS) and a config may
+    // runs on fix. Ace charges 5 and 6 always run on fix, and validate checks fix ranks >= ace. The worker tiers (base, lite, fix, ace) are defaulted here; a preset may re-pin any of them (see PRESETS) and a config may
     // override any tier per run. Every prose surface that restates a value from this object is bound
     // to presetConfig() by DOC_TIER_PINS / the /war-room bullet parser in war-config.test.mjs — when
     // you add a restatement, add a pin row; when you cannot, write a pointer instead of the value.
     // Seat models follow the #2497 / #2519 routing (ADR 0056): opus for bounded worker, fix and ace work,
     // sonnet for docs-only tasks and routine audit seats. The Lead picks each roster seat's tier (#2534), and
     // a boundary-heavy seat takes auditor.high.
-    worker:   { model: 'opus',   effort: 'default', docs: { model: 'sonnet', effort: 'high' }, fix: { model: 'opus', effort: 'default' }, ace: { model: 'opus', effort: 'default' } },
+    worker:   { model: 'opus',   effort: 'default', lite: { model: 'sonnet', effort: 'high' }, fix: { model: 'opus', effort: 'default' }, ace: { model: 'opus', effort: 'default' } },
     // auditor.rebuttal: the rebuttal-round seat tier, one model above the auditor (capped at fable).
     // auditor.high: the tier a seat with tier 'high' runs on (#2534). auditor.low has no default, so a seat
     // with no tier or tier 'low' runs the base auditor model and effort unless a config sets low.
@@ -86,7 +86,7 @@ export const DEFAULTS = {
     // agents/*.md card: the subagent is a general-purpose agent instructed by fork-trials.md.
     // Defaulted here (the balanced value); every preset re-pins it (see PRESETS, A9).
     trial:    { model: 'opus',   effort: 'default' },
-    // helper: the tier of the tiny read-only Git dispatches (audit-pin, diff-probe) on the war-helper card
+    // helper: the tier of the tiny read-only Git dispatches (audit-pin, diff-probe, the Git relays) on the war-helper card
     // (#2497, ADR 0057). NOT a phase role (never in ROLES/agentMatrix). Every preset inherits it.
     helper:   { model: 'haiku',  effort: 'low' },
     // Skill seats (SKILL_SEATS above), operator ruling 2026-10-30: plan conversion runs opus, and its revise
@@ -177,10 +177,10 @@ export const PRESETS = {
   thorough: {
     profile: 'thorough',
     agents: {
-      // Every seat pinned below carries its own value; the worker tiers (base, docs, fix) stay on fable
+      // Every seat pinned below carries its own value; the worker tiers (base, lite, fix) stay on fable
       // above the opus/sonnet DEFAULTS (ADR 0056), and the refiner pin sits one effort tier above the
       // DEFAULTS refiner.
-      worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
+      worker:   { model: 'fable',  effort: 'default', lite: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
       auditor:  { model: 'fable',  effort: 'default', rebuttal: { model: 'fable', effort: 'default' }, low: { model: 'opus', effort: 'default' }, high: { model: 'fable', effort: 'default' } },
       refiner:  { model: 'sonnet', effort: 'xhigh' },
       servitor: { model: 'opus',   effort: 'high' },
@@ -215,7 +215,7 @@ export const PRESETS = {
   },
   economy: {
     profile: 'economy',
-    // Cheaper models and a shorter fix budget (ADR 0050): pins the base and docs worker tiers, the
+    // Cheaper models and a shorter fix budget (ADR 0050): pins the base and lite worker tiers, the
     // auditor, refiner, servitor and red-team seats, the trial tier (A9), the skill seats (machine, survey,
     // lessons), roundLimit 4 and redteamRoundLimit 2. rosterPolicy inherits 'auto'
     // (the Lead composes each task's seats from the lens catalog); the four-lens roster below is the
@@ -223,7 +223,7 @@ export const PRESETS = {
     // never a per-task seat count.
     // The fix tier, snipe, and every knob not pinned in this preset inherit DEFAULTS.
     agents: {
-      worker:   { model: 'opus',   effort: 'default', docs: { model: 'sonnet', effort: 'high' } },
+      worker:   { model: 'opus',   effort: 'default', lite: { model: 'sonnet', effort: 'high' } },
       auditor:  { model: 'sonnet', effort: 'xhigh' },
       refiner:  { model: 'sonnet', effort: 'high' },
       servitor: { model: 'sonnet', effort: 'high' },
@@ -293,18 +293,18 @@ export function agentMatrix() {
 
 // Enumerated (preset, tier, model, effort) worker-tier matrix — the worker-role sibling of
 // agentMatrix() (ADR 0025 drift-guard discipline). One row per (preset × PRESENT worker tier):
-// 'base' (the worker role's own model/effort), 'docs' (defaulted in DEFAULTS — the all-*.md tier),
+// 'base' (the worker role's own model/effort), 'lite' (defaulted in DEFAULTS — the workerTier-stamped tier),
 // 'fix' (the fix-round tier) and 'ace' (the --ace + terminal-pass tier, #2619) — both defaulted in DEFAULTS
 // too, so every preset emits a fix and an ace row). Reuses presetConfig()'s merge and iterates the live PRESETS, so a new preset or tier is
 // enumerated automatically. The doc-honesty lens consults it to prove documented tier values (the
-// docs, fix and ace tiers per preset) match this canonical source, not a hand-copied literal.
+// lite, fix and ace tiers per preset) match this canonical source, not a hand-copied literal.
 export function workerTierMatrix() {
   return Object.keys(PRESETS).flatMap(preset => {
     const w = presetConfig(preset).agents.worker
-    // base + docs are always effective (both defaulted in DEFAULTS); fix and ace are likewise defaulted
+    // base + lite are always effective (both defaulted in DEFAULTS); fix and ace are likewise defaulted
     // in DEFAULTS now, so every preset emits both rows. The pushes stay guarded on isObj, so a config
     // that nulls a tier simply omits its row (never a fabricated tautology).
-    const tiers = [['base', w], ['docs', w.docs]]
+    const tiers = [['base', w], ['lite', w.lite]]
     if (isObj(w.fix)) tiers.push(['fix', w.fix])
     if (isObj(w.ace)) tiers.push(['ace', w.ace])
     return tiers.map(([tier, block]) => ({ preset, tier, model: block.model, effort: block.effort }))
@@ -313,7 +313,7 @@ export function workerTierMatrix() {
 
 // Validate an optional agent tier block { model, effort } — model/effort must be in the role enums
 // and no unknown sub-keys (the memory.* unknown-key precedent, so a typo never runs silently). Used
-// for agents.redteam, agents.snipe, agents.snipe.low, agents.trial, agents.helper, agents.auditor.rebuttal/low/high, the agents.worker.docs/fix/ace tiers and every agents.<skill>.<seat>
+// for agents.redteam, agents.snipe, agents.snipe.low, agents.trial, agents.helper, agents.auditor.rebuttal/low/high, agents.refiner.recovery/provision/evidence, the agents.worker.lite/fix/ace tiers and every agents.<skill>.<seat>
 // skill seat (SKILL_SEATS): validated exactly
 // like a phase role, but none of them is itself a ROLE (redteam feeds /red-team, snipe feeds /snipe,
 // trial feeds /war-strategy's fork-trial subagent, helper feeds the tiny Git dispatches; the worker tiers refine worker dispatch).
@@ -338,12 +338,14 @@ export function validate(input) {
     if (!MODELS.includes(a.model)) errors.push(`agents.${role}.model must be one of ${MODELS.join('|')} (got ${JSON.stringify(a.model)})`)
     if (!EFFORTS.includes(a.effort)) errors.push(`agents.${role}.effort must be one of ${EFFORTS.join('|')} (got ${JSON.stringify(a.effort)})`)
   }
-  // Worker tiers: agents.worker.docs (all-*.md dispatch tier), agents.worker.fix (fix-round + floor-retry
+  // Worker tiers: agents.worker.lite (the workerTier-stamped first-pass tier), agents.worker.fix (fix-round + floor-retry
   // tier) and agents.worker.ace (--ace + terminal-pass tier, #2619), all three defaulted in DEFAULTS. Each a
   // { model, effort } tier validated like a role when present (unknown sub-keys rejected).
+  // The lite tier was once named `docs` (PIN-29): that key is refused, never read as an alias.
   const worker = c.agents.worker
   if (isObj(worker)) {
-    for (const tier of ['docs', 'fix', 'ace']) {
+    if (Object.prototype.hasOwnProperty.call(worker, 'docs')) errors.push('the `docs` key of `agents.worker` was renamed agents.worker.lite — run /war-room to regenerate the config')
+    for (const tier of ['lite', 'fix', 'ace']) {
       if (Object.prototype.hasOwnProperty.call(worker, tier)) validateAgentTier(worker[tier], `agents.worker.${tier}`, errors)
     }
     // Ace charges 5 and 6 run on the fix tier (aceSpawn in workflow-template.js), so the fix model must
@@ -353,7 +355,11 @@ export function validate(input) {
       errors.push(`agents.worker.fix.model must rank at least agents.worker.ace.model (${MODEL_RANK.join(' < ')}): ace charges 5 and 6 run on the fix tier (got fix ${JSON.stringify(fx.model)}, ace ${JSON.stringify(ac.model)}; recommended: fix one rank above ace)`)
     }
   }
-  if (isObj(c.agents.refiner) && Object.prototype.hasOwnProperty.call(c.agents.refiner, 'recovery')) validateAgentTier(c.agents.refiner.recovery, 'agents.refiner.recovery', errors)
+  // agents.refiner.provision / agents.refiner.evidence (#2549, #2550): the provisioning and evidence dispatch
+  // tiers. No DEFAULTS entry and no preset value: absent, those dispatches run as spawn('refiner').
+  for (const tier of ['recovery', 'provision', 'evidence']) {
+    if (isObj(c.agents.refiner) && Object.prototype.hasOwnProperty.call(c.agents.refiner, tier)) validateAgentTier(c.agents.refiner[tier], `agents.refiner.${tier}`, errors)
+  }
   // agents.auditor.rebuttal: the rebuttal-round seat tier (defaulted; a hand-written config may omit it, and then
   // each rebuttal seat keeps its usual tier).
   // agents.auditor.low / agents.auditor.high: the seat tiers a roster seat's `tier` names (#2534), validated the same way.
@@ -395,6 +401,40 @@ export function validate(input) {
   const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe', 'trial', 'helper', ...Object.keys(SKILL_SEATS)]
   for (const key of Object.keys(c.agents)) {
     if (!KNOWN_AGENT_KEYS.includes(key)) errors.push(`agents.${key} is not a known agent key (${KNOWN_AGENT_KEYS.join('|')}) — run /war-room to regenerate the config`)
+  }
+
+  // routing (#2534, D11-D13, D36; doctrine: skills/war/references/model-routing.md): optional, with no DEFAULTS
+  // entry and no preset value, so absent the engine routes nothing. classes.<routine|boundary>.<worker|fix|ace|auditor>
+  // and aceEdit.exact are { model, effort } tiers; sampleOpusReview is a share from 0 to 1 and opusFloor a
+  // boolean, each unset when null. Unknown keys are courtesy errors at every level.
+  if (c.routing != null) {
+    const rt = c.routing
+    const known = (obj, keys, path) => { for (const k of Object.keys(obj)) if (!keys.includes(k)) errors.push(`${path}.${k} is not a known key (${keys.join('|')}) — run /war-room to regenerate the config`) }
+    if (!isObj(rt)) errors.push('routing must be an object when set')
+    else {
+      known(rt, ['classes', 'aceEdit', 'sampleOpusReview', 'opusFloor'], 'routing')
+      if (rt.classes !== undefined) {
+        if (!isObj(rt.classes)) errors.push('routing.classes must be an object of task classes (routine|boundary)')
+        else {
+          known(rt.classes, ['routine', 'boundary'], 'routing.classes')
+          for (const cls of ['routine', 'boundary']) {
+            if (rt.classes[cls] === undefined) continue
+            if (!isObj(rt.classes[cls])) { errors.push(`routing.classes.${cls} must be an object of roles (worker|fix|ace|auditor)`); continue }
+            known(rt.classes[cls], ['worker', 'fix', 'ace', 'auditor'], `routing.classes.${cls}`)
+            for (const role of ['worker', 'fix', 'ace', 'auditor']) if (rt.classes[cls][role] !== undefined) validateAgentTier(rt.classes[cls][role], `routing.classes.${cls}.${role}`, errors)
+          }
+        }
+      }
+      if (rt.aceEdit !== undefined) {
+        if (!isObj(rt.aceEdit)) errors.push('routing.aceEdit must be an object { exact }')
+        else {
+          known(rt.aceEdit, ['exact'], 'routing.aceEdit')
+          if (rt.aceEdit.exact !== undefined) validateAgentTier(rt.aceEdit.exact, 'routing.aceEdit.exact', errors)
+        }
+      }
+      if (rt.sampleOpusReview != null && (typeof rt.sampleOpusReview !== 'number' || !(rt.sampleOpusReview >= 0 && rt.sampleOpusReview <= 1))) errors.push(`routing.sampleOpusReview must be a number from 0 to 1 when set (got ${JSON.stringify(rt.sampleOpusReview)})`)
+      if (rt.opusFloor != null && typeof rt.opusFloor !== 'boolean') errors.push(`routing.opusFloor must be a boolean when set (got ${JSON.stringify(rt.opusFloor)})`)
+    }
   }
 
   const au = c.audit
@@ -540,7 +580,9 @@ export function resolveProvision(config) {
 }
 
 // Roster validation (D8): a roster is an array of 1–5 seats; each seat an object with a
-// non-empty string lens; depth absent or one of neighbors|deep; lenses distinct; agentType absent or a
+// non-empty string lens; depth absent or one of neighbors|deep; lenses distinct, except one repeat whose two
+// seats both carry an explicit model with the later ranked strictly above the earlier in MODEL_RANK (the
+// lens pair, #2706, D22); agentType absent or a
 // SEAT_AGENT_TYPES member; model/effort absent or a MODELS/EFFORTS member (#2519: a per-seat override of
 // the seat tier); tier absent or an AUDITOR_TIERS member (#2534). `evidence` is the run.evidence knob: an evidence-type row is rejected unless
 // it is exactly true (REA artifact evidence D8/D12). Beside an evidence seat the non-evidence seats cap
@@ -556,12 +598,11 @@ export function validateRoster(roster, evidence) {
   if (evidenceSeats > 0 && roster.length - evidenceSeats > 4) errors.push(`roster carries ${roster.length - evidenceSeats} non-evidence seats beside an evidence seat (max 4: the five-seat ceiling holds)`)
   else if (roster.length < 1 || roster.length > 5) errors.push(`roster must be an array of 1-5 seats (got ${JSON.stringify(roster)})`)
   if (errors.length > 0) return { valid: false, errors }
-  const seen = []
   roster.forEach((seat, i) => {
     if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth?, agentType?, model?, effort?, tier? }`); return }
+    const prior = roster.slice(0, i).filter(s => s !== null && typeof s === 'object' && !Array.isArray(s) && s.lens === seat.lens)
     if (typeof seat.lens !== 'string' || !seat.lens) errors.push(`roster[${i}].lens must be a non-empty string`)
-    else if (seen.includes(seat.lens)) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
-    else seen.push(seat.lens)
+    else if (prior.length && !(prior.length === 1 && prior[0].model && seat.model && MODEL_RANK.indexOf(seat.model) > MODEL_RANK.indexOf(prior[0].model))) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
     if (seat.depth !== undefined && seat.depth !== 'neighbors' && seat.depth !== 'deep') errors.push(`roster[${i}].depth must be "neighbors" or "deep" when present (got ${JSON.stringify(seat.depth)})`)
     if (seat.agentType !== undefined && !SEAT_AGENT_TYPES.includes(seat.agentType)) errors.push(`roster[${i}].agentType must be one of ${SEAT_AGENT_TYPES.join('|')} when present (got ${JSON.stringify(seat.agentType)})`)
     else if (seat.agentType === 'war-evidence-auditor' && evidence !== true) errors.push(`roster[${i}].agentType "war-evidence-auditor" needs run.evidence: true (the evidence seat is off by default)`)

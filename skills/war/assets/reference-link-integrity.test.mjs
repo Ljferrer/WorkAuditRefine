@@ -619,7 +619,8 @@ test('reference link integrity — every agents/ seat card carries the plugin-re
 // refiner-recovery.md (each under its own `##` heading), the `### Submodule phase` routing tail
 // into refiner-recovery.md's `## Submodule land arms (2A / 2B)` section, and the `## Gate
 // contract` middle sentences into budget-raise-floor.md's evicted Gate-contract section (the
-// card's existing pointer to that section already covers them). Each moved block is pinned by
+// card's existing pointer to that section already covers them). That fourth block was deleted
+// 2026-11-10 (#2119) as a duplicate of the section's full paragraph, so three rows remain. Each moved block is pinned by
 // SHA-256 of its pre-eviction card bytes (`git show 5da801f:agents/war-refiner.md`); the card
 // keeps a trigger pointer per block and none of the moved bodies. A sanctioned later edit
 // re-pins the digest in the same commit with its rationale.
@@ -650,15 +651,14 @@ const EVICTED_2115 = [
     assert.ok(m, 'refiner-recovery.md lost the `Routing (…evicted #2115): ` lead-in under ## Submodule land arms (2A / 2B)');
     return m[1];
   }, 594, '6a05868441fb8d1435d36ce859c4796ed46e81618e57caeed0e07fbd8a4a3b5a'],
-  ['budget-raise-floor.md § Gate contract card sentences', () => {
-    const m = budgetRaiseFloorText.match(/^> (Run it \*\*verbatim\*\* for every merge-task.*)$/m);
-    assert.ok(m, 'budget-raise-floor.md lost the blockquoted card Gate-contract sentences');
-    return m[1];
-  }, 401, '2f5e33a128fae159fc2aa527ac8adeb12de7e719f8e258fb912a2c9d2650a28b'],
+  // 2026-11-10 (#2119, plan 2026-11-08-model-routing-and-prompt-byte-budgets Task 1.2): the fourth
+  // row, budget-raise-floor.md's blockquote of the card's condensed Gate-contract sentences, is
+  // gone. The full Gate-contract paragraph above it already states every rule the blockquote held.
 ];
 
 test('reference link integrity — the #2115 refiner-card evictions landed byte-identical at their references/ homes (ADR 0042, PIN-5)', () => {
-  assert.equal(EVICTED_2115.length, 4, 'the #2115 eviction census lists all four moved blocks — an emptied list would pass vacuously');
+  assert.equal(EVICTED_2115.length, 3, 'the #2115 eviction census lists the three remaining moved blocks — an emptied list would pass vacuously');
+  assert.ok(!/^> Run it \*\*verbatim\*\*/m.test(budgetRaiseFloorText), 'budget-raise-floor.md must not carry the deleted Gate-contract blockquote (#2119)');
   for (const [name, extract, bytes, digest] of EVICTED_2115) {
     const body = extract();
     assert.equal(Buffer.byteLength(body, 'utf8'), bytes, `${name}: the moved block is ${bytes} B (pre-eviction card bytes)`);

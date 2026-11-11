@@ -7987,19 +7987,14 @@ test('T2.1 (D1/D8) — the escalate reservation ("NEVER escalate" on a cannot-co
   assert.ok(/NEVER 'escalate'/.test(es.prompt), 'the end-state-only prompt reserves escalate away from the cannot-confirm case')
 })
 
-test('Task 1.2 — docs tier: an all-*.md task dispatches its first-pass worker on the docs tier (sonnet); a non-*.md entry or an absent/empty files list stays base (opus, the fail-safe)', async () => {
-  const allMd = await firstPassWorkOpts(['docs/a.md', 'skills/war/SKILL.md'])
-  assert.equal(allMd.model, 'sonnet', 'all-*.md task → docs tier model (the configured agents.worker.docs)')
-  assert.equal(allMd.effort, undefined, "docs effort is 'default' ⇒ omitted from spawn opts")
-
-  const mixed = await firstPassWorkOpts(['docs/a.md', 'skills/war/assets/x.js'])
-  assert.equal(mixed.model, 'opus', 'a single non-*.md entry keeps the base worker tier (opus)')
-
-  const absent = await firstPassWorkOpts(undefined)   // task carries NO files field
-  assert.equal(absent.model, 'opus', 'ABSENT files list ⇒ base worker tier (fail-safe: an undefined list never vacuously reads as all-*.md)')
-
-  const empty = await firstPassWorkOpts([])
-  assert.equal(empty.model, 'opus', 'EMPTY files list ⇒ base worker tier (fail-safe)')
+// PIN-30 (D30): the engine no longer reads the file list; only a Lead-stamped workerTier 'lite' spawns the lite tier.
+test('Task 1.2 — lite tier: only a workerTier lite stamp dispatches the first-pass worker on the lite tier (sonnet); an all-*.md, mixed, absent or empty files list stays base (opus)', async () => {
+  const stamped = await firstPassWorkOpts(['skills/war/assets/x.js'], { workerTier: 'lite' })
+  assert.equal(stamped.model, 'sonnet', 'a workerTier lite stamp → lite tier model (the configured agents.worker.lite)')
+  assert.equal(stamped.effort, undefined, "lite effort is 'default' ⇒ omitted from spawn opts")
+  for (const files of [['docs/a.md', 'skills/war/SKILL.md'], ['docs/a.md', 'skills/war/assets/x.js'], undefined, []]) {
+    assert.equal((await firstPassWorkOpts(files)).model, 'opus', `${JSON.stringify(files)} with no stamp keeps the base worker tier (opus)`)
+  }
 })
 
 test('Task 1.2 — fix tier set: the fix-round worker dispatches on agents.worker.fix, and an unset ace takes the ace default, not the fix model (#2619)', async () => {
@@ -8070,7 +8065,7 @@ test('ace charges 5 and 6 dispatch on agents.worker.fix; charge 4 stays on agent
 
 test('ace charge tiers: the subset, re-entry and polish ace workers all spawn through aceSpawn, and only the terminal pass keeps spawnWorker(\'ace\')', () => {
   const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'workflow-template.js'), 'utf8')
-  const sites = [...src.matchAll(/label: aceLabel\(r, '(\w+)'\), schema: WORKER_RESULT, \.\.\.aceSpawn\(r\) \}\)/g)].map(m => m[1])
+  const sites = [...src.matchAll(/label: aceLabel\(r, '(\w+)'\), schema: WORKER_RESULT, \.\.\.aceSpawn\(r, [\w.]+\) \}\)/g)].map(m => m[1])
   assert.deepEqual(sites.sort(), ['polish', 'reentry', 'subset'], 'exactly three ace sites spawn through aceSpawn')
   const direct = src.split('\n').filter(l => l.includes("...spawnWorker('ace')"))
   assert.equal(direct.length, 1, 'one direct ace-tier spawn is left')
@@ -8286,10 +8281,10 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       canonical: [MANIFEST_PATH_TEMPLATE],
       extractInline: () => [(src.match(/const\s+MANIFEST_PATH_TEMPLATE\s*=\s*'([^'\n]+)'/) || [])[1]] },
     // Worker sub-tier defaults (Task 1.2): the inline WORKER_TIER_DEFAULTS mirror bound to the canonical
-    // DEFAULTS.agents.worker sub-tiers — value equality, never a restated literal. docs and ace (#2619) are
+    // DEFAULTS.agents.worker sub-tiers — value equality, never a restated literal. lite and ace (#2619) are
     // mirrored (fix has no sandbox default: absent ⇒ inherit the base worker, nothing to mirror).
     { name: 'WORKER_TIER_DEFAULTS (inline ↔ DEFAULTS.agents.worker sub-tiers)', mode: 'behavioral',
-      cases: [['docs'], ['ace']],
+      cases: [['lite'], ['ace']],
       inline: ([tier]) => inlineHelpers().WORKER_TIER_DEFAULTS[tier],
       canonical: ([tier]) => DEFAULTS.agents.worker[tier] },
     // AUDITOR_TIER_DEFAULTS (#2534): the sandbox fallback for an absent agents.auditor.high, bound to DEFAULTS by value.
@@ -8507,18 +8502,21 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     'zero dispatches reach the worker site on the refused launch (the floor is at entry)')
 })
 
-test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RULE, none says keep the gate, and the worker card agrees', async () => {
+test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RULE, none says keep the gate, and the worker card points to it', async () => {
   // Operator ruling 2026-11-05 (#2617 part 2): a fix-applying dispatch runs only the tests it touched and
   // any Done when: command, then commits. The engine's own gate at the new tip is the only full gate.
-  // The rule text is read from the template source, so this test and the card check key on one string.
+  // Single-layer choice (#2633, D6, PIN-6): the prompt's FIX_GATE_RULE is the one copy, and card step 4
+  // carries only the trigger sentence. The rule text is read from the template source.
   const rule = (src.match(/^const FIX_GATE_RULE = '([^']+)'$/m) || [])[1]
   assert.ok(rule && rule.includes('run only the tests you touched') && rule.includes('Done when:'),
     'FIX_GATE_RULE resolves in the template source and names touched tests plus Done when:')
   const workerCard = readFileSync(join(here, '../../../agents/war-worker.md'), 'utf8')
-  assert.ok(workerCard.includes(rule),
-    'agents/war-worker.md carries FIX_GATE_RULE verbatim (standing card and dispatched prompt agree)')
-  assert.ok(workerCard.includes('On a fix-applying dispatch (a `BACKWARD-CHAIN FIX` block), skip the full gate.'),
-    'the card scopes the rule to the BACKWARD-CHAIN FIX trigger, so step 4 "Run the gate command until green" never contradicts a fix prompt')
+  assert.ok(workerCard.includes('On a fix-applying dispatch (a `BACKWARD-CHAIN FIX` block), skip the full gate and follow the gate rule your prompt states.'),
+    'the card carries the trigger sentence, scoped to the BACKWARD-CHAIN FIX block, so step 4 "Run the gate command until green" never contradicts a fix prompt')
+  assert.ok(!workerCard.includes(rule), 'agents/war-worker.md no longer carries the FIX_GATE_RULE body (the prompt is canonical)')
+  for (const part of rule.split(/(?<=\.) /)) {
+    assert.ok(!workerCard.includes(part), `agents/war-worker.md carries no sentence of the rule body: "${part}"`)
+  }
   assert.ok(!workerCard.includes('alongside the gate'),
     'the card Done when: input no longer pairs Done when with the full gate (round 6, #2617)')
   const runs = [
@@ -15466,7 +15464,7 @@ test('held-carry — a held:nothing-merged phase emits carriedPhaseClose on the 
 
 test('fix-round doctrine: every fix-applying build mirrors the reference', async () => {
   const rules = fixRoundRulesSection()
-  assert.ok(/sibling sweep/i.test(rules) && /`note`-rated finding on a surface the same commit edits/.test(rules), 'the section carries the sibling-sweep rule and the note-absorb rule (non-vacuity)')
+  assert.ok(/sibling sweep/i.test(rules) && /`note`-rated finding on a surface the same commit edits/.test(rules), 'the section carries the sibling-sweep rule (rule 1) and the note-rated absorb rule (rule 10) (non-vacuity)')
   assert.ok(rules.includes('A byte-cap breach on a prompt surface is a signal to evict, never to reword: move conditionally needed prose byte-identical to its `references/` file, leave a `when <trigger>, read references/<file>` pointer (ADR 0042), and never delete an operative rule.'), 'the section carries the byte-cap rule (#2167): the equality rows below cannot see a rule dropped from both copies')
   const pointer = '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
   // Interpolation census: one line per fix-applying build, and the worker/auditor prompt builders
@@ -15494,8 +15492,15 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
     assert.ok(live && live.prompt, `${b.site}: dispatched (presence guard)`)
     assert.ok(live.prompt.includes(rules), `${b.site}: carries the reference's rule section byte-equal`)
     assert.ok(live.prompt.includes(pointer), `${b.site}: names the reference by its plugin-root-anchored path`)
-    assert.match(live.prompt, /cause line before the fix: cause, then class, then fix \(the cause-then-class-then-fix rule\)/, `${b.site}: asks for the cause line before the fix`)
-    assert.match(live.prompt, /note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round \(the note-absorb rule\)/, `${b.site}: names the note-absorb rule`)
+    // Rules 9 and 10 are stated once, in the block (#2633, D7, PIN-7): the clause opener that restated
+    // them is cut, so each rule text appears exactly once per prompt.
+    for (const n of ['9', '10']) {
+      const line = rules.split('\n').find(l => l.startsWith(`${n}. `))
+      assert.ok(line, `rule ${n} resolves in the reference section`)
+      assert.equal(live.prompt.split(line).length - 1, 1, `${b.site}: rule ${n} appears once`)
+    }
+    assert.ok(!/cause line before the fix|cause-then-class-then-fix rule|the note-absorb rule|note-rated finding on a surface this commit edits/.test(live.prompt),
+      `${b.site}: the cut opener's restatement of rules 9 and 10 is gone`)
     // The bug class limit (PR #2577 ruling) rides only the four ruled builds. The literal here is the oracle.
     const scoped = /ADVISORY POLISH|SWEEP|TERMINAL PASS|LATE-FIX PASS/.test(b.site)
     assert.equal(live.prompt.includes('FIX-ROUND FENCE:'), scoped, `${b.site}: the fence rides exactly the four ruled builds`)
@@ -17349,8 +17354,9 @@ test('Git reconciliation: snapshot transport death retries read-only with the st
   let count = 0
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
     'merge-snapshot': (p, o) => {
-      if (++count === 1) { assert.equal(o.model, 'sonnet'); throw new Error('529 overloaded') }
-      assert.equal(o.model, count === 2 ? 'opus' : 'sonnet')
+      // Task 5.3 (PIN-25): a first attempt spawns the haiku helper, a repeat the recovery refiner.
+      if (++count === 1) { assert.equal(o.model, 'haiku'); throw new Error('529 overloaded') }
+      assert.equal(o.model, count === 2 ? 'opus' : 'haiku')
       return NEW_SEAT_DEFAULTS['merge-snapshot']
     },
   })
@@ -19233,7 +19239,7 @@ test('2485/ES1 polish site: a blocked batch ace whose tip moved is probed, then 
   const ace = labelIdx(calls, 'ace:polish:t1:a1'), probe = labelIdx(calls, 'tip-probe:polish:t1:a1')
   const reaudit = calls.findIndex((c, i) => i > probe && isAuditor(c) && c.prompt.includes(ACE_TIP))
   assert.ok(ace >= 0 && probe > ace && reaudit > probe, 'the probe label, then a re-audit label, follow the blocked result')
-  assert.equal(calls[probe].opts.dispatchKind, 'tip-probe'); assert.equal(calls[probe].opts.phase, 'Audit'); assert.equal(seatOf(calls[probe].opts), 'war-refiner')
+  assert.equal(calls[probe].opts.dispatchKind, 'tip-probe'); assert.equal(calls[probe].opts.phase, 'Audit'); assert.equal(seatOf(calls[probe].opts), 'war-helper')
   assert.ok(calls.some(c => isAceGate(c) && c.prompt.includes(ACE_TIP)), 'the gate runs at the probed tip first')
   assert.ok((out.aced || []).some(a => a.sha === ACE_TIP && a.finding.title === 'tidy import'), 'aced at the probed tip')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('never left unjudged')), 'the reported-blocked, Git-moved case is logged')
