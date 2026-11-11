@@ -918,7 +918,8 @@ expect "RWB.k: no nested dev/<date>-<slug> ref was cut on resume" \
 # subshell). The base is a BRANCH NAME here (as in production, where it is the
 # resolved working branch), so refs/heads/<base> is a real follower ref.
 #
-# The owned resume/reuse path is unchanged (cases 1-2 above); the fetch only
+# The owned resume/reuse path is unchanged (Cases 1-2 in
+# provision-worktrees.test.sh); the fetch only
 # happens when the integration branch is absent (the create path).
 FBASE="wbranch"
 
@@ -1327,7 +1328,8 @@ fi
 # ---------------------------------------------------------------------------
 # End state 6 (F): ensure-exclude <repo-dir> invoked from a DIFFERENT cwd writes
 # the exclude into <repo-dir>'s git dir; the no-arg form is byte-identical (Case
-# 3 above already covers no-arg). Delete-and-trace: without the positional arg
+# 3 in provision-worktrees.test.sh already covers no-arg). Delete-and-trace:
+# without the positional arg
 # the exclude would land in the caller's cwd git dir (or die: not a git repo).
 # ---------------------------------------------------------------------------
 REX="$(new_repo)"
