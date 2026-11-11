@@ -12793,7 +12793,7 @@ test('ask-content-key (End state 6, cross-round stability): a persisting ask re-
   const { out, logs } = await runPhase(ACE_ARGS(), impl)
   assert.equal((out.asks || []).length, 1, 'ONE parked record for the persisting ask across two rounds (content-key identity beats minorsOf\'s fresh copies, #1810)')
   // The round-2 re-mint comes from the seat that parked the record (one seat, two rounds), so it is
-  // the survivor's own raiser: parkAsk's dup arm skips it and the handoff row counts distinct seats.
+  // the survivor's own raiser: parkAsk's dup arm skips it, so its corroborators list stays empty.
   assert.deepEqual(out.asks[0].corroborators || [], [], 'the round-2 re-mint by the parking seat never lands on its own corroborators list')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('merged as corroboration')), 'the collision is logged (never a silent drop, #1790)')
 })

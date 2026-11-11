@@ -535,13 +535,14 @@ let pinProofBase = null
 // the follow-up consolidation or the file-followups dispatch below (an unruled ask is never filed).
 const asks = []
 // carriedPhaseClose (in-band-absorb-default D3b, PIN-5): absorb findings this phase could not land
-// and did NOT demote — a held phase's whole phaseCloseQueue, a discarded sweep's absorbs on a
-// non-final phase EXCEPT the approve trail (a panel-approved branch whose merge never landed files
-// them naming the branch, D15 #2087), and a non-final terminal pass's regressed/fresh absorbs. A
-// TOP-LEVEL key on the phase return at BOTH return sites (never inside the handoff — its followUps projection is
-// explicit-key: it carries drainCause since #1799 and nothing a carry needs), present as [] on a
-// phase with nothing carried so absence is never ambiguous. The Lead threads it back as
-// args.seededPhaseClose at the relaunch.
+// and did NOT demote — a held phase's whole phaseCloseQueue; on a non-final phase, a discarded
+// sweep's queued phaseCloseQueue rows unless the panel approved the polish branch (the approve
+// trail, D15 #2087: those queued rows file naming the branch) and its sweep-raised absorbs, approve
+// trail or not; a non-final terminal pass's regressed/fresh absorbs; and a non-final exclusion-set
+// hit on a file a task of this run owns. A TOP-LEVEL key on the phase return at BOTH return sites,
+// never inside the handoff: its followUps projection is explicit-key and carries drainCause since
+// #1799 and nothing a carry needs. Present as [] on a phase with nothing carried, so absence is
+// never ambiguous. The Lead threads it back as args.seededPhaseClose at the relaunch.
 const carriedPhaseClose = []
 // carriedTasks (late-defects D9/D20/D21, PIN-9/PIN-20/PIN-21): the late defects whose late-fix rounds ran
 // out on a non-final phase, the behavior rows raised after the late-fix pass (carryLate), and the seeded tasks
@@ -2070,7 +2071,7 @@ const findAsk = key => asks.find(a => askKeyOf.get(a) === key)
 // collision log still journals every re-raise.
 // The survivor's own raiser is part of that skip test: the seat that parked the record re-raising
 // it (minorsOf re-mints per round; demote()'s ask-refusal re-route reaches the same arm) never
-// lands on its own corroborators list, so the handoff row counts distinct seats.
+// lands on its own corroborators list (on the same file and title, the seat+file+title key above).
 const parkAsk = f => {
   const key = askContentKey(f)
   const dup = findAsk(key)
@@ -2111,16 +2112,15 @@ const parkAsk = f => {
 // carriedPhaseClose (D3a/D3b), as does a held phase's whole queue; a fileless absorb
 // (demote:fileless, severity default); a release-slot absorb at birth (demote:release-slot); an
 // exclusion-set hit at sweep time or at the terminal-pass filter (demote:exclusion-set); a baseline
-// red first found at the final phase's land gate, after the late-fix pass (demote:land-gate, #2630). A
-// FAILED ATTEMPT never demotes: an untouched-file ace row, a non-moved tip (tipClass unusable,
+// red first found at the final phase's land gate, after the late-fix pass (demote:land-gate, #2630).
+// A FAILED ATTEMPT never demotes: an untouched-file ace row, a non-moved tip (tipClass unusable,
 // non-descendant or unchanged) after a polish, subset or re-entry ace dispatch, dead or not, blocked
-// or not (#2485 D2), a red gate at an ace-family tip, and a regressed
-// multi-commit range at the polish, subset or re-entry arm (#2485 D4) route to the sweep
-// (routeToSweep, phaseClose:true) — the ace attempt did not happen, so the sweep is the next rung. A
-// FRESH absorb born at a re-audit re-enters the ladder (routeReauditMinors → aceReentry,
-// absorb-budget-bounded) or routes phaseClose:true to
-// the sweep when the budget is spent (D1/D2, #1731); with run.ace off every defaulted absorb routes
-// phaseClose:true to the sweep (D14, PIN-16) — the old ace-off demotion is retired.
+// or not (#2485 D2), a red gate at an ace-family tip, and a regressed multi-commit range at the
+// polish, subset or re-entry arm (#2485 D4) route to the sweep (routeToSweep, phaseClose:true) —
+// the ace attempt did not happen, so the sweep is the next rung. A FRESH absorb born at a re-audit
+// re-enters the ladder (routeReauditMinors → aceReentry, absorb-budget-bounded) or routes to the
+// sweep with phaseClose:true when the budget is spent (D1/D2, #1731). With run.ace off every
+// defaulted absorb routes phaseClose:true to the sweep (D14, PIN-16); the ace-off demotion is gone.
 // RUNTIME PREFIX VALIDATION (D13, PIN-15): every follow-up reason must lead with a DEMOTE_REASONS
 // member; a miss prepends 'demote:unclassified' and logs the site loudly — never a throw, so the
 // issue body's prefix line is never blank. Every demoted row is stamped engineFiled: true (the intake
@@ -2135,14 +2135,15 @@ const parkAsk = f => {
 // FORWARD-REVERT REGISTRATION: a demote on a forward-revert arm passes { reverted: true } so the
 // finding's content key lands in revertedKeys — the oscillation bound's enforcement registry (a
 // forward-reverted finding never re-enters; routeReauditMinors consults the set).
-// REGISTRY CONSULT (verdict-integrity D12, PIN-16, #1862): a follow-up demote consults acedKeys and filedKeys BEFORE
-// its minorsFiled push — on the regressed batch arm routeReauditMinors runs before aceBisect, so a
-// seat re-raising a batch finding as a follow-up has already filed the row (fileFollowUp) when the
-// forward-revert demote of the same content key arrives; the same-seat consolidation rule can never
-// collapse two such rows. A hit logs the corroboration, merges the raiser onto the surviving row
-// (corroborateSurvivor) and returns — the revertedKeys stamp still lands first, so the oscillation
-// bound holds either way. queuedKeys is deliberately NOT consulted: a queued re-mint is refused at
-// its own drain against THIS demote's registrations, so the demote must stand as the durable record.
+// REGISTRY CONSULT (verdict-integrity D12, PIN-16, #1862): a follow-up demote consults acedKeys and
+// filedKeys BEFORE its minorsFiled push — on the regressed batch arm routeReauditMinors runs before
+// aceBisect, so a seat re-raising a batch finding as a follow-up has already filed the row
+// (fileFollowUp) when the forward-revert demote of the same content key arrives; the same-seat
+// consolidation rule can never collapse two such rows. A hit logs the corroboration, merges the
+// raiser onto the surviving row (corroborateSurvivor) and returns — the revertedKeys stamp still
+// lands first, so the oscillation bound holds either way. queuedKeys is deliberately NOT consulted:
+// a queued re-mint is refused at its own drain against THIS demote's registrations, so the demote
+// must stand as the durable record.
 // revertedKeys is not consulted either: this function stamps it just above the consult, so
 // remintBlock() here would refuse every forward-revert demote and file nothing.
 const demote = (f, to, why, opts) => {
@@ -2273,17 +2274,15 @@ const revertedKeys = keyRegistry()
 // window exists. Consultation sites: re-audit routing, the re-entry drain, the held-row judgment
 // (judgeHeldRow), and demote()'s pre-push registry consult (D12, #1862). No count word here — a new caller joins by calling fileFollowUp (#2066).
 const filedKeys = keyRegistry()
-// queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (EVERY
-// phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, the
-// gate-audit floor pass's routeToSweep calls, and the ruledAsks push loop below (#1875);
-// seededPhaseClose rows are registered when this Set is constructed), for
-// budget-bounded re-entry (r.reentryQueue), HELD for the next ace batch (the batch-ace
-// blocker hold onto r.task.pendingAbsorbs), or CARRIED on carriedPhaseClose for the relaunch
-// (carryPhaseClose — a held phase's queue, a discarded sweep's absorbs and the terminal pass's
-// unlanded/fresh absorbs on a non-final phase) records its remintKey here (a row the behavior-row sort
-// sends to the late-fix pass keeps its key, and carryLate stamps a carriedTasks row), so a content-identical
-// re-mint at a later re-audit never queues a SECOND record — the queued record stands (logged,
-// never silent). Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
+// queued funnel (registry-coverage fix): every finding queued for the phase-close sweep, for
+// budget-bounded re-entry (r.reentryQueue), HELD for the next ace batch (the batch-ace blocker hold
+// onto r.task.pendingAbsorbs), or CARRIED on carriedPhaseClose for the relaunch (carryPhaseClose)
+// records its remintKey here, so a content-identical re-mint at a later re-audit never queues a
+// SECOND record — the queued record stands (logged, never silent).
+// No list here — a new caller joins by stamping queuedKeys at its own push.
+// seededPhaseClose rows are registered when this Set is constructed.
+// A row the behavior-row sort sends to the late-fix pass keeps its key, and carryLate stamps a
+// carriedTasks row. Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
 // aceReentry's drain deletes the drained entries' keys before its re-check (a drained finding is
 // no longer queued — the drain-time re-filter must judge it on the OTHER registries alone).
 const queuedKeys = keyRegistry()
@@ -2416,13 +2415,14 @@ const auditVerdictOf = id => {
   for (let i = auditLog.length - 1; i >= 0; i--) if (auditLog[i] && auditLog[i].task === id) return auditLog[i].verdict
   return 'never ran a wave'
 }
-// Phase-close carry (D3b, PIN-5): the rung BELOW the sweep on a phase that still has a successor —
-// a held phase's queue, a discarded sweep's absorbs (except the approve trail — a panel-approved
-// branch whose merge never landed files them naming the branch, D15 #2087) and the terminal pass's
-// unlanded/fresh absorbs on a non-final phase ride carriedPhaseClose (top-level on the phase return)
-// instead of demoting; the Lead threads them back as args.seededPhaseClose. The engine stamps
-// `planSlug` so the carried row clears the #1413 own-token floor on the relaunch by construction.
-// Logged, never silent.
+// Phase-close carry (D3b, PIN-5): the rung BELOW the sweep on a phase that still has a successor.
+// A held phase's queue rides carriedPhaseClose (top-level on the phase return) instead of
+// demoting. So do, on a non-final phase only: a discarded sweep's queued phaseCloseQueue rows
+// (except on the approve trail: a panel-approved branch whose merge never landed files those queued
+// rows naming the branch, D15 #2087), a discarded sweep's sweep-raised absorbs (approve trail or
+// not), the terminal pass's unlanded/fresh absorbs and a task-owned exclusion-set hit. The Lead
+// threads them back as args.seededPhaseClose. The engine stamps `planSlug` so the carried row
+// clears the #1413 own-token floor on the relaunch by construction. Logged, never silent.
 const carryPhaseClose = (f, why) => {
   // stamps queuedKeys (mirrors routeToSweep) — a later seat re-mint never carries a second copy
   queuedKeys.add(remintKey(f), f)
@@ -3904,8 +3904,10 @@ const chainRecordFix = (task, round, w, site) => chainOf(task.id).entries.push({
 // FIX_NEEDED fixer, where the current round's blockers already ride the prompt in full, and the roster
 // audit, where chainRecordAudit has not yet stamped the current round (it runs after the audit
 // returns). The ace re-audit (chainAuditClause from aceReaudit) takes the default too: the ace fixer's
-// row was already stamped one round lower, because chainRecordFix runs before the absorbRounds charge
-// the re-audit reads. The three ace fixer sites pass correctiveRound itself: their threaded rows are
+// row was already stamped one round lower: each ace site captures chainRound through
+// correctiveRoundOf's 'ace' arm before its absorbRounds charge, and chainRecordFix stamps that
+// captured value, while the re-audit reads the charged sum (except at a zero sum, where the
+// 1-based floor makes both read 1). The three ace fixer sites pass correctiveRound itself: their threaded rows are
 // absorbs, never the blockers, and the audit loop stamps its last audit + fix pair with the same number
 // the ace arm reads (fixRounds + absorbRounds), so the default would drop that pair.
 const chainDigest = (task, correctiveRound, throughRound = correctiveRound - 1) => {
@@ -4614,9 +4616,10 @@ const citationSoundnessClause = batch => {
 // the schema comment promises (rule 6: one home for the clause). Empty when no citation stands.
 const citationStamp = f => { const c = citationOf(f); return c ? pt` [absorb-by-citation: row "${c.row}" — ${c.rationale}]` : '' }
 // queuedFindingRow: the numbered queued-finding prompt row the phase-close sweep build, the
-// terminal-pass build and the late-fix pass build render (rule 6: one home on the second hand copy — the two byte-identical
-// inline copies drifted once when citationStamp reached only the sweep copy, #3f55b04). Bytes are
-// unchanged from the inline form; callers pass it straight to `.map`.
+// terminal-pass build and the late-fix pass build render (rule 6: one home on the second hand
+// copy). The two byte-identical inline copies drifted once: commit c0f88d0 gave citationStamp to
+// the sweep copy only, and commit 3f55b04 fixed the terminal copy. Bytes are unchanged from the
+// inline form; callers pass it straight to `.map`.
 // pt-tagged prompt-feeding row (sweep, terminal-pass and late-fix prompts, top-level-catch, fail-open
 // polish): f.severity is a required finding field (bare); title/task ?? absence-tolerant;
 // file/rationale/suggested_fix already guarded/defaulted.
@@ -5026,7 +5029,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     const prior = (r.seats || []).slice()
     const scope = aceScope(r, ev, findings)
     // Corrective round (D4, PIN-5): an ace re-audit reads task.fixRounds + task.absorbRounds (the ace commit
-    // just charged absorbRounds, so it reads one more than the fixer it judges), never r.round.
+    // just charged absorbRounds, so it reads one more than the fixer it judges — except at a
+    // zero sum, where the 1-based floor makes both read 1), never r.round.
     const chainRound = correctiveRoundOf('ace', r.task)
     const { seats, expected, died } = await auditRound(r.task, null, null, sha,
       citationSoundnessClause(findings) + aceScopeClause(scope, ev, r, sha), scope.roster, {}, chainRound)
@@ -6821,7 +6825,8 @@ const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/
 // phaseDiffFiles (in-band-absorb-default D15): the phase's git-derived changed-file Set from the
 // evidence dispatch's phase_diff_files (`git diff --name-only <phaseBase>..<integrationTip>`), read
 // by the gate-audit floor pass's note arm. null until the evidence dispatch stamps it; stays null on
-// a failed/absent dispatch or the end-state-only arm (that note arm then skips with a log).
+// a failed/absent dispatch or the end-state-only arm. An absent diff then reads as an empty Set
+// (#2058): the note arm matches no file and keeps every note, logged — it never skips.
 let phaseDiffFiles = null
 // gateAuditRows (D15): the three gate-audit-family seats' Minor/Nit rows, seat-stamped, collected
 // for the ONE task-less floor pass below (routeGateAuditRows) — the family's single producer.
@@ -7403,22 +7408,22 @@ if (endStateClaims.length > 0 && !vacuousPhase && (mergedTasksForGateAudit.lengt
 // ---- GATE-AUDIT FLOOR PASS (in-band-absorb-default D15, PIN-17) — task-less, after every gate-audit
 // seat and BEFORE the sweep. The three gate-audit-family seats' Minor/Nit rows route like any seat's,
 // through the family's ONE producer (a dispositionOf site with its ask arm first — the D7 order
-// census): ask ⇒ park (#1550, exactly-once); a row carrying STALE_TIP_PHRASE ⇒ kept a note (D31); absorb ⇒ absorb + phaseClose:true into phaseCloseQueue,
-// stamped with the seat label (the sweep drains it under the exclusion set); a seat follow-up with no
-// barrier ⇒ absorb + phaseClose:true with NO diff check (the sweep is the only lane left); a
-// barrier:trade-off follow-up with the ask field ⇒ ask, without it ⇒ keep follow-up with the
-// trade-off-without-ask log; any other barrier ⇒ filed as stated; a seat note whose suggested_fix
-// names a fix (noFixText false: not blank, not a no-fix sentinel, D1) and whose file is in phase_diff_files ⇒ absorb + phaseClose:true; phase_diff_files ABSENT
-// reads as an empty Set (#2058) ⇒ the note arm keeps every cosmetic or classless note, logged, while
-// the follow-up arm still reroutes, and NO demote:floor-skipped comes from this pass; a note classed
-// `behavior` (late-defects PIN-2/PIN-7) never stays a note: with a fix on a named file ⇒ absorb +
-// phaseClose:true, phase diff or not, else ⇒ ask (parked); an omitted-disposition fully
-// specified row reads absorb + phaseClose:true
-// (dispositionOf over an EMPTY Set, #2058 — gate-audit rows never join a task ace batch, so in-diff
-// membership has no meaning here, and the end-state-only arm never stamps phase_diff_files; PIN-17
-// holds with the phase diff present or absent), an unspecified one keeps the severity default. A
-// release-slot file demotes at birth
-// (demote:release-slot, PIN-11). auditLog keeps every record — it is no longer the only sink.
+// census): ask ⇒ park (#1550, exactly-once); a row carrying STALE_TIP_PHRASE ⇒ kept a note (D31);
+// absorb ⇒ absorb + phaseClose:true into phaseCloseQueue, stamped with the seat label (the sweep
+// drains it under the exclusion set); a seat follow-up with no barrier ⇒ absorb + phaseClose:true
+// with NO diff check (the sweep is the only lane left); a barrier:trade-off follow-up with the ask
+// field ⇒ ask, without it ⇒ keep follow-up with the trade-off-without-ask log; any other barrier ⇒
+// filed as stated; a seat note whose suggested_fix names a fix (noFixText false: not blank, not a
+// no-fix sentinel, D1) and whose file is in phase_diff_files ⇒ absorb + phaseClose:true;
+// phase_diff_files ABSENT reads as an empty Set (#2058) ⇒ the note arm keeps every cosmetic or
+// classless note, logged, while the follow-up arm still reroutes, and NO demote:floor-skipped comes
+// from this pass; a note classed `behavior` (late-defects PIN-2/PIN-7) never stays a note: with a
+// fix on a named file ⇒ absorb + phaseClose:true, phase diff or not, else ⇒ ask (parked); an
+// omitted-disposition fully specified row reads absorb + phaseClose:true (dispositionOf over an
+// EMPTY Set, #2058 — gate-audit rows never join a task ace batch, so in-diff membership has no
+// meaning here, and the end-state-only arm never stamps phase_diff_files; PIN-17 holds with the
+// phase diff present or absent), an unspecified one keeps the severity default. A release-slot file
+// demotes at birth (demote:release-slot, PIN-11). auditLog keeps every record; it is not the only sink.
 const routeGateAuditRows = () => {
   if (!gateAuditRows.length) return
   // An absent phase diff reads as an EMPTY Set (#2058 — no special case): the note arm below then
@@ -8758,10 +8763,11 @@ const findingClassOf = x => FINDING_CLASSES.includes(x && x.findingClass) ? { fi
 // (skills/war/references/late-defects.md § The behavior follow-up floor).
 const foldedFixOf = f => ({ ...(!noFixText(f.suggested_fix) ? { suggested_fix: f.suggested_fix } : {}), ...(Number.isFinite(f.line) ? { line: f.line } : {}) })
 // drainCauseOf (verdict-integrity D13, PIN-17, #1799): the shape guard for stampDrainCause's field on a
-// filed row — { dispatch, why } with a string dispatch, else null. Read by the filing-prompt row and
-// the handoff followUps projection (both sit outside any local try — a malformed field must never
-// throw there), so the drain provenance reaches the surfaces a human triages from, never only the
-// raw minorsFiled return.
+// filed row — { dispatch, why } with a string dispatch, else null. Three readers: the pre-filing
+// consolidation collapse and the handoff followUps projection (its mergedOf and per-row loop) sit
+// outside any local try, and the filing-prompt row sits inside the file-followups try. A malformed
+// field must never throw at any of them, so the drain provenance reaches the surfaces a human
+// triages from, never only the raw minorsFiled return.
 const drainCauseOf = m => (m && m.drainCause && typeof m.drainCause === 'object' && typeof m.drainCause.dispatch === 'string')
   ? { dispatch: m.drainCause.dispatch, why: String(m.drainCause.why ?? '') }
   : null
