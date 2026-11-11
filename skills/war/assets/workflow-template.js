@@ -6472,9 +6472,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             // prompt-build site emitting the four labels below.
             + chainFixClause(r.task, correctiveRoundOf('floor', r.task), 'floor family (add-test, make-pass, cite-budget, package-it)', [])
             + workerMemClause(r.task.id) + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-            // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
-            // the fix: class (absent agents.worker.fix ⇒ inherit-base — byte-identical); ace: runs via aceSpawn.
-            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
+            // #817: routeWorker(r.task, 'fix') makes the add-test/package-it/make-pass/cite-budget floor retry tier-aware,
+            // uniform with the fix: class, routing.classes.<class>.fix included (absent agents.worker.fix and routing ⇒
+            // inherit-base — byte-identical); ace: runs via aceSpawn.
+            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...routeWorker(r.task, 'fix') })
           // Dead floor-fix worker (D21, PIN-25): env-died SOFT naming the site — never the floor's own
           // blocked verdict, never a done-unmet/no-test/unpackaged/budget-uncited exhaustion.
           // A resolved null takes the same arm, labeled env-died with the site label (#2555 D11).
@@ -7954,7 +7955,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
       // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
       // never agents.worker.fix or .ace. (The four fix-follow-up classes are tier-aware: fix: and add-test:|package-it:
-      // via spawnWorker('fix'), ace: via aceSpawn (the ace tier, the fix tier from charge 5) and terminal: via spawnWorker('ace'); this one intentionally is not. The only other non-tiered base
+      // via routeWorker(task, 'fix'), ace: via aceSpawn (routeAce by ace edit class, the fix tier from charge 5) and terminal: via spawnWorker('ace'); this one intentionally is not. The only other non-tiered base
       // spawn is the fallback inside spawnWorker itself — the tier resolver, definitionally correct.)
       { agentType: NS + 'war-worker', phase: 'Work', label: `polish:phase-${ph.id}`, schema: WORKER_RESULT, ...spawn('worker') })
     } catch (err) {
