@@ -90,8 +90,10 @@ async function main() {
   console.log(`Gate workers: ${nodeJobs} Node files + ${shellJobs} shell suites`)
   const active = new Set()
   let interrupted = 0, cancellation, completed = 0, failed = 0
+  // The gate spawned every group here detached. ESRCH means the group is gone. On macOS,
+  // EPERM can mean only exiting or zombie members remain. Any other code still throws.
   const killGroup = (pid, signal) => {
-    try { process.kill(-pid, signal) } catch (error) { if (error.code !== 'ESRCH') throw error }
+    try { process.kill(-pid, signal) } catch (error) { if (error.code !== 'ESRCH' && error.code !== 'EPERM') throw error }
   }
   const stop = signal => {
     if (interrupted) return
