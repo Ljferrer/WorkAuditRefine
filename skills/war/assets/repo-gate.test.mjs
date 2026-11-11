@@ -158,7 +158,7 @@ test('invalid pool sizes fail before launching any tests', t => {
   }
 })
 
-async function terminate(t, preload) {
+async function terminate(t, preload, thrown) {
   const { root, put, env } = fixture(t)
   put('stubborn.mjs', "import { writeFileSync } from 'node:fs'; process.on('SIGTERM', () => {}); writeFileSync('child.pid', String(process.pid)); setInterval(() => {}, 100)\n")
   put('a.test.sh', `${quote(process.execPath)} stubborn.mjs &\nwait\n`)
@@ -179,6 +179,12 @@ async function terminate(t, preload) {
   const pid = Number(readFileSync(join(root, 'child.pid'), 'utf8'))
   t.after(() => { try { process.kill(pid, 'SIGKILL') } catch {} })
   child.kill('SIGTERM')
+  if (thrown) {
+    // Any other kill error still throws out of the stop path, so the gate exits 1.
+    assert.deepEqual(await closed, { code: 1, signal: null }, output)
+    assert.match(output, new RegExp(`kill ${thrown}`))
+    return
+  }
   assert.deepEqual(await closed, { code: 143, signal: null }, output)
   assert.match(output, /== gate interrupted:/)
   assert.doesNotMatch(output, /== gate complete:/)
@@ -190,14 +196,17 @@ test('termination kills descendants, drains active jobs, and never reports a com
 
 // macOS can refuse a group kill with EPERM when only exiting or zombie members remain.
 // The preload sends each group signal for real, then throws EPERM, so the stop path sees it.
-const epermKill = `const kill = process.kill.bind(process)
+const mkKill = code => `const kill = process.kill.bind(process)
 process.kill = (pid, signal) => {
   if (pid >= 0) return kill(pid, signal)
   try { kill(pid, signal) } catch {}
-  throw Object.assign(new Error('kill EPERM'), { code: 'EPERM', errno: -1, syscall: 'kill' })
+  throw Object.assign(new Error('kill ${code}'), { code: '${code}', errno: -1, syscall: 'kill' })
 }
 `
+const epermKill = mkKill('EPERM')
 test('a group kill that throws EPERM still exits 143 and never reports a complete gate', t => terminate(t, epermKill))
+
+test('a group kill that throws any other code still throws, so the gate exits 1', t => terminate(t, mkKill('EIO'), 'EIO'))
 
 const pad = n => `# ${'x'.repeat(n)}\n`
 const order = root => readFileSync(join(root, 'order'), 'utf8').trim().split('\n')
