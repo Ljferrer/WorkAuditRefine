@@ -45,7 +45,9 @@ export const meta = {
 //                                     // doneWhen-less run and the assert-done-when.sh floor never runs, End state 9; any
 //                                     // OTHER present type is refused at intake by the same TASK-FIELD class, never coerced).
 //                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
-//                                     // files = the plan's `Files:` list (plan paths, NOT the worker's diff — the diff doesn't exist at dispatch); an all-*.md task runs its first-pass worker on the lite tier. Absent/empty ⇒ base worker tier (fail-safe).
+//                                     // files = the plan's `Files:` list (plan paths, NOT the worker's diff — the diff doesn't exist at dispatch); the engine never picks a worker tier from it (D30).
+//                                     // class?: 'routine'|'boundary' and workerTier?: 'lite' are Lead stamps (D11, D30): workerTier 'lite' runs the first-pass
+//                                     // worker on the lite tier, class keys routing.classes and lifts a boundary task's seats to opus. Absent ⇒ no routing.
 //     learningsTarget,                // read-path resolved repo root — the seats' memory_query `repo` value AND
 //                                     // the Lead's Gate-2 promotion destination. NOT a servitor write path.
 //     memoryLocalRoot,                // absolute local memory root — the servitor's ONLY writable path;
@@ -61,7 +63,8 @@ export const meta = {
 //                                     // overrides.ghUser; string, default '' — gh-preflight.sh's documented no-op)
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
 //                                     // auditor may also carry { rebuttal?, high?, low? } { model, effort } sub-tiers (#2534: high defaulted, low not).
-//                                     // worker may also carry { docs?, fix?, ace? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (defaulted in war-config DEFAULTS), fix = the fix-round tier (absent ⇒ inherit worker), ace = the --ace + terminal-pass tier (absent ⇒ its default).
+//                                     // worker may also carry { lite?, fix?, ace? } { model, effort } sub-tiers: lite = the workerTier-stamped first-pass tier (defaulted in war-config DEFAULTS), fix = the fix-round tier (absent ⇒ inherit worker), ace = the --ace + terminal-pass tier (absent ⇒ its default).
+//     routing?,                       // optional { classes?, aceEdit?, sampleOpusReview?, opusFloor? } (validated by war-config.mjs; see routeWorker below)
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
 //     absorbCharges?,                 // optional { <task>: n } Lead override of the barrier's Ace-Charge read at a relaunch — read unconditionally
 //                                     // (no recovery gate); wins over the barrier map, logged; a non-object map is logged and ignored.
@@ -724,14 +727,15 @@ const prefixed = (p, t) => AUTHORITY_LINE + '\n' + (AUDIT_FAMILY.includes(t) ? T
 // as handoff.dispatchModels. DISPATCH_MODEL_KEYS is the row shape; skills/war/references/schemas.md documents it
 // once (PIN-17), bound by a key-set row in workflow-template.recovery.test.mjs. `lens` rides only an audit-family
 // dispatch (opts.lens, the seat's lens), and dispatch() strips it before agent() so spawn opts stay byte-identical
-// (PIN-14). `taskClass` is defined but not yet emitted (Task 4.1). An absent effort records 'default'.
+// (PIN-14). `taskClass` rides a routed task dispatch whose task carries a class (withClass), stripped the same
+// way. An absent effort records 'default'.
 const DISPATCH_MODEL_KEYS = ['label', 'dispatchKind', 'agentType', 'model', 'effort', 'taskClass?', 'lens?']
 const dispatchModels = []
 async function dispatch(prompt, opts) {
-  let lens
-  if (opts && Object.hasOwn(opts, 'lens')) ({ lens, ...opts } = opts)
+  let lens, taskClass
+  if (opts && (Object.hasOwn(opts, 'lens') || Object.hasOwn(opts, 'taskClass'))) ({ lens, taskClass, ...opts } = opts)
   const o = opts || {}
-  dispatchModels.push({ label: o.label ?? null, dispatchKind: o.dispatchKind ?? null, agentType: o.agentType ?? null, model: o.model ?? null, effort: o.effort ?? 'default', ...(lens && AUDIT_FAMILY.includes(o.agentType) ? { lens } : {}) })
+  dispatchModels.push({ label: o.label ?? null, dispatchKind: o.dispatchKind ?? null, agentType: o.agentType ?? null, model: o.model ?? null, effort: o.effort ?? 'default', ...(taskClass ? { taskClass } : {}), ...(lens && AUDIT_FAMILY.includes(o.agentType) ? { lens } : {}) })
   prompt = prefixed(prompt, opts && opts.agentType)
   if (maxParallel === null) return agent(prompt, opts)
   await dispatchSemaphore.acquire()
@@ -980,15 +984,11 @@ const spawnRefinerTier = key => {
 // PROVISION_SCRIPT (#2549 D35, PIN-35): the plugin path of the provision script. Every refiner prompt that
 // runs it gives this path once (the barrier's SCRIPT, tipWorktreeProvision, and the land CAS steps).
 const PROVISION_SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh'
-// lite-tier predicate (plan 1.2): a task is lite-tier iff its plan Files: list (task.files — the plan
-// file list, NOT the worker's reported diff) is non-empty and EVERY entry is a *.md path. Fail-safe:
-// an absent OR empty files list ⇒ FALSE (base worker tier) — an undefined/empty list must never
-// vacuously read as all-*.md and misclassify a non-doc task as lite.
-const isDocsTask = t => Array.isArray(t.files) && t.files.length > 0 && t.files.every(f => typeof f === 'string' && f.endsWith('.md'))
 // Roster seat agent types (REA artifact evidence D3/D18): inline copy of the war-config.mjs export, bound by
 // the SEAT_AGENT_TYPES registry row in workflow-template.engine-1.test.mjs. 'war-evidence-auditor' is the evidence seat.
 const SEAT_AGENT_TYPES = ['war-auditor', 'war-evidence-auditor']
-// Roster validation (D8): 1–5 seats, non-empty string lens, depth absent or neighbors|deep, lenses distinct,
+// Roster validation (D8): 1–5 seats, non-empty string lens, depth absent or neighbors|deep, lenses distinct
+// except one explicit-model pair whose later seat ranks strictly above the earlier in MODEL_RANK (#2706, D22),
 // agentType absent or a SEAT_AGENT_TYPES member, model/effort/tier absent or a MODELS/EFFORTS/AUDITOR_TIERS member. `evidence` is the run.evidence knob: an evidence-type row is
 // rejected unless it is exactly true; beside an evidence seat the non-evidence seats cap at 4 (five-seat ceiling).
 const validateRoster = (roster, evidence) => {
@@ -1001,12 +1001,11 @@ const validateRoster = (roster, evidence) => {
   if (evidenceSeats > 0 && roster.length - evidenceSeats > 4) errors.push(`roster carries ${roster.length - evidenceSeats} non-evidence seats beside an evidence seat (max 4: the five-seat ceiling holds)`)
   else if (roster.length < 1 || roster.length > 5) errors.push(`roster must be an array of 1-5 seats (got ${JSON.stringify(roster)})`)
   if (errors.length > 0) return { valid: false, errors }
-  const seen = []
   roster.forEach((seat, i) => {
     if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth?, agentType?, model?, effort?, tier? }`); return }
+    const prior = roster.slice(0, i).filter(s => s !== null && typeof s === 'object' && !Array.isArray(s) && s.lens === seat.lens)
     if (typeof seat.lens !== 'string' || !seat.lens) errors.push(`roster[${i}].lens must be a non-empty string`)
-    else if (seen.includes(seat.lens)) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
-    else seen.push(seat.lens)
+    else if (prior.length && !(prior.length === 1 && prior[0].model && seat.model && MODEL_RANK.indexOf(seat.model) > MODEL_RANK.indexOf(prior[0].model))) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
     if (seat.depth !== undefined && seat.depth !== 'neighbors' && seat.depth !== 'deep') errors.push(`roster[${i}].depth must be "neighbors" or "deep" when present (got ${JSON.stringify(seat.depth)})`)
     if (seat.agentType !== undefined && !SEAT_AGENT_TYPES.includes(seat.agentType)) errors.push(`roster[${i}].agentType must be one of ${SEAT_AGENT_TYPES.join('|')} when present (got ${JSON.stringify(seat.agentType)})`)
     else if (seat.agentType === 'war-evidence-auditor' && evidence !== true) errors.push(`roster[${i}].agentType "war-evidence-auditor" needs run.evidence: true (the evidence seat is off by default)`)
@@ -1085,6 +1084,67 @@ const dropEvidenceRows = (roster, owner) => reaOn ? roster : roster.filter(s => 
 // The default roster is stripped IN PLACE (ruling #2404), so every later reader — the widen fallback and
 // the phase-close sweep's validateRoster(defaultRoster, run.evidence) — sees the stripped pool.
 defaultRoster.splice(0, defaultRoster.length, ...dropEvidenceRows(defaultRoster, 'audit.roster'))
+// Task-class routing (#2534, D11-D13, D30; doctrine: skills/war/references/model-routing.md). args.routing is
+// validated by war-config.mjs. Absent, routeWorker, routeSeat and routeAce return exactly what spawnWorker
+// and spawnSeat return (PIN-14); the routing-1 differential row swaps them for those helpers.
+const routing = (A.routing && typeof A.routing === 'object' && !Array.isArray(A.routing)) ? A.routing : {}
+const classTierOf = (task, role) => {
+  const c = routing.classes && task && routing.classes[task.class], t = c && c[role]
+  return t && typeof t === 'object' && !Array.isArray(t) ? t : null
+}
+// overTier(base, t): a routing tier over a role's own opts, field by field; effort omitted when default.
+const overTier = (base, t) => {
+  const model = t.model || base.model, e = t.effort || base.effort
+  return e && e !== 'default' ? { model, effort: e } : { model }
+}
+// withClass: a stamped task class rides the opts as taskClass for the dispatchModels row; dispatch() strips it.
+const withClass = (task, o) => task && typeof task.class === 'string' ? { ...o, taskClass: task.class } : o
+// routeWorker(task, tier): tier null is the work: dispatch, where a Lead-stamped workerTier 'lite' wins (D30),
+// then routing.classes.<class>.worker, then the base worker; 'fix' and 'ace' take the class tier for that role.
+const routeWorker = (task, tier) => {
+  if (!tier && task.workerTier === 'lite') return withClass(task, spawnWorker('lite'))
+  const t = classTierOf(task, tier || 'worker')
+  return withClass(task, t ? overTier(spawnWorker(tier), t) : spawnWorker(tier))
+}
+// routeSeat(task, seat, rebut): a class auditor tier replaces the base tier of a seat with no model and no
+// tier 'high' (the Lead's explicit pick wins); a boundary task's seat never resolves below opus (D11).
+const atLeastOpus = m => MODEL_RANK.indexOf(m) >= MODEL_RANK.indexOf('opus')
+const routeSeat = (task, seat, rebut) => {
+  const t = !rebut && !seat.model && seat.tier !== 'high' && classTierOf(task, 'auditor')
+  const o = t ? overTier(spawnSeat(seat, rebut), seat.effort ? { ...t, effort: seat.effort } : t) : spawnSeat(seat, rebut)
+  return withClass(task, task.class === 'boundary' && !atLeastOpus(o.model) ? { ...o, model: 'opus' } : o)
+}
+// Ace edit class (D12): an absorb row with file, line and suggested_fix is exact. An ace batch whose rows are
+// all exact runs on routing.aceEdit.exact when set; any other batch is broad and keeps the ace tier.
+const exactRow = f => !!f && !blankText(f.file) && f.line != null && f.line !== '' && !noFixText(f.suggested_fix)
+const routeAce = (task, rows) => {
+  const x = routing.aceEdit && routing.aceEdit.exact
+  return x && typeof x === 'object' && rows.length && rows.every(exactRow) ? withClass(task, overTier(spawnWorker('ace'), x)) : routeWorker(task, 'ace')
+}
+// Sampled Opus review (D13, D22): routing.sampleOpusReview is a share 0..1, absent = 0. A task is sampled when
+// an FNV-1a hash (murmur3-finalized) of plan slug and task id, read as a fraction, is below the share. sampledSeatOf returns the
+// opus seat a sampled clean approval gains, { lens, depth, model: 'opus' } from the first non-evidence seat,
+// when every seat resolves below opus and the pair rule admits it beside that seat's resolved model; else
+// null. The seat joins the round's seats, never task.roster, and its label carries ':opus' (auditRound).
+const sampledSeats = new WeakSet()
+const sampleHash = s => {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193)
+  // the murmur3 finalizer spreads near-equal ids (t1, t2) across the whole fraction range
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35)
+  return ((h ^ (h >>> 16)) >>> 0) / 0x100000000
+}
+const sampledSeatOf = task => {
+  const share = typeof routing.sampleOpusReview === 'number' ? routing.sampleOpusReview : 0
+  if (!(share > 0) || sampleHash(String(planSlug) + '\u0000' + String(task.id)) >= share) return null
+  const models = task.roster.map(s => routeSeat(task, s, null).model)
+  const i = task.roster.findIndex(s => !isEvidenceRow(s))
+  if (models.some(atLeastOpus) || i < 0) return null
+  const p = task.roster[i], seat = { lens: p.lens, depth: p.depth, model: 'opus' }
+  if (!validateRoster([{ lens: p.lens, model: models[i] }, seat]).valid) return null
+  sampledSeats.add(seat)
+  return seat
+}
 
 
 // Entry validation (H, widened per operator decision 4 + #740; plan.file class added by #1430).
@@ -4047,8 +4107,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
 // `correctiveRound` (backward-chain D4/PIN-10): the site's corrective round, threaded to auditPrompt;
 // absent or 1 ⇒ no backward-chain clause, so every round-1-by-definition caller stays byte-identical.
 async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, reconciliation = {}, correctiveRound) {
-  // Seats come straight from task.roster (validated at phase start: 1–5 distinct lenses, per-seat
-  // depth already normalized). Labels audit:<task>:<lens> are distinct because lenses are distinct.
+  // Seats come straight from task.roster (validated at phase start: 1–5 distinct lenses or one lens pair, per-seat
+  // depth already normalized). Labels audit:<task>:<lens> are distinct because lenses are distinct, but for a
+  // lens pair or a sampled seat, whose label takes the ':opus' key (keyOf below).
   const roster = (Array.isArray(rosterOverride) && rosterOverride.length) ? rosterOverride : task.roster
   const expected = roster.length
   // Seat death arm (D21, PIN-25): a TAGGED infra death resolves to the DEAD record at the seat (never
@@ -4061,12 +4122,18 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
   // dispatch under an unlisted type. The evidence seat dispatches as NS + 'war-evidence-auditor' and gets
   // the evidence skeleton from auditPrompt; spawnSeat supplies the model tier for every seat type — the auditor
   // seat tier (#2534), or the seat's own model/effort when the roster row carries one (#2519).
+  // keyOf (D22): a sampled seat, or a seat whose lens an earlier seat of this round holds (a lens pair), keys
+  // as '<lens>:opus', so its label and its stamped `seat` name tell it from its partner; every other seat keys
+  // as its lens. A sampled seat's result also carries `sampled`, so an ace transfer never carries it.
+  const keyOf = seat => (sampledSeats.has(seat) || roster.slice(0, roster.indexOf(seat)).some(s => s.lens === seat.lens)) ? seat.lens + ':opus' : seat.lens
   const runSeat = seat => {
     const agentType = seat.agentType ?? 'war-auditor'
     if (!SEAT_AGENT_TYPES.includes(agentType)) throw new Error('task ' + task.id + ': roster seat ' + seat.lens + ' names agentType ' + JSON.stringify(agentType) + ' — not a SEAT_AGENT_TYPES member (' + SEAT_AGENT_TYPES.join('|') + '); refused at dispatch')
+    const key = keyOf(seat)
     return dispatchSite(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin, correctiveRound, agentType) + (extra || ''), {
       agentType: NS + agentType, phase: 'Audit', lens: seat.lens,
-      label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: { ...AUDIT_VERDICT, required: [...AUDIT_VERDICT.required, 'audit_sha'] }, ...spawnSeat(seat, peers) })
+      label: `audit:${task.id}:${key}${peers ? ':rebut' : ''}`, schema: { ...AUDIT_VERDICT, required: [...AUDIT_VERDICT.required, 'audit_sha'] }, ...routeSeat(task, seat, peers) })
+      .then(r => key === seat.lens || !r || typeof r !== 'object' || deathOf(r) ? r : { ...r, seat: key, ...(sampledSeats.has(seat) ? { sampled: true } : {}) })
   }
   // Initial fan-out — one parallel() call, unsliced: the global dispatch semaphore holds the ceiling
   // at the leaf agent() seam inside runSeat, so this site takes no permit of its own (PIN-15).
@@ -4080,7 +4147,7 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
     let ri = 0
     results = results.map(r => droppedSeat(r) ? retried[ri++] : r)
   }
-  roster.forEach((seat, i) => { if (results[i] == null) dispatchFailures.push({ label: 'audit:' + task.id + ':' + seat.lens + (peers ? ':rebut' : ''), reason: 'audit seat dropped: no result after 2 retry passes' }) })
+  roster.forEach((seat, i) => { if (results[i] == null) dispatchFailures.push({ label: 'audit:' + task.id + ':' + keyOf(seat) + (peers ? ':rebut' : ''), reason: 'audit seat dropped: no result after 2 retry passes' }) })
   const deaths = results.map(deathOf).filter(Boolean)
   const died = deaths.length ? deaths.join('; ') : null
   // Intake normalization (verdict-integrity D2, PIN-6) at the ONE collection site every auditRound
@@ -4645,8 +4712,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   const aceLabel = (r, site) => 'ace:' + site + ':' + r.task.id + ':a' + (r.task.absorbRounds + 1)
   const aceChargeOf = r => r.task.id + ':' + (r.task.absorbRounds + 1)
   // aceSpawn: ace charges 5 and 6 (the last two of the default budget) run on the fix tier, which
-  // war-config validate requires to rank at least the ace tier (operator ruling 2026-11-05).
-  const aceSpawn = r => spawnWorker(r.task.absorbRounds > 3 ? 'fix' : 'ace')
+  // war-config validate requires to rank at least the ace tier (operator ruling 2026-11-05). Earlier charges
+  // route by the batch rows' ace edit class (routeAce, D12).
+  const aceSpawn = (r, rows) => r.task.absorbRounds > 3 ? routeWorker(r.task, 'fix') : routeAce(r.task, rows)
   // Shared refiner range revert (#2485 D17) before a bisection subset or re-entry worker: it used to
   // ride the worker prompt. A refiner reverts <approved>..HEAD (approved from the engine, HEAD from
   // Git) in phase Audit and reports the post-revert tip, which is that worker's pre-dispatch tip — so a
@@ -4928,7 +4996,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     const ran = new Set(scope.roster.map(s => s.lens))
     // Carried approvals ride with EMPTY findings: their Minor/Nits were already routed once at the
     // pre-ace collection, and re-minting them here would only be refused by the content-key registries.
-    const carried = prior.filter(s => s && !ran.has(s.lens) && s.verdict === 'approve')
+    const carried = prior.filter(s => s && !s.sampled && !ran.has(s.lens) && s.verdict === 'approve')
       .map(s => ({ ...s, findings: [], audit_sha: sha, pinTransferred: true, transferredFrom: auditShaOrSentinel(s.audit_sha) }))
     chainRecordAudit(r.task, chainRound, seats)
     recordAceTransfer(r, sha, 'subset', scope.why, seats, carried)
@@ -5053,7 +5121,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + chainFixClause(r.task, chainRound, 'ace subset', sub.findings.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...aceSpawn(r) }))
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...aceSpawn(r, sub.findings) }))
       // A subset worker death (D21) reads through deathOf FIRST — the site-named cause becomes the
       // abandon reason below, never a hold and never a content verdict.
       const swWhy = deathOf(sw) || nullDied(sw, aceLabel(r, 'subset')) || blockedReason(sw)
@@ -5212,7 +5280,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + chainFixClause(r.task, chainRound, 'ace re-entry', batch.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...aceSpawn(r) }))
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...aceSpawn(r, batch) }))
       // a re-entry worker death (D21) takes the existing abandon arm, site-named
       const rwWhy = deathOf(rw) || nullDied(rw, aceLabel(r, 'reentry')) || blockedReason(rw)
       const reClass = tipClass(reProbe)
@@ -5468,7 +5536,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + fixRoundFenceClause(polishFence)
           + POLISH_FILES_CLAUSE
           + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...aceSpawn(r) }))
+          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...aceSpawn(r, aceable) }))
         recordIgnoreList('advisory polish', r.task.id, ace)
         // an ace worker death (D21) or a resolved null (#2555 D11) takes the existing failed-attempt arm, site-named
         const aceWhy = deathOf(ace) || nullDied(ace, aceLabel(r, 'polish')) || blockedReason(ace)
@@ -5665,7 +5733,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE + '\n' + ACCEPTANCE_IDS_RULE
         // BACKWARD-CHAIN WORK (D1/D5): the worker `## The rules` block rides the work: build ONLY.
         + BACKWARD_CHAIN_WORK_CLAUSE,
-        { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'lite' : null) })
+        { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...routeWorker(task, null) })
 
       // A resolved null is env-died (#2555 D11), never the HARD 'worker returned no result'.
       const implNull = nullDied(impl, 'work:' + task.id); if (implNull) return { task, verdict: 'env-died', seats: [], expected: 0, blocked: implNull }
@@ -5727,11 +5795,24 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // persistent shortfall after retries
         if (seats.length < expected) { verdict = 'audit-blocked'; blocked = shortfall(); break }
         if (seats.some(s => s.verdict === 'escalate')) { escalateReason = escalateReasonOf(seats); verdict = 'escalate'; break }
-        if (allApprove(seats, expected)) { verdict = 'approve'; break }
+        // Sampled Opus review (D13): a sampled clean approval gains one opus seat at the same pin; its
+        // Critical or Major blocks like any seat's, and the round's rebuttal re-runs it beside the roster.
+        // A dead or missing sampled seat leaves the clean approval standing (logged, fail-open).
+        let roundRoster = null
+        if (allApprove(seats, expected)) {
+          const extra = sampledSeatOf(task)
+          if (extra) {
+            const { seats: xSeats, died: xDied } = await auditRound(task, null, workerTests, pin, null, [extra], {}, correctiveRoundOf('audit', task, round))
+            if (!xDied && xSeats.length === 1) { seats = [...seats, ...xSeats]; expected++; roundRoster = [...task.roster, extra] }
+            else log('Task ' + task.id + ': the sampled opus seat returned no usable verdict (' + (xDied || 'no result') + '); the clean approval stands (D13, fail-open).')
+          }
+          if (seats.some(s => s.verdict === 'escalate')) { escalateReason = escalateReasonOf(seats); verdict = 'escalate'; break }
+          if (allApprove(seats, expected)) { verdict = 'approve'; break }
+        }
 
         if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
           // the rebuttal is the same corrective round
-          ;({ seats, expected, died, pin } = await auditRound(task, seats, workerTests, pin, null, null, { repairWorkerPin: true }, correctiveRoundOf('audit', task, round)))
+          ;({ seats, expected, died, pin } = await auditRound(task, seats, workerTests, pin, null, roundRoster, { repairWorkerPin: true }, correctiveRoundOf('audit', task, round)))
           // a dead rebuttal seat: env-died, never audit-blocked
           if (died) { verdict = 'env-died'; blocked = died; break }
           // persistent shortfall after retries
@@ -5813,7 +5894,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + FIX_ROUND_DOCTRINE_CLAUSE
           + chainFixClause(task, chainRound, 'FIX_NEEDED', b.map(relationTagOf))
           + taskProvenanceClause + workerMemClause(task.id) + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(task),
-          { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
+          { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...routeWorker(task, 'fix') })
         const fixNull = nullDied(fix, 'fix:' + task.id + ':r' + (round + 1)); if (fixNull) { verdict = 'env-died'; blocked = fixNull; break }
         const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
         // PIN-29: what this fix round was dispatched on
@@ -6391,9 +6472,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             // prompt-build site emitting the four labels below.
             + chainFixClause(r.task, correctiveRoundOf('floor', r.task), 'floor family (add-test, make-pass, cite-budget, package-it)', [])
             + workerMemClause(r.task.id) + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-            // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
-            // the fix: class (absent agents.worker.fix ⇒ inherit-base — byte-identical); ace: runs via aceSpawn.
-            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
+            // #817: routeWorker(r.task, 'fix') makes the add-test/package-it/make-pass/cite-budget floor retry tier-aware,
+            // uniform with the fix: class, routing.classes.<class>.fix included (absent agents.worker.fix and routing ⇒
+            // inherit-base — byte-identical); ace: runs via aceSpawn.
+            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...routeWorker(r.task, 'fix') })
           // Dead floor-fix worker (D21, PIN-25): env-died SOFT naming the site — never the floor's own
           // blocked verdict, never a done-unmet/no-test/unpackaged/budget-uncited exhaustion.
           // A resolved null takes the same arm, labeled env-died with the site label (#2555 D11).
@@ -7873,7 +7955,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
       // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
       // never agents.worker.fix or .ace. (The four fix-follow-up classes are tier-aware: fix: and add-test:|package-it:
-      // via spawnWorker('fix'), ace: via aceSpawn (the ace tier, the fix tier from charge 5) and terminal: via spawnWorker('ace'); this one intentionally is not. The only other non-tiered base
+      // via routeWorker(task, 'fix'), ace: via aceSpawn (routeAce by ace edit class, the fix tier from charge 5) and terminal: via spawnWorker('ace'); this one intentionally is not. The only other non-tiered base
       // spawn is the fallback inside spawnWorker itself — the tier resolver, definitionally correct.)
       { agentType: NS + 'war-worker', phase: 'Work', label: `polish:phase-${ph.id}`, schema: WORKER_RESULT, ...spawn('worker') })
     } catch (err) {

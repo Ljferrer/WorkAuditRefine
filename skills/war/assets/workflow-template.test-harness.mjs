@@ -1455,20 +1455,19 @@ const THREE = (noTest = new Set()) => PROVISION_ARGS({ tasks: [
 // ===========================================================================
 // Task 1.2 (war-room-config-expansion) — tier-aware worker dispatch + task.files plumbing
 // ---------------------------------------------------------------------------
-// First-pass workers dispatch on the lite tier for an all-*.md task (task.files = the plan Files:
-// list, NOT the worker's diff); fix-round dispatches on the fix tier when configured, else
+// First-pass workers dispatch on the lite tier only for a task the Lead stamps workerTier: 'lite' (D30;
+// the all-*.md route is retired); fix-round dispatches on the fix tier when configured, else
 // the base worker; --ace dispatches on the ace tier or its default (#2619). End-to-end (captures the real spawn opts at each dispatch label) so the predicate
 // AND the wiring are exercised together — a reverted tier arg fails these.
 // ---------------------------------------------------------------------------
 
 // Run a single-task happy-path phase and return the first-pass worker's captured spawn opts.
-// files === undefined ⇒ NO files field on the task (the absent-list fail-safe case).
-// Threads an EXPLICIT agents config with distinct base/docs models (opus/sonnet) so the tier
-// predicate stays observable by model — the DEFAULTS tiers are both fable, which would make the
-// docs-vs-base distinction vacuous here (the D2 registry row pins the defaults mirror itself).
-const firstPassWorkOpts = async (files) => {
+// files === undefined ⇒ NO files field on the task; `over` adds task fields (a workerTier stamp).
+// Threads an EXPLICIT agents config with distinct base/lite models (opus/sonnet) so the tier
+// stays observable by model (the D2 registry row pins the defaults mirror itself).
+const firstPassWorkOpts = async (files, over = {}) => {
   const task = { id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }],
-    ...(files !== undefined ? { files } : {}) }
+    ...(files !== undefined ? { files } : {}), ...over }
   const agents = { worker: { model: 'opus', lite: { model: 'sonnet', effort: 'default' } } }
   const { calls } = await runPhase(PROVISION_ARGS({ tasks: [task], agents }), defaultImpl)
   return (calls.find(c => c.opts.label === 'work:t1') || {}).opts || {}
@@ -1556,7 +1555,7 @@ const inlineHelperBlock = (() => {
   return { ok: s !== -1 && e > s, block: s !== -1 && e > s ? src.slice(s, e) : '' }
 })()
 const inlineHelpers = (agents = {}) =>
-  new Function('agents', runForm(inlineHelperBlock.block) + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, AUDITOR_TIER_DEFAULTS, isDocsTask, resolveGate }')(agents)
+  new Function('agents', runForm(inlineHelperBlock.block) + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, AUDITOR_TIER_DEFAULTS, resolveGate }')(agents)
 
 const AGENTS_FIXTURES = [
   {},                                                                          // all omitted → ROLE_MODEL/DEFAULTS fallback
@@ -2109,7 +2108,7 @@ const LITERAL_REGISTRY = [
   ["Task ${taskId}: normalized main-checkout-roo"],
   [", repo: ${learningsTarget}` : ''\nconst MEMOR"],
   ["baseline gate debt: ${idset.join(', ') || '("],
-  ["audit:${task.id}:${seat.lens}${peers ? ':reb"],
+  ["audit:${task.id}:${key}${peers ? ':rebut' : "],
   ["Phase ${ph.id} \"${ph.title}\": ${tasks.length"],
   [" --owned-file ${ownedFile}` : ''\n  // --recl"],
   ["   provision-worktrees.sh ensure-worktree ${"],
