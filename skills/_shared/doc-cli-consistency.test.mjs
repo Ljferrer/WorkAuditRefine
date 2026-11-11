@@ -305,6 +305,10 @@ const VERB_SCAN_EXCLUSIONS = [
   // "when merging a task" pointer; its only command prose is git (the two-step --no-ff merge form and
   // mktemp) — no scanned-module verb, so the rotted-reason loop below stays satisfiable.
   'skills/war/references/merge-provenance.md',
+  // model-routing.md is the routing doctrine home (2026-11-08-model-routing-and-prompt-byte-budgets
+  // Task 4.2, #2534); it names war-config.mjs only beside its EXPORTS (`validate()`, `MODEL_RANK`)
+  // and phrases no CLI command — no scanned-module verb.
+  'skills/war/references/model-routing.md',
 ]
 
 function skillDocs() {
