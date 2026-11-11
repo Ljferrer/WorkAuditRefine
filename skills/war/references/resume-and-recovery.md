@@ -83,7 +83,7 @@ The sanctioned retry for a held/escalated task or a dead phase — **not** a new
 - **Manifest restamp** — after the relaunch returns, restamp the whole phase record per [run-manifest.md](run-manifest.md) § Relaunch, not only the `workflowRunId` + `transcriptDir` pair.
 
 **Relaunch checks (D17).** Run each check before the relaunch it names. One line each:
-- **(a) Args** — rebuild `agents`, `audit`, `run` and `gate` with `node …/war-config.mjs <path> --fill-defaults`. Never copy a prior attempt's args.
+- **(a) Args** — rebuild `agents`, `audit`, `run`, `gate` and, when set, `routing` with `node …/war-config.mjs <path> --fill-defaults`. Never copy a prior attempt's args.
 - **(b) Worktree edits** — capture `git -C <worktree> status --short` for each escalated task. Provision restores a reused worktree's edits, but a hand teardown does not.
 - **(c) Transcript dir** — before `resumeFromRunId`, confirm the manifest's `transcriptDir` still exists ([run-manifest.md](run-manifest.md) names the field). If the session worktree moved, take a fresh Recovery relaunch instead.
 - **(d) Cache miss** — a resume that re-dispatches seats it should replay is a harness cache miss. Stop it and relaunch fresh.

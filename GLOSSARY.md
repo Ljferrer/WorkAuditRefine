@@ -504,7 +504,7 @@ without its status pair; a new status enum member for the marker.
 ### Audit
 
 **Audit roster**:
-The per-task ordered list of **1–5 distinct-lens seats** that convene to audit the task's diff. Seat
+The per-task ordered list of **1–5 distinct-lens seats** (one lens pair is the exception: `skills/war/references/model-routing.md`) that convene to audit the task's diff. Seat
 count *is* the roster's length — there is no separate size knob — and the ruling is **unanimous**
 regardless of parity (even counts are legal; nothing tie-breaks because nothing votes by majority).
 _Avoid_: covenSize, panel size, seat count as a knob independent of the lens list.
@@ -719,12 +719,35 @@ The payload-free manifest a worker commits at the path `MANIFEST_PATH_TEMPLATE` 
 
 ### Worker tiers (dispatch)
 
-**Docs tier**:
-The worker spawn tier for a task whose `Files:` list is entirely `*.md` — mechanically classified
-at dispatch (never a plan field), configured at `agents.worker.lite` (defaulted in `war-config.mjs`). Mixed
-docs+code tasks stay on the base worker tier; auditors review lite-tier work at full strength.
-_Avoid_: low-complexity flag (nothing is authored); re-tiering mid-flight (the predicate reads the
-plan's file list, not the diff).
+**Lite worker tier**:
+The cheaper first-pass worker tier, configured at `agents.worker.lite` (defaulted in
+`war-config.mjs`). The Lead picks it per task at the approval gate and carries the pick in the
+task's args as `workerTier`; an unstamped task runs the base worker. A lite task keeps one seat on
+the high seat tier, and its fix and ace rounds keep their own tiers. Pick rule:
+`skills/war/references/model-routing.md`.
+_Avoid_: docs tier (retired name); the all-`*.md` test as the pick (it is one input); a step up to
+the base worker after a failed audit.
+
+**Task class**:
+The Lead's per-task stamp at Decompose that picks each role's routing tier and binds the boundary
+floor (ADR 0062). Values and rules: `skills/war/references/model-routing.md`.
+_Avoid_: an engine-derived class; a file-extension classifier.
+
+**Ace edit class**:
+The engine's split of an ace batch into exact or broad edits, read from its absorb rows; an exact
+batch may run on its own tier (ADR 0062). Rule: `skills/war/references/model-routing.md`.
+_Avoid_: an auditor-stamped edit field.
+
+**Sampled Opus review**:
+One extra opus seat on a stably sampled share of clean approvals whose seats all resolve below
+opus. Sampling only adds a seat (ADR 0062, `skills/war/references/model-routing.md`).
+_Avoid_: skipping review on a clean approval; a random (non-replayable) sample.
+
+**Provision tier / evidence tier**:
+The optional refiner spawn tiers `agents.refiner.provision` (the worktree provisioning dispatches)
+and `agents.refiner.evidence` (the phase evidence dispatch, except on an `intraDep` phase). No
+default and no preset value: absent, those dispatches spawn as the plain refiner.
+_Avoid_: a refiner role split (one card, two optional tiers).
 
 **Fix bump**:
 The optional distinct model/effort (`agents.worker.fix`) applied to fix-round and floor-retry

@@ -1397,6 +1397,51 @@ test('validateRoster: rejects duplicate lenses (distinct-lens rule)', () => {
   assert.match(r.errors.join('\n'), /duplicat/i)
 })
 
+// D22: drop the pair arm and the opus-over-sonnet pair reds with the duplicate text → this row reds.
+test('validateRoster: admits one opus-over-sonnet lens pair (#2706)', () => {
+  const r = validateRoster([{ lens: 'correctness', model: 'sonnet' }, { lens: 'correctness', model: 'opus' }])
+  assert.deepEqual(r, { valid: true, errors: [] })
+  assert.equal(validateRoster([{ lens: 'correctness', model: 'haiku' }, { lens: 'security' }, { lens: 'correctness', model: 'fable', depth: 'deep' }]).valid, true, 'any strictly higher explicit model pairs, with a seat between')
+})
+
+// D22: widen the pair arm to a same-model or a model-less seat, or to a third repeat, and this row reds.
+test('validateRoster: a same-model or model-less lens pair still reds (#2706)', () => {
+  for (const roster of [
+    [{ lens: 'correctness', model: 'sonnet' }, { lens: 'correctness', model: 'sonnet' }],
+    [{ lens: 'correctness' }, { lens: 'correctness', model: 'opus' }],
+    [{ lens: 'correctness', model: 'sonnet' }, { lens: 'correctness' }],
+    [{ lens: 'correctness', model: 'opus' }, { lens: 'correctness', model: 'sonnet' }],
+    [{ lens: 'correctness', model: 'haiku' }, { lens: 'correctness', model: 'sonnet' }, { lens: 'correctness', model: 'opus' }],
+  ]) {
+    const r = validateRoster(roster)
+    assert.equal(r.valid, false, JSON.stringify(roster))
+    assert.match(r.errors.join('\n'), /duplicates an earlier seat \(lenses must be distinct\)/, `${JSON.stringify(roster)}: today's text`)
+  }
+})
+
+// routing (#2534 D11-D13, D36): every key validated, no DEFAULTS entry, no preset value. Delete the routing
+// block in validate and the unknown and wrong-typed keys pass → red.
+test('routing: validate accepts every known key and refuses unknown keys and bad values', () => {
+  const T = { model: 'sonnet', effort: 'high' }
+  const full = { routing: { classes: { routine: { worker: T, fix: T, ace: T, auditor: T }, boundary: { auditor: { model: 'opus', effort: 'default' } } }, aceEdit: { exact: T }, sampleOpusReview: 0.25, opusFloor: false } }
+  assert.deepEqual(validate(full).errors, [])
+  assert.deepEqual(validate({ routing: { sampleOpusReview: null, opusFloor: null } }).errors, [], 'null is unset')
+  assert.ok(!Object.hasOwn(DEFAULTS, 'routing'), 'no DEFAULTS entry')
+  for (const p of Object.keys(PRESETS)) assert.ok(!Object.hasOwn(presetConfig(p), 'routing'), `${p}: no preset value`)
+  for (const [bad, re] of [
+    [{ routing: [] }, /routing must be an object/],
+    [{ routing: { tiers: {} } }, /routing\.tiers is not a known key/],
+    [{ routing: { classes: { urgent: {} } } }, /routing\.classes\.urgent is not a known key/],
+    [{ routing: { classes: { routine: { refiner: T } } } }, /routing\.classes\.routine\.refiner is not a known key/],
+    [{ routing: { classes: { routine: { worker: { model: 'gpt', effort: 'high' } } } } }, /routing\.classes\.routine\.worker\.model must be one of/],
+    [{ routing: { aceEdit: { broad: T } } }, /routing\.aceEdit\.broad is not a known key/],
+    [{ routing: { aceEdit: { exact: { model: 'sonnet' } } } }, /routing\.aceEdit\.exact\.effort must be one of/],
+    [{ routing: { sampleOpusReview: 1.5 } }, /routing\.sampleOpusReview must be a number from 0 to 1/],
+    [{ routing: { sampleOpusReview: '0.5' } }, /routing\.sampleOpusReview must be a number from 0 to 1/],
+    [{ routing: { opusFloor: 'yes' } }, /routing\.opusFloor must be a boolean/],
+  ]) assert.match(validate(bad).errors.join('\n'), re, JSON.stringify(bad))
+})
+
 test('validateRoster: rejects empty and non-string lens', () => {
   assert.equal(validateRoster([{ lens: '' }]).valid, false)
   assert.equal(validateRoster([{ lens: 42 }]).valid, false)
@@ -1838,10 +1883,10 @@ const DEMIRRORED = [
   ['skills/war/references/design.md', /^Per-role models are the `war-config\.mjs` DEFAULTS[^\n]*$/m],
   ['skills/war/references/design.md', /^- \*\*New role — `war-servitor`\*\*[^\n]*$/m],
   ['GLOSSARY.md', /tier ladder `agents\.snipe`[^\n]*$/m],
-  ['GLOSSARY.md', /\*\*Docs tier\*\*:\n[\s\S]*?\n_Avoid_/],
+  ['GLOSSARY.md', /\*\*Lite worker tier\*\*:\n[\s\S]*?\n_Avoid_/],
   ['GLOSSARY.md', /\*\*Fix bump\*\*:\n[\s\S]*?\n_Avoid_/],
   ['skills/war/SKILL.md', /^- Models\/effort come from the resolved run config[^\n]*$/m],
-  ['skills/war/SKILL.md', /runs its worker on the \*\*docs\*\* tier \([^\n]*$/m],
+  ['skills/war/SKILL.md', /runs on the \*\*lite\*\* tier \([^\n]*$/m],
   ['skills/snipe/SKILL.md', /resolved from the WAR config ladder \([^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*redteam\?: \{ model, effort \},[^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*trial\?: \{ model, effort \},[^\n]*$/m],
@@ -2152,6 +2197,7 @@ test('node-test breadth: skills/ contains at least the expected set of *.test.mj
     'skills/war/assets/workflow-template.late-defect-5.test.mjs',
     'skills/war/assets/workflow-template.prompt-size-1.test.mjs',
     'skills/war/assets/workflow-template.recovery.test.mjs',
+    'skills/war/assets/workflow-template.routing-1.test.mjs',
     'skills/war/assets/workflow-template.submodule-1.test.mjs',
     'skills/war/assets/workflow-template.submodule-2.test.mjs',
     'skills/war/assets/workflow-template.submodule-3.test.mjs',
