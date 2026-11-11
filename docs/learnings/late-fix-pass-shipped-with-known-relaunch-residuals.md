@@ -1,6 +1,6 @@
 ---
 name: late-fix-pass-shipped-with-known-relaunch-residuals
-description: The late-fix pass shipped with known recovery-relaunch residuals that auditors raised as notes or asks
+description: "The late-fix pass shipped with known relaunch residuals raised as notes or asks"
 metadata:
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: a-git-accepts-check-over-a-pipe-row-needs-pipefail-or-it-checks-only-the-right-side
-description: A git-accepts check that evals a pipe row without pipefail tests only the right side of the pipe
+description: "A git-accepts check on a pipe row needs pipefail or it tests only the right side"
 metadata:
   node_type: memory
   type: project

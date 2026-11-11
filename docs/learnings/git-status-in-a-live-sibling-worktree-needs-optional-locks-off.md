@@ -1,6 +1,6 @@
 ---
 name: git-status-in-a-live-sibling-worktree-needs-optional-locks-off
-description: "git status refreshes a stale index under index.lock, so a read-only status loop over live worktrees needs GIT_OPTIONAL_LOCKS=0"
+description: "A read-only git status loop over live worktrees needs GIT_OPTIONAL_LOCKS=0"
 metadata:
   node_type: memory
   type: project

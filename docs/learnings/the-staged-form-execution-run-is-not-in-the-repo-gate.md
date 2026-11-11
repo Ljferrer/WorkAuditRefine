@@ -1,6 +1,6 @@
 ---
 name: the-staged-form-execution-run-is-not-in-the-repo-gate
-description: "The repo gate never sets WAR_TEMPLATE_STRIPPED=1, so a template edit that breaks only the staged form passes the gate"
+description: "The repo gate never sets WAR_TEMPLATE_STRIPPED=1, so staged-form breaks pass"
 metadata:
   node_type: memory
   type: project

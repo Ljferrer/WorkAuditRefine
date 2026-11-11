@@ -1,6 +1,6 @@
 ---
 name: a-literal-hard-advisory-pair-anywhere-in-the-budget-test-file-trips-the-budget-raise-floor
-description: "A new test fixture with a literal hard: N pair in the budget test file trips the Budget-Raise floor"
+description: "A literal hard: N pair in the budget test file trips the Budget-Raise floor"
 metadata:
   promoted: dev/2026-11-08-model-routing-and-prompt-byte-budgets@phase-1
   node_type: memory

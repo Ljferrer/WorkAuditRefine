@@ -1,6 +1,6 @@
 ---
 name: terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it
-description: "RESOLVED (2026-09-04 terminal pass): a last-round polish gate-audit absorb finding once had no further pass to drain it"
+description: "RESOLVED (2026-09-04): a last-round polish absorb once had no pass to drain it"
 metadata: 
   node_type: memory
   type: project

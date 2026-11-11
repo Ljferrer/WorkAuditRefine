@@ -1,6 +1,6 @@
 ---
 name: a-new-provision-run-in-a-shared-worktree-must-carry-the-restore-tracked-files-rule
-description: "Every new site that runs run.provision must interpolate PROVISION_CLEAN_LINE, except depClause"
+description: "Every new site that runs run.provision must interpolate PROVISION_CLEAN_LINE"
 metadata:
   node_type: memory
   type: project

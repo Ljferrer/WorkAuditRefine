@@ -1,6 +1,6 @@
 ---
 name: an-in-run-repo-lesson-edit-leaves-the-same-slug-local-copy-stale
-description: "An in-run edit to a docs/learnings lesson leaves its same-slug local copy stale, and that copy can overwrite the fix on promote"
+description: "An in-run docs/learnings edit leaves the local copy stale. Promote can undo it"
 metadata:
   node_type: memory
   type: project

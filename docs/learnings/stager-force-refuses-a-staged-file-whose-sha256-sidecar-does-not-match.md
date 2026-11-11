@@ -1,6 +1,6 @@
 ---
 name: stager-force-refuses-a-staged-file-whose-sha256-sidecar-does-not-match
-description: "stage-workflow --force refuses a hand-edited or sidecar-less staged file, and --discard-injections overwrites it"
+description: "--force refuses an edited or sidecar-less stage. --discard-injections overwrites"
 metadata:
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: a-dispatch-context-key-that-names-an-action-must-ride-only-the-dispatches-that-run-it
-description: "A context key that tells prompts an action runs must ride only the dispatches that run it, and never as null"
+description: "A context key naming an action must ride only dispatches that run it, never null"
 metadata:
   node_type: memory
   type: project

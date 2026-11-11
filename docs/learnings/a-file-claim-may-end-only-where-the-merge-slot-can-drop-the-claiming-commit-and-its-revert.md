@@ -1,6 +1,6 @@
 ---
 name: a-file-claim-may-end-only-where-the-merge-slot-can-drop-the-claiming-commit-and-its-revert
-description: A polish file claim ends only where the merge slot can drop the claim commit and its revert
+description: "A polish file claim ends only where the merge slot drops its commit and revert"
 metadata:
   node_type: memory
   type: project

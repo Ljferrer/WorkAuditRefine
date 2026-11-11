@@ -1,6 +1,6 @@
 ---
 name: the-per-task-gate-log-is-stamped-with-the-merge-second-parent-never-the-confirmed-tip
-description: "A per-task gate log carries the merge commit's second parent, so a tip compare must exclude it"
+description: "A per-task gate log carries the merge's second parent, never the confirmed tip"
 metadata:
   promoted: dev/2026-11-08-engine-findings-ace-and-late-fix@phase-2
   node_type: memory

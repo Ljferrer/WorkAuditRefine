@@ -1,6 +1,6 @@
 ---
 name: standing-instruction-vs-dispatched-prompt-coverage-split
-description: A WAR directive lives in the standing agents/*.md card AND the dispatched prompt; mirror it into both or document the single-layer choice
+description: "Put a WAR directive in both the agents/*.md card and the prompt, or document why"
 metadata:
   node_type: memory
   slug: standing-instruction-vs-dispatched-prompt-coverage-split

@@ -1,6 +1,6 @@
 ---
 name: carried-rows-can-be-already-fixed-at-the-next-phase-base
-description: "A finding row carried into the next phase can be fixed already by a late fix, so the task escalates with nothing to commit"
+description: "A carried row may already be fixed at the next phase base. Re-check it first"
 metadata:
   promoted: dev/2026-11-08-engine-recovery-relaunch-and-land@phase-5
   node_type: memory

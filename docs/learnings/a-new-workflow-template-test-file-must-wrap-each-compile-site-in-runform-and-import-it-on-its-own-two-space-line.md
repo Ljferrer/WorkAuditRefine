@@ -1,6 +1,6 @@
 ---
 name: a-new-workflow-template-test-file-must-wrap-each-compile-site-in-runform-and-import-it-on-its-own-two-space-line
-description: A new workflow-template.*.test.mjs file reds the staged-form census unless each new Function site wraps runForm
+description: "A new workflow-template test file must wrap each compile site in runForm"
 metadata:
   node_type: memory
   type: project

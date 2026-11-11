@@ -1,6 +1,6 @@
 ---
 name: audit-tree-fingerprint-d8-row-can-red-under-gate-load-and-discard-a-docs-only-polish
-description: "PARTLY RESOLVED (#2615): the watchdog rows now use a 10 s deadline, but old row 112 still reds when one hook run outlasts the 540 s default (#2724)"
+description: "PARTLY RESOLVED (#2615): rows use 10 s, old row 112 reds past 540 s (#2724)"
 metadata:
   node_type: memory
   type: project

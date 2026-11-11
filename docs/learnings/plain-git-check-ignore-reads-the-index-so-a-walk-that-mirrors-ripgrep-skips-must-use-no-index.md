@@ -1,6 +1,6 @@
 ---
 name: plain-git-check-ignore-reads-the-index-so-a-walk-that-mirrors-ripgrep-skips-must-use-no-index
-description: "Plain git check-ignore reads the index, so a hook walk that mirrors ripgrep skips must ask with --no-index"
+description: "To mirror ripgrep skips, use git check-ignore --no-index. Plain reads the index"
 metadata:
   node_type: memory
   type: project

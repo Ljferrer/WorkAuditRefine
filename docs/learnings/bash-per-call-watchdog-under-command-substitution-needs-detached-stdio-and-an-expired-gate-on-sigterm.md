@@ -1,6 +1,6 @@
 ---
 name: bash-per-call-watchdog-under-command-substitution-needs-detached-stdio-and-an-expired-gate-on-sigterm
-description: "A bash 3.2 watchdog around one call inside $(...) needs detached stdio, an empty pid seed and an expired gate on exit 143"
+description: "Bash 3.2 watchdog in $(...): detach stdio, empty pid seed, expired gate on 143"
 metadata:
   node_type: memory
   type: project

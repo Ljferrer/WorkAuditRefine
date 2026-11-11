@@ -1,6 +1,6 @@
 ---
 name: compound-check-closed-operator-enumeration-drops-one-site-restates-the-dead-operator
-description: Fixing a closed operator enumeration at its main site can leave a sibling clause still naming the dropped operator
+description: "Dropping a member from a closed list can leave a sibling clause still naming it"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round
-description: "A Minor/Nit finding disposed absorb + autoFixable:true, inside the task's own Files diff, can still ship unfixed once the task's verdict reaches approve"
+description: "An in-diff absorb autoFixable Minor or Nit can ship unfixed once approved"
 metadata: 
   promoted: dev/2026-09-11-backward-chain-doctrine@phase-3
   node_type: memory

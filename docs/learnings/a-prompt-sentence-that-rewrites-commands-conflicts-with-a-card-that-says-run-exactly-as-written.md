@@ -1,6 +1,6 @@
 ---
 name: a-prompt-sentence-that-rewrites-commands-conflicts-with-a-card-that-says-run-exactly-as-written
-description: A trailing prompt sentence that adds -C to each command conflicts with a helper card that says run commands exactly as written
+description: "A prompt line adding -C to commands conflicts with a run-exactly-as-written card"
 metadata:
   node_type: memory
   type: project
