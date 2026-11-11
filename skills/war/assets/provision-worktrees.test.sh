@@ -601,8 +601,8 @@ expect "holder-die(ensure-publication-worktree): die names the holder path (chec
 # only clears THIS repo's stale registry — a worktree registered to a different
 # repo (a different run) lives in a different .git and is never pruned.
 #
-# Helpers:
-#   branch_exists_in <repo> <ref> -> "yes"/"no"
+# Helpers (defined in provision-worktrees.test-lib.sh):
+#   branch_exists_in <repo> <ref> -> "yes"/"no", and mk_run_dir
 # run-dir layout used by these cases mirrors production:
 #   <repo>/.claude/teams/<run-id>/worktrees/<task-id>
 # ---------------------------------------------------------------------------
@@ -938,6 +938,8 @@ expect "non-empty unregistered dir: precious file NOT deleted" \
 # deterministically (same method as spec §12):
 #   setup_origin_pair <slug> -> creates origin.git + clone1 + clone2;
 #     echoes "clone1_path clone2_path origin_path" space-separated.
+#   It is defined in provision-worktrees.test-lib.sh, with run_in_detached
+#   and seed_working_branch.
 # ---------------------------------------------------------------------------
 
 

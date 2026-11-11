@@ -290,12 +290,12 @@ SCRIPT_DIR="$(dirname "$0")"
 # assets -> war -> skills : two levels up. NOT three (that lands on the repo
 # root and drags in stale branch_ahead_of copies under .claude/worktrees/**).
 SKILLS_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-# Search for branch_ahead_of in skills/ source files (exclude test files so
-# this assertion itself does not false-positive on the grep term appearing
-# in a comment inside a test file).
+# Search for branch_ahead_of in skills/ source files (exclude test files and
+# the sourced test setup files, so this assertion itself does not
+# false-positive on the grep term appearing in a comment inside a test file).
 n=$((n + 1))
 FOUND_AHEAD="$(grep -rn branch_ahead_of "$SKILLS_ROOT" \
-  --include='*.sh' --exclude='*.test.sh' \
+  --include='*.sh' --exclude='*.test.sh' --exclude='*.test-lib.sh' \
   --include='*.bash' 2>/dev/null || true)"
 if [ -z "$FOUND_AHEAD" ]; then
   printf 'ok %d - F08: branch_ahead_of is absent from skills/ source files (grep returns nothing)\n' "$n"
@@ -1085,7 +1085,8 @@ expect "(f) behind+checked-out: checkout not phantom-dirtied (tracked files clea
 # on-branch; reuse arms (b) and (c), where the refinery verb runs the
 # reuse_hygiene submodule arm and emits its WORKTREE_HYGIENE markers (#1476
 # gap 4) and this verb runs neither. The worktree-add failure die names the
-# branch holder like the refinery twin (#2087, row RG.7 beside RG.5-RG.6).
+# branch holder like the refinery twin (#2087, row RG.7 beside RG.5-RG.6 in
+# provision-worktrees.test.sh).
 # remove-publication-worktree <path> is a NO-FORCE,
 # dirty-guarded removal that NEVER touches the branch ref (the working branch —
 # WAR's land target — must survive; a committed-but-unpushed docs commit lives
