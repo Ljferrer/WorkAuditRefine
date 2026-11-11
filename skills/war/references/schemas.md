@@ -378,7 +378,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
 // (assert-test-in-diff.sh, ADR 0019), so floor ⊆ gate survives any pinned pattern. The glob-safe charset
 // is enforced by war-config.mjs's validator (a quote/`;`/backtick/`$`/newline value is rejected, naming the key).
 ```
-These reach the per-phase Workflow as `args.agents`, `args.audit`, `args.run` (the Lead threads them in after resolving the file); `overrides` are applied by the Lead during Setup. See [`../assets/workflow-template.js`](../assets/workflow-template.js).
+These reach the per-phase Workflow as `args.agents`, `args.audit`, `args.run` and, when set, `args.routing` (the Lead threads them in after resolving the file); `overrides` are applied by the Lead during Setup. See [`../assets/workflow-template.js`](../assets/workflow-template.js).
 
 ## Workflow per-phase args contract
 `args` may be passed as a **plain object or a JSON string**; the template auto-parses a string so the Lead need not manually inline structured data.
