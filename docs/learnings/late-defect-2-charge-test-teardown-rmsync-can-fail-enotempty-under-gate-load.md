@@ -1,6 +1,6 @@
 ---
 name: late-defect-2-charge-test-teardown-rmsync-can-fail-enotempty-under-gate-load
-description: "The late-defect-2 charge test's finally rmSync can throw ENOTEMPTY under gate load and red the whole merge gate"
+description: "The late-defect-2 charge test teardown can throw ENOTEMPTY and red the gate"
 metadata:
   promoted: dev/2026-11-08-engine-findings-ace-and-late-fix@phase-3
   node_type: memory

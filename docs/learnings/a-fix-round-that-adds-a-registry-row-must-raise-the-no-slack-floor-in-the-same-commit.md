@@ -1,6 +1,6 @@
 ---
 name: a-fix-round-that-adds-a-registry-row-must-raise-the-no-slack-floor-in-the-same-commit
-description: A fix round that adds a REGISTRY row must raise both the floor and the ceiling literal
+description: "A fix round adding a REGISTRY row must raise the floor and ceiling literals too"
 metadata:
   promoted: dev/2026-11-08-engine-findings-ace-and-late-fix@phase-2
   node_type: memory

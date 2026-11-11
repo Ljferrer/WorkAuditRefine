@@ -1,6 +1,6 @@
 ---
 name: a-new-handoff-key-leaves-the-glossary-clean-handoff-list-stale-and-its-literal-regex-test-stays-green
-description: A new engine handoff key leaves the GLOSSARY Clean handoff key list stale while its literal test stays green
+description: "A new handoff key stales the GLOSSARY Clean handoff list, its test stays green"
 metadata:
   node_type: memory
   type: project

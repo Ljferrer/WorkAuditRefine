@@ -1,6 +1,6 @@
 ---
 name: a-refusal-remedy-shared-by-every-arm-can-tell-the-user-to-launder-the-input-it-refused
-description: One remedy line printed for every refusal arm can tell the user to restamp a foreign row and pass the floor
+description: "A remedy shared by every refusal arm can launder a refused row. Key it per arm"
 metadata:
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: source-comment-lags-emitted-prompt-after-rewrite
-description: "Comments lag rewritten code; grep old terms same diff — closed-enumeration fixes recreate…"
+description: "After a rewrite, fix comments naming the old behavior in the same diff"
 metadata:
   node_type: memory
   slug: source-comment-lags-emitted-prompt-after-rewrite

@@ -1,6 +1,6 @@
 ---
 name: a-phrase-grep-end-state-passes-on-a-sentence-that-negates-the-phrase
-description: A grep -c End state on a doctrine phrase stays green when the doc negates that phrase
+description: "A grep -c End state on a doctrine phrase stays green when the doc negates it"
 metadata:
   promoted: dev/2026-11-08-engine-findings-ace-and-late-fix@phase-3
   node_type: memory

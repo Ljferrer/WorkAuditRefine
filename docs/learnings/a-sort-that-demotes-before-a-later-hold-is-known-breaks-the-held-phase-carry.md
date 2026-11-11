@@ -1,6 +1,6 @@
 ---
 name: a-sort-that-demotes-before-a-later-hold-is-known-breaks-the-held-phase-carry
-description: A queue sort that demotes rows before a later pass adds a hold files rows the held arm must carry
+description: "A queue sort that demotes before a later hold files rows the held arm must carry"
 metadata:
   node_type: memory
   type: project

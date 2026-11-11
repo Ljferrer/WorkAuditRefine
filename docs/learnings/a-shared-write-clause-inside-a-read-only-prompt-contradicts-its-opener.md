@@ -1,6 +1,6 @@
 ---
 name: a-shared-write-clause-inside-a-read-only-prompt-contradicts-its-opener
-description: "A shared clause that orders writes, put into a READ-ONLY prompt, lets a literal agent skip it"
+description: "A shared write clause in a READ-ONLY prompt lets a literal agent skip it"
 metadata:
   promoted: dev/2026-10-28-blocked-ace-and-merge-provenance@phase-4
   node_type: memory

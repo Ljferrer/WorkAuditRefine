@@ -1,6 +1,6 @@
 ---
 name: release-slot-files-exempt-from-in-run-ace-and-sweep-machinery
-description: "Narrowed by D20 (#2000): only plugin.json and marketplace.json refuse in-run absorb, and CHANGELOG or README prose fixes are absorb-eligible"
+description: "Narrowed by D20: only plugin.json and marketplace.json refuse in-run absorb"
 metadata: 
   node_type: memory
   type: project

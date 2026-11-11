@@ -1,6 +1,6 @@
 ---
 name: plan-line-number-refs-stale-use-construct-locator
-description: "Plan :N-M line refs go stale under integration churn; anchor by construct locator (enclosing…"
+description: "Plan :N-M line refs go stale under churn. Anchor by named construct instead"
 metadata: 
   node_type: memory
   type: project

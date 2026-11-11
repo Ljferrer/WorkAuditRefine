@@ -1,6 +1,6 @@
 ---
 name: an-ace-commit-can-settle-an-unruled-ask-by-fixing-a-sibling-absorb-finding
-description: An ace commit can settle an unruled ask by fixing a sibling absorb finding on the same site
+description: "An ace commit can settle an unruled ask by fixing a sibling absorb finding"
 metadata:
   node_type: memory
   type: project

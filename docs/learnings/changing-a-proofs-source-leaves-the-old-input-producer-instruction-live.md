@@ -1,6 +1,6 @@
 ---
 name: changing-a-proofs-source-leaves-the-old-input-producer-instruction-live
-description: RESOLVED (2026-11-08 phase 3 task 3.1): worker prompts no longer ask for the WAR-Task trailer
+description: "RESOLVED (2026-11-08): worker prompts no longer ask for the WAR-Task trailer"
 metadata:
   promoted: dev/2026-10-28-blocked-ace-and-merge-provenance@phase-3
   node_type: memory

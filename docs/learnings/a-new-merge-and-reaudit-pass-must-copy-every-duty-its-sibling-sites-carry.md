@@ -1,6 +1,6 @@
 ---
 name: a-new-merge-and-reaudit-pass-must-copy-every-duty-its-sibling-sites-carry
-description: "A new engine pass that re-audits and merges must copy each duty the polish, terminal and merge-slot sites already carry"
+description: "A new re-audit and merge pass must copy every duty its sibling sites carry"
 metadata:
   node_type: memory
   type: project

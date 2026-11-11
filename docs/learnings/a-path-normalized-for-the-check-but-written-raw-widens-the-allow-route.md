@@ -1,6 +1,6 @@
 ---
 name: a-path-normalized-for-the-check-but-written-raw-widens-the-allow-route
-description: A guard that checks a normalized path while the write lands at the raw path widens its allow route
+description: "Checking a normalized path but writing the raw one widens a guard's allow route"
 metadata:
   node_type: memory
   type: project

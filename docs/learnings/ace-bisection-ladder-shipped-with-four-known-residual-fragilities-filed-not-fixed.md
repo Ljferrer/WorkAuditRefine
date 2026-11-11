@@ -1,6 +1,6 @@
 ---
 name: ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed
-description: "RESOLVED: every filed aceBisect fragility is closed; check its issues before touching it, and trailers stay log-only"
+description: "RESOLVED: aceBisect fragilities closed. Check its issues, trailers stay log-only"
 metadata: 
   promoted: dev/2026-08-19-realized-absorb-rate@phase-1
   node_type: memory

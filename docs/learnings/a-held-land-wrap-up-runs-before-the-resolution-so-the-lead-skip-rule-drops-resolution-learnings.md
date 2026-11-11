@@ -1,6 +1,6 @@
 ---
 name: a-held-land-wrap-up-runs-before-the-resolution-so-the-lead-skip-rule-drops-resolution-learnings
-description: "On a held phase the servitor's Landed tip names the integration branch; ground there, and take the gate-audit rung when nothing merged"
+description: "Held phase: servitor grounds on integration, gate-audit rung if nothing merged"
 metadata:
   node_type: memory
   type: project

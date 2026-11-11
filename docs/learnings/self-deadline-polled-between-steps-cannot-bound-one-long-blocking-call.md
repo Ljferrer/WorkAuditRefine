@@ -1,6 +1,6 @@
 ---
 name: self-deadline-polled-between-steps-cannot-bound-one-long-blocking-call
-description: "A hook deadline checked only between steps cannot stop one long blocking call, so the host kill still lands"
+description: "A deadline checked between steps cannot stop one long call. Bound each call"
 metadata:
   node_type: memory
   type: project

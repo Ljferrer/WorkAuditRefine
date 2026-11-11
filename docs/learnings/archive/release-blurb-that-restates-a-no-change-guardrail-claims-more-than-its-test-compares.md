@@ -44,3 +44,7 @@ metadata:
 Topology note: the landed tip 94f59ec5 had no live worktree, and the servitor cwd was master at 37eb1b90. The blurb text was not read at the tip, so this lesson stays agent-unverified.
 
 Related: [[release-blurb-that-restates-a-code-comment-inherits-its-overclaim]] (same family, the source is a code comment), [[release-blurb-overstates-guard-semantics]], [[release-blurb-headline-count-word-can-mismatch-its-own-enumeration]] (the bare "both" count sub-shape).
+
+> merged into [[release-blurb-that-restates-a-code-comment-inherits-its-overclaim]] (2026-11-11 tighten)
+
+> archived 2026-11-11: resolved — moved to archive

@@ -1,6 +1,6 @@
 ---
 name: a-semicolon-inside-a-quoted-end-state-check-literal-is-split-by-the-statement-runner
-description: "A semicolon inside a quoted End-state check literal splits the statement, so the check can never go green"
+description: "A semicolon in a quoted End-state check splits the statement, so it never passes"
 metadata:
   node_type: memory
   type: project

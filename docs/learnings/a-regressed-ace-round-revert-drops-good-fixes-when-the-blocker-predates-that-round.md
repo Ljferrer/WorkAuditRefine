@@ -1,6 +1,6 @@
 ---
 name: a-regressed-ace-round-revert-drops-good-fixes-when-the-blocker-predates-that-round
-description: "A regressed ace round is reverted whole even when its blocker came from an earlier round, so check where the blocker entered"
+description: "A regressed ace round is reverted whole, so check where the blocker entered"
 metadata:
   promoted: dev/2026-10-28-blocked-ace-and-merge-provenance@phase-1
   node_type: memory

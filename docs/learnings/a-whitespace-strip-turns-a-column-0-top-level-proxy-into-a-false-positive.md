@@ -1,6 +1,6 @@
 ---
 name: a-whitespace-strip-turns-a-column-0-top-level-proxy-into-a-false-positive
-description: "An indent strip moves nested lines to column 0, so a reader that treats column 0 as top level over-matches"
+description: "An indent strip moves nested lines to column 0, so column-0 readers over-match"
 metadata:
   node_type: memory
   type: project

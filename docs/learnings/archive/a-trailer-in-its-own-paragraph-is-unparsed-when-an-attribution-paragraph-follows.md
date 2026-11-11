@@ -52,3 +52,5 @@ Related: [[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-fil
 Locate-cue: verify still present before acting. At landed tip 8c1a7a51, `skills/war/assets/workflow-template.js` holds "one final trailer block" at six sites and no "own final paragraph" text.
 `agents/war-worker.md` step 5 says git parses trailers only from the last paragraph.
 `absorbChargesClause` in `skills/war/assets/workflow-template.js` reads `%(trailers:key=Ace-Charge,valueonly)`.
+
+> archived 2026-11-11: resolved — moved to archive

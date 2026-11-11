@@ -1,6 +1,6 @@
 ---
 name: audit-panel-unanimity-beats-majority-and-round0-escalation-is-a-known-pre-phase-11-gap
-description: "A lone correct Major outvoted 3-to-1 by Minor still held the land, because approval needs unanimity, not a majority"
+description: "A lone correct Major outvoted 3-to-1 still holds: approval is unanimous"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: a-required-force-with-lease-push-can-be-denied-by-the-host-classifier-and-strand-the-task
-description: "The worker carve-out for git push --force-with-lease can be denied by the host auto-mode classifier, so the task never merges"
+description: "The host classifier can deny a worker's force-with-lease push and strand a task"
 metadata:
   promoted: dev/2026-11-08-engine-recovery-relaunch-and-land@phase-3
   node_type: memory

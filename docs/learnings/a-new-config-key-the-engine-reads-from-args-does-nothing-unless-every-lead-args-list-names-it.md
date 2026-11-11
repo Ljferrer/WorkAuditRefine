@@ -1,6 +1,6 @@
 ---
 name: a-new-config-key-the-engine-reads-from-args-does-nothing-unless-every-lead-args-list-names-it
-description: A new config key the engine reads from args stays silently off unless every Lead args list names it
+description: "A new engine config key read from args is off unless Lead args lists name it"
 metadata:
   node_type: memory
   type: project

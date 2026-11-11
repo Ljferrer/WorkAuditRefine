@@ -1,6 +1,6 @@
 ---
 name: a-lexical-prefix-check-before-rm-rf-follows-a-planted-parent-symlink
-description: "A lexical prefix check before rm -rf follows a symlinked parent, so compare the cd -P physical path"
+description: "A lexical prefix check before rm -rf follows a symlinked parent. Compare cd -P"
 metadata:
   node_type: memory
   type: project

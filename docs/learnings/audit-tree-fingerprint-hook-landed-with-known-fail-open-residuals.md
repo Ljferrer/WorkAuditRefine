@@ -1,6 +1,6 @@
 ---
 name: audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals
-description: "Audit tree fingerprint hook: rev-parse, worktree list and check-ignore are now bounded, but a failed mktemp still falls back to /dev/null"
+description: "Fingerprint hook residuals: a failed mktemp still falls back to /dev/null"
 metadata:
   node_type: memory
   type: project
