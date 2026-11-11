@@ -1426,7 +1426,7 @@ const evidenceImpl = (prompt, opts) => {
 // requiresTest:false skip and can carry a sentinel). Reads the evItems lines the evidence dispatch renders.
 const evPromptOf = (calls) => (calls.find(c => seatOf(c.opts) === 'war-refiner' && /^evidence:phase-/.test(c.opts.label || '')) || {}).prompt || ''
 const evLineOf = (evPrompt, taskId) => evPrompt.split('\n').find(l => new RegExp(`- ${taskId} · gateHeadSha=`).test(l)) || ''
-const preMergeTipOf = (evPrompt, taskId) => { const m = evLineOf(evPrompt, taskId).match(/ · preMergeTip=(.*?) · gateLogPath=/); return m ? m[1] : null }
+const preMergeTipOf = (evPrompt, taskId) => { const m = evLineOf(evPrompt, taskId).match(/ · preMergeTip=(.*)$/); return m ? m[1] : null }
 const gateHeadShaOf = (evPrompt, taskId) => { const m = evLineOf(evPrompt, taskId).match(/gateHeadSha=(.*) · preMergeTip=/); return m ? m[1] : null }
 // Three dep-free tasks (one wave, serial merge order t1→t2→t3). `shas` maps merge label → integration_sha
 // (absent ⇒ omitted from the MergeResult, forcing the sentinel gateHeadSha). requiresTest:false lives on
@@ -2445,10 +2445,9 @@ const BARE_INTERPOLATION_CENSUS = [
   // Gate-log stamp + segmented gate (engine-and-audit-verdict-integrity Task 5.1, #2086/#2094): the four
   // pt-built module consts (GATE_LOG_STAMP / PARTIAL_LOG_RULE / GATE_LOG_READ_RULE / GATE_LOG_UNTHREADED)
   // are construction-guaranteed strings; `shape` is backgroundGateRule's param, a pt-built literal at
-  // every call site; `e.gateLogPath` carries an explicit || conventional-path fallback at evItems;
-  // `opts.label` is a segment continuation header's site label — every call site passes one.
+  // every call site; `opts.label` is a segment continuation header's site label — every call site passes one.
   // (GATE_LOG_UNTHREADED left the census at D10: gateArtifactLine reads it behind a refused-path ternary.)
-  'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
+  'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'PARTIAL_LOG_RULE', 'opts.label', 'shape',
   // Plan 2026-11-08-engine-findings T2.1: PHASE_WIDE_MARK and STALE_TIP_PHRASE are plain-string module
   // consts; expectedTip renders only behind its own truthy ternary; refused renders only behind a
   // typeof-string ternary in gateArtifactLine; id is a recoveredIds entry, a task id the preMerged arm pushed.
