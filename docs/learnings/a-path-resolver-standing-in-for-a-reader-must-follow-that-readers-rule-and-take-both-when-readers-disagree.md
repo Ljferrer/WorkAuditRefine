@@ -1,6 +1,6 @@
 ---
 name: a-path-resolver-standing-in-for-a-reader-must-follow-that-readers-rule-and-take-both-when-readers-disagree
-description: "A resolver that stands in for several readers must take each reader's own path rule and union the results"
+description: "A resolver standing in for several readers applies each reader's rule and unions"
 metadata:
   node_type: memory
   type: project

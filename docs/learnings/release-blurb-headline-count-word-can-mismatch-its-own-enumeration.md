@@ -1,6 +1,6 @@
 ---
 name: release-blurb-headline-count-word-can-mismatch-its-own-enumeration
-description: "A release blurb's headline count word can outrun its own enumeration; count items before landing"
+description: "A release blurb's headline count can outrun its list. Count items before landing"
 metadata: 
   node_type: memory
   type: project

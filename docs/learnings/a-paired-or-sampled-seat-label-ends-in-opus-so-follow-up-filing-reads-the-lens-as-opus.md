@@ -1,6 +1,6 @@
 ---
 name: a-paired-or-sampled-seat-label-ends-in-opus-so-follow-up-filing-reads-the-lens-as-opus
-description: "A paired or sampled seat label ends in :opus, so follow-up filing reads its lens as opus"
+description: "A seat label ending :opus files follow-ups under lens opus. Add a carve-out"
 metadata:
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: node-tap-reporter-escapes-hash-in-test-names-so-a-grep-for-a-bare-issue-number-counts-zero
-description: "Node's TAP reporter prints a '#' in a test name as '\\#', so a check that greps '(#NNNN)$' counts zero"
+description: "Node TAP escapes '#' in test names, so a grep for '(#NNNN)$' counts zero"
 metadata:
   node_type: memory
   type: project

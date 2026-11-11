@@ -1,6 +1,6 @@
 ---
 name: claimed-end-state-ids-are-intent-ordinals-and-phase-row-indexes-are-a-different-numbering
-description: "A worker's claimed End-state ids are intent ordinals, so a compare against the phase row index is wrong"
+description: "Claimed End-state ids are intent ordinals, never phase row indexes"
 metadata:
   promoted: dev/2026-11-08-engine-findings-ace-and-late-fix@phase-2
   node_type: memory

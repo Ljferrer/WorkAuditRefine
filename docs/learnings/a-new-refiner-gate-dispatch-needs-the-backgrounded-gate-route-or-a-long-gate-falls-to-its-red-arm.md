@@ -1,6 +1,6 @@
 ---
 name: a-new-refiner-gate-dispatch-needs-the-backgrounded-gate-route-or-a-long-gate-falls-to-its-red-arm
-description: "A new refiner gate dispatch needs backgroundGateRule and a segment loop, or its feature works only on fixtures"
+description: "A new refiner gate dispatch needs backgroundGateRule and a segment loop"
 metadata:
   node_type: memory
   type: project

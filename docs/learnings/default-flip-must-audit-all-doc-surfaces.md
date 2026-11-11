@@ -1,6 +1,6 @@
 ---
 name: default-flip-must-audit-all-doc-surfaces
-description: A stale roster/config-default fact fixed in one doc surface can survive untouched in a sibling surface
+description: "A stale default fixed in one doc can survive in sibling docs. Grep the repo"
 metadata: 
   node_type: memory
   type: project

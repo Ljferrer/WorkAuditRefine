@@ -66,3 +66,5 @@ so this is a checklist, not a live defect.
 
 Related: [[new-run-config-knob-needs-war-room-whitelist-touch]],
 [[default-flip-must-audit-all-doc-surfaces]].
+
+> archived 2026-11-11: resolved — moved to archive

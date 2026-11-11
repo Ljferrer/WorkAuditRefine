@@ -1,6 +1,6 @@
 ---
 name: the-args-preflight-runs-the-templates-own-provenance-floor-slice-so-floor-edits-must-keep-its-markers-and-bindings
-description: "The args preflight executes the template's floor slice, so a floor edit must keep its markers and FLOOR_BINDINGS true"
+description: "The args preflight runs the template floor slice. Keep its markers and bindings"
 metadata:
   node_type: memory
   type: project

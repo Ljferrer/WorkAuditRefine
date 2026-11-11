@@ -1,6 +1,6 @@
 ---
 name: doc-drift-on-a-near-full-budgeted-surface-is-parked-not-fixed-by-late-fix-rounds
-description: Late-fix workers park doc-drift fixes on near-full byte-budgeted cards as Ignore-for-now notes
+description: "Late-fix workers park doc drift on near-full budgeted cards as Ignore-for-now"
 metadata:
   promoted: dev/2026-11-08-engine-findings-ace-and-late-fix@phase-3
   node_type: memory

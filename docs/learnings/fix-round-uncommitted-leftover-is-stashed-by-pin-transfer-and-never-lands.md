@@ -1,6 +1,6 @@
 ---
 name: fix-round-uncommitted-leftover-is-stashed-by-pin-transfer-and-never-lands
-description: "SUPERSEDED (#2617): a dirty task worktree at pin-transfer or merge-task now holds the task (escalate); stash entries exist only from older runs"
+description: "SUPERSEDED (#2617): dirty task worktree at pin-transfer or merge-task holds it"
 metadata:
   promoted: dev/2026-10-20-rea-artifact-evidence@phase-6
   node_type: memory

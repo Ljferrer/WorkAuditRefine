@@ -1,6 +1,6 @@
 ---
 name: negative-assert-on-a-fixture-that-cannot-carry-the-offender-is-vacuous-and-a-label-count-a-fix-round-also-satisfies
-description: "A not-seated assertion on a fixture with no such row cannot fail, and a label count that a fix round also reaches proves nothing"
+description: "Negative asserts on fixtures lacking the offender, or shared counts, are vacuous"
 metadata:
   promoted: dev/2026-10-28-blocked-ace-and-merge-provenance@phase-5
   node_type: memory

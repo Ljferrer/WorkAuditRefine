@@ -1,6 +1,6 @@
 ---
 name: turning-an-always-hold-signal-into-a-fix-route-stales-every-reader-that-assumed-it-held
-description: "When an always-hold signal becomes fixable, every reader that inferred a hold from it goes stale"
+description: "When an always-hold signal becomes fixable, readers that assumed a hold go stale"
 metadata:
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: dirty-worktree-fingerprint-needs-blob-hashes-z-status-and-link-text-not-a-bare-status-hash
-description: "A bare git status hash misses a second edit to a dirty file, so fingerprint blob hashes from a -z status"
+description: "A bare git status hash misses a second edit to a dirty file. Hash blobs from -z"
 metadata:
   node_type: memory
   type: project

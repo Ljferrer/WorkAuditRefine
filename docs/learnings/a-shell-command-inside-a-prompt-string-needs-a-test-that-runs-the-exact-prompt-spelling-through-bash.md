@@ -1,6 +1,6 @@
 ---
 name: a-shell-command-inside-a-prompt-string-needs-a-test-that-runs-the-exact-prompt-spelling-through-bash
-description: A git command spelled in a dispatched prompt needs a test that runs that exact text through bash
+description: "A git command spelled in a prompt needs a test that runs that exact text in bash"
 metadata:
   node_type: memory
   type: project

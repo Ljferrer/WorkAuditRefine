@@ -1,6 +1,6 @@
 ---
 name: a-seat-supplied-engine-stamp-is-stripped-at-intake-so-a-fixture-must-drain-for-real-or-seam-the-source
-description: "A fixture cannot plant drainCause or other engine stamps through a seat reply, because intake strips them"
+description: "Intake strips drainCause from seat replies. Drain for real or seam the source"
 metadata:
   node_type: memory
   type: project

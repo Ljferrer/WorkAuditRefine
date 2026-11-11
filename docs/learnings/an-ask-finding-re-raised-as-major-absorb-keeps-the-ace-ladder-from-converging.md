@@ -1,6 +1,6 @@
 ---
 name: an-ask-finding-re-raised-as-major-absorb-keeps-the-ace-ladder-from-converging
-description: "An unruled ask finding that later rounds re-raise as Major absorb makes every ace round fail, so the fix is an early ruling"
+description: "An unruled ask re-raised as Major absorb keeps ace rounds failing. Rule it early"
 metadata:
   node_type: memory
   type: project

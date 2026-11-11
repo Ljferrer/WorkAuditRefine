@@ -1,6 +1,6 @@
 ---
 name: a-doc-shape-test-that-takes-the-first-regex-match-binds-the-wrong-row-when-a-second-line-reuses-the-shape
-description: A doc-shape test that reads the first regex match binds the wrong row if a new doc line reuses that shape
+description: "A first-match doc-shape test binds the wrong row when a line reuses its shape"
 metadata:
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: touched-set-resolver-must-cover-every-path-form-the-admitting-guard-passes
-description: A tool-call resolver feeding a compare-on-exit control must parse every path form its admitting guard lets through
+description: "A compare-on-exit resolver must parse every path form its admitting guard passes"
 metadata:
   node_type: memory
   type: project

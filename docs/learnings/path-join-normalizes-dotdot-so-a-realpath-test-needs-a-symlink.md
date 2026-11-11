@@ -1,6 +1,6 @@
 ---
 name: path-join-normalizes-dotdot-so-a-realpath-test-needs-a-symlink
-description: "path.join folds '..' segments before the code under test sees them, so a realpath pin needs a symlinked input"
+description: "path.join folds '..' before the code sees it, so a realpath test needs a symlink"
 metadata:
   node_type: memory
   type: project

@@ -51,3 +51,5 @@ metadata:
 Related: [[weak-test-assertion-passes-without-feature-being-exercised]], [[negative-assert-on-a-fixture-that-cannot-carry-the-offender-is-vacuous-and-a-label-count-a-fix-round-also-satisfies]], [[memory-query-local-fence-is-hook-only-and-binds-four-seats-not-everyone]].
 
 **Locate-cue (verify still present before acting).** `skills/_shared/war-memory-mcp.test.mjs`: the `ES3:` row, where `missing` now sits under `.claude/projects/y/memory`, and the `ES4:` row, where `local` sits under the anchor. Found at landed tip 24c4d0c3 (phase 2), read through the run's `_refinery` worktree (HEAD equal to the tip). Both defects were fixed before land, so this records the pattern, not a live instance.
+
+> archived 2026-11-11: resolved — moved to archive

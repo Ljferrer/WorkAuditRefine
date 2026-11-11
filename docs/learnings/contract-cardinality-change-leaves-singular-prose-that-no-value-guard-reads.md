@@ -1,6 +1,6 @@
 ---
 name: contract-cardinality-change-leaves-singular-prose-that-no-value-guard-reads
-description: A one-to-N contract change leaves singular prose on surfaces that a path-value guard never reads
+description: "A one-to-N contract change leaves singular prose no path-value guard reads"
 metadata:
   promoted: dev/2026-11-08-engine-findings-ace-and-late-fix@phase-1
   node_type: memory

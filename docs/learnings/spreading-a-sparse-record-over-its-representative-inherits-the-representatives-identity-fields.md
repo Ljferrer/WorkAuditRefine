@@ -1,6 +1,6 @@
 ---
 name: spreading-a-sparse-record-over-its-representative-inherits-the-representatives-identity-fields
-description: "A row built as { ...rep, ...x } from a sparse x silently takes rep's seat, class and line"
+description: "{ ...rep, ...x } with a sparse x silently takes rep's seat, class and line"
 metadata:
   node_type: memory
   type: project
