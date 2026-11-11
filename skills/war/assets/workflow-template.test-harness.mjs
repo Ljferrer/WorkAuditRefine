@@ -2491,6 +2491,12 @@ const BARE_INTERPOLATION_CENSUS = [
   // three params are r.task.worktree, r.task.branch and ph.integrationBranch at all four step (a) copies,
   // each entry-validated — all construction-guaranteed strings.
   'MERGE_FACTS_RULE', 'NEVER_MOVE_MERGED', 'nmBranch', 'nmTarget', 'nmWorktree',
+  // Plan 2026-11-08-model-routing-and-prompt-byte-budgets Task 5.3 (PIN-27): the relay prompts' shq-quoted
+  // words (A, Br, I, K, P, S, SEED, T, W: each shq of a context, task or probe string), the engine-read
+  // snapshot shas (B, before.source_sha: fullSha-checked by mergeSnapshot), tipText (built from S and A),
+  // and the params of relayRepo (repo), identityCmd (idBase, idTip) and identityFatal (what), each a
+  // string at every caller — all construction-guaranteed.
+  'A', 'B', 'Br', 'I', 'K', 'P', 'S', 'SEED', 'T', 'W', 'before.source_sha', 'idBase', 'idTip', 'repo', 'tipText', 'what',
 ]
 
 // #1767 (D10): every slug word stoplisted or sub-length used to EMPTY ownTokens and silently switch the
@@ -3843,6 +3849,39 @@ const scriptPromptCalls = async (source = src) => {
   ]
   return runs.flatMap(r => r.calls).filter(c => seatOf(c.opts) === 'war-refiner' && (c.prompt || '').includes('provision-worktrees.sh'))
 }
+// ---- plan 2026-11-08-model-routing-and-prompt-byte-budgets, Task 5.3: the Git relays on the helper ----
+// relayRun: one ace phase that dispatches all five relays (tip-probe, pin-snapshot, pin-confirm,
+// merge-snapshot, merge-confirm) and lands t1. relayCommandsOf: each git command a relay prompt
+// spells, in backticks or in MERGE_FACTS_RULE's bare form, with every <placeholder> filled by a full
+// SHA and, when the prompt names its repo in the relayRepo lead-in, -C <repo> on each side of a pipe.
+const RELAY_KINDS = ['merge-snapshot', 'pin-snapshot', 'merge-confirm', 'pin-confirm', 'tip-probe']
+const RELAY_FILL = 'c0ffee'.padEnd(40, '0')
+const relayImpl = () => buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]), approveWith('audit:t1:correctness', [])] }, aceBase([]))
+const relayRun = (over = {}, seats = {}, source = src) => runPhase(ACE_ARGS(over), relayImpl(), seats, source)
+const relayCall = (calls, kind) => calls.find(c => c.opts.dispatchKind === kind)
+const relayCommandsOf = prompt => {
+  const p = String(prompt)
+  const repo = (p.match(/ Run each git command this prompt names as git -C (\S+) <command>/) || [])[1]
+  const ticked = [...p.matchAll(/`(git [^`]+)`/g)].map(m => m[1])
+  const bare = [...p.replace(/`[^`]*`/g, '').matchAll(/git (?:merge-base|show) (?:'[^']*'|[^'(),}<])*<[^>]+>(?: <[^>]+>)?/g)].map(m => m[0])
+  return [...ticked, ...bare].map(c => c.replace(/<[^>]+>/g, RELAY_FILL))
+    .map(c => repo ? c.split(' | ').map(s => s.replace(/^git /, 'git -C ' + repo + ' ')).join(' | ') : c)
+}
+// mutate(from, to): a template copy with one live site replaced, for a row's mutation-red proof.
+// RELAY_SITES: each relay's first-attempt spawn site and its spawn('refiner') mutant. NULL_PIN_OFF: a
+// copy whose nullFullPin never fires.
+const mutate = (from, to) => { assert.equal(src.split(from).length, 2, 'the mutation target is one live site: ' + from); return src.replace(from, to) }
+const RELAY_SNAPSHOT_SITE = ['schema: MERGE_SNAPSHOT, ...(attempt ? spawnRefinerRecovery() : helperOpts(...words))', "schema: MERGE_SNAPSHOT, ...(attempt ? spawnRefinerRecovery() : spawn('refiner'))"]
+const RELAY_SITES = {
+  'merge-snapshot': RELAY_SNAPSHOT_SITE,
+  'pin-snapshot': RELAY_SNAPSHOT_SITE,
+  'merge-confirm': ['schema: MERGE_CONFIRMATION, ...helperOpts(...words)', "schema: MERGE_CONFIRMATION, ...spawn('refiner')"],
+  'pin-confirm': ['schema: PIN_GIT_PROOF, ...(attempt ? spawnRefinerRecovery() : helperOpts(...words))', "schema: PIN_GIT_PROOF, ...(attempt ? spawnRefinerRecovery() : spawn('refiner'))"],
+  'tip-probe': ['dispatchSite(body, { ...opts, ...helperOpts(...words) })', 'dispatchSite(body, opts)'],
+}
+const NULL_PIN_OFF = () => mutate('const nullFullPin = (pins, asked) => pins.some((sha, i) => sha === null && fullSha(asked[i]))', 'const nullFullPin = () => false')
+const helperGuard = command => spawnSync('bash', [join(here, '../../../hooks/validate-auditor-git.sh')], { encoding: 'utf8',
+  input: JSON.stringify({ agent_type: 'work-audit-refine:war-helper', tool_input: { command } }) })
 
 export {
   PROVISION_TIER_KINDS,
@@ -4318,4 +4357,14 @@ export {
   CLAIM_ARGS,
   claimImpl,
   netZeroClash,
+  RELAY_KINDS,
+  RELAY_FILL,
+  relayImpl,
+  relayRun,
+  relayCall,
+  relayCommandsOf,
+  helperGuard,
+  mutate,
+  RELAY_SITES,
+  NULL_PIN_OFF,
 }

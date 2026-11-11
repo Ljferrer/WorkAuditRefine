@@ -5004,3 +5004,38 @@ test('PIN-9 — GLOSSARY.md **Committed-tree grounding** calls git grep -F -e th
   assert.match(block[0], /\[ADR 0029\]\(docs\/adr\/0029-capture-grounds-on-committed-tip\.md\), Amendments 2026-10-22\/11-08/,
     'the entry must keep the ADR 0029 link and name Amendments 2026-10-22 and 2026-11-08')
 })
+
+// (PIN-9, plan 2026-11-08-model-routing-and-prompt-byte-budgets seed-2) SKILL.md named `agents`,
+// `audit` and `run` as the config-derived keys at two operative sites, and neither named `routing`.
+// The only threading rule sat in references/model-routing.md, which the Lead reads only when it
+// stamps a class or a worker tier. A config that sets only a sampled-review or floor value then
+// reached no operative instruction. Both sites now name `routing` when set. Each site is extracted
+// by construct (its section, then its sentence), so a `routing` mention elsewhere cannot satisfy a
+// row. The sites carry no sub-key or value: model-routing.md stays the one home.
+test('PIN-9 — SKILL.md names `routing` (when set) in Setup step 1 and in the per-phase Workflow args, with no sub-key or value', () => {
+  const section = (heading) => {
+    const start = skillMd.indexOf(`\n## ${heading}`)
+    assert.ok(start >= 0, `could not locate the \`## ${heading}\` section in SKILL.md — the extraction construct rotted`)
+    const end = skillMd.indexOf('\n## ', start + 1)
+    return skillMd.slice(start, end < 0 ? undefined : end)
+  }
+  const setupStep = section('Setup').match(/^1\. \*\*Load the run config[^\n]*/m)
+  assert.ok(setupStep, 'could not locate step 1 (**Load the run config**) under `## Setup` — the extraction construct rotted')
+  const supplies = setupStep[0].match(/The resolved config supplies [^.]*\./)
+  assert.ok(supplies, 'Setup step 1 must keep its "The resolved config supplies …." sentence')
+  assert.equal(supplies[0],
+    'The resolved config supplies `agents`, `audit`, `run`, `routing` when set, and any non-null `overrides`.',
+    'Setup step 1 must name `routing` when set among the resolved config keys, beside `agents`, `audit` and `run`')
+
+  const perPhase = section('Per phase')
+  const argsList = perPhase.match(/\*\*`agents` \/ `audit` \/ `run`\*\*[^,]*from the resolved run config/)
+  assert.ok(argsList, 'the `## Per phase` Workflow args list must keep its **`agents` / `audit` / `run`** … "from the resolved run config" clause')
+  assert.equal(argsList[0],
+    '**`agents` / `audit` / `run`** (and `routing` when set) from the resolved run config',
+    'the per-phase Workflow args list must name `routing` (when set) beside `agents` / `audit` / `run`')
+
+  for (const [name, site] of [['Setup step 1', supplies[0]], ['the per-phase args clause', argsList[0]]]) {
+    assert.doesNotMatch(site, /routing\.|sampleOpusReview|aceEdit|opusFloor|classes/,
+      `${name} must not restate a routing sub-key or value — references/model-routing.md is the one home`)
+  }
+})

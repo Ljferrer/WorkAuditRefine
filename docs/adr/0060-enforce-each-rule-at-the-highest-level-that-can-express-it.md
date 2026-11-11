@@ -124,3 +124,4 @@ recorded in the Decision log below.
 ## Decision log
 
 - 2026-11-09 · ADR authored in the living form; ranks the six enforcement levels, states the law, extends least start from context to tools and permission, and names four prompt-only exceptions · issues #2782, #2783, #2784
+- 2026-11-10 · the five Git relays now run on `war-helper` on their first attempt, under its own guard arm; ADR 0057's "Snapshot and confirm dispatches also stay there" sentence is rewritten in place · issue #2784 (plan 2026-11-08-model-routing-and-prompt-byte-budgets, Task 5.3)

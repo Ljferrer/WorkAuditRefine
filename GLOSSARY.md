@@ -760,7 +760,8 @@ _Avoid_: fix model (it's an optional override, not a standing role).
 
 **Helper**:
 The small read-only agent (`agents/war-helper.md`, tier `agents.helper`) that runs the `audit-pin`
-and `diff-probe` dispatches: Bash only, confined by the auditor git guard (ADR 0057). A word the
+and `diff-probe` dispatches and the `merge-snapshot`, `pin-snapshot`, `merge-confirm`, `pin-confirm`
+and `tip-probe` relays: Bash only, confined by its own arm of `validate-auditor-git.sh` (ADR 0057). A word the
 guard cannot pass bare routes that one dispatch to the refiner.
 _Avoid_: fifth role (it is a dispatch tier, never in `ROLES`).
 

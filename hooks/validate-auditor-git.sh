@@ -15,7 +15,16 @@
 #   same way through its own suffix-anchored arm `*war-evidence-auditor`
 #   (`*war-auditor` does not capture `<ns>:war-evidence-auditor`); its MCP
 #   tools are gated by validate-evidence-auditor-mcp.sh, never here.
-#   war-helper (ADR 0057) has its own arm too: it keeps Bash only to read Git.
+#   war-helper (ADR 0057) has its own arm and its own policy (PIN-26): it
+#   keeps Bash only to read Git, and it runs the audit-pin and diff-probe
+#   dispatches and the snapshot, confirm, pin and tip-probe relays. The helper
+#   policy is the read-only set below plus ls-remote, rev-list, patch-id,
+#   hash-object and cherry (see HELPER RELAY VERBS), and one pipe whose two
+#   sides are each a git command the helper policy admits (see HELPER PIPE).
+#   It still denies hash-object -w, ls-remote -u/--upload-pack/--exec, a
+#   second pipe and every other shell syntax, and its deny text names the
+#   helper policy. The two auditor arms keep the read-only set alone, and
+#   fetch stays excluded for every seat.
 #   Every other agent type → exit 0 (pass-through; this guard gates these
 #   three read-only agents only).
 #
@@ -93,17 +102,21 @@ cmd="$(get '.tool_input.command')"
 # seat has its own arm: `*war-auditor` does not capture
 # `<ns>:war-evidence-auditor`, and the seat would otherwise pass through.
 # ---------------------------------------------------------------------------
+is_helper=0
 case "$atype" in
   *war-auditor) ;;
   *war-evidence-auditor) ;;
-  *war-helper) ;;
+  *war-helper) is_helper=1 ;;
   *) exit 0 ;;
 esac
 
-# deny <reason>: emit WAR: marker on stderr and exit 2.
+# deny <reason>: emit WAR: marker on stderr and exit 2. A helper denial names
+# the helper policy (PIN-26).
 deny() {
   _dm="${1//DASHQUOTEDVALUE/QUOTEDVALUE}"
-  echo "WAR: auditor git guard DENIED: ${_dm//QUOTEDVALUE/<quoted value>}" >&2
+  _pol=""
+  if [ "$is_helper" = 1 ]; then _pol="helper policy: "; fi
+  echo "WAR: auditor git guard DENIED: $_pol${_dm//QUOTEDVALUE/<quoted value>}" >&2
   exit 2
 }
 
@@ -179,6 +192,32 @@ mask_quoted_values() {
 }
 quote_refused=0
 mask_quoted_values || quote_refused=1
+
+# ---------------------------------------------------------------------------
+# HELPER PIPE (PIN-26): the helper policy admits one pipe between two git
+# commands, as in `git diff A...B | git patch-id --stable`. The split reads the
+# masked command, so a | inside an admitted quoted value is data, not a pipe. A
+# refused quote skips the split, and the quote rule below denies it. Each side
+# runs this guard again as the same seat: it must be a git command the helper
+# policy admits, with its own one -C <path> peel. A side holds no | (two or more
+# deny here), so a second pipe never reaches a side. The auditor arms never
+# split: their | still denies at the chain-operator rule.
+# ---------------------------------------------------------------------------
+if [ "$is_helper" = 1 ] && [ "$quote_refused" = 0 ]; then
+  case "$cmd" in
+    *'|'*)
+      _pipes="${cmd//[!|]/}"
+      [ "${#_pipes}" = 1 ] || deny "command holds ${#_pipes} pipe bytes: the helper policy admits one pipe between two git commands, never a second pipe or ||"
+      for _side in "${cmd%%|*}" "${cmd#*|}"; do
+        _rc=0
+        jq -nc --arg t "$atype" --arg c "$_side" '{agent_type:$t,tool_input:{command:$c}}' \
+          | bash "${BASH_SOURCE[0]}" || _rc=$?
+        [ "$_rc" = 0 ] || [ "$_rc" = 2 ] || deny "the pipe side check failed (exit $_rc)"
+        [ "$_rc" = 0 ] || exit 2
+      done
+      exit 0 ;;
+  esac
+fi
 
 # ---------------------------------------------------------------------------
 # CHARACTER ALLOWLIST check (fail-closed).
@@ -358,7 +397,15 @@ case "$rest" in
   *)
     # Extract first word for a cleaner error message.
     first_word="$(printf '%s' "$rest" | cut -d' ' -f1)"
-    deny "git subcommand '$first_word' is not in the read-only allowlist (diff/log/show/merge-base/rev-parse/status/ls-files/ls-tree/cat-file/blame/branch/grep); for repo-wide search use the Grep tool, or with no Grep tool the admitted form git grep -F -e <token> (or -E -e <regex>)" ;;
+    # The helper policy adds five relay verbs (PIN-26); fetch stays denied.
+    helper_note=""
+    if [ "$is_helper" = 1 ]; then
+      case "$first_word" in
+        ls-remote|rev-list|patch-id|hash-object|cherry) subcmd="$first_word" ;;
+      esac
+      helper_note="; the helper policy adds ls-remote/rev-list/patch-id/hash-object/cherry, and fetch stays denied for every seat"
+    fi
+    [ -n "$subcmd" ] || deny "git subcommand '$first_word' is not in the read-only allowlist (diff/log/show/merge-base/rev-parse/status/ls-files/ls-tree/cat-file/blame/branch/grep); for repo-wide search use the Grep tool, or with no Grep tool the admitted form git grep -F -e <token> (or -E -e <regex>)$helper_note" ;;
 esac
 
 # A dash-led quoted value (DASHQUOTEDVALUE) is data only as the value of a
@@ -510,6 +557,78 @@ if [ "$subcmd" = "grep" ]; then
   [ "$grep_fixed$grep_ext" != 11 ] || grep_deny "-E and -F together: pick one selector"
   [ "$grep_fixed$grep_ext" != 00 ] || grep_deny "-F (or --fixed-strings) or -E is missing"
   [ "$grep_patterns" -ge 1 ] || grep_deny "at least one -e <token> is required (found 0)"
+fi
+
+# ---------------------------------------------------------------------------
+# HELPER RELAY VERBS (PIN-26): only the helper reaches these four loops; the
+# extractor admits the five verbs for no other seat. rev-list is a read like
+# log and takes the scans below. The other four are default-deny by token
+# shape: each admits a short list of exact flags, and every other dash token
+# denies, so no abbreviation or short cluster of a write or command-running
+# flag gets through.
+#   ls-remote   : --heads --tags --refs --exit-code --symref --sort=<key>, one
+#                 repository that is a plain word with no ':' (no URL, so no
+#                 ext:: or other transport), then ref patterns. -u, --upload-pack
+#                 and --exec name a command to run, so every -u, --u and --e
+#                 spelling but --exit-code is named in its deny.
+#   patch-id    : --stable, --unstable or --verbatim, and nothing else.
+#   hash-object : --stdin alone. -w writes an object, and a path argument
+#                 can run a configured clean filter.
+#   cherry      : -v, --abbrev, --abbrev=<n>, at most three revisions.
+# ---------------------------------------------------------------------------
+if [ "$subcmd" = "ls-remote" ]; then
+  lr_repo=0
+  for tok in ${rest#ls-remote}; do
+    case "$tok" in
+      --heads|--tags|--refs|--exit-code|--symref|--sort=*) ;;
+      -u*|--u*|--e*)
+        deny "git ls-remote '$tok' is denied: -u, --upload-pack and --exec run a command" ;;
+      -*)
+        deny "git ls-remote admits --heads, --tags, --refs, --exit-code, --symref and --sort=<key>; '$tok' is not one" ;;
+      *)
+        if [ "$lr_repo" = 0 ]; then
+          lr_repo=1
+          case "$tok" in
+            *:*|QUOTEDVALUE)
+              deny "git ls-remote takes a remote name, never a URL or a quoted value: '$tok'" ;;
+          esac
+        fi ;;
+    esac
+  done
+fi
+if [ "$subcmd" = "patch-id" ]; then
+  for tok in ${rest#patch-id}; do
+    case "$tok" in
+      --stable|--unstable|--verbatim) ;;
+      *) deny "git patch-id admits --stable, --unstable or --verbatim only; '$tok' is not one" ;;
+    esac
+  done
+fi
+if [ "$subcmd" = "hash-object" ]; then
+  for tok in ${rest#hash-object}; do
+    case "$tok" in
+      --stdin) ;;
+      --w*|-w*|-[!-]*w*)
+        deny "git hash-object '$tok' is denied: -w writes an object" ;;
+      *) deny "git hash-object admits --stdin only; '$tok' is not it" ;;
+    esac
+  done
+fi
+if [ "$subcmd" = "cherry" ]; then
+  ch_revs=0
+  for tok in ${rest#cherry}; do
+    case "$tok" in
+      -v|--abbrev) ;;
+      --abbrev=*)
+        case "${tok#--abbrev=}" in
+          ""|*[!0-9]*) deny "git cherry '$tok' is not --abbrev=<n>" ;;
+        esac ;;
+      -*) deny "git cherry admits -v, --abbrev and --abbrev=<n>; '$tok' is not one" ;;
+      *)
+        ch_revs=$((ch_revs + 1))
+        [ "$ch_revs" -le 3 ] || deny "git cherry takes at most three revisions" ;;
+    esac
+  done
 fi
 
 # ---------------------------------------------------------------------------
