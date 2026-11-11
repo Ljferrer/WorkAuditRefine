@@ -6,8 +6,8 @@
       "model": "opus",
       "effort": "default",
       "lite": {
-        "model": "opus",
-        "effort": "default"
+        "model": "sonnet",
+        "effort": "high"
       },
       "fix": {
         "model": "fable",
