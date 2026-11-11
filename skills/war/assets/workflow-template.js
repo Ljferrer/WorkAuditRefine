@@ -2111,8 +2111,9 @@ const parkAsk = f => {
 // (demote:absorb-regressed); on a NON-final phase those same rows never demote — they ride
 // carriedPhaseClose (D3a/D3b), as does a held phase's whole queue; a fileless absorb
 // (demote:fileless, severity default); a release-slot absorb at birth (demote:release-slot); an
-// exclusion-set hit at sweep time or at the terminal-pass filter (demote:exclusion-set); a baseline
-// red first found at the final phase's land gate, after the late-fix pass (demote:land-gate, #2630).
+// exclusion-set hit at sweep time or at the terminal-pass filter (demote:exclusion-set; a task-owned
+// hit on a non-final phase carries instead, exclusionHit); a baseline red first found at the final
+// phase's land gate, after the late-fix pass (demote:land-gate, #2630).
 // A FAILED ATTEMPT never demotes: an untouched-file ace row, a non-moved tip (tipClass unusable,
 // non-descendant or unchanged) after a polish, subset or re-entry ace dispatch, dead or not, blocked
 // or not (#2485 D2), a red gate at an ace-family tip, and a regressed multi-commit range at the
@@ -3907,9 +3908,10 @@ const chainRecordFix = (task, round, w, site) => chainOf(task.id).entries.push({
 // row was already stamped one round lower: each ace site captures chainRound through
 // correctiveRoundOf's 'ace' arm before its absorbRounds charge, and chainRecordFix stamps that
 // captured value, while the re-audit reads the charged sum (except at a zero sum, where the
-// 1-based floor makes both read 1). The three ace fixer sites pass correctiveRound itself: their threaded rows are
-// absorbs, never the blockers, and the audit loop stamps its last audit + fix pair with the same number
-// the ace arm reads (fixRounds + absorbRounds), so the default would drop that pair.
+// 1-based floor makes both read 1). The three ace fixer sites pass correctiveRound itself: their
+// threaded rows are absorbs, never the blockers, and the audit loop stamps its last audit + fix
+// pair with the same number the ace arm reads (fixRounds + absorbRounds), so the default would
+// drop that pair.
 const chainDigest = (task, correctiveRound, throughRound = correctiveRound - 1) => {
   if (!(correctiveRound >= 2)) return ''
   const c = chainOf(task.id)
