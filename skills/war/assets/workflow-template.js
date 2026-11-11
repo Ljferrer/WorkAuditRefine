@@ -535,13 +535,14 @@ let pinProofBase = null
 // the follow-up consolidation or the file-followups dispatch below (an unruled ask is never filed).
 const asks = []
 // carriedPhaseClose (in-band-absorb-default D3b, PIN-5): absorb findings this phase could not land
-// and did NOT demote — a held phase's whole phaseCloseQueue, a discarded sweep's absorbs on a
-// non-final phase EXCEPT the approve trail (a panel-approved branch whose merge never landed files
-// them naming the branch, D15 #2087), and a non-final terminal pass's regressed/fresh absorbs. A
-// TOP-LEVEL key on the phase return at BOTH return sites (never inside the handoff — its followUps projection is
-// explicit-key: it carries drainCause since #1799 and nothing a carry needs), present as [] on a
-// phase with nothing carried so absence is never ambiguous. The Lead threads it back as
-// args.seededPhaseClose at the relaunch.
+// and did NOT demote — a held phase's whole phaseCloseQueue; on a non-final phase, a discarded
+// sweep's queued phaseCloseQueue rows unless the panel approved the polish branch (the approve
+// trail, D15 #2087: those queued rows file naming the branch) and its sweep-raised absorbs, approve
+// trail or not; a non-final terminal pass's regressed/fresh absorbs; and a non-final exclusion-set
+// hit on a file a task of this run owns. A TOP-LEVEL key on the phase return at BOTH return sites,
+// never inside the handoff: its followUps projection is explicit-key and carries drainCause since
+// #1799 and nothing a carry needs. Present as [] on a phase with nothing carried, so absence is
+// never ambiguous. The Lead threads it back as args.seededPhaseClose at the relaunch.
 const carriedPhaseClose = []
 // carriedTasks (late-defects D9/D20/D21, PIN-9/PIN-20/PIN-21): the late defects whose late-fix rounds ran
 // out on a non-final phase, the behavior rows raised after the late-fix pass (carryLate), and the seeded tasks
@@ -825,10 +826,14 @@ const intentClause = intent
 // VERBATIM in agents/war-auditor.md (the both-surfaces drift test asserts both surfaces).
 const adjudications = Array.isArray(A.adjudications)
   ? A.adjudications.filter(r => r && (typeof r === 'string' || typeof r === 'object')) : []
+// The value-row citation words (#2198): adjRow renders them and isValueRow's string arm matches them, so
+// the render and the floor read one spelling. Bound in assert-args-complete.mjs FLOOR_BINDINGS
+// (constraint 9; the args-floor plan's PIN-12).
+const SUPERSEDES_LITERAL = 'supersedes plan literal: '
 const adjRow = r => typeof r === 'string' ? r
   // pt-tagged prompt-feeding row (adjudicationClause → auditPrompt): every interpolation is guarded/defaulted
   // (r.adjudicated/r.value ?? '', r.supersedes ternary-gated) — a behavioral no-op tag for census uniformity.
-  : pt`${r.adjudicated ?? r.value ?? ''}${r.supersedes ? pt` (supersedes plan literal: ${r.supersedes})` : ''}`
+  : pt`${r.adjudicated ?? r.value ?? ''}${r.supersedes ? ' (' + SUPERSEDES_LITERAL + pt`${r.supersedes})` : ''}`
 const adjudicationClause = adjudications.length
   ? pt`\nVERSION-PRECEDENCE RULE: the authoritative version is task instruction > red-team adjudication > plan body literal. Before scoring a version/release-slot mismatch as a defect, consult the adjudicated rows below; a value matching the adjudication is correct even when it differs from the plan body literal.\nADJUDICATION-MATCH RULE: a finding whose substance matches an adjudicated row below is a confirmation note, never an escalation — cite the matching row; the delta is pre-adjudicated and not re-litigable this run. A candidate that deviates from BOTH the plan and the adjudicated row is not a match — judge it normally.\n`
     + adjudications.map(r => pt`- ${adjRow(r)}`).join('\n') + '\n'
@@ -1387,7 +1392,10 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   const PROVENANCE_TOKEN_STOPLIST = new Set(['and', 'the', 'for', 'with', 'from', 'into', 'over', 'not', 'all',
     'war', 'plan', 'plans', 'phase', 'phases', 'task', 'tasks', 'test', 'tests', 'fix', 'fixes', 'docs',
     'run', 'runs', 'gate', 'gates', 'audit', 'merge', 'land', 'issue', 'issues', 'release', 'follow', 'when'])
-  const ownPlanStem = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').replace(/\.md$/i, '') : null
+  // The plan-file basename (#2199): derived once from the guarded plan.file; ownPlanStem drops its .md.
+  const baseOf = p => String(p).replace(/^.*\//, '').toLowerCase()
+  const ownPlanBase = (plan && typeof plan.file === 'string' && plan.file) ? baseOf(plan.file) : null
+  const ownPlanStem = ownPlanBase ? ownPlanBase.replace(/\.md$/i, '') : null
   let ownTokens = [...new Set([planSlug, ownPlanStem]
     .filter(Boolean)
     .flatMap(s => String(s).toLowerCase().split(/[^a-z0-9]+/))
@@ -1402,16 +1410,17 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     log('workflow-template: #1413 own-token floor — every slug word is stoplisted or too short; falling back to the plan basename ' + JSON.stringify(ownTokens[0]) + ' as the single anchor token (#1767). The floor still fires.')
   }
   const tokenRe = t => new RegExp('(?<![A-Za-z0-9])' + String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![A-Za-z0-9])', 'i')
-  const ownPlanBase = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').toLowerCase() : null
-  const baseOf = p => String(p).replace(/^.*\//, '').toLowerCase()
   // Predecessor-citation strip for a preformatted STRING row (#1751): the citation segment is the
   // plan id DIRECTLY after `supersedes` (`supersedes docs/plans/<x>.md`, `supersedes: docs/plans/<x>.md`
   // or the adjRow render `(supersedes plan literal: docs/plans/<x>.md)`) — the object form's
   // `supersedes` field, never a leak — drop it before the foreign-id match. The strip is anchored to
   // that shape: a plan id at any distance after a bare `supersedes` word is NOT a citation and stays
   // for the scan. The own-token search keeps the citation, because the foreign-id match never sees it.
+  // The plan-id class is written once (#2203): the strip and isValueRow's bare-citation arm build
+  // their regexes from PLAN_ID_RE.source, each with its own flags.
   const PLAN_ID_RE = /docs\/plans\/[A-Za-z0-9._/-]+\.md/g
-  const stripSupersedes = text => String(text).replace(/supersedes[\s:]*(?:plan literal:\s*)?docs\/plans\/[A-Za-z0-9._/-]+\.md/gi, 'supersedes <predecessor citation>')
+  const SUPERSEDES_CITATION_RE = new RegExp('supersedes[\\s:]*(?:plan literal:\\s*)?' + PLAN_ID_RE.source, 'gi')
+  const stripSupersedes = text => String(text).replace(SUPERSEDES_CITATION_RE, 'supersedes <predecessor citation>')
   // Canonical value-row detection (D10, #1480): the schemas.md `{ adjudicated|value, supersedes }` object
   // (a VALUE-SHAPED string — one whitespace-free token of at most 64 chars, never prose — plus a string
   // supersedes; a Lead-stamped planFile may ride beside them), the string adjRow renders —
@@ -1421,8 +1430,10 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // prose `supersedes` bypass the own-token floor, so the value field must look like a value — in
   // BOTH arms: the string arm anchors the same one-token value segment before the citation, so
   // a preformatted prose ruling never launches un-doped where its object form refuses.
+  const VALUE_ROW_RENDER_RE = new RegExp('^\\S{1,64} \\(' + SUPERSEDES_LITERAL + '[^\\n]+\\)\\s*$')
+  const VALUE_ROW_CITATION_RE = new RegExp('^\\S{1,64} supersedes:? ' + PLAN_ID_RE.source + '\\s*$')
   const isValueRow = row => typeof row === 'string'
-    ? /^\S{1,64} \(supersedes plan literal: [^\n]+\)\s*$/.test(row) || /^\S{1,64} supersedes:? docs\/plans\/[A-Za-z0-9._/-]+\.md\s*$/.test(row)
+    ? VALUE_ROW_RENDER_RE.test(row) || VALUE_ROW_CITATION_RE.test(row)
     : !!row && typeof row === 'object' && typeof (row.adjudicated ?? row.value) === 'string' && typeof row.supersedes === 'string'
       && /^\S{1,64}$/.test(row.adjudicated ?? row.value)
       && Object.keys(row).every(k => ['adjudicated', 'value', 'supersedes', 'planFile', 'source'].includes(k))
@@ -1471,10 +1482,11 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   const slugAnchorOf = s => baseOf(s).replace(/\.md$/i, '')
   const hasOwnSlug = row => typeof row.planSlug === 'string' && !!row.planSlug
   const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
-  // The #1751 predecessor-citation strip (stripSupersedes / idText) is deliberately adjudications-only:
-  // the `supersedes` citation idiom is an adjudication-row shape. A foreign path here never refuses
-  // or warns (#2208), so its only effect is the own-token read-past, which also covers a citation
-  // because these rows carry no idText. The planSlug stamp and the own-token check below still apply.
+  // The #1751 predecessor-citation strip (stripSupersedes / idText) rides rowText, so it reads the
+  // string rows of backstops and adjudications. It never applies to ruledAsks, seededPhaseClose or
+  // seededTasks. A foreign path here never refuses or warns (#2208), so its only effect is the
+  // own-token read-past, which also covers a citation because these rows carry no idText.
+  // The planSlug stamp and the own-token check below still apply.
   const ruledAskRowText = row => {
     // a string row is its own scannable text (the sibling rowText discipline)
     if (typeof row === 'string') return { text: row, exempt: false }
@@ -1519,24 +1531,24 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
       provenanceProblems.push('workflow-template: args.' + argName + ' carries a ' + (stamped.stampNoun || 'planFile') + ' provenance stamp naming a foreign plan (' + stamped.foreignStamp + ') differing from ' + (stamped.stampAnchor || 'plan.file') + ' — a cross-plan args leak; refused at entry (#1413)')
       continue
     }
-    // scanText: non-exempt, non-value rows only (the own-token refusal surface — a surface whose rows
-    // are all exempt or all value rows never has to carry a token). evidenceText: EVERY row's text —
-    // own-token satisfaction may come from an exempt row (#1666 stands, never narrowed). The
-    // foreign-plan-id scan reads every row's text, exempt rows included (#1749), with citations
-    // stripped only where a row sets idText. Intent warns and launches (#2375), backstops and
-    // adjudications refuse, and ruledAsks, seededPhaseClose and seededTasks rows neither refuse nor warn (#2208,
-    // #2197). A foreign path outside a stripped citation never vouches for the plan, so the own-token
-    // search reads past each one: else a path like docs/plans/<own-word>-sibling.md would pass an
-    // intent the foreign arm no longer refuses. A stripped citation stays evidence, because stacked
-    // plans share slug words.
-    const scanText = rows.filter(r => !r.exempt && !r.value && r.text).map(r => r.text).join('\n')
+    // hasScanRows: a non-exempt, non-value row carries text (the own-token refusal surface — a
+    // surface whose rows are all exempt or all value rows never has to carry a token). evidenceText:
+    // EVERY row's text — own-token satisfaction may come from an exempt row (#1666 stands, never
+    // narrowed). The foreign-plan-id scan reads every row's text, exempt rows included (#1749), with
+    // citations stripped only where a row sets idText. Intent warns and launches (#2375), backstops
+    // and adjudications refuse, and ruledAsks, seededPhaseClose and seededTasks rows neither refuse
+    // nor warn (#2208, #2197). A foreign path outside a stripped citation never vouches for the
+    // plan, so the own-token search reads past each one: else a path like
+    // docs/plans/<own-word>-sibling.md would pass an intent the foreign arm no longer refuses. A
+    // stripped citation stays evidence, because stacked plans share slug words.
+    const hasScanRows = rows.some(r => !r.exempt && !r.value && r.text)
     const evidenceText = rows.filter(r => r.text).map(r => r.text).join('\n')
     const idText = rows.filter(r => r.text).map(r => r.idText ?? r.text).join('\n')
     if (!evidenceText) continue
     const planIds = idText.match(PLAN_ID_RE) || []
     const foreignIds = [...new Set(ownPlanBase ? planIds.filter(id => baseOf(id) !== ownPlanBase) : [])]
     const tokenText = foreignIds.reduce((t, id) => t.split(id).join(' '), evidenceText)
-    const ownTokenMiss = scanText && ownTokens.length && !ownTokens.some(t => tokenRe(t).test(tokenText))
+    const ownTokenMiss = hasScanRows && ownTokens.length && !ownTokens.some(t => tokenRe(t).test(tokenText))
     // Coordinate-less pre-check (#1882): a ruled-ask record without its REQUIRED planSlug coordinate
     // is the shape a legacy `{ title, suggested_fix, ruling }` record arrives in. When such a record
     // is what fails the own-token floor, the refusal names the missing coordinate — the actual
@@ -2059,7 +2071,7 @@ const findAsk = key => asks.find(a => askKeyOf.get(a) === key)
 // collision log still journals every re-raise.
 // The survivor's own raiser is part of that skip test: the seat that parked the record re-raising
 // it (minorsOf re-mints per round; demote()'s ask-refusal re-route reaches the same arm) never
-// lands on its own corroborators list, so the handoff row counts distinct seats.
+// lands on its own corroborators list (on the same file and title, the seat+file+title key above).
 const parkAsk = f => {
   const key = askContentKey(f)
   const dup = findAsk(key)
@@ -2071,7 +2083,8 @@ const parkAsk = f => {
     const same = c => c.seat === e.seat && c.file === e.file && c.title === e.title
     const recorded = !same(own) && !dup.corroborators.some(same)
     if (recorded) dup.corroborators.push(e)
-    log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + (e.file ? ' on ' + e.file : '') + ' — one parked record survives, ' + (recorded ? 'the re-raise recorded on its corroborators list' : 'already a corroborator, not recorded again') + ' (#1790).')
+    const outcome = recorded ? 'the re-raise recorded on its corroborators list' : 'already a corroborator, not recorded again'
+    log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + (e.file ? ' on ' + e.file : '') + ' — one parked record survives, ' + outcome + ' (#1790).')
     return
   }
   const record = { task: f.task ?? null, seat: f.seat ?? null, sha: f.sha ?? null,
@@ -2098,17 +2111,17 @@ const parkAsk = f => {
 // (demote:absorb-regressed); on a NON-final phase those same rows never demote — they ride
 // carriedPhaseClose (D3a/D3b), as does a held phase's whole queue; a fileless absorb
 // (demote:fileless, severity default); a release-slot absorb at birth (demote:release-slot); an
-// exclusion-set hit at sweep time or at the terminal-pass filter (demote:exclusion-set); a baseline
-// red first found at the final phase's land gate, after the late-fix pass (demote:land-gate, #2630). A
-// FAILED ATTEMPT never demotes: an untouched-file ace row, a non-moved tip (tipClass unusable,
+// exclusion-set hit at sweep time or at the terminal-pass filter (demote:exclusion-set; a task-owned
+// hit on a non-final phase carries instead, exclusionHit); a baseline red first found at the final
+// phase's land gate, after the late-fix pass (demote:land-gate, #2630).
+// A FAILED ATTEMPT never demotes: an untouched-file ace row, a non-moved tip (tipClass unusable,
 // non-descendant or unchanged) after a polish, subset or re-entry ace dispatch, dead or not, blocked
-// or not (#2485 D2), a red gate at an ace-family tip, and a regressed
-// multi-commit range at the polish, subset or re-entry arm (#2485 D4) route to the sweep
-// (routeToSweep, phaseClose:true) — the ace attempt did not happen, so the sweep is the next rung. A
-// FRESH absorb born at a re-audit re-enters the ladder (routeReauditMinors → aceReentry,
-// absorb-budget-bounded) or routes phaseClose:true to
-// the sweep when the budget is spent (D1/D2, #1731); with run.ace off every defaulted absorb routes
-// phaseClose:true to the sweep (D14, PIN-16) — the old ace-off demotion is retired.
+// or not (#2485 D2), a red gate at an ace-family tip, and a regressed multi-commit range at the
+// polish, subset or re-entry arm (#2485 D4) route to the sweep (routeToSweep, phaseClose:true) —
+// the ace attempt did not happen, so the sweep is the next rung. A FRESH absorb born at a re-audit
+// re-enters the ladder (routeReauditMinors → aceReentry, absorb-budget-bounded) or routes to the
+// sweep with phaseClose:true when the budget is spent (D1/D2, #1731). With run.ace off every
+// defaulted absorb routes phaseClose:true to the sweep (D14, PIN-16); the ace-off demotion is gone.
 // RUNTIME PREFIX VALIDATION (D13, PIN-15): every follow-up reason must lead with a DEMOTE_REASONS
 // member; a miss prepends 'demote:unclassified' and logs the site loudly — never a throw, so the
 // issue body's prefix line is never blank. Every demoted row is stamped engineFiled: true (the intake
@@ -2123,14 +2136,15 @@ const parkAsk = f => {
 // FORWARD-REVERT REGISTRATION: a demote on a forward-revert arm passes { reverted: true } so the
 // finding's content key lands in revertedKeys — the oscillation bound's enforcement registry (a
 // forward-reverted finding never re-enters; routeReauditMinors consults the set).
-// REGISTRY CONSULT (verdict-integrity D12, PIN-16, #1862): a follow-up demote consults acedKeys and filedKeys BEFORE
-// its minorsFiled push — on the regressed batch arm routeReauditMinors runs before aceBisect, so a
-// seat re-raising a batch finding as a follow-up has already filed the row (fileFollowUp) when the
-// forward-revert demote of the same content key arrives; the same-seat consolidation rule can never
-// collapse two such rows. A hit logs the corroboration, merges the raiser onto the surviving row
-// (corroborateSurvivor) and returns — the revertedKeys stamp still lands first, so the oscillation
-// bound holds either way. queuedKeys is deliberately NOT consulted: a queued re-mint is refused at
-// its own drain against THIS demote's registrations, so the demote must stand as the durable record.
+// REGISTRY CONSULT (verdict-integrity D12, PIN-16, #1862): a follow-up demote consults acedKeys and
+// filedKeys BEFORE its minorsFiled push — on the regressed batch arm routeReauditMinors runs before
+// aceBisect, so a seat re-raising a batch finding as a follow-up has already filed the row
+// (fileFollowUp) when the forward-revert demote of the same content key arrives; the same-seat
+// consolidation rule can never collapse two such rows. A hit logs the corroboration, merges the
+// raiser onto the surviving row (corroborateSurvivor) and returns — the revertedKeys stamp still
+// lands first, so the oscillation bound holds either way. queuedKeys is deliberately NOT consulted:
+// a queued re-mint is refused at its own drain against THIS demote's registrations, so the demote
+// must stand as the durable record.
 // revertedKeys is not consulted either: this function stamps it just above the consult, so
 // remintBlock() here would refuse every forward-revert demote and file nothing.
 const demote = (f, to, why, opts) => {
@@ -2261,17 +2275,15 @@ const revertedKeys = keyRegistry()
 // window exists. Consultation sites: re-audit routing, the re-entry drain, the held-row judgment
 // (judgeHeldRow), and demote()'s pre-push registry consult (D12, #1862). No count word here — a new caller joins by calling fileFollowUp (#2066).
 const filedKeys = keyRegistry()
-// queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (EVERY
-// phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, the
-// gate-audit floor pass's routeToSweep calls, and the ruledAsks push loop below (#1875);
-// seededPhaseClose rows are registered when this Set is constructed), for
-// budget-bounded re-entry (r.reentryQueue), HELD for the next ace batch (the batch-ace
-// blocker hold onto r.task.pendingAbsorbs), or CARRIED on carriedPhaseClose for the relaunch
-// (carryPhaseClose — a held phase's queue, a discarded sweep's absorbs and the terminal pass's
-// unlanded/fresh absorbs on a non-final phase) records its remintKey here (a row the behavior-row sort
-// sends to the late-fix pass keeps its key, and carryLate stamps a carriedTasks row), so a content-identical
-// re-mint at a later re-audit never queues a SECOND record — the queued record stands (logged,
-// never silent). Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
+// queued funnel (registry-coverage fix): every finding queued for the phase-close sweep, for
+// budget-bounded re-entry (r.reentryQueue), HELD for the next ace batch (the batch-ace blocker hold
+// onto r.task.pendingAbsorbs), or CARRIED on carriedPhaseClose for the relaunch (carryPhaseClose)
+// records its remintKey here, so a content-identical re-mint at a later re-audit never queues a
+// SECOND record — the queued record stands (logged, never silent).
+// No list here — a new caller joins by stamping queuedKeys at its own push.
+// seededPhaseClose rows are registered when this Set is constructed.
+// A row the behavior-row sort sends to the late-fix pass keeps its key, and carryLate stamps a
+// carriedTasks row. Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
 // aceReentry's drain deletes the drained entries' keys before its re-check (a drained finding is
 // no longer queued — the drain-time re-filter must judge it on the OTHER registries alone).
 const queuedKeys = keyRegistry()
@@ -2404,13 +2416,14 @@ const auditVerdictOf = id => {
   for (let i = auditLog.length - 1; i >= 0; i--) if (auditLog[i] && auditLog[i].task === id) return auditLog[i].verdict
   return 'never ran a wave'
 }
-// Phase-close carry (D3b, PIN-5): the rung BELOW the sweep on a phase that still has a successor —
-// a held phase's queue, a discarded sweep's absorbs (except the approve trail — a panel-approved
-// branch whose merge never landed files them naming the branch, D15 #2087) and the terminal pass's
-// unlanded/fresh absorbs on a non-final phase ride carriedPhaseClose (top-level on the phase return)
-// instead of demoting; the Lead threads them back as args.seededPhaseClose. The engine stamps
-// `planSlug` so the carried row clears the #1413 own-token floor on the relaunch by construction.
-// Logged, never silent.
+// Phase-close carry (D3b, PIN-5): the rung BELOW the sweep on a phase that still has a successor.
+// A held phase's queue rides carriedPhaseClose (top-level on the phase return) instead of
+// demoting. So do, on a non-final phase only: a discarded sweep's queued phaseCloseQueue rows
+// (except on the approve trail: a panel-approved branch whose merge never landed files those queued
+// rows naming the branch, D15 #2087), a discarded sweep's sweep-raised absorbs (approve trail or
+// not), the terminal pass's unlanded/fresh absorbs and a task-owned exclusion-set hit. The Lead
+// threads them back as args.seededPhaseClose. The engine stamps `planSlug` so the carried row
+// clears the #1413 own-token floor on the relaunch by construction. Logged, never silent.
 const carryPhaseClose = (f, why) => {
   // stamps queuedKeys (mirrors routeToSweep) — a later seat re-mint never carries a second copy
   queuedKeys.add(remintKey(f), f)
@@ -3638,6 +3651,22 @@ const segmentLoop = async (result, isSegment, redispatch) => {
   for (let segments = 0; isSegment(result) && segments < roundLimit; segments++) result = await redispatch(result, segments + 2)
   return result
 }
+// segmentedDispatch(body, opts, capture, seg): the segmented wrapper segmentedMerge and segmentedLand share
+// (#2552). It owns the re-dispatch log, the continuation dispatch and the exhaustion log. seg names the four
+// points the two copies differ: field (the marker riding status 'error'), noun ('gate' or 'land'), header
+// (opts, result) => the continuation header, and tail (the exhaustion log's closing text). It reads only
+// its arguments and module consts. Log lines are concatenation-built.
+const segmentedDispatch = async (body, opts, capture, seg) => {
+  const isSegment = res => !!res && res.status === 'error' && res[seg.field] === 'incomplete'
+  const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
+    log('Phase ' + ph.id + ': segmented ' + seg.noun + ' — ' + opts.label + ' returned ' + seg.field + ':\'incomplete\' (' + (result.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
+    return admitGateResult(await dispatchSite(seg.header(opts, result) + body, { ...opts, label: opts.label + ':segment-' + segment }), capture)
+  })
+  if (isSegment(result)) {
+    log('Phase ' + ph.id + ': segmented-' + seg.noun + ' budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — ' + seg.tail)
+  }
+  return result
+}
 // segmentedMerge(prompt, opts): one helper on all six merge-task dispatch sites: the four per-task
 // sites (initial merge, floor-retry re-merge, environment-proceed and baseline-proceed re-merges) and
 // the two sweep-family merges (merge:p<id>-polish and merge:p<id>-terminal, #2189). Appends
@@ -3651,21 +3680,11 @@ const segmentLoop = async (result, isSegment, redispatch) => {
 // concatenation-built.
 // A dispatch death enters Git reconciliation; only a proved-unmerged death reaches the merge slot. A
 // snapshot death, or TARGET_LOST or TARGET_LATE, returns before any merge dispatch.
-const segmentedMerge = async (prompt, opts, context) => {
-  const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
-  return reconciledMerge(DIRTY_TASK_STOP + prompt + segmentedGateClause, opts, context, async (body, opts, capture) => {
-    const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
-      log('Phase ' + ph.id + ': segmented gate — ' + opts.label + ' returned gate_segment:\'incomplete\' (' + (result.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
-      return admitGateResult(await dispatchSite(
-        pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior merge-task dispatch returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST; every step is idempotent (a done rebase re-resolves clean, a green gate re-runs green), so run the FULL sequence to completion.\n` + body,
-        { ...opts, label: opts.label + ':segment-' + segment }), capture)
-    })
-    if (isSegment(result)) {
-      log('Phase ' + ph.id + ': segmented-gate budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — the final still-incomplete result routes by its ridden status (error).')
-    }
-    return result
-  })
-}
+const segmentedMerge = async (prompt, opts, context) =>
+  reconciledMerge(DIRTY_TASK_STOP + prompt + segmentedGateClause, opts, context, (body, opts, capture) => segmentedDispatch(body, opts, capture, {
+    field: 'gate_segment', noun: 'gate',
+    header: (opts, result) => pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior merge-task dispatch returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST; every step is idempotent (a done rebase re-resolves clean, a green gate re-runs green), so run the FULL sequence to completion.\n`,
+    tail: 'the final still-incomplete result routes by its ridden status (error).' }))
 // Every logical gate owns a fresh artifact. Segmented continuations carry the returned path;
 // a missing result never aliases an earlier same-tip log (#2182/#2168).
 const gateCaptureClause = (refineryP, prefix) =>
@@ -3754,7 +3773,7 @@ const DISPOSITION_RULE_CLAUSE = pt`\nDISPOSITION RULE: every Minor/Nit finding c
 // section, so an edit lands in the reference first and here second. Pointer paths use the agent-resolved
 // '${CLAUDE_PLUGIN_ROOT}' literal idiom (plain strings, never pt interpolations). The bounded round count
 // is a safety precaution and never an obstacle (PIN-2): the round-5 tier is a completed outcome.
-const BACKWARD_CHAIN_WORKER_RULES = pt`1. Lock the finish line in this order: the task's \`Done when:\` command; else the End state numbers the slice serves; else the gate plus the slice's named deliverable. All three absent is the slice-level \`PLAN-DEFECT:\` route: return \`blocked\` with that prefix. Two equivalent readings of the finish line: lock one and state it in \`notes\`. Two non-equivalent readings: return \`blocked\` naming both. When the prompt carries the prepended \`DEPS ALREADY MERGED:\` dispatch clause, the rebase is still the first act, and the chain ends at the rebased tip.
+const BACKWARD_CHAIN_WORKER_RULES = pt`1. Lock the finish line in this order: the task's \`Done when:\` command; else the End state numbers the slice serves; else the gate plus the slice's named deliverable. All three absent is the slice-level \`PLAN-DEFECT:\` route: return \`blocked\` with that prefix. Two equivalent readings of the finish line: lock one and state it in \`notes\`. Two non-equivalent readings: return \`blocked\` naming both. When the task text opens with the \`DEPS ALREADY MERGED:\` dispatch clause (after the authority line), the rebase is still the first act, and the chain ends at the rebased tip.
 2. Chain backward from the finish line to the tip. Each link is a condition that must hold for the next link to hold. Number the links; the last link is the tip you were cut from.
 3. The bottleneck is the earliest unmet link. Work it first. A later link worked first is a site patch that the bottleneck can invalidate.
 4. Chunk every link with a done test: the command or assertion that proves the link true, and the token it prints. The printed-token duty is scoped to the \`Done when:\` command and the tests the task ships; nothing else needs a token.
@@ -3886,10 +3905,13 @@ const chainRecordFix = (task, round, w, site) => chainOf(task.id).entries.push({
 // FIX_NEEDED fixer, where the current round's blockers already ride the prompt in full, and the roster
 // audit, where chainRecordAudit has not yet stamped the current round (it runs after the audit
 // returns). The ace re-audit (chainAuditClause from aceReaudit) takes the default too: the ace fixer's
-// row was already stamped one round lower, because chainRecordFix runs before the absorbRounds charge
-// the re-audit reads. The three ace fixer sites pass correctiveRound itself: their threaded rows are
-// absorbs, never the blockers, and the audit loop stamps its last audit + fix pair with the same number
-// the ace arm reads (fixRounds + absorbRounds), so the default would drop that pair.
+// row was already stamped one round lower: each ace site captures chainRound through
+// correctiveRoundOf's 'ace' arm before its absorbRounds charge, and chainRecordFix stamps that
+// captured value, while the re-audit reads the charged sum (except at a zero sum, where the
+// 1-based floor makes both read 1). The three ace fixer sites pass correctiveRound itself: their
+// threaded rows are absorbs, never the blockers, and the audit loop stamps its last audit + fix
+// pair with the same number the ace arm reads (fixRounds + absorbRounds), so the default would
+// drop that pair.
 const chainDigest = (task, correctiveRound, throughRound = correctiveRound - 1) => {
   if (!(correctiveRound >= 2)) return ''
   const c = chainOf(task.id)
@@ -4051,7 +4073,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     + pt`\nCOST-CLAIM RULE: a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.`
     // RELEASE-BASELINE RULE (D3) — verbatim-mirrored in agents/war-auditor.md (same commit). The literal
     // ${integrationBranch}...${task.branch} is escaped so the emitted prose byte-matches the static mirror.
-    + pt`\nRELEASE-BASELINE RULE: judge a release/version-bump diff against the three-dot \`\${integrationBranch}...\${task.branch}\` merge-base set (exactly what this task added), never against a main checkout; an N-step main-lag when N stacked plans have not yet landed on main is the expected stacked-release lag, not a scope error.`
+    // Gated (#2783): a release task (its own Files:, or the origin a late fix carries as manifestTask) and
+    // the phase-close sweep of a phase holding one (releaseSweep) carry it; every other task renders ''.
+    + ((isReleaseTask(task.manifestTask || task) || task.releaseSweep) ? pt`\nRELEASE-BASELINE RULE: judge a release/version-bump diff against the three-dot \`\${integrationBranch}...\${task.branch}\` merge-base set (exactly what this task added), never against a main checkout; an N-step main-lag when N stacked plans have not yet landed on main is the expected stacked-release lag, not a scope error.` : '')
     // STALE-LOOKING-BUT-CORRECT CALIBRATION (Task 1.4, ADR 0030) — the full rule bodies live in
     // skills/war/references/finding-class.md (evicted from the standing card's "### Stale-looking-but-
     // correct calibration" subsection, late-defects Task 2.1, ADR 0042); this dispatched copy is a TOKEN SKELETON (prompt-surface simplification, spec §4.3/§4.4 —
@@ -4068,7 +4092,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // D8/D9/D12/D6 registry-row anchor token (policy-table/attribution, comment/lag/retired,
     // invariant/guard that holds/snapshot|line-number, preset/matrix) — the both-surfaces registry
     // test anchors them on BOTH surfaces. Reaches the inline gate-audit seat ONLY via the standing card.
-    + pt`\nCASCADING-IMPACT DOC CASCADE (when your lens is cascading-impact, ADR 0025): a diff that changes a mechanism's behavior or attribution cascades into the docs and mirrors that describe it — the drift a name-grep misses. Four checks (full bodies: the cascading-impact lens bullet in agents/war-auditor.md): (1) ADR policy-table attribution — read the mechanism's chosen-option / policy-table row (under-attribution is invisible to a grep); (2) mechanism-style narrative — assert the invariant and name the guard that holds it, never a snapshot member-count or line-number reference; (3) comment-lag — the touched files leave no lagging comment/JSDoc naming the OLD behavior's retired values or stale counts; (4) preset matrix — a new PRESETS entry or role is covered by the enumerated matrix exported from war-config.mjs.`
+    // Gated on lens === 'cascading-impact' (#2783): only that seat runs the checks, so every other lens
+    // renders '' and reads the rule from its card's lens bullet alone (the single-layer choice).
+    + (lens === 'cascading-impact' ? pt`\nCASCADING-IMPACT DOC CASCADE (when your lens is cascading-impact, ADR 0025): a diff that changes a mechanism's behavior or attribution cascades into the docs and mirrors that describe it — the drift a name-grep misses. Four checks (full bodies: the cascading-impact lens bullet in agents/war-auditor.md): (1) ADR policy-table attribution — read the mechanism's chosen-option / policy-table row (under-attribution is invisible to a grep); (2) mechanism-style narrative — assert the invariant and name the guard that holds it, never a snapshot member-count or line-number reference; (3) comment-lag — the touched files leave no lagging comment/JSDoc naming the OLD behavior's retired values or stale counts; (4) preset matrix — a new PRESETS entry or role is covered by the enumerated matrix exported from war-config.mjs.` : '')
     // COMMITTED-TREE GROUNDING (spec §8, ADR 0029) — the full paragraph lives in agents/war-auditor.md
     // (the standing card); this dispatched copy is a TOKEN SKELETON (prompt-surface simplification,
     // spec §4.3/§4.4) that must keep the both-surfaces registry row's anchor tokens (committed-tree
@@ -4592,9 +4618,10 @@ const citationSoundnessClause = batch => {
 // the schema comment promises (rule 6: one home for the clause). Empty when no citation stands.
 const citationStamp = f => { const c = citationOf(f); return c ? pt` [absorb-by-citation: row "${c.row}" — ${c.rationale}]` : '' }
 // queuedFindingRow: the numbered queued-finding prompt row the phase-close sweep build, the
-// terminal-pass build and the late-fix pass build render (rule 6: one home on the second hand copy — the two byte-identical
-// inline copies drifted once when citationStamp reached only the sweep copy, #3f55b04). Bytes are
-// unchanged from the inline form; callers pass it straight to `.map`.
+// terminal-pass build and the late-fix pass build render (rule 6: one home on the second hand
+// copy). The two byte-identical inline copies drifted once: commit c0f88d0 gave citationStamp to
+// the sweep copy only, and commit 3f55b04 fixed the terminal copy. Bytes are unchanged from the
+// inline form; callers pass it straight to `.map`.
 // pt-tagged prompt-feeding row (sweep, terminal-pass and late-fix prompts, top-level-catch, fail-open
 // polish): f.severity is a required finding field (bare); title/task ?? absence-tolerant;
 // file/rationale/suggested_fix already guarded/defaulted.
@@ -5004,7 +5031,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     const prior = (r.seats || []).slice()
     const scope = aceScope(r, ev, findings)
     // Corrective round (D4, PIN-5): an ace re-audit reads task.fixRounds + task.absorbRounds (the ace commit
-    // just charged absorbRounds, so it reads one more than the fixer it judges), never r.round.
+    // just charged absorbRounds, so it reads one more than the fixer it judges — except at a
+    // zero sum, where the 1-based floor makes both read 1), never r.round.
     const chainRound = correctiveRoundOf('ace', r.task)
     const { seats, expected, died } = await auditRound(r.task, null, null, sha,
       citationSoundnessClause(findings) + aceScopeClause(scope, ev, r, sha), scope.roster, {}, chainRound)
@@ -6799,7 +6827,8 @@ const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/
 // phaseDiffFiles (in-band-absorb-default D15): the phase's git-derived changed-file Set from the
 // evidence dispatch's phase_diff_files (`git diff --name-only <phaseBase>..<integrationTip>`), read
 // by the gate-audit floor pass's note arm. null until the evidence dispatch stamps it; stays null on
-// a failed/absent dispatch or the end-state-only arm (that note arm then skips with a log).
+// a failed/absent dispatch or the end-state-only arm. An absent diff then reads as an empty Set
+// (#2058): the note arm matches no file and keeps every note, logged — it never skips.
 let phaseDiffFiles = null
 // gateAuditRows (D15): the three gate-audit-family seats' Minor/Nit rows, seat-stamped, collected
 // for the ONE task-less floor pass below (routeGateAuditRows) — the family's single producer.
@@ -7026,19 +7055,17 @@ if (mergedTasksForGateAudit.length > 0) {
     taskId: m.taskId, gateHeadSha: m.gateHeadSha,
     // A null/absent stamp (the first landed task, or a barrier-recovery preMerged residual) falls back to
     // the SAME phaseBaseCmd const — byte-identity by reference, never a re-typed literal.
-    preMergeTip: m.preMergeTip || phaseBaseCmd,
-    // Unthreaded paths are evidence absence; never guess a previous dispatch artifact.
-    gateLogPath: gateLogPathOf(m.gateLogPath) || GATE_LOG_UNTHREADED }))
+    preMergeTip: m.preMergeTip || phaseBaseCmd }))
   const evidenceCapture = newGateCapture(refineryPath, 'phase-' + ph.id)
   let evidence = await dispatchSite(
     pt`EVIDENCE DISPATCH for WAR phase ${ph.id} (mode=merge-task post-merge evidence; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
     + pt`This is a READ-ONLY proof computation — do NOT merge, push, rebase, or edit. Run the two floor scripts (siblings of assert-test-in-diff.sh, invoked the same bare way) per merged task and return the tokens.\n`
     + pt`observedHead — the _refinery tip you compute every proof against — is \`git -C ${refineryPath} rev-parse HEAD\`; return it per task.\n`
-    + pt`For EACH merged task below (taskId · gateHeadSha · preMergeTip · gateLogPath):\n`
+    + pt`For EACH merged task below (taskId · gateHeadSha · preMergeTip):\n`
     // pt-tagged prompt-feeding row builder (evidence dispatch, top-level-catch): e.taskId is task.id (entry-validated,
     // bare), e.preMergeTip is constructed with a || phaseBaseCmd fallback; ${e.gateHeadSha ?? …} absence-tolerant.
-    + evItems.map(e => pt`  - ${e.taskId} · gateHeadSha=${e.gateHeadSha ?? '<gateHeadSha>'} · preMergeTip=${e.preMergeTip} · gateLogPath=${e.gateLogPath}`).join('\n') + '\n'
+    + evItems.map(e => pt`  - ${e.taskId} · gateHeadSha=${e.gateHeadSha ?? '<gateHeadSha>'} · preMergeTip=${e.preMergeTip}`).join('\n') + '\n'
     + pt`  1. PIN STATUS — run: gate-pin-status.sh <gateHeadSha> $(git -C ${refineryPath} rev-parse HEAD) --mapped "$(git -C ${refineryPath} diff --name-only <preMergeTip> <gateHeadSha>)". `
     + pt`The --mapped set is THIS task's OWN changed files (the <preMergeTip>..<gateHeadSha> range — <preMergeTip> is the previous task's merge commit, the tip this task rebased onto, and <gateHeadSha> the gated task tip, the merge commit's second parent, so the range is exactly what the task brought in), NOT the global gate-discovery set. Record pin_status = CONFIRMED (exit 0, equal shas) | BENIGN-ADVANCE (exit 0, tip descends gateHeadSha and no mapped file changed in between) | STALE-MISMATCH (exit 1, a mapped file changed or not an ancestor) | ERROR (exit 2, git/ref error or the '(integration_sha …)' sentinel), plus pin_evidence (the script's printed intervening/offending file list or error text).\n`
     + pt`  2. GUARD SPECIFICITY — run: assert-guard-specificity-in-diff.sh <preMergeTip> <gateHeadSha> (SAME pre-merge base). Record guard_specificity = covered (exit 0) | uncovered (exit 1 — capture the printed uncovered guard message + defining file as guard_evidence) | ERROR (exit 2).\n`
@@ -7383,22 +7410,22 @@ if (endStateClaims.length > 0 && !vacuousPhase && (mergedTasksForGateAudit.lengt
 // ---- GATE-AUDIT FLOOR PASS (in-band-absorb-default D15, PIN-17) — task-less, after every gate-audit
 // seat and BEFORE the sweep. The three gate-audit-family seats' Minor/Nit rows route like any seat's,
 // through the family's ONE producer (a dispositionOf site with its ask arm first — the D7 order
-// census): ask ⇒ park (#1550, exactly-once); a row carrying STALE_TIP_PHRASE ⇒ kept a note (D31); absorb ⇒ absorb + phaseClose:true into phaseCloseQueue,
-// stamped with the seat label (the sweep drains it under the exclusion set); a seat follow-up with no
-// barrier ⇒ absorb + phaseClose:true with NO diff check (the sweep is the only lane left); a
-// barrier:trade-off follow-up with the ask field ⇒ ask, without it ⇒ keep follow-up with the
-// trade-off-without-ask log; any other barrier ⇒ filed as stated; a seat note whose suggested_fix
-// names a fix (noFixText false: not blank, not a no-fix sentinel, D1) and whose file is in phase_diff_files ⇒ absorb + phaseClose:true; phase_diff_files ABSENT
-// reads as an empty Set (#2058) ⇒ the note arm keeps every cosmetic or classless note, logged, while
-// the follow-up arm still reroutes, and NO demote:floor-skipped comes from this pass; a note classed
-// `behavior` (late-defects PIN-2/PIN-7) never stays a note: with a fix on a named file ⇒ absorb +
-// phaseClose:true, phase diff or not, else ⇒ ask (parked); an omitted-disposition fully
-// specified row reads absorb + phaseClose:true
-// (dispositionOf over an EMPTY Set, #2058 — gate-audit rows never join a task ace batch, so in-diff
-// membership has no meaning here, and the end-state-only arm never stamps phase_diff_files; PIN-17
-// holds with the phase diff present or absent), an unspecified one keeps the severity default. A
-// release-slot file demotes at birth
-// (demote:release-slot, PIN-11). auditLog keeps every record — it is no longer the only sink.
+// census): ask ⇒ park (#1550, exactly-once); a row carrying STALE_TIP_PHRASE ⇒ kept a note (D31);
+// absorb ⇒ absorb + phaseClose:true into phaseCloseQueue, stamped with the seat label (the sweep
+// drains it under the exclusion set); a seat follow-up with no barrier ⇒ absorb + phaseClose:true
+// with NO diff check (the sweep is the only lane left); a barrier:trade-off follow-up with the ask
+// field ⇒ ask, without it ⇒ keep follow-up with the trade-off-without-ask log; any other barrier ⇒
+// filed as stated; a seat note whose suggested_fix names a fix (noFixText false: not blank, not a
+// no-fix sentinel, D1) and whose file is in phase_diff_files ⇒ absorb + phaseClose:true;
+// phase_diff_files ABSENT reads as an empty Set (#2058) ⇒ the note arm keeps every cosmetic or
+// classless note, logged, while the follow-up arm still reroutes, and NO demote:floor-skipped comes
+// from this pass; a note classed `behavior` (late-defects PIN-2/PIN-7) never stays a note: with a
+// fix on a named file ⇒ absorb + phaseClose:true, phase diff or not, else ⇒ ask (parked); an
+// omitted-disposition fully specified row reads absorb + phaseClose:true (dispositionOf over an
+// EMPTY Set, #2058 — gate-audit rows never join a task ace batch, so in-diff membership has no
+// meaning here, and the end-state-only arm never stamps phase_diff_files; PIN-17 holds with the
+// phase diff present or absent), an unspecified one keeps the severity default. A release-slot file
+// demotes at birth (demote:release-slot, PIN-11). auditLog keeps every record; it is not the only sink.
 const routeGateAuditRows = () => {
   if (!gateAuditRows.length) return
   // An absent phase diff reads as an EMPTY Set (#2058 — no special case): the note arm below then
@@ -7910,6 +7937,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     const polishTask = { id: `p${ph.id}-polish`, issue: ph.epicIssue || `<phase-${ph.id}-epic>`,
       title: `phase-close coherence sweep (phase ${ph.id})`, branch: polishBranch, worktree: polishWorktree,
       roster: defaultRoster,
+      // a sweep in a release phase audits as a release task: its seats keep the RELEASE-BASELINE RULE (#2783)
+      releaseSweep: tasks.some(isReleaseTask),
       // the terminal pass's telemetry counter (D3a) — seeded here, charged by its one commit, never a gate
       absorbRounds: 0,
       planSlice: `drain the phase-close queue (${phaseCloseQueue.length} finding(s)) and each sibling site of their defect class + cross-task coherence at the integrated tip of ${ph.integrationBranch}` }
@@ -8427,22 +8456,11 @@ if (landDecision === 'landed') {
   // routes by its RIDDEN status ('error' → held:land-failed — the Lead re-runs the land per SKILL.md
   // §4.3). Continuation labels and log lines are concatenation-built (census-safe — #931).
   // A dispatch death enters Git reconciliation first; landDied sees only a proved-unlanded death.
-  const segmentedLand = async (prompt, opts) => {
-    const isSegment = res => !!res && res.status === 'error' && res.land_segment === 'incomplete'
-    const body = prompt + segmentedLandClause
-    return reconciledMerge(body, opts, { task: 'phase-' + ph.id, repo: submodLandTask && submodLandTask.targetRepo || refineryLandPath, source: ph.integrationBranch, target: workingBranchFor(submodLandTask), land: true }, async (body, opts, capture) => {
-      const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
-        log('Phase ' + ph.id + ': segmented land — ' + opts.label + ' returned land_segment:\'incomplete\' (' + (result.segment_note || 'no segment note') + '); re-dispatch ' + segment + ' of roundLimit ' + roundLimit + '.')
-        return admitGateResult(await dispatchSite(
-          pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate job died before exit_code:). Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
-          { ...opts, label: opts.label + ':segment-' + segment }), capture)
-      })
-      if (isSegment(result)) {
-        log('Phase ' + ph.id + ': segmented-land budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — the final result routes by its ridden status.')
-      }
-      return result
-    })
-  }
+  const segmentedLand = async (prompt, opts) =>
+    reconciledMerge(prompt + segmentedLandClause, opts, { task: 'phase-' + ph.id, repo: submodLandTask && submodLandTask.targetRepo || refineryLandPath, source: ph.integrationBranch, target: workingBranchFor(submodLandTask), land: true }, (body, opts, capture) => segmentedDispatch(body, opts, capture, {
+      field: 'land_segment', noun: 'land',
+      header: (opts, result) => pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate job died before exit_code:). Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n`,
+      tail: 'the final result routes by its ridden status.' }))
   // Land death arm (D21, PIN-25): a land dispatch (initial or either re-land) that died post-spawn
   // is read FIRST at each site — the phase holds held:land-failed (the Lead re-runs the land per
   // SKILL.md §4.3) with the escalation record naming the site and the harness cause under reason
@@ -8747,10 +8765,11 @@ const findingClassOf = x => FINDING_CLASSES.includes(x && x.findingClass) ? { fi
 // (skills/war/references/late-defects.md § The behavior follow-up floor).
 const foldedFixOf = f => ({ ...(!noFixText(f.suggested_fix) ? { suggested_fix: f.suggested_fix } : {}), ...(Number.isFinite(f.line) ? { line: f.line } : {}) })
 // drainCauseOf (verdict-integrity D13, PIN-17, #1799): the shape guard for stampDrainCause's field on a
-// filed row — { dispatch, why } with a string dispatch, else null. Read by the filing-prompt row and
-// the handoff followUps projection (both sit outside any local try — a malformed field must never
-// throw there), so the drain provenance reaches the surfaces a human triages from, never only the
-// raw minorsFiled return.
+// filed row — { dispatch, why } with a string dispatch, else null. Three readers: the pre-filing
+// consolidation collapse and the handoff followUps projection (its mergedOf and per-row loop) sit
+// outside any local try, and the filing-prompt row sits inside the file-followups try. A malformed
+// field must never throw at any of them, so the drain provenance reaches the surfaces a human
+// triages from, never only the raw minorsFiled return.
 const drainCauseOf = m => (m && m.drainCause && typeof m.drainCause === 'object' && typeof m.drainCause.dispatch === 'string')
   ? { dispatch: m.drainCause.dispatch, why: String(m.drainCause.why ?? '') }
   : null

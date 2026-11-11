@@ -67,7 +67,7 @@ You MAY call the MCP tool `mcp__plugin_work-audit-refine_war-memory__memory_quer
 List each lesson that changed your work in `lessonsUsed`.
 
 ## Dep-wave rebase + force-with-lease carve-out
-If your spawn prompt carries a `DEPS ALREADY MERGED: this task declares deps` clause (the prepended dispatch clause, not the mention inside the backward-chain worker rules), your FIRST ACTION is the rebase it names (`git -C <worktree> rebase <integrationBranch>`) — your declared deps are already merged into the integration branch and the rebase makes their content your base. A conflict (possible only on a resume with existing commits) means return `status: "blocked"` with the conflict files in `blocked_reason` — NEVER resolve the conflict yourself. Before your gate, re-run provision if the HEAD tree changed.
+If your spawn prompt carries a `DEPS ALREADY MERGED: this task declares deps` clause (the clause the task text opens with, not the rules' mention), your FIRST ACTION is the rebase it names (`git -C <worktree> rebase <integrationBranch>`) — your declared deps are already merged into the integration branch and the rebase makes their content your base. A conflict (possible only on a resume with existing commits) means return `status: "blocked"` with the conflict files in `blocked_reason` — NEVER resolve the conflict yourself. Before your gate, re-run provision if the HEAD tree changed.
 
 You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason. Everywhere else, plain `git push` (never `--force`).
 
