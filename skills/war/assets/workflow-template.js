@@ -826,7 +826,8 @@ const intentClause = intent
 const adjudications = Array.isArray(A.adjudications)
   ? A.adjudications.filter(r => r && (typeof r === 'string' || typeof r === 'object')) : []
 // The value-row citation words (#2198): adjRow renders them and isValueRow's string arm matches them, so
-// the render and the floor read one spelling. Bound in assert-args-complete.mjs FLOOR_BINDINGS (PIN-12).
+// the render and the floor read one spelling. Bound in assert-args-complete.mjs FLOOR_BINDINGS
+// (constraint 9; the args-floor plan's PIN-12).
 const SUPERSEDES_LITERAL = 'supersedes plan literal: '
 const adjRow = r => typeof r === 'string' ? r
   // pt-tagged prompt-feeding row (adjudicationClause → auditPrompt): every interpolation is guarded/defaulted
@@ -1483,7 +1484,8 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // The #1751 predecessor-citation strip (stripSupersedes / idText) rides rowText, so it reads the
   // string rows of backstops and adjudications. It never applies to ruledAsks, seededPhaseClose or
   // seededTasks. A foreign path here never refuses or warns (#2208), so its only effect is the
-  // own-token read-past, which also covers a citation because these rows carry no idText. The planSlug stamp and the own-token check below still apply.
+  // own-token read-past, which also covers a citation because these rows carry no idText.
+  // The planSlug stamp and the own-token check below still apply.
   const ruledAskRowText = row => {
     // a string row is its own scannable text (the sibling rowText discipline)
     if (typeof row === 'string') return { text: row, exempt: false }
@@ -1528,16 +1530,16 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
       provenanceProblems.push('workflow-template: args.' + argName + ' carries a ' + (stamped.stampNoun || 'planFile') + ' provenance stamp naming a foreign plan (' + stamped.foreignStamp + ') differing from ' + (stamped.stampAnchor || 'plan.file') + ' — a cross-plan args leak; refused at entry (#1413)')
       continue
     }
-    // hasScanRows: a non-exempt, non-value row carries text (the own-token refusal surface — a surface whose rows
-    // are all exempt or all value rows never has to carry a token). evidenceText: EVERY row's text —
-    // own-token satisfaction may come from an exempt row (#1666 stands, never narrowed). The
-    // foreign-plan-id scan reads every row's text, exempt rows included (#1749), with citations
-    // stripped only where a row sets idText. Intent warns and launches (#2375), backstops and
-    // adjudications refuse, and ruledAsks, seededPhaseClose and seededTasks rows neither refuse nor warn (#2208,
-    // #2197). A foreign path outside a stripped citation never vouches for the plan, so the own-token
-    // search reads past each one: else a path like docs/plans/<own-word>-sibling.md would pass an
-    // intent the foreign arm no longer refuses. A stripped citation stays evidence, because stacked
-    // plans share slug words.
+    // hasScanRows: a non-exempt, non-value row carries text (the own-token refusal surface — a
+    // surface whose rows are all exempt or all value rows never has to carry a token). evidenceText:
+    // EVERY row's text — own-token satisfaction may come from an exempt row (#1666 stands, never
+    // narrowed). The foreign-plan-id scan reads every row's text, exempt rows included (#1749), with
+    // citations stripped only where a row sets idText. Intent warns and launches (#2375), backstops
+    // and adjudications refuse, and ruledAsks, seededPhaseClose and seededTasks rows neither refuse
+    // nor warn (#2208, #2197). A foreign path outside a stripped citation never vouches for the
+    // plan, so the own-token search reads past each one: else a path like
+    // docs/plans/<own-word>-sibling.md would pass an intent the foreign arm no longer refuses. A
+    // stripped citation stays evidence, because stacked plans share slug words.
     const hasScanRows = rows.some(r => !r.exempt && !r.value && r.text)
     const evidenceText = rows.filter(r => r.text).map(r => r.text).join('\n')
     const idText = rows.filter(r => r.text).map(r => r.idText ?? r.text).join('\n')
