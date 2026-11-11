@@ -5,7 +5,7 @@
     "worker": {
       "model": "opus",
       "effort": "default",
-      "docs": {
+      "lite": {
         "model": "opus",
         "effort": "default"
       },

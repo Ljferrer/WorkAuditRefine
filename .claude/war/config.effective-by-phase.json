@@ -11,7 +11,7 @@
     "Phases 2-6: audit rosters use the Lead first proposed seats, adding plan-faithfulness and test-fidelity to the pool lenses; Phase 1 used pool lenses only.",
     "Phases 3-6: agents.worker.fix = opus/default.",
     "Phase 3 relaunch onward: ace prompts carry the one-final-trailer-block rule (staged-script patch).",
-    "Phases 5-6: agents.auditor and agents.worker.docs = sonnet/high (issue #2497 trial).",
+    "Phases 5-6: agents.auditor and agents.worker.lite = sonnet/high (issue #2497 trial).",
     "Phases 5-6: --afk."
   ],
   "attempts": [
@@ -23,7 +23,7 @@
         "worker": {
           "model": "opus",
           "effort": "default",
-          "docs": {
+          "lite": {
             "model": "opus",
             "effort": "default"
           },
@@ -95,7 +95,7 @@
         "worker": {
           "model": "opus",
           "effort": "default",
-          "docs": {
+          "lite": {
             "model": "opus",
             "effort": "default"
           },
@@ -177,7 +177,7 @@
         "worker": {
           "model": "opus",
           "effort": "default",
-          "docs": {
+          "lite": {
             "model": "opus",
             "effort": "default"
           },
@@ -249,7 +249,7 @@
         "worker": {
           "model": "opus",
           "effort": "default",
-          "docs": {
+          "lite": {
             "model": "opus",
             "effort": "default"
           },
@@ -321,7 +321,7 @@
         "worker": {
           "model": "opus",
           "effort": "default",
-          "docs": {
+          "lite": {
             "model": "opus",
             "effort": "default"
           },
@@ -397,7 +397,7 @@
         "worker": {
           "model": "opus",
           "effort": "default",
-          "docs": {
+          "lite": {
             "model": "sonnet",
             "effort": "high"
           },
@@ -503,7 +503,7 @@
         "worker": {
           "model": "opus",
           "effort": "default",
-          "docs": {
+          "lite": {
             "model": "sonnet",
             "effort": "high"
           },
@@ -609,7 +609,7 @@
         "worker": {
           "model": "opus",
           "effort": "default",
-          "docs": {
+          "lite": {
             "model": "sonnet",
             "effort": "high"
           },
@@ -677,7 +677,7 @@
         "worker": {
           "model": "opus",
           "effort": "default",
-          "docs": {
+          "lite": {
             "model": "sonnet",
             "effort": "high"
           },

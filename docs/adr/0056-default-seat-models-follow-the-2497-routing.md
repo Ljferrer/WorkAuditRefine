@@ -15,8 +15,8 @@ config.
 base and fix worker tiers run opus, docs-only tasks run sonnet, and auditors run sonnet. The
 values live in `war-config.mjs` and the `/war-room` preset bullets, never restated here.
 
-**`thorough` pins its base, docs and fix worker tiers at fable**, so it stays at or above `balanced` on every tier.
-**`economy` moves its docs tier to sonnet**, so `balanced` stays at or above it. The
+**`thorough` pins its base, lite and fix worker tiers at fable**, so it stays at or above `balanced` on every tier.
+**`economy` moves its lite tier to sonnet**, so `balanced` stays at or above it. The
 model-rank test in `war-config.test.mjs` checks both.
 
 **Ace work gets its own tier.** `agents.worker.ace` drives the `--ace` dispatches and the terminal
@@ -91,3 +91,7 @@ old fallback: a fable fix tier ran a 32-minute ace polish of Minor and Nit fixes
   agent card frontmatter follow `DEFAULTS`, bound by the existing drift guards.
 - Automatic routing by task class, a sampled opus review of clean sonnet approvals and per-model
   telemetry are not part of this decision. Issue #2534 tracks them.
+
+## Decision log
+
+- 2026-11-10 · The `docs` worker tier is now `lite`, renamed in place in every reader with no alias; `validate` refuses a config that still carries the old key and names `agents.worker.lite` (operator ruling 2026-11-09) · plan `docs/plans/2026-11-08-model-routing-and-prompt-byte-budgets.md` D29, Task 3.1.
