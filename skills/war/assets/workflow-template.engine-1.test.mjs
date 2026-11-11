@@ -4212,6 +4212,19 @@ test('dep-wave visibility (criterion 4): rebase-first clause is PREPENDED iff de
   assert.match(w2.prompt, /NEVER resolve/, 'the worker never resolves the conflict')
 })
 
+test('dep-wave card literal #2317: the worker card quotes the clause a deps-bearing work prompt opens with', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const w2 = calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:t2')
+  assert.ok(w2, 'the deps-bearing worker dispatched (presence guard)')
+  const body = unprefixed(w2.prompt)
+  const end = body.indexOf('declares deps')
+  assert.ok(end !== -1, 'the deps-bearing task text carries the clause opening')
+  const opening = body.slice(0, end + 'declares deps'.length)
+  const cardLine = workerMd.split('\n').find(l => l.startsWith('If your spawn prompt carries a `DEPS ALREADY MERGED'))
+  assert.ok(cardLine && cardLine.includes(opening), `agents/war-worker.md quotes the opening ${JSON.stringify(opening)}`)
+  assert.ok(cardLine.includes('opens with'), 'the card keys on the clause the task text opens with')
+})
+
 test('force-with-lease carve-out: IDENTICAL wording in agents/war-worker.md and the dispatched dep clause', async () => {
   const RULE = 'You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason.'
   assert.ok(workerMd.includes(RULE), 'war-worker.md carries the canonical carve-out sentence (standing surface)')
@@ -7647,9 +7660,21 @@ test('T2.1 criterion 6 (D5) — fail-open: absent artifact + absent pin token �
   assert.equal(out.landDecision, 'landed', 'fail-open: no tokens ⇒ no hold, the phase lands')
 })
 
+// #2783 clause gating fixtures: one release task (t1 declares a release-slot file) beside one non-release
+// task (t2), and the AUDIT_ARGS roster that seats cascading-impact beside two other lenses.
+const RELEASE_PAIR_ARGS = () => PROVISION_ARGS({ tasks: [
+  { id: 't1', issue: 101, title: 'Release bump', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], files: ['.claude-plugin/plugin.json'] },
+  { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], files: ['src/a.js'] },
+] })
+const RELEASE_BASELINE_HEAD = '\nRELEASE-BASELINE RULE: judge a release/version-bump diff'
+const CASCADE_HEAD = '\nCASCADING-IMPACT DOC CASCADE (when your lens is cascading-impact, ADR 0025):'
+const taskSeatOf =(calls, taskId) => calls.find(c => isAuditor(c) && c.prompt.includes('Audit WAR task ' + taskId + ' through'))
+const lensSeatsOf = calls => calls.filter(c => isAuditor(c) && /^audit:t1:/.test(c.opts.label || ''))
+
 test('T2.1 criterion 4 (D3) — the release-baseline / stacked-lag clause is on BOTH surfaces (emitted auditPrompt + war-auditor.md), case-insensitive mid-sentence', async () => {
-  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
-  const wa = calls.find(c => isAuditor(c) && !c.prompt.includes('execution-evidence'))
+  // #2783: the clause rides a release task's seats only, so the fixture audits a release task.
+  const { calls } = await runPhase(RELEASE_PAIR_ARGS(), defaultImpl)
+  const wa = taskSeatOf(calls, 't1')
   assert.ok(wa, 'a work-wave audit seat was dispatched')
   // emitted auditPrompt surface
   assert.ok(/expected stacked-release lag, not a scope error/i.test(wa.prompt),
@@ -7661,6 +7686,59 @@ test('T2.1 criterion 4 (D3) — the release-baseline / stacked-lag clause is on 
     'war-auditor.md carries the byte-identical stacked-release-lag clause')
   assert.ok(auditorMd.includes('${integrationBranch}...${task.branch}'),
     'war-auditor.md names the three-dot merge-base baseline literally')
+})
+
+// #2783 (PIN-19 to PIN-21): each gated clause reaches every seat that runs it, byte-identical, and no other.
+// Each absent row renders the present case in the same fixture first, so the row can fail.
+test('audit clause gating — the cascade clause rides the cascading-impact seat', async () => {
+  const seats = lensSeatsOf((await runPhase(AUDIT_ARGS(), defaultImpl)).calls)
+  const cascade = seats.find(c => c.prompt.includes('through the "cascading-impact" lens'))
+  assert.ok(cascade, 'the cascading-impact seat dispatched (presence guard)')
+  assert.ok(cascade.prompt.includes(CASCADE_HEAD), 'the cascading-impact seat carries the clause')
+  assert.equal(cascade.prompt.split(CASCADE_HEAD).length - 1, 1, 'exactly once')
+})
+
+test('audit clause gating — the cascade clause is absent from every other lens', async () => {
+  const seats = lensSeatsOf((await runPhase(AUDIT_ARGS(), defaultImpl)).calls)
+  assert.ok(seats.some(c => c.prompt.includes(CASCADE_HEAD)), 'the same fixture renders the clause on the cascading-impact seat')
+  const others = seats.filter(c => !c.prompt.includes('through the "cascading-impact" lens'))
+  assert.equal(others.length, 2, 'the correctness and plan-faithfulness seats dispatched (presence guard)')
+  for (const c of others) assert.ok(!c.prompt.includes('CASCADING-IMPACT DOC CASCADE'), `${c.opts.label} carries no cascade clause`)
+})
+
+test('audit clause gating — the release-baseline clause rides a release task', async () => {
+  const seat = taskSeatOf((await runPhase(RELEASE_PAIR_ARGS(), defaultImpl)).calls, 't1')
+  assert.ok(seat, 'the release task seat dispatched (presence guard)')
+  assert.ok(seat.prompt.includes(RELEASE_BASELINE_HEAD), 'the release task seat carries the clause')
+  assert.ok(seat.prompt.includes('three-dot `${integrationBranch}...${task.branch}` merge-base set'), 'the clause keeps its escaped three-dot literal')
+})
+
+test('audit clause gating — the release-baseline clause is absent from a non-release task', async () => {
+  const { calls } = await runPhase(RELEASE_PAIR_ARGS(), defaultImpl)
+  assert.ok(taskSeatOf(calls, 't1').prompt.includes(RELEASE_BASELINE_HEAD), 'the same fixture renders the clause on the release task')
+  const other = taskSeatOf(calls, 't2')
+  assert.ok(other, 'the non-release task seat dispatched (presence guard)')
+  assert.ok(!other.prompt.includes('RELEASE-BASELINE RULE'), 'the non-release task seat carries no release-baseline clause')
+})
+
+test('audit clause gating — the release-baseline clause rides a late fix of a release task', async () => {
+  const relTask = { id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], files: ['src/a.js', '.claude-plugin/plugin.json'] }
+  const lfSeat = calls => calls.find(c => isAuditor(c) && /^audit:p\d+-latefix-/.test(c.opts.label || ''))
+  const rel = lfSeat((await runPhase(LATE_FIX_ARGS({ tasks: [relTask] }), lateFixImpl())).calls)
+  assert.ok(rel, 'the late-fix re-audit seat dispatched (presence guard)')
+  assert.ok(rel.prompt.includes(RELEASE_BASELINE_HEAD), 'the late fix of a release task keeps the clause (manifestTask is its origin)')
+  const plain = lfSeat((await runPhase(LATE_FIX_ARGS(), lateFixImpl())).calls)
+  assert.ok(plain && !plain.prompt.includes('RELEASE-BASELINE RULE'), 'a late fix of a non-release task carries no clause')
+})
+
+test('audit clause gating — the release-baseline clause rides the phase-close sweep of a release phase', async () => {
+  const sweepSeat = calls => calls.find(c => isAuditor(c) && /^audit:p\d+-polish:/.test(c.opts.label || ''))
+  const relTasks = [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], files: ['.claude-plugin/plugin.json'] }]
+  const rel = sweepSeat((await runPhase(SWEEP_ARGS({ tasks: relTasks }), sweepBase([queuedAbsorb()]))).calls)
+  assert.ok(rel, 'the release-phase sweep seat dispatched (presence guard)')
+  assert.ok(rel.prompt.includes(RELEASE_BASELINE_HEAD), 'the sweep of a phase holding a release task keeps the clause')
+  const plain = sweepSeat((await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()]))).calls)
+  assert.ok(plain && !plain.prompt.includes('RELEASE-BASELINE RULE'), 'the sweep of a phase with no release task carries no clause')
 })
 
 // Task 1.5 — the version-precedence / adjudication clause is on BOTH surfaces (emitted auditPrompt when
@@ -8875,6 +8953,11 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const depWorkerP = (calls.find(c => isWorker(c) && c.opts.label === 'work:t2') || {}).prompt
   assert.ok(depWorkerP && depWorkerP.includes('DEPS ALREADY MERGED'), 'the dep-wave worker prompt dispatched (presence guard, push-denied row)')
   const auditP = (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
+  // #2783: the CASCADING-IMPACT DOC CASCADE clause rides the cascading-impact seat alone, so its four
+  // rows (D8/D9/D12/D6) read that seat's prompt from a roster that seats the lens.
+  const cascadeP = ((await runPhase(AUDIT_ARGS(), defaultImpl)).calls
+    .find(c => isAuditor(c) && c.prompt.includes('through the "cascading-impact" lens')) || {}).prompt
+  assert.ok(cascadeP, 'the cascading-impact seat prompt dispatched (presence guard)')
   const servitorP = (calls.find(isServitor) || {}).prompt
   // Fix-round doctrine (#2097): the FIX_NEEDED fix prompt is only emitted on a blocking finding — drive
   // it with the fixNeededImpl fixture and capture the LIVE prompt (the worker-card pointer's twin).
@@ -9027,16 +9110,16 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       anchors: [/repo-relative/i, /<repo-root>/i, /<session-worktree>/i, /<local-memory-root>/i,
                 /never an absolute/i, /governs lesson content only[\s\S]{0,120}files_written/i] },
     { name: 'ADR policy-table under-attribution (D8)',
-      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt() cascading-impact seat', cascadeP]],
       anchors: [/ADR/i, /policy.table/i, /attribution/i] },
     { name: 'comment-lag review duty (D9, auditor cascading-impact)',
-      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt() cascading-impact seat', cascadeP]],
       anchors: [/comment/i, /lag/i, /retired/i] },
     { name: 'mechanism-style narrative (D12)',
-      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt() cascading-impact seat', cascadeP]],
       anchors: [/invariant/i, /guard that holds/i, /snapshot|line.number/i] },
     { name: 'preset-matrix consumption (D6)',
-      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt() cascading-impact seat', cascadeP]],
       anchors: [/preset/i, /matrix/i] },
     { name: 'gate-audit inline seat: finding-less escalate is a HARD hold (execution-evidence + end-state, outside auditPrompt)',
       // standing surface = the evicted checklist's references home (auditor-evict, D16): the
@@ -11313,6 +11396,18 @@ test('provenance floor: canonical adjudication rows pass un-doped', async () => 
   assert.equal(proseSupStr.out.landDecision, 'held:workflow-error', 'the adjRow render of a prose ruling with a prose supersedes is not a value row either')
   const mixed = await runPhase(PROVISION_ARGS({ adjudications: [...rows, 'ruled: keep the legacy arm this run'] }), defaultImpl)
   assert.equal(mixed.out.landDecision, 'held:workflow-error', 'value rows never vouch for a token-less prose sibling')
+})
+
+test('provenance floor #2198: adjRow\'s own render of a token-free value row relaunches as the only adjudication', async () => {
+  // The render and the string value-row arm read one SUPERSEDES_LITERAL, so the round trip cannot drift.
+  const first = await runPhase(PROVISION_ARGS({ adjudications: [{ adjudicated: '0.21.13', supersedes: '0.21.12' }] }), defaultImpl)
+  const seat = first.calls.find(c => isAuditor(c) && c.prompt.includes('ADJUDICATION-MATCH RULE'))
+  assert.ok(seat, 'an audit seat carries the adjudication clause (presence guard)')
+  const line = seat.prompt.split('\n').find(l => l.startsWith('- 0.21.13'))
+  assert.ok(line, 'the auditor prompt carries the rendered row')
+  const row = line.slice(2)
+  const again = await runPhase(PROVISION_ARGS({ adjudications: [row] }), defaultImpl)
+  assert.equal(again.out.landDecision, 'landed', `the rendered row ${JSON.stringify(row)} launches un-doped — got ${again.out.landDecision}`)
 })
 
 test('provenance floor: a Lead-stamped planFile row naming THIS plan is exempt', async () => {
@@ -16648,7 +16743,7 @@ test('gate-log fallback: unthreaded path marker — an unthreaded gate_log_path 
   assert.ok(seatP.includes('GATE LOG ARTIFACT: ' + absent) && !seatP.includes('read the FULL captured gate log at'), 'the per-task seat records absence without guessing a path')
   assert.ok(seatP.includes(readRule), 'the per-task seat carries the reading rule byte-equal')
   const evP = (u.calls.find(c => /^evidence:/.test(c.opts.label || '')) || {}).prompt
-  assert.ok(evP && evP.includes('gateLogPath=' + absent) && !evP.includes('gate-t1.log'), 'the evidence dispatch row records absence without guessing a path')
+  assert.ok(evP && !evP.includes('gateLogPath=') && !evP.includes('gate-t1.log'), 'the evidence dispatch row carries no gateLogPath column and guesses no path (#2180)')
   assert.ok(!seatP.includes('undefined') && !evP.includes('undefined'), 'no literal "undefined"')
   // Threaded: the merge-returned path renders bare, no marker.
   const t = await runPhase(PROVISION_ARGS(), evidenceImpl)
@@ -17261,7 +17356,7 @@ for (const ids of [undefined, [], ['preexisting-test']]) {
     const { calls } = await runPhase(CLS_ARGS(), baselineImpl)
     const ev = calls.find(c => /^evidence:/.test(c.opts.label || ''))?.prompt
     const seat = calls.find(c => /^gate-audit:/.test(c.opts.label || ''))?.prompt
-    assert.ok(ev && !/gateLogPath=[^\n]*gate-t1\.log/.test(ev), 'no guessed initial path in evidence dispatch')
+    assert.ok(ev && !ev.includes('gateLogPath='), 'the evidence dispatch carries no gateLogPath column, so no guessed initial path (#2180)')
     assert.ok(seat && !/read the FULL captured gate log at [^\n]*gate-t1\.log/.test(seat), 'no guessed path in the audit seat')
     assert.ok(seat.includes('no captured artifact'), 'absence explicitly cannot confirm execution')
   })
@@ -17585,7 +17680,11 @@ test('dispatch-owned gate evidence: baseline retry cannot reuse an admitted same
   })
   assert.ok(initial && retry && initial !== retry, 'logical attempts have different engine-owned prefixes')
   const ev = calls.find(c => c.opts.dispatchKind === 'evidence')
-  assert.ok(ev && !ev.prompt.includes(initial) && ev.prompt.includes('no captured artifact'), 'previous admitted path cannot be re-admitted by a new attempt')
+  assert.ok(ev && !ev.prompt.includes(initial), 'the evidence dispatch never names the previous admitted path')
+  // The path column left the evidence dispatch (#2180), so the seat that reads the artifact carries the
+  // absence: it may name the refused path, never as a log to read.
+  const seat = calls.find(c => /^gate-audit:/.test(c.opts.label || ''))
+  assert.ok(seat && !seat.prompt.includes('captured gate log at ' + initial) && seat.prompt.includes('no captured artifact'), 'previous admitted path cannot be re-admitted by a new attempt')
 })
 
 for (const [kind, mutate] of [

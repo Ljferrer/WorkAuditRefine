@@ -420,6 +420,7 @@ export const FLOOR_BINDINGS = [
   'const adjudications = Array.isArray(A.adjudications)',
   "? A.adjudications.filter(r => r && (typeof r === 'string' || typeof r === 'object')) : []",
   'const planSlug = A.planSlug',
+  "const SUPERSEDES_LITERAL = 'supersedes plan literal: '",
 ]
 // Returns { problems, logs }: the template's refusal messages (empty on pass) and its logged lines.
 // The slice ends BEFORE the floor's throw line and returns provenanceProblems, so any throw that
