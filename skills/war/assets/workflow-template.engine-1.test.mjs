@@ -12317,7 +12317,7 @@ test('auditor-evict (a) — the evicted execution-evidence checklist section is 
   assert.ok(!/\n##? /.test(body.slice(heading.length)), 'the evicted section must be the file\'s last section (heading → end of file)')
   // Non-vacuity: the extraction spans the section's tail bullet.
   assert.match(body, /\*\*End-state ownership mapping:\*\*/, 'the extracted section must span its `**End-state ownership mapping:**` tail bullet')
-  assert.equal(Buffer.byteLength(body, 'utf8'), 5874, 'the approved checklist includes the parallel-gate completion rule and the T2.1 bullets (D28 scoped to the End-state check artifacts, D30 with the intent-ordinal compare, D31, D32)')
+  assert.equal(Buffer.byteLength(body, 'utf8'), 5937, 'the approved checklist includes the parallel-gate completion rule and the T2.1 bullets (D28 scoped to the End-state check artifacts, D30 with the intent-ordinal compare, D31, D32)')
   assert.match(body, /parallel repository gate[^\n]*missing `== gate complete:`[^\n]*SOFT cannot-confirm/)
   assert.equal(createHash('sha256').update(body, 'utf8').digest('hex'), GATE_AUDIT_CHECKLIST_SHA256,
     'the evicted checklist section must be byte-identical to the pre-eviction card text (ADR 0042 byte-identical move) — a sanctioned edit re-pins GATE_AUDIT_CHECKLIST_SHA256 in this commit with its rationale')
