@@ -4,6 +4,8 @@ This file is the one doc home of the routing doctrine (issue #2534, [ADR 0062](.
 
 The `routing` key set, each value's shape and each error text live in `validate()` in [`../assets/war-config.mjs`](../assets/war-config.mjs). This file names a key where a rule needs it, and never restates the key set. The engine side is `routeWorker`, `routeSeat`, `routeAce` and `sampledSeatOf` in [`../assets/workflow-template.js`](../assets/workflow-template.js). The args floor is `routingRefusals` and `boundaryWarnings` in [`../assets/assert-args-complete.mjs`](../assets/assert-args-complete.mjs).
 
+- Thread the resolved config routing key into every per-phase Workflow args as args.routing, beside agents, audit and run. The engine and the args floor read only args.routing. An absent key is passed as absent.
+
 ## The #2534 constraints
 
 These bind every routing change.
@@ -15,7 +17,7 @@ These bind every routing change.
 
 ## Task class
 
-You stamp a per-task `class` at Decompose: `routine` or `boundary`. The engine never derives it. A file extension is not a risk classifier: all 22 tasks of the #2497 replay that ran on sonnet were Markdown-only.
+You stamp a per-task `class` at Decompose: `routine` or `boundary`. The engine never derives it. A file extension is not a risk classifier: all 22 historical sonnet initial workers in the #2497 analysis were Markdown-only.
 
 - Stamp `boundary` for a boundary-heavy task. The boundary rule is the Audit step's in [design.md](design.md) (§ 4, step 3). It is not restated here.
 - Stamp `routine` for the rest.
