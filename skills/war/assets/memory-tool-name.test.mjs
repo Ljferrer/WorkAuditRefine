@@ -2,12 +2,15 @@
 //
 // The hook (hooks/validate-evidence-auditor-mcp.sh) owns the full memory-query tool-name literal on
 // its one `MEMORY_TOOL='…'` line. Every other surface is a COPY guarded against that literal, never a
-// second home: the `tools:` line of the auditor, evidence auditor and servitor cards, the worker
-// card's Prior-lessons sentence (the worker card carries no `tools:` line — it inherits plugin MCP
-// tools, assumption A4), and the workflow-template.js dispatched-prompt const. The retired Bash
-// self-query sentence (`war-memory.mjs query`) must be gone from the worker card and the template.
+// second home: the `tools:` line of the auditor, evidence auditor, servitor and worker cards, the
+// worker card's Prior-lessons sentence, and the workflow-template.js dispatched-prompt const. The
+// worker card's `tools:` line also names the whole `mcp__rea` server and `ToolSearch`, never a
+// per-tool `mcp__rea__` entry (PIN-24 of plan 2026-11-08-model-routing-and-prompt-byte-budgets).
+// The retired Bash self-query sentence (`war-memory.mjs query`) must be gone from the worker card
+// and the template.
 //
-// Proven red at authoring by mutating one card's `tools:` entry (see the task notes).
+// Proven red at authoring by mutating one card's `tools:` entry, and by removing the worker card's
+// `tools:` line, which reds both `tools:`-line rows (see the task notes).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -19,8 +22,8 @@ const REPO = join(here, '../../..')
 const read = (rel) => readFileSync(join(REPO, rel), 'utf8')
 
 const HOOK = 'hooks/validate-evidence-auditor-mcp.sh'
-const TOOLS_LINE_CARDS = ['agents/war-auditor.md', 'agents/war-evidence-auditor.md', 'agents/war-servitor.md']
 const WORKER_CARD = 'agents/war-worker.md'
+const TOOLS_LINE_CARDS = ['agents/war-auditor.md', 'agents/war-evidence-auditor.md', 'agents/war-servitor.md', WORKER_CARD]
 const TEMPLATE = 'skills/war/assets/workflow-template.js'
 const RETIRED_SELF_QUERY = 'war-memory.mjs query'
 
@@ -52,13 +55,21 @@ test('ES6: the hook carries exactly one MEMORY_TOOL literal and it names memory_
   assert.match(name, /^mcp__[A-Za-z0-9_-]+__memory_query$/, 'the literal is a full MCP tool name ending in __memory_query')
 })
 
-test('ES6: the auditor, evidence auditor and servitor cards carry the hook MEMORY_TOOL literal as an exact tools: entry', () => {
+test('ES6: the auditor, evidence auditor, servitor and worker cards carry the hook MEMORY_TOOL literal as an exact tools: entry', () => {
   const name = memoryToolLiteral()
   for (const card of TOOLS_LINE_CARDS) {
     const entries = toolsEntries(read(card))
     assert.ok(entries.includes(name), `${card}: tools: line carries the exact entry ${name} (entries: ${entries.length})`)
     assert.equal(entries.filter(e => e === name).length, 1, `${card}: the entry appears exactly once`)
   }
+})
+
+test('worker card names the rea server and ToolSearch', () => {
+  const entries = toolsEntries(read(WORKER_CARD))
+  assert.ok(entries.includes('mcp__rea'), `${WORKER_CARD}: tools: line names the server-level entry mcp__rea`)
+  assert.ok(entries.includes('ToolSearch'), `${WORKER_CARD}: tools: line names ToolSearch, so REA tools stay deferred`)
+  const perTool = entries.filter(e => e.startsWith('mcp__rea__'))
+  assert.deepEqual(perTool, [], `${WORKER_CARD}: tools: line holds no per-tool mcp__rea__ entry (PIN-24)`)
 })
 
 test('ES6: the worker card Prior-lessons sentence names the hook MEMORY_TOOL literal and the Bash self-query sentence is gone', () => {

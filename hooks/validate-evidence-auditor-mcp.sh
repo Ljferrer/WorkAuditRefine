@@ -53,9 +53,12 @@
 #   `mcp__.*`. Outside that matcher sit a Bash call to the REA CLI (`rea ...`,
 #   the binary `rea doctor --json` probes for presence) and the built-in MCP
 #   resource tools (ListMcpResourcesTool, ReadMcpResourceTool). The cards
-#   agents/war-worker.md and agents/war-refiner.md carry no `tools:` line, so
-#   war-worker and war-refiner inherit the Bash channel and the resource-tool
-#   channel, and neither channel reaches this hook.
+#   agents/war-worker.md and agents/war-refiner.md now pin `tools:` without
+#   the resource tools, so the resource-tool channel is closed for both seats.
+#   Only the Bash channel remains, and it never reaches this hook.
+#   The worker card names the whole `mcp__rea` server at the capability
+#   level, so this hook's war-worker arm is the fence on which REA tools a
+#   worker may call.
 #   The residual is accepted: G4 confines the MCP tool channel, and Bash for
 #   those roles is covered only advisorily (warn-bash-write-scope.sh).
 #   war-servitor is not affected: its card pins `tools:` without Bash and
