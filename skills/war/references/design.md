@@ -104,7 +104,7 @@ Batch-then-bisect merge queue · live-SendMessage audit debate · multiple concu
 
 ## 14. v0.3.0 amendments
 - **New skill — `/war-room`** (conversation-only): interviews the user from a preset (balanced/thorough/economy) plus targeted overrides, and writes a run config to `.claude/war/config.json`. It never decomposes a plan or launches `/war`.
-- **Config surface.** `skills/war/assets/war-config.mjs` owns the schema, defaults, presets, and validation (a single tested source of truth, used by both skills). The `/war` Lead loads and validates the config in Setup, applies non-null `overrides`, and threads `agents` / `audit` / `run` into the per-phase Workflow `args`. `workflow-template.js` reads those instead of hardcoded model literals.
+- **Config surface.** `skills/war/assets/war-config.mjs` owns the schema, defaults, presets, and validation (a single tested source of truth, used by both skills). The `/war` Lead loads and validates the config in Setup, applies non-null `overrides`, and threads `agents` / `audit` / `run` (and `routing` when set) into the per-phase Workflow `args`. `workflow-template.js` reads those instead of hardcoded model literals.
 - **Configurable knobs:** per-role `model` (opus/sonnet/haiku/fable) and `effort` (default…max, where `max` = "ultrathink"); `roster` (1–5 distinct-lens seats, per-seat depth) with `rosterPolicy` (auto/all/solo) seeding per-task rosters; `autoEscalate` (set `false` with `rosterPolicy: "solo"` to pin exactly one auditor); `roundLimit`; `afk`.
 - **Backward compatible.** No config file → byte-for-byte the pre-v0.3.0 behavior (`effort: "default"` passes no effort opt; built-in model defaults unchanged).
 
