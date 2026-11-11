@@ -9,6 +9,8 @@ Issues claimed (19): #2140, #2145, #2146, #2180, #2198, #2199, #2200, #2202, #22
 Partial claim (2026-11-09, operator ruling): the clause-gating slice of #2783 (PIN-19, PIN-20). #2783 stays
 open at land: its trigger-pointer refactor waits for a plan after the campaign.
 
+**Amended 2026-11-11 (red-team 2026-11-11 at da790a9a, after the model-routing plan merged):** #2223 is already fixed in code by #2803 (the terminal-pass merged arm now runs the `unlandedBy` touched-file gate), so it is retired under A14 and End state 16 drops its terminal sub-check. End state 16 re-anchors the `queuedKeys` range on `keyRegistry()`. Rule 1 keys on the first clause after the authority line, because every dispatched prompt opens with `AUTHORITY_LINE`. Task 1.1 may take a cited ADR 0042 raise of the literal share after dedup (147 B of room at da790a9a). The release-baseline clause gate reads `task.manifestTask || task`, so a late fix of a release task keeps the clause. See `docs/red-team/2026-11-11-engine-comment-and-duplication-tidy.md`.
+
 **Evidence consumed** — one row per linked evidence artifact:
 - `docs/specs/2026-11-08-engine-comment-and-duplication-tidy-design.md` §1–§10 at `365f3da2` · read
 - issues #2140, #2145, #2146 artifacts: pinned sha `abbc7262`, `skills/war/assets/workflow-template.js` · read (the `parkAsk` header and the collision ternary are present at the pin; constructs re-read by name at `35aa4144`)
@@ -20,6 +22,7 @@ open at land: its trigger-pointer refactor waits for a plan after the campaign.
 - issue #2313 artifacts: pinned sha `cc4e3842`, `skills/war/assets/workflow-template.js` · read
 - issues #2316, #2317 artifacts: pinned sha `d3f131bd`, `skills/war/assets/workflow-template.js` and `skills/war/references/backward-chain-worker.md` · read
 - issues #2552, #2553 · no `## Evidence artifacts` section · vacuously satisfied (bodies read in full)
+- issue #2782 artifacts: read only as the parent of #2783; this plan claims none of #2782's items, and its artifacts are the ones listed for #2783 below (red-team 2026-11-11 at da790a9a)
 - issue #2783 artifacts (and its parent #2782): `skills/war/assets/workflow-template.js` (`auditPrompt`, `isReleaseTask`) · read at `ed183b08`; `skills/war/assets/prompt-surface-budgets.test.mjs` (the literal-share row) · run at `ed183b08` (163,504 B); `skills/war/assets/workflow-template.engine-1.test.mjs` (REGISTRY) · read at `ed183b08`; `docs/learnings/a-dispatch-context-key-that-names-an-action-must-ride-only-the-dispatches-that-run-it.md` · read; `docs/adr/0042-prompt-surface-budgets.md` · read with its 2026-11-09 amendment; the 104 dispatched prompts of Workflow run `wf_ff28b4e5-738` · read on the operator's machine on 2026-11-09
 - `docs/plans/2026-11-08-args-floor-and-launch-preflight.md` T1.1, PIN-12, A20 and OD-1 · read by the finalize seat on 2026-11-08 (the `FLOOR_BINDINGS` export, the `provenance mirror: the shipped slice is self-contained` test, and the ruling that this plan's T1.1 adds the binding line)
 - DocTrail WorkAuditRefine/reports/2026-11-06-discarded-polish-refs · read `patches/2026-09-03-in-band-absorb-default__p2-polish.patch` (the 14-item finding list of the phase-2 close sweep, items 6, 7, 8 and 10) by the evidence fold seat on 2026-11-08
@@ -179,7 +182,7 @@ renders `''` when the plan has no adjudication, and a ruling can bind any task.
    (verified: `stage-workflow.test.mjs` sets the flag only inside its own runs at `35aa4144`).
 7. A negative assertion re-aimed by a removal must still be able to fail.
 8. `agents/war-worker.md` is 13,215 B against a 13,312 B hard line: 97 B of headroom (verified: `wc -c` and
-   `prompt-surface-budgets.test.mjs` at `35aa4144`). Its edit here must not grow it.
+   `prompt-surface-budgets.test.mjs` at `35aa4144`; 13,291 B, 21 B of headroom, at da790a9a after the predecessor's `tools:` line, red-team 2026-11-11 at da790a9a). Its edit here must not grow it. The workflow-template literal share is 171,885 B of its 172,032 B hard line at da790a9a (147 B of room): Task 1.1 dedups first, and if its net change still crosses the line it raises `WORKFLOW_LITERAL_BUDGET` by the measured need in its own commit with a `Budget-Raise: ADR-0042 skills/war/assets/workflow-template.js +<bytes>` trailer citing ADR 0042 (operator ruling 2026-11-09: byte caps force a cited reason, they never forbid a raise).
 9. This plan also touches `skills/war/assets/assert-args-complete.mjs`, which the args-floor plan
    (`docs/plans/2026-11-08-args-floor-and-launch-preflight.md`) owns earlier in the chain. That plan's T1.1
    exports `FLOOR_BINDINGS`, the list of template binding lines the launch preflight copies before it runs
@@ -207,7 +210,7 @@ renders `''` when the plan has no adjudication, and a ruling can bind any task.
 | D5 | `scanText` (#2202) | Replace with a boolean, `hasScanRows`, read by `ownTokenMiss`; keep the surface definition in the comment (PIN-5) | spec D5 [assumed: the name — if wrong: rename; no behavior rides it] | PIN-5→slice (T1.1) |
 | D6 | Plan-id class (#2203) | Build the `stripSupersedes` regex and the bare-citation arm from `PLAN_ID_RE.source`, each with its own flags (PIN-6) | (verified: TRIAL-1 at 365f3da2) | PIN-6→slice (T1.1) |
 | D7 | Strip-scope comment (#2200) | The strip rides `rowText` (string rows of `backstops` and `adjudications`) and never applies to `ruledAsks`, `seededPhaseClose` or `seededTasks` (PIN-7) | spec D7 | PIN-7→slice (T1.1) |
-| D8 | Rule 1 discriminator (#2317) | Both surfaces key on position: the clause the prompt opens with. Rule 1 keeps the short `DEPS ALREADY MERGED:` literal; the card keeps its locator prefix. A new test binds the card's quoted literal to the rendered clause (PIN-8) | spec D8 [assumed: `depClause` is always first — if wrong: both surfaces quote the longer literal and the negatives key on a new clause-only token] | PIN-8→slice (T1.1) ‡ |
+| D8 | Rule 1 discriminator (#2317) | Both surfaces key on position: the clause the task text opens with, after the authority line every dispatched prompt starts with (`AUTHORITY_LINE`, red-team 2026-11-11). Rule 1 keeps the short `DEPS ALREADY MERGED:` literal; the card keeps its locator prefix. A new test binds the card's quoted literal to the rendered clause (PIN-8) | spec D8 [assumed: `depClause` is always first — if wrong: both surfaces quote the longer literal and the negatives key on a new clause-only token] | PIN-8→slice (T1.1) ‡ |
 | D9 | Segmented wrapper (#2552) | One helper beside `segmentLoop` owns the re-dispatch log, continuation dispatch and exhaustion log; `segmentedMerge` and `segmentedLand` call it with their current literals. The two copies differ in exactly four points the helper parameterizes (name and shape are latitude): the segment field (`gate_segment` / `land_segment`) read by `isSegment`, the noun pair (`segmented gate` / `segmented land` in the re-dispatch log; `segmented-gate` / `segmented-land` in the exhaustion log), the continuation header (a builder of `(result, segment, opts)` that returns the text prepended to `body`), and the exhaustion tail (`(error).` / `.`). After the fold neither `segmentedMerge` nor `segmentedLand` calls `segmentLoop` directly. `aceSegments` is out of scope (PIN-9) | spec D9 [assumed: a helper beats a parity test because the copies differ in pinned words — if wrong: a masked source-compare test] | PIN-9→slice (T1.1) |
 | D10 | `parkAsk` log (#2145) | Hoist the outcome clause to a const; the log concatenates values only; text byte-stable (PIN-10) | spec D10 | PIN-10→slice (T1.1) |
 | D11 | `queuedKeys` list (#2146) | "no list here — a new caller joins by stamping queuedKeys"; keep the `seededPhaseClose` construct-time sentence (PIN-11) | spec D11 [assumed: that sentence is the only part worth keeping — if wrong: the auditor names what else] | PIN-11→slice (T2.1) |
@@ -219,7 +222,7 @@ renders `''` when the plan has no adjudication, and a ruling can bind any task.
 | D17 | Release | Trailing release phase in the directive form (PIN-17) | spec §4 Phase 3 | PIN-17→slice (T3.1) |
 | D18 | Live evidence dispatch | A real refiner run of the column-free evidence dispatch is read at the next land (PIN-18) | drafter [assumed: fixtures stub the refiner — if wrong: drop the row] | PIN-18→backstop |
 | D19 | Cascade clause (#2783) | `auditPrompt` appends the `CASCADING-IMPACT DOC CASCADE` clause only when `lens` is `cascading-impact`; the clause text and its REGISTRY anchor tokens stay in the source byte for byte; the standing card keeps its lens bullet, recorded as a single-layer choice (PIN-19) | operator ruling 2026-11-09 (#2783 slice) | PIN-19→slice (T1.1) |
-| D20 | Release-baseline clause (#2783) | `auditPrompt` appends the `RELEASE-BASELINE RULE` clause only when `isReleaseTask(task)` holds; the clause text stays byte for byte, and the card mirror stays (PIN-20) | operator ruling 2026-11-09 (#2783 slice) · AI-declared for the predicate [assumed: declared `Files:` is the right signal — if wrong: the clause also rides a task whose diff-probe names a release-slot file] | PIN-20→slice (T1.1) |
+| D20 | Release-baseline clause (#2783) | `auditPrompt` appends the `RELEASE-BASELINE RULE` clause only when `isReleaseTask(task.manifestTask || task)` holds (a sweep in a release phase counts as release); the clause text stays byte for byte, and the card mirror stays (PIN-20) | operator ruling 2026-11-09 (#2783 slice) · AI-declared for the predicate [assumed: declared `Files:` is the right signal — if wrong: the clause also rides a task whose diff-probe names a release-slot file] | PIN-20→slice (T1.1) |
 | D21 | Per-lens proof | four prompt rows prove both directions for each clause: present on the seat that runs it, absent on a seat that does not; each absent row runs on a fixture that also renders the present case, so it can fail (PIN-21) | operator ruling 2026-11-09 ("each moved clause still reaches every seat that runs it, proven by a per-lens prompt test") | PIN-21→guardrail |
 
 ## Assumptions ledger
@@ -286,7 +289,7 @@ None. D9's helper is an internal name. No ADR [assumed: see A13].
   - Every test-pinned log string and prompt byte stays, except the dropped `gateLogPath` column, rule 1's
     wording (PIN-15 ‡) and the two gated audit clauses on the seats that never run them (PIN-19, PIN-20).
   - Each gated clause still reaches every seat that runs it, and its text is byte-identical (PIN-21).
-  - `agents/war-worker.md` does not grow, `agents/war-refiner.md` is not edited, and no budget is raised (PIN-16).
+  - `agents/war-worker.md` does not grow, `agents/war-refiner.md` is not edited, and no budget is raised except a cited literal-share raise in Task 1.1 after dedup (PIN-16, Constraint 8).
   - The literal `DEPS ALREADY MERGED: this task declares deps` never appears in the rules block.
   - Test edits stay in `workflow-template.engine-1.test.mjs`, `backward-chain.test.mjs` and, for the
     `preMergeTipOf` regex and the `BARE_INTERPOLATION_CENSUS` rows the `gateLogPath` drop and the `adjRow`
@@ -328,26 +331,26 @@ None. D9's helper is an internal name. No ADR [assumed: see A13].
       judged by the correctness seat at audit_sha) · red at base: 3.
   12. `parkAsk`'s collision log holds no prose ternary and keeps both clauses · check:
       `grep -c "(recorded ? 'the re-raise" skills/war/assets/workflow-template.js` prints `0`, and
-      `grep -o 'the re-raise recorded on its corroborators list\|already a corroborator, not recorded again' skills/war/assets/workflow-template.js | wc -l`
+      `grep -o 'the re-raise recorded on its corroborators list\|already a corroborator, not recorded again' skills/war/assets/workflow-template.js | wc -l | tr -d ' '`
       prints `2` · red at base: 1 (first part).
   13. The touched suites stay green · check: `node --test skills/war/assets/workflow-template.engine-1.test.mjs skills/war/assets/workflow-template.submodule-1.test.mjs skills/war/assets/backward-chain.test.mjs skills/war/assets/prompt-surface-budgets.test.mjs`
       prints `fail 0` · green at base: regression guard paired with End states 1–12.
   14. The staged form stays green · check: `WAR_TEMPLATE_STRIPPED=1 node --test 'skills/war/assets/workflow-template.*.test.mjs'`
       prints `fail 0` · green at base: regression guard, run in every engine phase.
+  Note (red-team 2026-11-11 at da790a9a): a `grep -c` check that expects `0` exits 1 when it is met; every such row here is judged by the printed value, never the exit code.
   15. The false or stale comments are gone · check:
-      `cat skills/war/assets/workflow-template.js skills/war/assets/workflow-template.engine-1.test.mjs | grep -cE 'counts distinct seats|#3f55b04|chainRecordFix runs before the absorbRounds|that note arm then skips|both sit outside any local try|routeToSweep, the round-1 approve arm|absorbs \(except the approve trail|non-final phase EXCEPT the approve trail'`
+      `cat skills/war/assets/workflow-template.js skills/war/assets/workflow-template.engine-1.test.mjs | grep -ciE 'counts distinct seats|#3f55b04|chainRecordFix runs before the absorbRounds|that note arm then skips|both sit outside any local try|routeToSweep, the round-1 approve arm|absorbs \(except the approve trail|non-final phase EXCEPT the approve trail'`
       prints `0` · red at base: 9.
   16. The corrected comments say the new thing, each anchored to its construct · check:
-      `sed -n '/const aceReaudit = async/,/const chainRound = correctiveRoundOf/p' skills/war/assets/workflow-template.js | grep -c 'zero sum'` prints 1 or more;
-      `sed -n '/^const filedKeys = new Set/,/^const queuedKeys = new Set/p' skills/war/assets/workflow-template.js | grep -c 'a new caller joins by'` prints 1 or more;
+      `sed -n '/const aceReaudit = async/,/const chainRound = correctiveRoundOf/p' skills/war/assets/workflow-template.js | grep -ciE 'zero[- ]sum'` prints 1 or more;
+      `sed -n '/^const filedKeys = keyRegistry()/,/^const queuedKeys = keyRegistry()/p' skills/war/assets/workflow-template.js | grep -ci 'a new caller joins by'` prints 1 or more;
       `sed -n '/^const citationStamp = /,/^const queuedFindingRow = /p' skills/war/assets/workflow-template.js | grep -c 'c0f88d0'` prints 1 or more, and the same
-      range piped to `grep -c '3f55b04'` prints 1 or more;
-      `grep -A6 "sweepDebtLog('terminal pass merge:p' + ph.id + '-terminal', tmr)" skills/war/assets/workflow-template.js | grep -c 'no touched-file gate'` prints 1 or more
-      · red at base: 0, 0, 0 (and 1 for the bare `3f55b04`), 0. A whole-file count would read baseline+1 and
+      range piped to `grep -c '3f55b04'` prints 1 or more
+      · red at base: 0, 0, 0 (and 1 for the bare `3f55b04`). The terminal-pass sub-check is retired with #2223 (red-team 2026-11-11 at da790a9a). A whole-file count would read baseline+1 and
       pass on any upstream comment that happens to carry the phrase, so no whole-file count is used.
   17. The four rewrapped blocks hold no line over 110 columns · check:
       `node -e 'const L=require("fs").readFileSync("skills/war/assets/workflow-template.js","utf8").split("\n");const c=l=>/^\s*\/\//.test(l);let over=0;for(const a of ["const routeGateAuditRows = ","const carriedPhaseClose = ","const carryPhaseClose = ","// Terminal-disposition demotion ladder"]){let i=L.findIndex(l=>l.startsWith(a));if(i<0){console.log("missing:"+a);process.exit(1)}if(!c(L[i]))i--;let s=i,e=i;while(s>0&&c(L[s-1]))s--;while(e<L.length-1&&c(L[e+1]))e++;for(let k=s;k<=e;k++)if(L[k].length>110)over++}console.log("over:"+over)'`
-      prints `over:0` · red at base: `over:2`.
+      prints `over:0` · red at base: `over:2` at 35aa4144, `over:4` at da790a9a (red-team 2026-11-11 at da790a9a).
   18. Phase 2's engine diff is comment-only · HARD at audit_sha (observable: every added or removed non-blank
       line of `skills/war/assets/workflow-template.js` in the task diff starts with `//` after its indent;
       judge: the correctness seat).
@@ -362,8 +365,8 @@ None. D9's helper is an internal name. No ADR [assumed: see A13].
       `node --test --test-reporter=tap --test-isolation=none skills/war/assets/workflow-template.engine-1.test.mjs 2>&1 | grep -cE '^ *ok [0-9]+ - audit clause gating — the cascade clause (rides the cascading-impact seat|is absent from every other lens)$'`
       prints `2` · red at base: no such row exists.
   24. The release-baseline clause rides a release task's seats and no other task's (PIN-20, PIN-21) · check:
-      `node --test --test-reporter=tap --test-isolation=none skills/war/assets/workflow-template.engine-1.test.mjs 2>&1 | grep -cE '^ *ok [0-9]+ - audit clause gating — the release-baseline clause (rides a release task|is absent from a non-release task)$'`
-      prints `2`, and `grep -c 'RELEASE-BASELINE RULE: judge a release/version-bump diff' skills/war/assets/workflow-template.js`
+      `node --test --test-reporter=tap --test-isolation=none skills/war/assets/workflow-template.engine-1.test.mjs 2>&1 | grep -cE '^ *ok [0-9]+ - audit clause gating — the release-baseline clause (rides a release task|is absent from a non-release task|rides a late fix of a release task)$'`
+      prints `3`, and `grep -c 'RELEASE-BASELINE RULE: judge a release/version-bump diff' skills/war/assets/workflow-template.js`
       prints `1` (the text is still in the source) · red at base: no such row exists.
 
 ## Build order (for /war)
@@ -376,7 +379,7 @@ final code.
 
 ### Task 1.1: Fold the copies, drop the dead column, align the worker trigger, gate two audit clauses
 - Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.engine-1.test.mjs`, `skills/war/assets/workflow-template.test-harness.mjs`, `skills/war/references/backward-chain-worker.md`, `agents/war-worker.md`, `skills/war/assets/backward-chain.test.mjs`, `skills/war/assets/assert-args-complete.mjs`
-- Plan slice: Serves End states 1–14, 23 and 24. Re-read every construct by name at the rebased tip first; record any
+- Plan slice: Serves End states 1–14, 23 and 24. Measure the literal share first (Constraint 8: dedup, then a cited raise only if the net change still crosses the hard line). Re-read every construct by name at the rebased tip first; record any
   item a sibling plan already fixed as already-fixed in `notes` (A14). These are task work, never absorbs (A15).
   - (PIN-2, #2180) Drop `gateLogPath` from `evItems`, the `For EACH merged task below (...)` header and the row
     builder. Leave the per-task seat's `gateArtifactLine` read of `mergedTasksForGateAudit` alone. Re-aim the
@@ -420,13 +423,13 @@ final code.
     Manual same-scope survey required: after the grep, hand-scan the target file's same-scope tests and
     comments for same-meaning siblings worded differently, and list each straggler as a survey-derived correction.
   - (PIN-8 ‡, #2317) Rule 1, in `BACKWARD_CHAIN_WORKER_RULES` and `backward-chain-worker.md` together (the
-    byte-equal test binds them): "When the prompt opens with the `DEPS ALREADY MERGED:` dispatch clause, …".
+    byte-equal test binds them): "When the task text opens with the `DEPS ALREADY MERGED:` dispatch clause (after the authority line), …".
     Keep the short literal; the longer clause literal never enters the rules block. In `agents/war-worker.md`
     keep the line's `If your spawn prompt carries a \`DEPS ALREADY MERGED` prefix and change the parenthetical
-    to "(the clause the prompt opens with, not the mention in the backward-chain worker rules)" or any wording
+    to "(the clause the task text opens with, not the rules' mention)" or any wording
     no longer than today's: the card must not grow (PIN-16). Update the `backward-chain.test.mjs` mutation row
     "rule 1 loses the DEPS ALREADY MERGED sub-clause" to the new sentence. Add a test whose name carries
-    `#2317`: take the text a deps-bearing work prompt opens with, up to and including `declares deps`, and
+    `#2317`: take the text a deps-bearing work prompt opens with after the authority line (read it through `unprefixed(prompt)`, as the existing deps test does), up to and including `declares deps`, and
     assert the card line found by its prefix includes it (guard for the card's quoted literal, rule 8).
     Grep `DEPS ALREADY MERGED` across `skills/` and `agents/` and handle every match. Manual same-scope
     survey required: after the grep, hand-scan the target file's same-scope tests and comments for
@@ -444,7 +447,7 @@ final code.
     `cascading-impact`. Keep the clause text, its comment and every REGISTRY anchor token byte for byte. Fix
     the comment above it so that it names the gate. Leave `agents/war-auditor.md` alone: its lens bullet is the
     standing copy, and the commit body records the single-layer choice.
-  - (PIN-20, #2783) Append the `RELEASE-BASELINE RULE` clause only when `isReleaseTask(task)` holds. Keep the
+  - (PIN-20, #2783) Append the `RELEASE-BASELINE RULE` clause only when `isReleaseTask(task.manifestTask || task)` holds, so a late fix of a release task (whose synthetic `lfTask` carries `manifestTask: origin`) keeps the clause; a phase-close polish or terminal task in a phase whose task set holds a release task also keeps it (red-team 2026-11-11 at da790a9a). Add a test row `audit clause gating — the release-baseline clause rides a late fix of a release task`. Keep the
     clause text and its card mirror byte for byte.
   - (PIN-21) Add the four rows End states 23 and 24 name. Each `absent` row renders the `present` case in the
     same fixture first, so the row can fail. Prove each row red by removing its gate. Sweep every existing row
@@ -466,10 +469,9 @@ final code.
   - #2140: drop the "counts distinct seats" clause from the `parkAsk` header and from the own-raiser test comment.
   - (PIN-11) #2146: replace the `queuedKeys` producer list with "no list here — a new caller joins by stamping
     queuedKeys", and keep the `seededPhaseClose` construct-time sentence as its own line.
-  - #2223: the terminal-pass merged arm's `#1873-class` comment says the arm has no touched-file gate, so it
-    inherits the ruled residual stated at the ace batch site.
+  - #2223: already fixed at da790a9a (red-team 2026-11-11 at da790a9a): #2803 gave the terminal-pass merged arm the `unlandedBy` touched-file gate, so the comment the issue asked for would now be false. Record it in `notes` as already-fixed (A14) and close it with that reason. Re-read the `#1873-class` comment beside the arm: if it still implies no touched-file gate, make it name the `unlandedBy` gate; otherwise leave it.
   - #2227: the `queuedFindingRow` header cites `3f55b04` with no `#` as the fix and `c0f88d0` as the drift.
-  - #2246: the `drainCauseOf` header names only the handoff `followUps` projection as outside any try.
+  - #2246: the `drainCauseOf` header names every reader at the rebased tip and which ones sit outside a try. At da790a9a that is the pre-filing consolidation collapse (`mergedOf`) and the handoff `followUps` projection outside any try, and the filing row inside the file-followups try (red-team 2026-11-11 at da790a9a: re-derive from the live readers, never from this list).
   - #2271: the `carryPhaseClose` header and the `carriedPhaseClose` declaration comment scope the approve-trail
     exception to queued `phaseCloseQueue` rows.
   - #2313: the `aceReaudit` comment carries the zero-sum caveat of `correctiveRoundOf`.
