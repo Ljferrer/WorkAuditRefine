@@ -2,12 +2,12 @@
 # Tests for the WAR audit tree fingerprint hook (hooks/audit-tree-fingerprint.sh):
 # Bash-arm infra failure marks, search patterns that are not paths, the --prune record cleanup, and hook registration and conventions.
 # The shared fixture, payload builders and helpers live in
-# audit-tree-fingerprint.test-lib.sh (its header describes the hook and the
+# audit-tree-fingerprint.test-harness.sh (its header describes the hook and the
 # fixture). #2823 split the suite into four files so they run in parallel.
 # Plain-bash assertion runner, bash 3.2 safe, cwd-independent.
 # Exit 0 = all cases passed.
 HERE="$(cd "$(dirname "$0")" && pwd)"
-. "$HERE/audit-tree-fingerprint.test-lib.sh"
+. "$HERE/audit-tree-fingerprint.test-harness.sh"
 
 # Fixture state the old single suite left before these rows. The Grep walk-down
 # rows (operands suite) left an empty $TMP/plain/mid after they removed wtP, and
@@ -582,4 +582,4 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-finish audit-tree-fingerprint-marks.test.sh
+finish audit-tree-fingerprint.marks.test.sh

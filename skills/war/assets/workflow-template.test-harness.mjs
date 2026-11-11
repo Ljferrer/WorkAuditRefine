@@ -2553,7 +2553,10 @@ const quietGate = (base) => (prompt, opts) => {
 // Re-pinned (same task, fix round): the D28 bullet scopes the CONFIRMED TIP compare to the End-state
 // check artifacts and leaves a gate log on its own gated sha; the D30 bullet names the intent-ordinal
 // compare. Every other bullet stays byte-identical.
-const GATE_AUDIT_CHECKLIST_SHA256 = 'ea044abe32637b84b4156e89fad699777dac4b5d5764c6ac48f99f0baa0de408'
+// Re-pinned (#2842 audit fix): the mappedTests bullet names the repository gate's per-file
+// `== gate(node): <path> ==` headers beside the bash ones, and keeps the titles-only rule for a
+// declared gate that runs `node --test` over a glob. Every other bullet stays byte-identical.
+const GATE_AUDIT_CHECKLIST_SHA256 = '97362ed74b5991e810359d8b3ede8c0213e59cd13c219ba5fa8a28097b62e559'
 
 // A citation-resolved finding: the seat matched the parked ask's NAMED trade-off to a threaded
 // standing adjudication row and returns disposition:'absorb' + citation (A2 — panel judgment),

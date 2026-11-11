@@ -23,7 +23,7 @@
 #       narrowest subtree or exclude `.claude/`; a bare repo-root scan sweeps
 #       ~100 stale duplicate suites under .claude/worktrees/ and mis-asserts
 #       (absence-guard-search-root-must-anchor-to-subtree). PASS references:
-#       provision-worktrees-teardown.test.sh (`$SKILLS_ROOT` anchor) and
+#       provision-worktrees.teardown.test.sh (`$SKILLS_ROOT` anchor) and
 #       refinery-surface.test.sh (named files). A deliberate exception carries
 #       an inline `# guard-conventions: allow <reason>` tag; the lint prints
 #       suppressed hits to stderr for the record.
@@ -326,10 +326,10 @@ else
 fi
 
 # PASS references: subtree-anchored / named-file guard tests.
-if [ -z "$(search_root_scan "$REPO/skills/war/assets/provision-worktrees-teardown.test.sh" 2>/dev/null)" ]; then
-  pass "search-root lint PASSES provision-worktrees-teardown.test.sh (SKILLS_ROOT anchor)"
+if [ -z "$(search_root_scan "$REPO/skills/war/assets/provision-worktrees.teardown.test.sh" 2>/dev/null)" ]; then
+  pass "search-root lint PASSES provision-worktrees.teardown.test.sh (SKILLS_ROOT anchor)"
 else
-  fail "search-root lint false-fired on provision-worktrees-teardown.test.sh"
+  fail "search-root lint false-fired on provision-worktrees.teardown.test.sh"
 fi
 if [ -z "$(search_root_scan "$REPO/skills/war/assets/refinery-surface.test.sh" 2>/dev/null)" ]; then
   pass "search-root lint PASSES refinery-surface.test.sh (named files)"
@@ -359,7 +359,7 @@ while IFS= read -r _tf; do
   _h="$(search_root_scan "$_tf" 2>/dev/null)"
   [ -n "$_h" ] && sr_hits="$sr_hits$_h"$'\n'
 done <<EOF
-$(find "$REPO/hooks" "$REPO/skills" -type f \( -name '*.test.sh' -o -name '*.test-lib.sh' \) \
+$(find "$REPO/hooks" "$REPO/skills" -type f \( -name '*.test.sh' -o -name '*.test-harness.sh' \) \
     -not -path '*/.claude/*' -not -path '*/.git/*' -not -path '*/node_modules/*' | sort)
 EOF
 if [ -z "$sr_hits" ]; then

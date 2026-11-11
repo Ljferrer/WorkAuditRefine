@@ -4,12 +4,12 @@
 # merged-guard, resolve-working-branch (RWB rows), ensure-integration base
 # reconcile, ensure-publication-worktree, the exit-code catalogue and
 # ensure-exclude, partial-phase recovery, and the large-registry and PIPE rows.
-# The shared helpers live in provision-worktrees.test-lib.sh (its header
+# The shared helpers live in provision-worktrees.test-harness.sh (its header
 # describes the runner and the ownership seam). #2824 split the suite into
 # three files so they run in parallel. Plain-bash assertion runner, bash 3.2
 # safe, cwd-independent. Exit 0 = all cases passed.
 HERE="$(cd "$(dirname "$0")" && pwd)"
-. "$HERE/provision-worktrees.test-lib.sh"
+. "$HERE/provision-worktrees.test-harness.sh"
 
 # ===========================================================================
 # Task 3 (clandiso): teardown-phase --worktree-root <root> — reap _refinery
@@ -290,12 +290,12 @@ SCRIPT_DIR="$(dirname "$0")"
 # assets -> war -> skills : two levels up. NOT three (that lands on the repo
 # root and drags in stale branch_ahead_of copies under .claude/worktrees/**).
 SKILLS_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-# Search for branch_ahead_of in skills/ source files (exclude test files so
-# this assertion itself does not false-positive on the grep term appearing
-# in a comment inside a test file).
+# Search for branch_ahead_of in skills/ source files (exclude test files and
+# the sourced test setup files, so this assertion itself does not
+# false-positive on the grep term appearing in a comment inside a test file).
 n=$((n + 1))
 FOUND_AHEAD="$(grep -rn branch_ahead_of "$SKILLS_ROOT" \
-  --include='*.sh' --exclude='*.test.sh' \
+  --include='*.sh' --exclude='*.test.sh' --exclude='*.test-harness.sh' \
   --include='*.bash' 2>/dev/null || true)"
 if [ -z "$FOUND_AHEAD" ]; then
   printf 'ok %d - F08: branch_ahead_of is absent from skills/ source files (grep returns nothing)\n' "$n"
@@ -777,7 +777,7 @@ expect "RWB.d: dedicated branch did NOT move (never re-cut)" \
 # (git wording varies across versions; on a future miss EXTEND the fragment list,
 # never weaken to "any non-static content"). RWB.c above stays the success /
 # idempotency control, unmodified. Die stderr captured via the T2.3/T2.6
-# hand-rolled inline idiom (rows in provision-worktrees.test.sh) (run_in echoes only the exit code; run_in_detached
+# hand-rolled inline idiom (rows in provision-worktrees.core.test.sh) (run_in echoes only the exit code; run_in_detached
 # swallows both streams — neither can assert die text). ---
 RWB_E="$(new_repo)"
 git -C "$RWB_E" remote add origin "/nonexistent/path/that/cannot/be/a/repo-eo.git"
@@ -816,7 +816,7 @@ expect "RWB.f: the nested derived name was NOT created" \
 # fixture repo with a leaf branch `war/<slug>` blocks the task-branch namespace,
 # so resolve-working-branch must die at Setup — BEFORE any task dispatch could
 # hit the block mid-phase — naming the leaf in stderr. Die text captured via the
-# T2.3/T2.6 inline idiom (rows in provision-worktrees.test.sh) (run_in echoes only the exit code). The probe precedes
+# T2.3/T2.6 inline idiom (rows in provision-worktrees.core.test.sh) (run_in echoes only the exit code). The probe precedes
 # the branch_checked_out_anywhere collision fork, so this one no-collision shape
 # suffices for both paths. Exit is pinned to 1 (the plain-die default): this is
 # a namespace/argument problem, deliberately NOT EX_FOREIGN(3).
@@ -919,7 +919,7 @@ expect "RWB.k: no nested dev/<date>-<slug> ref was cut on resume" \
 # resolved working branch), so refs/heads/<base> is a real follower ref.
 #
 # The owned resume/reuse path is unchanged (Cases 1-2 in
-# provision-worktrees.test.sh); the fetch only
+# provision-worktrees.core.test.sh); the fetch only
 # happens when the integration branch is absent (the create path).
 FBASE="wbranch"
 
@@ -1085,7 +1085,8 @@ expect "(f) behind+checked-out: checkout not phantom-dirtied (tracked files clea
 # on-branch; reuse arms (b) and (c), where the refinery verb runs the
 # reuse_hygiene submodule arm and emits its WORKTREE_HYGIENE markers (#1476
 # gap 4) and this verb runs neither. The worktree-add failure die names the
-# branch holder like the refinery twin (#2087, row RG.7 beside RG.5-RG.6).
+# branch holder like the refinery twin (#2087, row RG.7 beside RG.5-RG.6 in
+# provision-worktrees.core.test.sh).
 # remove-publication-worktree <path> is a NO-FORCE,
 # dirty-guarded removal that NEVER touches the branch ref (the working branch —
 # WAR's land target — must survive; a committed-but-unpushed docs commit lives
@@ -1328,7 +1329,7 @@ fi
 # ---------------------------------------------------------------------------
 # End state 6 (F): ensure-exclude <repo-dir> invoked from a DIFFERENT cwd writes
 # the exclude into <repo-dir>'s git dir; the no-arg form is byte-identical (Case
-# 3 in provision-worktrees.test.sh already covers no-arg). Delete-and-trace:
+# 3 in provision-worktrees.core.test.sh already covers no-arg). Delete-and-trace:
 # without the positional arg
 # the exclude would land in the caller's cwd git dir (or die: not a git repo).
 # ---------------------------------------------------------------------------
@@ -1786,7 +1787,7 @@ expect "large-registry: sync-follower leaves a checked-out branch in place" \
 # Case (PIPE) one row per site converted from `printf | grep` to a case match.
 # Each hit sits in the first line of an output over 64 KiB, so the old pipeline
 # went red here too. A shim stands in for the two git calls that produce the
-# output. Rows MG.2-MG.3 here and T2.1/T2.9 in provision-worktrees.test.sh
+# output. Rows MG.2-MG.3 here and T2.1/T2.9 in provision-worktrees.core.test.sh
 # pin the same sites with real git output.
 # ---------------------------------------------------------------------------
 PIPE_FILLER="$(dirname "$(new_wt_path)")/filler.txt"
@@ -1864,4 +1865,4 @@ expect "PIPE [rejected]: bare letters of the token stay a plain push error (exit
 
 
 # ---------------------------------------------------------------------------
-finish provision-worktrees-teardown.test.sh
+finish provision-worktrees.teardown.test.sh

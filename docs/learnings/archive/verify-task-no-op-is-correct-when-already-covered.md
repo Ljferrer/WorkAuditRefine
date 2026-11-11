@@ -16,7 +16,7 @@ metadata:
 **Rule:** a VERIFY task whose "add X if missing" condition evaluates to FALSE is correct to
 produce zero file changes — that is not "task skipped the work". Instance: phase 5/t9
 approved with zero diff because the integration base already contained the requested
-zero-cross-bleed leg in provision-worktrees.test.sh.
+zero-cross-bleed leg in provision-worktrees.core.test.sh.
 
 **3-check auditor checklist:** (1) the requested scenario already exists in the integration
 base; (2) coverage is green-by-presence, not green-by-deletion; (3) no other phase task was

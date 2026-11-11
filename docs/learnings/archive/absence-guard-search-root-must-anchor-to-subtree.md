@@ -10,7 +10,7 @@ metadata:
 
 **Rule:** anchor absence/presence-guard search roots to the narrowest intended subtree, never the
 repo root — in a repo keeping `.claude/worktrees/**`, a root-anchored grep scans stale checkouts of
-the very file under test. F08's guard in `provision-worktrees.test.sh` used `$SCRIPT_DIR/../../..`
+the very file under test. F08's guard in `provision-worktrees.core.test.sh` used `$SCRIPT_DIR/../../..`
 (repo root) instead of `../..` (`skills/`) and false-FAILed on stale WAR-run worktrees.
 
 Fixed in f08-scope-fix: `SKILLS_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"`.

@@ -43,7 +43,7 @@ metadata:
 
 The hook recurses one level only. A nested submodule is not enumerated (read from `task_worktrees`, not executed).
 
-**Test insight.** The four fixture rows in `hooks/audit-tree-fingerprint.test.sh` carry an independent oracle row: the superproject list lacks the submodule worktree and the submodule list has it. The start-record row pins an exact line count of 4, so dropping the `.git` guard (which adds duplicate lines) turns it red. A fixture built from one repo cannot show this gap.
+**Test insight.** The four fixture rows in `hooks/audit-tree-fingerprint.core.test.sh` carry an independent oracle row: the superproject list lacks the submodule worktree and the submodule list has it. The start-record row pins an exact line count of 4, so dropping the `.git` guard (which adds duplicate lines) turns it red. A fixture built from one repo cannot show this gap.
 
 **Locate-cue (verify still present before acting).** `task_worktrees` and `marked_worktrees_of` in `hooks/audit-tree-fingerprint.sh`, found at landed tip d66961d9 on `dev/2026-10-20-rea-artifact-evidence`. The provision prompt sits in `skills/war/assets/workflow-template.js`.
 
