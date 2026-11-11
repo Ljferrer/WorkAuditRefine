@@ -158,12 +158,14 @@ test('invalid pool sizes fail before launching any tests', t => {
   }
 })
 
-test('termination kills descendants, drains active jobs, and never reports a complete gate', async t => {
+async function terminate(t, preload) {
   const { root, put, env } = fixture(t)
   put('stubborn.mjs', "import { writeFileSync } from 'node:fs'; process.on('SIGTERM', () => {}); writeFileSync('child.pid', String(process.pid)); setInterval(() => {}, 100)\n")
   put('a.test.sh', `${quote(process.execPath)} stubborn.mjs &\nwait\n`)
   put('z.test.sh', 'touch should-not-run\n')
-  const child = spawn(process.execPath, [runner], { cwd: root, env: { ...env, WAR_GATE_SHELL_JOBS: '1' } })
+  if (preload) put('preload.mjs', preload)
+  const args = preload ? ['--import', './preload.mjs', runner] : [runner]
+  const child = spawn(process.execPath, args, { cwd: root, env: { ...env, WAR_GATE_SHELL_JOBS: '1' } })
   let output = ''
   child.stdout.on('data', data => { output += data })
   child.stderr.on('data', data => { output += data })
@@ -182,7 +184,20 @@ test('termination kills descendants, drains active jobs, and never reports a com
   assert.doesNotMatch(output, /== gate complete:/)
   assert.equal(existsSync(join(root, 'should-not-run')), false)
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
-})
+}
+
+test('termination kills descendants, drains active jobs, and never reports a complete gate', t => terminate(t))
+
+// macOS can refuse a group kill with EPERM when only exiting or zombie members remain.
+// The preload sends each group signal for real, then throws EPERM, so the stop path sees it.
+const epermKill = `const kill = process.kill.bind(process)
+process.kill = (pid, signal) => {
+  if (pid >= 0) return kill(pid, signal)
+  try { kill(pid, signal) } catch {}
+  throw Object.assign(new Error('kill EPERM'), { code: 'EPERM', errno: -1, syscall: 'kill' })
+}
+`
+test('a group kill that throws EPERM still exits 143 and never reports a complete gate', t => terminate(t, epermKill))
 
 const pad = n => `# ${'x'.repeat(n)}\n`
 const order = root => readFileSync(join(root, 'order'), 'utf8').trim().split('\n')
