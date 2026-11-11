@@ -2056,7 +2056,7 @@ test('coverage meta-test: all *.test.sh files in the repo are not under pruned p
   const EXPECTED_SUITES = [
     'hooks/validate-worktree-scope.test.sh',
     'hooks/clean-surface-war-worktree.test.sh',
-    'skills/war/assets/provision-worktrees.test.sh',
+    'skills/war/assets/provision-worktrees.core.test.sh',
     'skills/war/assets/refinery-surface.test.sh',
   ].map(p => join(REPO_ROOT, p))
 

@@ -34,7 +34,7 @@ metadata:
 
 **Why it bit here.** The fingerprint hook's SubagentStart arm runs `status` in every `.war-task` worktree, including live sibling workers' and the refiner's. The hook export sits near the top of `hooks/audit-tree-fingerprint.sh`. The status output is the same either way, so the opt-out costs nothing.
 
-**Test insight (the oracle matters).** A pre-existing `index.lock` is NOT the oracle. `git status` skips the refresh silently when it cannot take the lock, in both modes, so that row never goes red. The working oracle in `hooks/audit-tree-fingerprint.test.sh`:
+**Test insight (the oracle matters).** A pre-existing `index.lock` is NOT the oracle. `git status` skips the refresh silently when it cannot take the lock, in both modes, so that row never goes red. The working oracle in `hooks/audit-tree-fingerprint.core.test.sh`:
 - Give a tracked file an old mtime (content unchanged) to stale the index.
 - Run each fingerprinting arm.
 - Compare `cksum` of the index before and after.

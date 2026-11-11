@@ -18,7 +18,7 @@ metadata:
   files: 
     - hooks/clean-surface-war-worktree.test.sh
     - hooks/validate-worktree-scope.test.sh
-    - skills/war/assets/provision-worktrees.test.sh
+    - skills/war/assets/provision-worktrees.core.test.sh
   relates: 
     - "[[auditor-cannot-execute-the-tests-it-must-verify-pass]]"
     - "[[retire-token-needs-clean-surface-gate-test]]"

@@ -70,7 +70,7 @@ to other floor scripts without re-checking their own consumer code.
 ## RECURRENCE 2 (2026-08-06-handoff-schemas-contract/phase-1, #1381) — a *test-fixture comment* claims an unbacked downstream consumer
 
 Same defect class, different surface: a test-fixture comment in
-`skills/war/assets/provision-worktrees.test.sh` (the HYG.j fixture for the D19/D20
+`skills/war/assets/provision-worktrees.core.test.sh` (the HYG.j fixture for the D19/D20
 worktree-hygiene reuse repair) justifies splitting stdout from stderr with: "the barrier parses
 stdout as the worktree PATH, so markers MUST stay on stderr — dropping `>&2` from
 `hygiene_marker` would corrupt the path capture." Code-verified: no consumer does that. The

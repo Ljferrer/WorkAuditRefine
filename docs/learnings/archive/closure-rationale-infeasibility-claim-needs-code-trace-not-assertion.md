@@ -63,7 +63,7 @@ Related: [[deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold]] (
 
 ## RESOLVED — land-advance-exit-contract-truth Phase 1, Task 1.2 (#1036, 2026-07-24)
 
-Case **T2.5d** in `skills/war/assets/provision-worktrees.test.sh` now fixtures the orphan-HEAD arm and asserts exit `3` with the `could not resolve HEAD to a commit` die substring.
+Case **T2.5d** in `skills/war/assets/provision-worktrees.core.test.sh` now fixtures the orphan-HEAD arm and asserts exit `3` with the `could not resolve HEAD to a commit` die substring.
 The general pattern above stays the durable part; only this one follow-up debt item is closed.
 
 > archived 2026-08-15: resolved — moved to archive

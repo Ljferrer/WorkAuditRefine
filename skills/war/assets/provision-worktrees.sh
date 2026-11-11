@@ -1509,7 +1509,7 @@ cmd_land_advance() {
     # deterministic wrong-cwd no-op pre-push, leaving a mid-push origin race as
     # the reachable route here. A lag can clear, so a miss reads once more after
     # 2 s. A failed ls-remote is a miss too, and never exits with Git's own code.
-    # The lagging-ls-remote git wrapper in provision-worktrees-land.test.sh fixtures this
+    # The lagging-ls-remote git wrapper in provision-worktrees.land.test.sh fixtures this
     # branch (rows LA.1 to LA.4).
     actual="$(git ls-remote origin "refs/heads/$working" | cut -f1)" || actual=""
     if [ "$actual" != "$new_sha" ]; then

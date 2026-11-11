@@ -2,12 +2,12 @@
 # Tests for the WAR audit tree fingerprint hook (hooks/audit-tree-fingerprint.sh):
 # flagged paths, unverifiable fingerprints, SubagentStop, the hook deadline, the per-call watchdog, the exit contract, Bash recording, and payloads with no agent_id.
 # The shared fixture, payload builders and helpers live in
-# audit-tree-fingerprint.test-lib.sh (its header describes the hook and the
+# audit-tree-fingerprint.test-harness.sh (its header describes the hook and the
 # fixture). #2823 split the suite into four files so they run in parallel.
 # Plain-bash assertion runner, bash 3.2 safe, cwd-independent.
 # Exit 0 = all cases passed.
 HERE="$(cd "$(dirname "$0")" && pwd)"
-. "$HERE/audit-tree-fingerprint.test-lib.sh"
+. "$HERE/audit-tree-fingerprint.test-harness.sh"
 
 # --- git's own change detection off; flagged paths hashed (#2438) -------------
 # `git status` never reports a worktree edit to a path flagged assume-unchanged
@@ -994,4 +994,4 @@ fi
 
 
 # ---------------------------------------------------------------------------
-finish audit-tree-fingerprint-deadline.test.sh
+finish audit-tree-fingerprint.deadline.test.sh
