@@ -59,7 +59,7 @@ record('end')
   symlinkSync(join(root, '.claude'), join(root, 'linked-directory'))
   const result = run()
   assert.equal(result.status, 0, result.stdout + result.stderr)
-  assert.match(result.stdout, /== gate complete: 4\/4 jobs; 0 failed ==/)
+  assert.match(result.stdout, /== gate complete: 6\/6 jobs; 0 failed ==/)
   const events = readFileSync(join(root, 'trace'), 'utf8').trim().split('\n').map(JSON.parse)
   const live = { node: 0, shell: 0 }, peak = { ...live }
   for (const event of events) {
@@ -72,7 +72,7 @@ record('end')
   const starts = events.filter(e => e.event === 'start')
   assert.equal(starts.length, 6)
   assert.equal(new Set(starts.map(e => e.name)).size, 6)
-  assert.equal(new Set(starts.map(e => e.tmp)).size, 4, 'Node and each shell suite have separate scratch dirs')
+  assert.equal(new Set(starts.map(e => e.tmp)).size, 6, 'each Node file and each shell suite has its own scratch dir')
   for (const event of starts) assert.equal(existsSync(event.tmp), false, 'scratch is cleaned after all jobs finish')
   for (const name of ['a', 'b', 'c']) {
     const banner = `== gate(bash): ./other/${name} shell.test.sh ==`
@@ -80,7 +80,7 @@ record('end')
     assert.ok(result.stdout.includes(`${banner}\nstdout:shell-${name}\nstderr:shell-${name}`))
   }
   const logs = result.stdout.match(/^Gate logs: (.+)$/m)[1]
-  for (const file of ['node.log', 'shell-0.log', 'shell-1.log', 'shell-2.log']) assert.ok(existsSync(join(logs, file)))
+  for (const file of ['node-0.log', 'node-1.log', 'node-2.log', 'shell-0.log', 'shell-1.log', 'shell-2.log']) assert.ok(existsSync(join(logs, file)))
 })
 
 for (const failure of ['node', 'shell', 'both']) test(`a ${failure} failure cannot hide other suites or produce a green gate`, t => {
@@ -93,7 +93,7 @@ for (const failure of ['node', 'shell', 'both']) test(`a ${failure} failure cann
   assert.match(result.stdout, /first-suite/)
   assert.match(result.stdout, /last-suite/)
   assert.match(result.stdout, /== gate complete: 3\/3 jobs; [12] failed ==/)
-  assert.match(result.stdout, /== gate\(node\) ==/)
+  assert.match(result.stdout, /== gate\(node\): \.\/skills\/basic\.test\.mjs ==/)
 })
 
 test('zero shell suites still runs the Node gate', t => {
@@ -174,7 +174,7 @@ test('shell suites start slowest first by the last run, and a new suite starts b
   assert.equal(result.status, 0, result.stdout + result.stderr)
   assert.deepEqual(order(root), ['fast', 'mid', 'slow'], 'the first run has no record, so size order')
   const recorded = JSON.parse(readFileSync(times, 'utf8'))
-  assert.deepEqual(Object.keys(recorded).sort(), ['./fast.test.sh', './mid.test.sh', './slow.test.sh'])
+  assert.deepEqual(Object.keys(recorded).sort(), ['./fast.test.sh', './mid.test.sh', './skills/basic.test.mjs', './slow.test.sh'])
   assert.ok(recorded['./slow.test.sh'] > recorded['./mid.test.sh'] && recorded['./mid.test.sh'] > recorded['./fast.test.sh'])
   rmSync(join(root, 'order'))
   put('new.test.sh', 'echo new >> order\n')
@@ -188,15 +188,41 @@ test('shell suites start slowest first by the last run, and a new suite starts b
   result = run({ WAR_GATE_SHELL_JOBS: '1' })
   assert.equal(result.status, 0, result.stdout + result.stderr)
   assert.deepEqual(order(root), ['fast', 'slow', 'new'])
-  assert.deepEqual(Object.keys(JSON.parse(readFileSync(times, 'utf8'))).sort(), ['./fast.test.sh', './new.test.sh', './slow.test.sh'])
+  assert.deepEqual(Object.keys(JSON.parse(readFileSync(times, 'utf8'))).sort(), ['./fast.test.sh', './new.test.sh', './skills/basic.test.mjs', './slow.test.sh'])
 })
 
-test('both pools default to 4 when the knobs are unset', t => {
+test('the Node pool defaults to 6 and the shell pool to 4 when the knobs are unset', t => {
   const { root, env } = fixture(t)
   const clean = { ...env }
   delete clean.WAR_GATE_SHELL_JOBS
   delete clean.WAR_GATE_NODE_JOBS
   const result = spawnSync(process.execPath, [runner], { cwd: root, env: clean, encoding: 'utf8', timeout: 20000 })
   assert.equal(result.status, 0, result.stdout + result.stderr)
-  assert.match(result.stdout, /^Gate workers: 4 Node files \+ 4 shell suites$/m)
+  assert.match(result.stdout, /^Gate workers: 6 Node files \+ 4 shell suites$/m)
+})
+
+test('Node test files start slowest first by the last run, and their times are recorded', t => {
+  const { root, put, run } = fixture(t)
+  assert.equal(spawnSync('git', ['init', '-q', root]).status, 0)
+  const times = join(root, '.git', 'war-gate-times.json')
+  rmSync(join(root, 'skills/basic.test.mjs'))
+  // A file appends its name when it starts; slow holds its only test longest. The gaps
+  // (0, 0.7 and 1.4 s) stay wider than process start-up noise on a loaded machine.
+  const job = (name, ms) => `import { appendFileSync } from 'node:fs'; import { test } from 'node:test'\n` +
+    `appendFileSync('order', '${name}\\n')\ntest('${name}', async () => { await new Promise(r => setTimeout(r, ${ms})) })\n`
+  // Padding makes the size order the reverse of the slowest order.
+  put('skills/a-fast.test.mjs', job('fast', 0) + '// ' + 'x'.repeat(300) + '\n')
+  put('skills/b-mid.test.mjs', job('mid', 700) + '// ' + 'x'.repeat(100) + '\n')
+  put('skills/c-slow.test.mjs', job('slow', 1400))
+  let result = run({ WAR_GATE_NODE_JOBS: '1' })
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  assert.deepEqual(order(root), ['fast', 'mid', 'slow'], 'the first run has no record, so size order')
+  const recorded = JSON.parse(readFileSync(times, 'utf8'))
+  assert.ok(recorded['./skills/c-slow.test.mjs'] > recorded['./skills/b-mid.test.mjs'], JSON.stringify(recorded))
+  assert.ok(recorded['./skills/b-mid.test.mjs'] > recorded['./skills/a-fast.test.mjs'], JSON.stringify(recorded))
+  rmSync(join(root, 'order'))
+  result = run({ WAR_GATE_NODE_JOBS: '1' })
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  assert.deepEqual(order(root), ['slow', 'mid', 'fast'])
+  assert.match(result.stdout, /✔ slow/, 'the spec reporter still writes the gate log')
 })

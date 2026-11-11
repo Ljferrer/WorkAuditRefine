@@ -19,7 +19,7 @@ Node ≥ 24 required (`node:sqlite`/FTS5). No package.json or Makefile; the repo
 # overlap Node tests with a bounded shell-suite pool; keep all tests and per-suite logs
 node skills/war/assets/repo-gate.mjs
 
-# Tune each pool (defaults: 4 Node files and 4 shell suites, each accepts 1..32)
+# Tune each pool (defaults: 6 Node files and 4 shell suites, each accepts 1..32)
 WAR_GATE_NODE_JOBS=2 WAR_GATE_SHELL_JOBS=8 node skills/war/assets/repo-gate.mjs
 
 # All JS tests (quoted glob REQUIRED — a directory arg fails on Node 24)

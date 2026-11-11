@@ -5,25 +5,28 @@ import { mkdtempSync, mkdirSync, openSync, closeSync, readFileSync, readdirSync,
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-function jobs(name) {
-  const value = process.env[name] ?? '4'
+function jobs(name, fallback) {
+  const value = process.env[name] ?? fallback
   if (!/^[1-9][0-9]*$/.test(value) || Number(value) > 32) {
     throw new Error(`${name} must be an integer from 1 to 32`)
   }
   return Number(value)
 }
 
-function shellSuites(dir = '.') {
+function discover(dir, suffix) {
   const paths = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (!['.git', '.claude', 'node_modules'].includes(entry.name)) paths.push(...shellSuites(`${dir}/${entry.name}`))
-    } else if (entry.isFile() && entry.name.endsWith('.test.sh')) paths.push(`${dir}/${entry.name}`)
+      if (!['.git', '.claude', 'node_modules'].includes(entry.name)) paths.push(...discover(`${dir}/${entry.name}`, suffix))
+    } else if (entry.isFile() && entry.name.endsWith(suffix)) paths.push(`${dir}/${entry.name}`)
   }
   return paths.sort()
 }
+const shellSuites = () => discover('.', '.test.sh')
+// The same set as the `skills/**/*.test.mjs` glob, listed so the gate can order it.
+const nodeFiles = () => { try { return discover('./skills', '.test.mjs') } catch (error) { if (error.code === 'ENOENT') return []; throw error } }
 
-// Each shell suite's seconds from the last gate run, kept in the git common dir so every
+// Each shell suite's and Node test file's seconds from the last gate run, kept in the git common dir so every
 // worktree of the repo shares them. A missing or unreadable file means no record.
 function timesFile() {
   const git = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' })
@@ -60,10 +63,11 @@ function writeTimes(file, suites, times, ran) {
 }
 
 async function main() {
-  const shellJobs = jobs('WAR_GATE_SHELL_JOBS'), nodeJobs = jobs('WAR_GATE_NODE_JOBS')
+  const shellJobs = jobs('WAR_GATE_SHELL_JOBS', '4'), nodeJobs = jobs('WAR_GATE_NODE_JOBS', '6')
   // Discover before launching anything; an unreadable directory must fail the gate.
   const file = timesFile(), times = file ? readTimes(file) : {}
   const suites = slowestFirst(shellSuites(), times)
+  const tests = slowestFirst(nodeFiles(), times)
   const ran = new Map()
   const logs = mkdtempSync(join(tmpdir(), 'war-gate-'))
   console.log(`Gate logs: ${logs}`)
@@ -120,28 +124,34 @@ async function main() {
     return seconds
   }
 
-  let next = 0
-  async function shellWorker() {
-    while (!interrupted && next < suites.length) {
-      const index = next++
-      const seconds = await run(`gate(bash): ${suites[index]}`, 'bash', [suites[index]], `shell-${index}`)
-      if (!interrupted && seconds !== undefined) ran.set(suites[index], seconds)
+  // One worker pool per kind. Each Node test file runs as its own `node --test` job,
+  // because `node --test` sorts the files it is given and so ignores a start order.
+  function pool(items, kind, command, prefix, id) {
+    let next = 0
+    return async function worker() {
+      while (!interrupted && next < items.length) {
+        const index = next++
+        const seconds = await run(`gate(${kind}): ${items[index]}`, command, prefix ? [prefix, items[index]] : [items[index]], `${id}-${index}`)
+        if (!interrupted && seconds !== undefined) ran.set(items[index], seconds)
+      }
     }
   }
+  const shellWorker = pool(suites, 'bash', 'bash', null, 'shell'), nodeWorker = pool(tests, 'node', process.execPath, '--test', 'node')
+  const total = suites.length + tests.length
   try {
     const results = await Promise.allSettled([
-      run('gate(node)', process.execPath, ['--test', `--test-concurrency=${nodeJobs}`, 'skills/**/*.test.mjs'], 'node'),
+      ...Array.from({ length: Math.min(nodeJobs, tests.length) }, nodeWorker),
       ...Array.from({ length: Math.min(shellJobs, suites.length) }, shellWorker),
     ])
     for (const result of results) {
       if (result.status === 'rejected') { failed++; console.error(`Gate error: ${result.reason.message}`) }
     }
     if (cancellation) await cancellation
-    if (file && !interrupted) writeTimes(file, suites, times, ran)
-    if (interrupted) console.log(`== gate interrupted: ${completed}/${suites.length + 1} jobs ==`)
-    else if (completed !== suites.length + 1) console.log(`== gate incomplete: ${completed}/${suites.length + 1} jobs ==`)
-    else console.log(`== gate complete: ${completed}/${suites.length + 1} jobs; ${failed} failed ==`)
-    return interrupted || (failed || completed !== suites.length + 1 ? 1 : 0)
+    if (file && !interrupted) writeTimes(file, [...suites, ...tests], times, ran)
+    if (interrupted) console.log(`== gate interrupted: ${completed}/${total} jobs ==`)
+    else if (completed !== total) console.log(`== gate incomplete: ${completed}/${total} jobs ==`)
+    else console.log(`== gate complete: ${completed}/${total} jobs; ${failed} failed ==`)
+    return interrupted || (failed || completed !== total ? 1 : 0)
   } finally {
     process.removeListener('SIGINT', onInt)
     process.removeListener('SIGTERM', onTerm)
