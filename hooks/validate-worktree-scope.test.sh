@@ -311,6 +311,101 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Every-card tools: guard (PIN-35, ADR 0060 § Least start, #2782 ruling 3).
+#
+# card_tools_check <dir> reads the frontmatter of each <dir>/*.md card with the
+# awk forms above. It prints `no-tools <card>` for a card with no tools: line
+# and `no-toolsearch <card>` for a card whose tools block names more than 8
+# mcp__ entries without ToolSearch. It exits 1 on any such line, else 0. The
+# live rows and the fixture row run this same function.
+# ---------------------------------------------------------------------------
+card_tools_check() {
+  _ctc_rc=0
+  for _ctc_card in "$1"/*.md; do
+    [ -f "$_ctc_card" ] || continue
+    _ctc_fm="$(awk '/^---/{if(++c==2) exit} c==1{print}' "$_ctc_card")"
+    _ctc_block="$(printf '%s\n' "$_ctc_fm" | awk '/^tools:/{found=1; print; next} found && /^- /{print; next} found{exit}')"
+    if [ -z "$_ctc_block" ]; then
+      printf 'no-tools %s\n' "$(basename "$_ctc_card")"
+      _ctc_rc=1
+      continue
+    fi
+    _ctc_mcp="$(printf '%s\n' "$_ctc_block" | grep -o 'mcp__' | wc -l | tr -d ' ')"
+    if [ "$_ctc_mcp" -gt 8 ] && ! printf '%s\n' "$_ctc_block" | grep -q 'ToolSearch'; then
+      printf 'no-toolsearch %s\n' "$(basename "$_ctc_card")"
+      _ctc_rc=1
+    fi
+  done
+  return "$_ctc_rc"
+}
+
+AGENTS_DIR="$HERE/../agents"
+live_cards_out="$(card_tools_check "$AGENTS_DIR")"
+live_cards_rc=$?
+
+# Row: every live card carries a tools: line (no no-tools line, check exit 0,
+# and the directory holds at least one card so the row is not vacuous).
+n=$((n + 1))
+if [ "$live_cards_rc" -eq 0 ] && ! printf '%s\n' "$live_cards_out" | grep -q '^no-tools ' \
+   && ls "$AGENTS_DIR"/*.md >/dev/null 2>&1; then
+  printf 'ok %d - every agents card frontmatter carries a tools: line\n' "$n"
+else
+  printf 'FAIL %d - every agents card frontmatter carries a tools: line (%s)\n' "$n" "$live_cards_out"
+  fails=$((fails + 1))
+fi
+
+# Row: the same check reds on a fixture directory holding one card with no
+# tools: line. It passes only when the check fails and names that card.
+CARD_FIX="$WT/card-fixture"
+mkdir -p "$CARD_FIX"
+printf -- '---\nname: no-tools-card\ndescription: fixture card without a tools line\n---\n\nBody.\n' \
+  > "$CARD_FIX/no-tools-card.md"
+fix_cards_out="$(card_tools_check "$CARD_FIX")"
+fix_cards_rc=$?
+n=$((n + 1))
+if [ "$fix_cards_rc" -ne 0 ] && printf '%s\n' "$fix_cards_out" | grep -q '^no-tools no-tools-card\.md$'; then
+  printf 'ok %d - a fixture card without a tools: line reds\n' "$n"
+else
+  printf 'FAIL %d - a fixture card without a tools: line reds (rc %s, out %s)\n' "$n" "$fix_cards_rc" "$fix_cards_out"
+  fails=$((fails + 1))
+fi
+
+# Row: a live card that names more than 8 mcp__ entries also names ToolSearch.
+# Non-vacuous: at least one live card must name more than 8 mcp__ entries.
+many_mcp_cards=0
+for _card in "$AGENTS_DIR"/*.md; do
+  _fm="$(awk '/^---/{if(++c==2) exit} c==1{print}' "$_card")"
+  _blk="$(printf '%s\n' "$_fm" | awk '/^tools:/{found=1; print; next} found && /^- /{print; next} found{exit}')"
+  _cnt="$(printf '%s\n' "$_blk" | grep -o 'mcp__' | wc -l | tr -d ' ')"
+  [ "$_cnt" -gt 8 ] && many_mcp_cards=$((many_mcp_cards + 1))
+done
+n=$((n + 1))
+if [ "$many_mcp_cards" -ge 1 ] && ! printf '%s\n' "$live_cards_out" | grep -q '^no-toolsearch '; then
+  printf 'ok %d - a card that names more than 8 mcp tools names ToolSearch\n' "$n"
+else
+  printf 'FAIL %d - a card that names more than 8 mcp tools names ToolSearch (cards over 8: %s, out %s)\n' \
+    "$n" "$many_mcp_cards" "$live_cards_out"
+  fails=$((fails + 1))
+fi
+
+# Row: every agents/*.md card is on the plugin.json agents list (PIN-39). An
+# unregistered card runs as a general agent and its tools: line does nothing.
+PLUGIN_JSON="$HERE/../.claude-plugin/plugin.json"
+registered_agents="$(jq -r '.agents[]' "$PLUGIN_JSON" 2>/dev/null)"
+unregistered=""
+for _card in "$AGENTS_DIR"/*.md; do
+  _entry="./agents/$(basename "$_card")"
+  printf '%s\n' "$registered_agents" | grep -qxF "$_entry" || unregistered="$unregistered $_entry"
+done
+n=$((n + 1))
+if [ -n "$registered_agents" ] && [ -z "$unregistered" ]; then
+  printf 'ok %d - every agents card is registered in plugin.json\n' "$n"
+else
+  printf 'FAIL %d - every agents card is registered in plugin.json (missing:%s)\n' "$n" "$unregistered"
+  fails=$((fails + 1))
+fi
+
+# ---------------------------------------------------------------------------
 # Task 2 (#58): .. path traversal denial tests.
 #
 # The hook must reject any path containing a `..` segment — even if the

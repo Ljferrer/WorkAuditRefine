@@ -14,6 +14,7 @@
     "./agents/war-helper.md",
     "./agents/war-refiner.md",
     "./agents/war-servitor.md",
+    "./agents/war-setup-scout.md",
     "./agents/war-worker.md"
   ],
   "mcpServers": {
