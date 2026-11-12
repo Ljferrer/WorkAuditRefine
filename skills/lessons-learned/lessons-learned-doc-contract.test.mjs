@@ -237,20 +237,6 @@ test('doc-contract: Phase 6 It-checks names the repo-completeness hard fail', ()
 // surfaces: (1)–(6) in SKILL.md, (7)–(8) in CONTEXT.md (now GLOSSARY.md). Each needle was verified to sit
 // on a single physical line (the stop rule and CONTEXT.md's (now GLOSSARY.md's) "no third threshold" sentence both WRAP,
 // hence the whitespace-tolerant / truncated needles below).
-// #2714 (PIN-34): the report must name the projection beside the after bytes, and step 4 must
-// re-plan before the swap, so a pass that misses its projection names the gap and its cause.
-// Step-scoped on purpose: step 2 already names `projectedBytes`, so a whole-file match is vacuous.
-test('tighten-report-names-projected-bytes', () => {
-  const i4 = tighten.indexOf('4. **Execute**')
-  const i5 = tighten.indexOf('5. **Report.**')
-  assert.ok(i4 !== -1 && i5 > i4, 'tighten.md must carry step 4 (`4. **Execute**`) before step 5 (`5. **Report.**`)')
-  const step4 = tighten.slice(i4, i5)
-  const step5 = tighten.slice(i5)
-  assert.ok(step4.trim().length > 0 && step5.trim().length > 0, 'both step slices must be non-empty')
-  assert.match(step5, /projectedBytes/, 'step 5 must report the projected bytes beside the after bytes (#2714)')
-  assert.match(step4, /tighten-plan/, 'step 4 must re-run the step-1 `tighten-plan` line before the swap (#2714)')
-  assert.match(step4, /currentBytes/, 'step 4 must compare the re-plan `currentBytes` with the gated JSON (#2714)')
-})
 
 // Task 6.1 re-anchor: the tighten procedure (which carried surfaces 1, 2, 5, 6) moved verbatim to
 // references/tighten.md, so the six-needle OLD-absent key (17) below scans the UNION of SKILL.md +
@@ -313,6 +299,22 @@ test('doc-contract: the step-1 tighten-plan invocation threads an operator-suppl
   assert.match(fence, /tighten-plan[^\n]*--target/,
     'the fenced tighten-plan command must carry the operator-supplied --target (omitted when none is supplied) — otherwise the live preflight always binds at the default 17,000 B')
 })
+
+// #2714 (PIN-34): the report must name the projection beside the after bytes, and step 4 must
+// re-plan before the swap, so a pass that misses its projection names the gap and its cause.
+// Step-scoped on purpose: step 2 already names `projectedBytes`, so a whole-file match is vacuous.
+test('tighten-report-names-projected-bytes', () => {
+  const i4 = tighten.indexOf('4. **Execute**')
+  const i5 = tighten.indexOf('5. **Report.**')
+  assert.ok(i4 !== -1 && i5 > i4, 'tighten.md must carry step 4 (`4. **Execute**`) before step 5 (`5. **Report.**`)')
+  const step4 = tighten.slice(i4, i5)
+  const step5 = tighten.slice(i5)
+  assert.ok(step4.trim().length > 0 && step5.trim().length > 0, 'both step slices must be non-empty')
+  assert.match(step5, /projectedBytes/, 'step 5 must report the projected bytes beside the after bytes (#2714)')
+  assert.match(step4, /tighten-plan/, 'step 4 must re-run the step-1 `tighten-plan` line before the swap (#2714)')
+  assert.match(step4, /currentBytes/, 'step 4 must compare the re-plan `currentBytes` with the gated JSON (#2714)')
+})
+
 // --- Task 2.2 (lessons-learned-seed): `seed` mode wiring + seeding.md/README/war-help locks ---
 // Maps spec §10 criterion 8 (doc contract) + prose locks for criteria 3(b)/5/6/7 (agent-mode
 // behaviors that live only as skill prose — deferred as live validations, doc-contract-locked here).

@@ -1,8 +1,8 @@
 # `tighten` mode — the five-step projection-shrink procedure
 
 Verbatim eviction from `skills/lessons-learned/SKILL.md`'s ``## `tighten` mode`` section
-(prompt-surface simplification, spec §4.3; the five steps below are byte-identical to the
-pre-eviction SKILL.md text). `SKILL.md` owns dispatch (which mode runs when) and resolves `$MEM`
+(prompt-surface simplification, spec §4.3; the five steps below were byte-identical to the
+pre-eviction SKILL.md text at eviction time). `SKILL.md` owns dispatch (which mode runs when) and resolves `$MEM`
 and `$REPO_ROOT` before loading this file; this file does not repeat the dispatch rule.
 Positional references inside the moved steps ("the bare pass", "the Phase 1/5/6/7 subcommands",
 "the numbered phases") refer to `SKILL.md`'s housekeeping phases, their original surroundings.
@@ -119,8 +119,9 @@ Five steps, strict order:
 5. **Report.** Before/after `MEMORY.md` lines + bytes + % full on both axes, the actioned buckets (slugs
    struck: local-only / repo-only / dupe-both; merged: each target and its merged slugs), any editorial
    trims, the PR URL (or "no repo-side change" when nothing `[repo]`-marked was struck and no merge
-   target has a repo copy), and the local swap's backup + `.prev` paths. Report the gated
-   `projectedBytes` beside the after bytes, or the step-4 figure if the corpus moved. If the after
+   target has a repo copy), and the local swap's backup + `.prev` paths. Report the projection shown
+   at the Gate (the JSON's `projectedBytes`, or the step-3 recompute when the approved set differs
+   from the default set) beside the after bytes, or the step-4 figure if the corpus moved. If the after
    bytes exceed it, name the gap and its cause: the step-4 `currentBytes` delta, or a refused archive
    (the exit-1 arm). **When the
    approved subset still leaves the file at or above `target`** (fewer strikes than the default
