@@ -29,8 +29,9 @@ launch's own plugin root and version.** Five parts follow.
 ### 1. The tip probe (D2, D3, D4, D5)
 
 - **One read-only refiner dispatch after every ace result, dead or not**, at all four sites: polish,
-  subset, re-entry and terminal. The probe returns the tip sha, the tip tree, the commit count from the
-  pre-dispatch tip, ancestry, and the name-only file list. The engine never reads the worker's `head_sha`
+  subset, re-entry and terminal. The probe returns the tip sha, the tip tree, the pre-dispatch tip's tree
+  (`pre_tree`), the approved tip's tree (`approved_tree`), the commit count from the pre-dispatch tip,
+  ancestry, and the name-only file list. The engine never reads the worker's `head_sha`
   or `ace_diff_files` as the source (PIN-2).
 - **Classification is by tree, not by the worker's status word.** A tip tree equal to the approved tree,
   or an unchanged tip, takes the failed-absorb arm: no charge, no aced record. A descendant tip with a net
