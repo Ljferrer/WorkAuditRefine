@@ -74,7 +74,7 @@ Durable product artifacts: phase reports/escalations → epic-issue comments; AD
 
 ## 7. Branch & worktree model
 - One mutable worktree per task (worker + its fix-workers share it; it persists until the task lands so kick-backs can fix in place). Cleaned up after the task merges.
-- Auditors read files through Read/Grep/Glob and compute the diff through read-only git Bash (no checkout to mutate). The tool restriction guarantees read-only. A fail-closed PreToolUse guard (`hooks/validate-auditor-git.sh`) backs it and denies any Bash beyond allowlisted read-only git subcommands.
+- Auditors read files through Read/Grep/Glob and compute the diff through read-only git Bash (no checkout to mutate). The tool restriction and a fail-closed PreToolUse guard (`hooks/validate-auditor-git.sh`) together guarantee read-only. The guard denies any Bash beyond allowlisted read-only git subcommands.
 - Integration branch removed after the phase lands; worktrees of escalated/blocked tasks are kept for inspection.
 
 ## 8. Cost & models
