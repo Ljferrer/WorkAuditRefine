@@ -421,8 +421,8 @@ PIN-15, PIN-16) sets two rules on the terminal-disposition ladder:
   `demote:ask-unruled-afk`.
 - **Living-doc homes.** GLOSSARY.md's **Demote reason prefix** row, `skills/war/SKILL.md`'s `--ace`
   bullet (the Residual rule), `schemas.md`'s `barrier` provenance row, and `file-followups.md` carry
-  these facts; the retired "with `--ace` off every absorb demotes this way" Residual-rule wording is
-  guard-bound absent on `skills/war/SKILL.md` (`ace-off-route`).
+  these facts; the retired every-absorb-demotes Residual-rule wording is guard-bound absent on
+  `skills/war/SKILL.md` and on this ADR's Decision text (`ace-off-route`).
 
 ### A note that names a fix reroutes to absorb; gate-audit-family rows route like any seat's
 
@@ -493,6 +493,7 @@ PIN-17) bounds Decision 4's `note` clause on two points (#2056):
 
 ## Decision log
 
+- 2026-07-02 · the two-homes ruling: the interview beat lives in both /war-strategy homes · clean-handoff review · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 6aa692bc
 - 2026-07-10 · Addendum: the deliberately-unwired marker is an audit-lens finding-class exemption · engine-hardening spec §7 (ADR 0034) · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ cb07f484
 - 2026-07-22 · Addendum: a second adjudication producer, and an adjudication-match confirmation-note rule · audit-adjudication-threading spec · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 06cb6980
 - 2026-08-05 · artifact-first End-state verification and the `unverified` status · precision-chain plan D2/D8 · failed because: a judgment pass read a condition no seat attested as `met` by silence · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 981b3ba6

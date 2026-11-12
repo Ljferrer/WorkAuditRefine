@@ -4289,6 +4289,13 @@ test('ace-off-route — OLD-absent: skills/war/SKILL.md no longer says every abs
       'wording (OLD-absent, base-verified; End state 12, D14, PIN-16) — with ace off a defaulted absorb routes ' +
       'phaseClose:true to the sweep; rewrite the bullet, never drop this row',
   )
+  assert.equal(
+    aceOffHits(adr0013.slice(0, adr0013.indexOf('## Considered options'))),
+    false,
+    'docs/adr/0013 Decision text (above `## Considered options`) still carries the retired "with `--ace` off every ' +
+      'absorb demotes this way" Residual-rule wording — a living ADR states current law, so name the retired ' +
+      'wording without spelling it',
+  )
   const bullet = skillMd.match(/^ {2}- \*\*`--ace`[\s\S]*?(?=\n- \*\*)/m)
   assert.ok(bullet, 'could not locate the skills/war/SKILL.md `--ace` bullet (`  - **`--ace`` → next top-level `- **` bullet) — the extraction construct rotted')
   const b = norm(bullet[0])
