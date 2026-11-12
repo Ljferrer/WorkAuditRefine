@@ -252,3 +252,4 @@ sanctioned surface for both display identity and approved stage injection.**
 - 2026-11-08 · every write leaves a `<staged>.sha256` sidecar; `--force` overwrites only on a matching digest; `--discard-injections` overwrites regardless · #2345 (plan `2026-11-08-args-floor-and-launch-preflight` Task 1.3) · failed because: `--force` overwrote a hand-applied stage silently · retired: docs/adr/0037-run-scoped-staged-phase-scripts.md @ 50aeaf6c
 - 2026-11-08 · a linked-worktree launch stages under the run root (ADR 0059) · #2351 · retired: docs/adr/0037-run-scoped-staged-phase-scripts.md @ cac1723c
 - 2026-11-09 · the args sibling script · D38 (plan `2026-11-08-engine-recovery-relaunch-and-land` Task 1.2) · failed because: args embedded in the staged copy spent its cap headroom · retired: docs/adr/0037-run-scoped-staged-phase-scripts.md @ 54050bf5
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

@@ -138,6 +138,8 @@ const adr0044 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0044-authoring-contract-and-merged-artifact.md'),
   'utf8',
 )
+// ADR 0044's Decision text: everything above `## Considered options` (D34's OLD-absent home).
+const adr0044Decision = adr0044.slice(0, adr0044.indexOf('## Considered options'))
 const surveyCorpsSkillMd = readFileSync(
   join(HERE, '..', '..', 'survey-corps', 'SKILL.md'),
   'utf8',
@@ -153,6 +155,12 @@ const adr0013 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0013-commanders-intent-and-disposition-routing.md'),
   'utf8',
 )
+// ADR 0013's body: the whole ADR minus its two records (ADR 0063 Decision 5), the
+// `## Considered options` section and the `## Decision log` section. Consequences and References
+// are body and stay in.
+const adr0013Body = adr0013
+  .replace(/^## Considered options\n[\s\S]*?(?=^## )/m, '')
+  .replace(/^## Decision log\n[\s\S]*$/m, '')
 const adr0012 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0012-intra-phase-visibility-and-phase-close-sweep.md'),
   'utf8',
@@ -2567,11 +2575,12 @@ test('disposition-eligibility.md absorb block carries the source-derivable eligi
 // sweep.) Both directions are committed assertions, per the
 // recorded [[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]] lesson: the
 // NEW-present half is extracted BY CONSTRUCT from the owning glossary entry (D19/D26's idiom), and
-// the OLD-absent half sweeps the CONTEXT.md router (#2636) and all THREE converged surfaces (GLOSSARY.md + the two canonical
-// war-strategy homes) so a revert on any one reds. Keys are `\s+`-wrapped so the retired literal
+// the OLD-absent half sweeps the CONTEXT.md router (#2636), the converged surfaces (GLOSSARY.md + the canonical
+// war-strategy SKILL.md and plan-interview.md homes) and ADR 0044's Decision text, so a revert on any one reds. Keys are `\s+`-wrapped so the retired literal
 // never appears contiguously in this file and a wrapped line still matches (D18's idiom).
-// Deliberately OUT of the OLD-absent sweep: ADR 0044 §Decision item 4 (a historical decision
-// record, outside the pin sweep), skills/war-machine/SKILL.md's conversion directive, and
+// ADR 0044's Decision text (above `## Considered options`) is a living home too: ADR 0063 exempts
+// no ADR from an absence guard, so its item 4 carries the converged connectives and joins the sweep.
+// Deliberately OUT of the OLD-absent sweep: skills/war-machine/SKILL.md's conversion directive, and
 // skills/survey-corps/SKILL.md's already-converged "carries" phrasing — per #1498's own survey.
 test('D34 — GLOSSARY.md carries the converged D4/D5 connectives; the retired forms are absent on all three converged surfaces (#1498)', () => {
   // NEW-present, by construct: the **Evidence tag** entry carries the converged D4 clause.
@@ -2593,12 +2602,19 @@ test('D34 — GLOSSARY.md carries the converged D4/D5 connectives; the retired f
     'the GLOSSARY.md **Done-when** entry must carry the converged D5 connective ' +
       '("permitted (not required) on any other task; otherwise `None — <basis>`")',
   )
-  // OLD-absent, all three converged surfaces and the router — the committed half of the both-directions gate.
+  // NEW-present, ADR 0044 Decision item 4: the living ADR states both converged connectives.
+  assert.ok(adr0044Decision.length > 2000, 'ADR 0044: the Decision text above `## Considered options` did not extract (non-vacuity guard)')
+  assert.match(norm(adr0044Decision), /issue-derived\s+facts\s+use\s+`?\(verified:\s+issue\s+#N/i,
+    'ADR 0044 Decision item 4 must carry the converged D4 clause ("issue-derived facts use `(verified: issue #N (<date>))`")')
+  assert.match(norm(adr0044Decision), /permitted\s+\(not\s+required\)\s+on\s+any\s+other\s+task;\s+otherwise/i,
+    'ADR 0044 Decision item 4 must carry the converged D5 connective ("permitted (not required) on any other task; otherwise")')
+  // OLD-absent, the converged surfaces, ADR 0044's Decision text and the router — the committed half of the both-directions gate.
   for (const [name, text] of [
     ['GLOSSARY.md', glossaryMd],
     ['CONTEXT.md', routerMd],
     ['skills/war-strategy/SKILL.md', warStrategySkillMd],
     ['skills/war-strategy/references/plan-interview.md', planInterviewMd],
+    ['docs/adr/0044 Decision text', adr0044Decision],
   ]) {
     assert.doesNotMatch(
       norm(text),
@@ -3554,8 +3570,8 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
 // ADR 0013 IS A FOURTH HOME, with no exemption. The living-ADR law (ADR 0063) folded the dated
 // 2026-08-20, 2026-08-27 and 2026-09-03 amendments into ADR 0013's Decision as current law, so the
 // retired budget-exhaustion and reserve literals are OLD-absent there too, scoped to the ADR's
-// Decision text (above `## Considered options`): the Considered options and the Decision log are
-// records that may name a retired rule. The final block below binds the folded `### The absorb
+// body (`adr0013Body`): the Considered options and the Decision log are records that may name a
+// retired rule, and Consequences and References are body. The final block below binds the folded `### The absorb
 // budget` section to the same arithmetic and sweep route the three living-doc homes carry.
 //
 // Extraction is BY CONSTRUCT on all three surfaces (the D35 idiom — never line numbers, which rot
@@ -3638,16 +3654,16 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
   // OLD-absent, whole-surface (End state 9's own form). The exhaustion literals were verified
   // present at the 2026-08-27 task's cut base — SKILL.md and CONTEXT.md each carried `exhaustion
   // demotes the remainder` once, design.md `budget-exhausted remainder` once — so these guard a
-  // revert of that flip, never a never-present value (PIN-8). ADR 0013's Decision text carried
+  // revert of that flip, never a never-present value (PIN-8). ADR 0013's body carried
   // `the remainder demotes on budget exhaustion` until the ADR 0063 fold; it is a home too now.
-  const adr0013Decision = adr0013.slice(0, adr0013.indexOf('## Considered options'))
-  assert.ok(adr0013Decision.length > 2000, 'ADR 0013: the Decision text above `## Considered options` did not extract (non-vacuity guard)')
+  const adr0013Decision = adr0013Body
+  assert.ok(adr0013Decision.length > 2000, 'ADR 0013: the body (records removed) did not extract (non-vacuity guard)')
   for (const [name, text, literal] of [
     ['skills/war/SKILL.md', skillMd, 'exhaustion demotes the remainder'],
     ['GLOSSARY.md', glossaryMd, 'exhaustion demotes the remainder'],
     ['skills/war/references/design.md', designRefMd, 'budget-exhausted remainder'],
-    ['docs/adr/0013 Decision text', adr0013Decision, 'the remainder demotes on budget exhaustion'],
-    ['docs/adr/0013 Decision text', adr0013Decision, 'exhaustion demotes the remainder'],
+    ['docs/adr/0013 body', adr0013Decision, 'the remainder demotes on budget exhaustion'],
+    ['docs/adr/0013 body', adr0013Decision, 'exhaustion demotes the remainder'],
   ]) {
     assert.ok(
       !norm(text).includes(literal),
@@ -3670,7 +3686,7 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
   )
   assert.ok(
     !/(subsets still queued|still-queued subsets|remaining subsets)[\s\S]{0,60}?demote/i.test(norm(adr0013Decision)),
-    'ADR 0013 Decision text still states the retired reserve-stop demote arm (the still-queued subsets demote)',
+    'ADR 0013 body still states the retired reserve-stop demote arm (the still-queued subsets demote)',
   )
   assert.match(adr0013, /^- 2026-09-03 · the absorb budget supersedes the floor-retry reserve/m,
     "ADR 0013's Decision log must carry the dated 2026-09-03 line for the folded absorb-budget section")
@@ -3687,12 +3703,12 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
 // are guarded: the arithmetic itself (`roundLimit − 2`, either minus glyph, any spacing, case-
 // folded — the End-state check's own regex) and the retired token `floor-retry reserve` (the
 // merge-floor retry LOOP keeps its `floor-retry` label — only the reserve compound is retired).
-// ADR 0013's Decision text is a home too since the living-ADR fold (ADR 0063 retired the
+// ADR 0013's body is a home too since the living-ADR fold (ADR 0063 retired the
 // append-only exemption); its Considered options and Decision log are records and may name the
 // retired reserve.
 test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-retry-reserve token are absent from the living surfaces and the router (End state 5, PIN-7)', () => {
   for (const [name, text] of [
-    ['docs/adr/0013 Decision text', adr0013.slice(0, adr0013.indexOf('## Considered options'))],
+    ['docs/adr/0013 body', adr0013Body],
     ['skills/war/SKILL.md', skillMd],
     ['GLOSSARY.md', glossaryMd],
     ['CONTEXT.md', routerMd],
@@ -4011,9 +4027,9 @@ const OLD_DEFAULT_SURFACES = [
   ['skills/war/references/design.md', designRefMd],
   ['skills/war/references/gastown-design-params.md', gastownMd],
   ['skills/war/references/schemas.md', schemasMd],
-  // ADR 0063: the ADR is a living home too. Its Decision text only — Considered options records the
+  // ADR 0063: the ADR is a living home too. Its body only — Considered options records the
   // retired rule as a rejected option, and the Decision log is a record.
-  ['docs/adr/0013 Decision text', adr0013.slice(0, adr0013.indexOf('## Considered options'))],
+  ['docs/adr/0013 body', adr0013Body],
 ]
 const oldDefaultHits = (text) => OLD_DEFAULT_SHAPES.filter(([re]) => re.test(oldDefaultFlat(text))).map(([, what]) => what)
 
@@ -4290,9 +4306,9 @@ test('ace-off-route — OLD-absent: skills/war/SKILL.md no longer says every abs
       'phaseClose:true to the sweep; rewrite the bullet, never drop this row',
   )
   assert.equal(
-    aceOffHits(adr0013.slice(0, adr0013.indexOf('## Considered options'))),
+    aceOffHits(adr0013Body),
     false,
-    'docs/adr/0013 Decision text (above `## Considered options`) still carries the retired "with `--ace` off every ' +
+    'docs/adr/0013 body (records removed) still carries the retired "with `--ace` off every ' +
       'absorb demotes this way" Residual-rule wording — a living ADR states current law, so name the retired ' +
       'wording without spelling it',
   )
@@ -4609,7 +4625,7 @@ test('D17 (2026-09-06 engine-and-audit-verdict-integrity plan) — the split bou
   assert.match(norm(resumeMd), /escalated\[\]` record carries a seat's `escalate_reason` \(a \*\*decision-forked\*\* blocking finding/, "resume-and-recovery.md's step-1 adjudication arm must read a seat's escalate_reason as plan-shaped (D18)")
   assert.match(norm(warReviewSkillMd), /Two-sided boundary/, "war-review's grind row must be re-pointed at the two-sided boundary (D18)")
   // ADR 0013 — Decision 4 edited in place (the living-ADR ruling) and the dated Decision-log line.
-  const decisions = adr0013.slice(0, adr0013.indexOf('## Considered options'))
+  const decisions = adr0013Body
   assert.match(norm(decisions), /blockers ALL carry a concrete in-file `suggested_fix`/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
   assert.match(adr0013, /^## Decision log$/m, 'ADR 0013 must carry a `## Decision log` section (the 2026-09-06 living-ADR ruling)')
   assert.match(adr0013, /^- 2026-09-08 · Decision 4 edited in place/m, "ADR 0013's Decision log must carry the dated Task 11.2 line")
@@ -4669,9 +4685,9 @@ test('D20 — release-slot eligibility by literal: eligibility absorb block, GLO
     [/ADR 0013/, 'the ADR pointer'],
   ]) assert.match(e, re, `GLOSSARY.md's **Version-literal guard** entry must carry ${what} (D20)`)
   // ADR 0013 — Decision 5 edited in place (the living-ADR ruling) and the dated Decision-log line.
-  const cut = adr0013.indexOf('## Considered options')
-  assert.ok(cut > 0, "ADR 0013: '## Considered options' heading not found — the Decision-body slice cannot be scoped (fail closed)")
-  const decisions = adr0013.slice(0, cut)
+  assert.ok(adr0013Body.length < adr0013.length, "ADR 0013: the record sections were not removed — the body cannot be scoped (fail closed)")
+  assert.ok(adr0013Body.length > 2000, 'ADR 0013: the body (records removed) did not extract (non-vacuity guard)')
+  const decisions = adr0013Body
   assert.match(norm(decisions), /Release-slot eligibility is otherwise by literal, not by file/, 'ADR 0013 Decision 5 must carry the in-place by-literal rule (D20; no dated amendment)')
   assert.match(norm(decisions), /`version-slots\.test\.mjs`/, 'ADR 0013 Decision 5 must name `version-slots.test.mjs` as the merge guard')
   assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(norm(decisions)), "ADR 0013 Decision 5's retired file-based routing sentence must be gone (OLD-absent, in-place edit)")

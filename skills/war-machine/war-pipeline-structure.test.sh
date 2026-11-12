@@ -7,7 +7,7 @@
 # step 1. Also pins (2026-08-24, authoring-side verification) the cross-surface consumer
 # family: the war-machine verifier-charter pointer + drafter evidence instruction + the
 # #1510/#1605 re-scopes, the deps-edged lenses.md / survey-corps / war-review pins, and the
-# ADR 0044 amendment / ADR 0014 cross-ref decision-record pair (Task 3.1). Also pins
+# ADR 0044 authoring-side verification section / ADR 0014 cross-ref decision-record pair (Task 3.1). Also pins
 # (2026-08-25, ask-disposition Task 2.6) the two war-review telemetry rows — the asks tally
 # and the grind-measurement row. Also pins (2026-09-02, D13) the drafter evidence clause's
 # split degraded arms — absent section, unreachable issue. Also pins (2026-09-03, #1656) the

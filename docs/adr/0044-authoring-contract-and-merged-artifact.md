@@ -62,8 +62,7 @@ doctrine in-repo.**
 4. **The authoring output contract (D4–D5, D18–D19).**
    - *Evidence tags (D4; source forms D11).* Every claim of fact in Part 1 carries one of
      `(user)` · `(verified: <source> at <base>)` · `[assumed: <default> — if wrong:
-     <consequence>]`; issue-derived claims use the source form `(verified: issue #N (<date>))`.
-     One CONTEXT.md glossary entry maps the tags onto [ADR 0007](0007-memory-provenance.md)'s
+     <consequence>]`; issue-derived facts use `(verified: issue #N (<date>))`.     One CONTEXT.md glossary entry maps the tags onto [ADR 0007](0007-memory-provenance.md)'s
      provenance ladder while keeping distinct syntax — the
      [ADR 0024](0024-audit-gate-verdicts-integrated-tip-captured-evidence.md) collision-avoidance
      precedent: ladder tier names stay reserved for how a *memory fact* was established.
@@ -73,7 +72,7 @@ doctrine in-repo.**
      [ADR 0043](0043-adjudicated-clear-distinct-terminal-verdict.md) row pattern, itself extending
      [ADR 0014](0014-ai-commanders-intent.md)).
    - *Done-when law and unified End states (D5, D18).* `Done when: <command>` is required iff
-     `requiresTest: true`, and permitted (not required) elsewhere — otherwise `None — <basis>`.
+     `requiresTest: true`, and permitted (not required) on any other task; otherwise `None — <basis>`.
      Spec-§10-style validation criteria and plan End states unify into one numbered End-state list
      in Commander's Intent — the criteria-carryover hole dies by construction — and every End
      state carries exactly one tag from the closed set `check:` | `gate:` | `HARD at audit_sha`
@@ -162,9 +161,9 @@ doctrine in-repo.**
   human navigation rests on the fixed section order.
 - The retired gospel ("a spec is not a plan" as current doctrine; required-Grill-Me framing) is
   enforced absent on the five live doc surfaces by committed case-insensitive pins, both
-  directions (new-present + old-absent). `docs/adr/`, `docs/plans/`, and `docs/red-team/` are
-  deliberately outside the pin sweep's scope — this ADR quotes the retired wording above as its
-  historical record, which is legitimate exactly because decision records are excluded.
+  directions (new-present + old-absent). The five live surfaces do not include `docs/adr/`,
+  `docs/plans/` or `docs/red-team/`. This ADR names the retired wording above only as retired,
+  never as current doctrine, and no ADR is exempt from an absence guard (ADR 0063).
 - The first field trial is the implementing plan itself: it was authored in the merged shape one
   phase before the template ratified that shape, and its red-team run fed two shape rulings back
   into the template as ratified law — the separate-bullet task fields extraction-proven by the
@@ -427,3 +426,4 @@ recorded on the pair row with the grafts each contributed.
 - 2026-10-26 · fork trials and the pair beat — the interviewer runs the experiment · #2436 (plan `docs/plans/2026-10-26-interview-fork-trials-and-pair-beats.md`) · retired: docs/adr/0044-authoring-contract-and-merged-artifact.md @ 2b1ac17d
 - 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0044-authoring-contract-and-merged-artifact.md @ b31d2203
 - 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
+- 2026-11-11 · Decision item 4 states the converged D4 and D5 connectives, and the Consequences no longer exempt decision records from the pin sweep · #1498, #1850 (ADR 0063) · retired: docs/adr/0044-authoring-contract-and-merged-artifact.md @ eca7a57b
