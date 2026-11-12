@@ -341,7 +341,6 @@ card_tools_check() {
 
 AGENTS_DIR="$HERE/../agents"
 live_cards_out="$(card_tools_check "$AGENTS_DIR")"
-live_cards_rc=$?
 
 # Row: every live card carries a tools: line (no no-tools line, and the
 # directory holds at least one card so the row is not vacuous). The row does
@@ -376,10 +375,13 @@ fi
 # Non-vacuous: at least one live card must name more than 8 mcp__ entries.
 # The row also proves the check's ToolSearch arm on fixtures: a card naming 9
 # mcp__ entries without ToolSearch must print no-toolsearch and exit non-zero,
-# and a control card with the same entries plus ToolSearch must exit 0.
+# and a control card with the same entries plus ToolSearch must exit 0. A
+# boundary card naming exactly 8 mcp__ entries without ToolSearch must exit 0,
+# which pins the threshold at "more than 8".
 TS_FIX="$WT/card-fixture-toolsearch"
 TS_CTL="$WT/card-fixture-toolsearch-control"
-mkdir -p "$TS_FIX" "$TS_CTL"
+TS_EDGE="$WT/card-fixture-toolsearch-edge"
+mkdir -p "$TS_FIX" "$TS_CTL" "$TS_EDGE"
 ts_tools='mcp__x__t1, mcp__x__t2, mcp__x__t3, mcp__x__t4, mcp__x__t5, mcp__x__t6, mcp__x__t7, mcp__x__t8, mcp__x__t9'
 printf -- '---\nname: many-mcp-card\ndescription: fixture card\ntools: Read, %s\n---\n\nBody.\n' "$ts_tools" \
   > "$TS_FIX/many-mcp-card.md"
@@ -389,6 +391,11 @@ ts_fix_out="$(card_tools_check "$TS_FIX")"
 ts_fix_rc=$?
 ts_ctl_out="$(card_tools_check "$TS_CTL")"
 ts_ctl_rc=$?
+printf -- '---\nname: eight-mcp-card\ndescription: fixture card\ntools: Read, %s\n---\n\nBody.\n' \
+  'mcp__x__t1, mcp__x__t2, mcp__x__t3, mcp__x__t4, mcp__x__t5, mcp__x__t6, mcp__x__t7, mcp__x__t8' \
+  > "$TS_EDGE/eight-mcp-card.md"
+ts_edge_out="$(card_tools_check "$TS_EDGE")"
+ts_edge_rc=$?
 many_mcp_cards=0
 for _card in "$AGENTS_DIR"/*.md; do
   _fm="$(awk '/^---/{if(++c==2) exit} c==1{print}' "$_card")"
@@ -399,11 +406,11 @@ done
 n=$((n + 1))
 if [ "$many_mcp_cards" -ge 1 ] && ! printf '%s\n' "$live_cards_out" | grep -q '^no-toolsearch ' \
    && [ "$ts_fix_rc" -ne 0 ] && printf '%s\n' "$ts_fix_out" | grep -qx 'no-toolsearch many-mcp-card\.md' \
-   && [ "$ts_ctl_rc" -eq 0 ]; then
+   && [ "$ts_ctl_rc" -eq 0 ] && [ "$ts_edge_rc" -eq 0 ]; then
   printf 'ok %d - a card that names more than 8 mcp tools names ToolSearch\n' "$n"
 else
-  printf 'FAIL %d - a card that names more than 8 mcp tools names ToolSearch (cards over 8: %s, out %s, fixture rc %s out %s, control rc %s out %s)\n' \
-    "$n" "$many_mcp_cards" "$live_cards_out" "$ts_fix_rc" "$ts_fix_out" "$ts_ctl_rc" "$ts_ctl_out"
+  printf 'FAIL %d - a card that names more than 8 mcp tools names ToolSearch (cards over 8: %s, out %s, fixture rc %s out %s, control rc %s out %s, edge rc %s out %s)\n' \
+    "$n" "$many_mcp_cards" "$live_cards_out" "$ts_fix_rc" "$ts_fix_out" "$ts_ctl_rc" "$ts_ctl_out" "$ts_edge_rc" "$ts_edge_out"
   fails=$((fails + 1))
 fi
 
