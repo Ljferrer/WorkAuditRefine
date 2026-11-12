@@ -1,9 +1,9 @@
 # Touched-doc accuracy — the guard / de-mirror / defer trichotomy
 
 **The duty.** A task whose slice rewrites a doc owns the factual accuracy of what it renders
-authoritative. Take every fact derivable from a **machine-readable in-repo source**:
-a config default, a manifest field, an enum member, a version slot. Each such fact takes exactly
-one of three lawful treatments. Silence (restating the fact with none of the three) is a plan
+authoritative. Every fact in that doc derivable from a **machine-readable in-repo source** takes
+exactly one of three lawful treatments. Such facts include a config default, a manifest field, an
+enum member and a version slot. Silence (restating the fact with none of the three) is a plan
 defect, never a follow-up. General prose claims are out of scope. The duty binds only what a
 machine-readable source can re-derive. Prose claims stay governed by the evidence-tag discipline (D4).
 
