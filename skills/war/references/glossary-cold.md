@@ -5,9 +5,9 @@ born-cold glossary bodies (the glossary was `CONTEXT.md` until #2636 moved it to
 `CONTEXT.md` text (`GLOSSARY.md` text for waves 7 and 8) **at eviction time** (only repo-root-relative links were re-anchored for this file's
 depth), moved under an additive per-term heading — and the glossary keeps the `**Term**:` heading plus
 one fixed-shape trigger pointer (`when <trigger>, read skills/war/references/glossary-cold.md`).
-A born-cold body is authored here first and has no pre-eviction text to match (waves 5 and 6): `GLOSSARY.md`
+A born-cold body is authored here first and has no pre-eviction text to match (waves 5, 6 and 9): `GLOSSARY.md`
 holds only its `**Term**:` heading plus the same trigger pointer. One
-pointer may carry several terms when a whole cold cluster leaves together (waves 4 and 8). Prose
+pointer may carry several terms when a whole cold cluster leaves together (waves 4, 8 and 9). Prose
 temperature is branch
 frequency (ADR 0042): these are cold but still authoritative — never delete a body; evict more the
 same way. **Coldness criterion** (one standing criterion; selections for waves 1-3, 5 and 7 are recorded in
@@ -16,7 +16,8 @@ GLOSSARY.md pointers to their bodies here — wave 4's bodies are deliberately u
 carrying no live drift-guard key, and so are wave 8's (#2273, plan 2026-11-08-model-routing-and-prompt-byte-budgets
 Task 1.2: the bodies from `## Worker block` through `## memory-mined`, moved to bring `GLOSSARY.md` under its
 advisory line); wave 6's four born-cold merge-provenance bodies are pinned instead by
-`skills/red-team/assets/workflow-scaffold.test.mjs`): a term qualifies when it names a
+`skills/red-team/assets/workflow-scaffold.test.mjs`, and wave 9's three living-ADR bodies by the
+`living-adr-terms` row in `skills/war/assets/skill-doc-contracts.test.mjs`): a term qualifies when it names a
 retired mechanism, or when it is fully narrated in its own operative home (a `references/` file, an
 owning skill's SKILL.md, or its ADR) so the glossary needs only a pointer — incident-only recovery
 and one-command forensics entries are the standing example. Bold glossary cross-references inside
@@ -1071,3 +1072,33 @@ _Avoid_: memory sweep (the sweep is the issue step); treating mined lessons as a
 The provenance label on an issue that originated as a lesson; the body's lesson citation is the
 durable issue↔lesson link. Distinct from `war-followup` (a run's own deferred debt).
 _Avoid_: reusing `war-followup` for mined issues (conflates two provenances).
+
+## Living ADR
+
+An ADR whose body carries current law and is rewritten in place when a decision changes
+([ADR 0063](../../../docs/adr/0063-living-adrs-git-is-the-archive.md)). Git is the archive: the
+retired text stays reachable at the commit that introduced it. Each change adds one **Decision log**
+line. Docs, plans, references, cards and ADRs follow this policy lifecycle. Red-team reports, run
+manifests, `docs/learnings/` frontmatter, consumed specs and released `CHANGELOG.md` entries are
+records, written once.
+_Avoid_: a dated `## Amendment (…)` section or a bold dated run-in below the old text; exempting an
+ADR from an absence guard because it was once append-only.
+
+## Decision log
+
+The `## Decision log` section every ADR keeps, one line per change:
+`- YYYY-MM-DD · <what flipped> · <driving issue>`. A line that reverses or narrows an earlier
+decision adds `· failed because: <one clause>` after the driving issue. A line that retires text
+ends with `· retired: docs/adr/<file> @ <sha>`, where the sha is the commit that introduced the
+retired text: the oldest hit of `git log --reverse -S'<retired literal>' --format=%h -- <file> | head -1`.
+A fold's line carries the folded heading's date and title, so a dated citation still resolves.
+_Avoid_: the commit that last held the text as the `retired:` sha; a `failed because:` clause that
+restates the old text; putting `failed because:` after `retired:`.
+
+## Sha-pinned citation
+
+An ADR citation of the form `docs/adr/<file> @ <sha>`: it means the file at that commit, so it is
+the form for citing retired text. It is one of three citation forms. A bare citation (`ADR 0013`)
+means current law. A dated citation (`ADR 0013 (2026-08-25)`, `ADR 0013 amendment 2026-08-25` or
+`ADR 0013, amended 2026-08-25`) resolves to that date's **Decision log** line.
+_Avoid_: a bare citation for text a later rewrite retired; a branch name in place of the sha.

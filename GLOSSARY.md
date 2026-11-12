@@ -1240,6 +1240,9 @@ timing), never silence. Reference text: `skills/war/references/touched-doc-accur
 _Avoid_: treating a silent restatement as a follow-up (it is a plan defect), and never stretch the duty
 to general prose claims — those stay governed by the evidence-tag discipline (D4).
 
+**Living ADR** · **Decision log** · **Sha-pinned citation**:
+when you edit or cite an ADR, read skills/war/references/glossary-cold.md
+
 ### Red-team plan-vs-state grading (ADR 0032 / ADR 0033)
 
 **Artifact-kind**:
