@@ -78,10 +78,13 @@ The `pin-mismatch` tag is a **findings tag**, not a memory-provenance tier: it d
 
 ### (C) A finding-less `escalate` is HARD by design; `gate-evidence` stays SOFT-by-default
 
-`isHardGateEvidence` (and the end-state-only seat's `isHard`) fires on `verdict === 'escalate'`
-**or** a Critical/Major finding: verdict is a **second, orthogonal HARD trigger** alongside severity
-(defence-in-depth — a finding-less `escalate` no longer lands silently, matching the general WAR rule
-that any `escalate` halts). This **does not weaken** the default: `gate-evidence` is still SOFT unless a
+`isHardGateEvidence` (and the end-state-only seat's `isHard`) reads `gateHardOf` in
+`workflow-template.js`: it fires on `verdict === 'escalate'` **or** a Critical/Major finding whose
+`suggested_fix` is blank or a no-fix sentinel. A Critical/Major that names a fix is not HARD here: it
+joins the late-fix pass, which fixes it before the land decision
+([ADR 0058](0058-late-defects-are-fixed-in-the-run.md)). The verdict is a **second, orthogonal HARD trigger**
+alongside severity (defence-in-depth — a finding-less `escalate` never lands silently, matching the
+general WAR rule that any `escalate` halts). This **does not weaken** the default: `gate-evidence` is still SOFT unless a
 mapped test is *provably unrun* (the HARD unrun determination is made only against the captured
 **gate-evidence artifact** — the tee'd full gate stdout+stderr under `_refinery/.war/gate-<taskId>.<unique>/gate.log`,
 never a possibly-curated inline paste; a missing artifact ⇒ SOFT cannot-confirm, never a hold; an
@@ -107,8 +110,9 @@ a HARD hold via this trigger.
   `gate-evidence` escalation reason for the verdict trigger; **no** new status,
   `HARD_ESCALATION_REASONS`, or `KNOWN_LAND_DECISIONS` member is added, so the hand-mirrored enum and its
   drift guard are byte-unchanged. A one-line header note in `land-decision.mjs` records that
-  `gate-evidence` HARD now fires on a provably-unrun mapped test **or** a finding-less
-  `verdict === 'escalate'`, so Lead adjudication never misreads the reason as provably-unrun-only.
+  `gate-evidence` HARD fires on a provably-unrun mapped test, an `escalate` verdict, or a
+  Critical/Major with a blank `suggested_fix` (`gateHardOf`), so Lead adjudication never misreads the
+  reason as provably-unrun-only.
 - **Leaves [ADR 0007](0007-memory-provenance.md)'s provenance ladder untouched** — the pin-equality
   demotion tag (B) is `pin-mismatch`, a findings tag orthogonal to the memory ladder. The source spec
   named it `agent-unverified`; it is renamed here to avoid collision with `war-memory`'s
@@ -163,3 +167,4 @@ a HARD hold via this trigger.
 - 2026-09-09 · PR #2297 finalization: every task panel gets independent full Git object resolution, including equal abbreviated reports. Only confirmed unanimity emits approval-transfer receipts. Gate capture uses an engine-owned logical-attempt prefix plus a filesystem-allocated suffix; producer-boundary validation rejects other attempts before readers. Artifact absence remains SOFT; uncertain Git mutations still require successful recovery proof before land. See the finalization ledger and schemas.md's task audit pin amendment.
 - 2026-11-11 · the pin-equality bullet's dated "Finalization amendment" run-in reads as body text · #1850 (ADR 0063) · retired: docs/adr/0024-audit-gate-verdicts-integrated-tip-captured-evidence.md @ 1bd9474b
 - 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063) · retired: docs/adr/0024-audit-gate-verdicts-integrated-tip-captured-evidence.md @ 22ae82a9
+- 2026-11-12 · §(C) rewritten in place to match `gateHardOf`: HARD on an `escalate` verdict or a Critical/Major with a blank `suggested_fix`, and a blocker that names a fix rides the late-fix pass (ADR 0058) · #2664 · failed because: every Critical/Major held the land, though the late-fix pass now fixes one that names a fix · retired: docs/adr/0024-audit-gate-verdicts-integrated-tip-captured-evidence.md @ 22ae82a9
