@@ -311,6 +311,127 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Every-card tools: guard (PIN-35, ADR 0060 § Least start, #2782 ruling 3).
+#
+# card_tools_check <dir> reads the frontmatter of each <dir>/*.md card with the
+# awk forms above. It prints `no-tools <card>` for a card with no tools: line
+# and `no-toolsearch <card>` for a card whose tools block names more than 8
+# mcp__ entries without ToolSearch. It exits 1 on any such line, else 0. The
+# live rows and the fixture row run this same function.
+# ---------------------------------------------------------------------------
+card_tools_check() {
+  _ctc_rc=0
+  for _ctc_card in "$1"/*.md; do
+    [ -f "$_ctc_card" ] || continue
+    _ctc_fm="$(awk '/^---/{if(++c==2) exit} c==1{print}' "$_ctc_card")"
+    _ctc_block="$(printf '%s\n' "$_ctc_fm" | awk '/^tools:/{found=1; print; next} found && /^- /{print; next} found{exit}')"
+    if [ -z "$_ctc_block" ]; then
+      printf 'no-tools %s\n' "$(basename "$_ctc_card")"
+      _ctc_rc=1
+      continue
+    fi
+    _ctc_mcp="$(printf '%s\n' "$_ctc_block" | grep -o 'mcp__' | wc -l | tr -d ' ')"
+    if [ "$_ctc_mcp" -gt 8 ] && ! printf '%s\n' "$_ctc_block" | grep -q 'ToolSearch'; then
+      printf 'no-toolsearch %s\n' "$(basename "$_ctc_card")"
+      _ctc_rc=1
+    fi
+  done
+  return "$_ctc_rc"
+}
+
+AGENTS_DIR="$HERE/../agents"
+live_cards_out="$(card_tools_check "$AGENTS_DIR")"
+
+# Row: every live card carries a tools: line (no no-tools line, and the
+# directory holds at least one card so the row is not vacuous). The row does
+# not read the check's exit code: a no-toolsearch line also exits 1, and the
+# ToolSearch row below owns that cause.
+n=$((n + 1))
+if ! printf '%s\n' "$live_cards_out" | grep -q '^no-tools ' \
+   && ls "$AGENTS_DIR"/*.md >/dev/null 2>&1; then
+  printf 'ok %d - every agents card frontmatter carries a tools: line\n' "$n"
+else
+  printf 'FAIL %d - every agents card frontmatter carries a tools: line (%s)\n' "$n" "$live_cards_out"
+  fails=$((fails + 1))
+fi
+
+# Row: the same check reds on a fixture directory holding one card with no
+# tools: line. It passes only when the check fails and names that card.
+CARD_FIX="$WT/card-fixture"
+mkdir -p "$CARD_FIX"
+printf -- '---\nname: no-tools-card\ndescription: fixture card without a tools line\n---\n\nBody.\n' \
+  > "$CARD_FIX/no-tools-card.md"
+fix_cards_out="$(card_tools_check "$CARD_FIX")"
+fix_cards_rc=$?
+n=$((n + 1))
+if [ "$fix_cards_rc" -ne 0 ] && printf '%s\n' "$fix_cards_out" | grep -q '^no-tools no-tools-card\.md$'; then
+  printf 'ok %d - a fixture card without a tools: line reds\n' "$n"
+else
+  printf 'FAIL %d - a fixture card without a tools: line reds (rc %s, out %s)\n' "$n" "$fix_cards_rc" "$fix_cards_out"
+  fails=$((fails + 1))
+fi
+
+# Row: a live card that names more than 8 mcp__ entries also names ToolSearch.
+# Non-vacuous: at least one live card must name more than 8 mcp__ entries.
+# The row also proves the check's ToolSearch arm on fixtures: a card naming 9
+# mcp__ entries without ToolSearch must print no-toolsearch and exit non-zero,
+# and a control card with the same entries plus ToolSearch must exit 0. A
+# boundary card naming exactly 8 mcp__ entries without ToolSearch must exit 0,
+# which pins the threshold at "more than 8".
+TS_FIX="$WT/card-fixture-toolsearch"
+TS_CTL="$WT/card-fixture-toolsearch-control"
+TS_EDGE="$WT/card-fixture-toolsearch-edge"
+mkdir -p "$TS_FIX" "$TS_CTL" "$TS_EDGE"
+ts_tools='mcp__x__t1, mcp__x__t2, mcp__x__t3, mcp__x__t4, mcp__x__t5, mcp__x__t6, mcp__x__t7, mcp__x__t8, mcp__x__t9'
+printf -- '---\nname: many-mcp-card\ndescription: fixture card\ntools: Read, %s\n---\n\nBody.\n' "$ts_tools" \
+  > "$TS_FIX/many-mcp-card.md"
+printf -- '---\nname: many-mcp-control\ndescription: fixture card\ntools: Read, ToolSearch, %s\n---\n\nBody.\n' "$ts_tools" \
+  > "$TS_CTL/many-mcp-control.md"
+ts_fix_out="$(card_tools_check "$TS_FIX")"
+ts_fix_rc=$?
+ts_ctl_out="$(card_tools_check "$TS_CTL")"
+ts_ctl_rc=$?
+printf -- '---\nname: eight-mcp-card\ndescription: fixture card\ntools: Read, %s\n---\n\nBody.\n' \
+  'mcp__x__t1, mcp__x__t2, mcp__x__t3, mcp__x__t4, mcp__x__t5, mcp__x__t6, mcp__x__t7, mcp__x__t8' \
+  > "$TS_EDGE/eight-mcp-card.md"
+ts_edge_out="$(card_tools_check "$TS_EDGE")"
+ts_edge_rc=$?
+many_mcp_cards=0
+for _card in "$AGENTS_DIR"/*.md; do
+  _fm="$(awk '/^---/{if(++c==2) exit} c==1{print}' "$_card")"
+  _blk="$(printf '%s\n' "$_fm" | awk '/^tools:/{found=1; print; next} found && /^- /{print; next} found{exit}')"
+  _cnt="$(printf '%s\n' "$_blk" | grep -o 'mcp__' | wc -l | tr -d ' ')"
+  [ "$_cnt" -gt 8 ] && many_mcp_cards=$((many_mcp_cards + 1))
+done
+n=$((n + 1))
+if [ "$many_mcp_cards" -ge 1 ] && ! printf '%s\n' "$live_cards_out" | grep -q '^no-toolsearch ' \
+   && [ "$ts_fix_rc" -ne 0 ] && printf '%s\n' "$ts_fix_out" | grep -qx 'no-toolsearch many-mcp-card\.md' \
+   && [ "$ts_ctl_rc" -eq 0 ] && [ "$ts_edge_rc" -eq 0 ]; then
+  printf 'ok %d - a card that names more than 8 mcp tools names ToolSearch\n' "$n"
+else
+  printf 'FAIL %d - a card that names more than 8 mcp tools names ToolSearch (cards over 8: %s, out %s, fixture rc %s out %s, control rc %s out %s, edge rc %s out %s)\n' \
+    "$n" "$many_mcp_cards" "$live_cards_out" "$ts_fix_rc" "$ts_fix_out" "$ts_ctl_rc" "$ts_ctl_out" "$ts_edge_rc" "$ts_edge_out"
+  fails=$((fails + 1))
+fi
+
+# Row: every agents/*.md card is on the plugin.json agents list (PIN-39). An
+# unregistered card runs as a general agent and its tools: line does nothing.
+PLUGIN_JSON="$HERE/../.claude-plugin/plugin.json"
+registered_agents="$(jq -r '.agents[]' "$PLUGIN_JSON" 2>/dev/null)"
+unregistered=""
+for _card in "$AGENTS_DIR"/*.md; do
+  _entry="./agents/$(basename "$_card")"
+  printf '%s\n' "$registered_agents" | grep -qxF "$_entry" || unregistered="$unregistered $_entry"
+done
+n=$((n + 1))
+if [ -n "$registered_agents" ] && [ -z "$unregistered" ]; then
+  printf 'ok %d - every agents card is registered in plugin.json\n' "$n"
+else
+  printf 'FAIL %d - every agents card is registered in plugin.json (missing:%s)\n' "$n" "$unregistered"
+  fails=$((fails + 1))
+fi
+
+# ---------------------------------------------------------------------------
 # Task 2 (#58): .. path traversal denial tests.
 #
 # The hook must reject any path containing a `..` segment — even if the
