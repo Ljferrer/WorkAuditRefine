@@ -26,7 +26,9 @@ itself since been evicted — stated as the rule rather than a
 dated enumeration, which rots as bodies are added (#1908). A reference may be a shortened or
 differently-cased form of its GLOSSARY.md heading (**phantom land** → `**Phantom land**`,
 **Land primitive** → `**Land primitive (single land chokepoint)**`); resolve by term, not by
-byte-match.
+byte-match. Post-eviction edits: § Relaunch attempt keeps its definition and points at
+`run-manifest.md` § Relaunch for the rules (#2120), and § Promotion's overwrite parenthetical gained
+the `stale-local` hold (#2713).
 
 ## provision base divergence
 
@@ -615,11 +617,8 @@ recovered launch's `runId` (a recovery still mints a fresh one).
 ## Relaunch attempt
 
 One Workflow run of a phase that a prior run of the same phase did not finish — a `resumeFromRunId`
-retry or a recovery relaunch. Each attempt has its own `workflowRunId` + `transcriptDir` when the
-launch envelope surfaces a fresh run id (a relaunch that repeats the prior id archives nothing; the
-transcript dir's basename is the run id); the run manifest overwrites the pair **together**, archives
-the died attempt under `attempts[]`, and sums dispatch counts across attempts (the shape lives in
-`skills/war/references/run-manifest.md` § Relaunch).
+retry or a recovery relaunch. The run manifest's relaunch rules and the `attempts[]` shape live
+only in `skills/war/references/run-manifest.md` § Relaunch.
 _Avoid_: overwriting one field of the pair; dropping a died attempt's counts; reading the manifest
 on resume (it is telemetry, never resume input).
 
@@ -923,7 +922,9 @@ _Avoid_: "the memory dir" (which one?); treating the roots as mirrors (they hold
 
 The Lead's Gate-2 act of publishing a `type: project` lesson from the local root into the repo root — a
 **copy-with-marker**, completed only **after the push succeeds**: the repo copy rides the phase PR (a
-same-slug repo file is **overwritten on recurrence**), and the local original gains a nested
+same-slug repo file is **overwritten on recurrence**, unless the repo copy carries text the local
+copy lacks: then the local copy is held as `stale-local`, kept in the local root and reported, never
+dropped), and the local original gains a nested
 `metadata.promoted: <workingBranch>@phase-<N>` marker and is **never deleted** — it stays recall-visible
 (to `render-index`/prefetch/`/lessons-learned`) and is retired only by a future `/lessons-learned` pass
 once the merge is confirmed. A failed push or a redaction flag leaves the lesson unmarked in the local
@@ -1102,3 +1103,47 @@ the form for citing retired text. It is one of three citation forms. A bare cita
 means current law. A dated citation (`ADR 0013 (2026-08-25)`, `ADR 0013 amendment 2026-08-25` or
 `ADR 0013, amended 2026-08-25`) resolves to that date's **Decision log** line.
 _Avoid_: a bare citation for text a later rewrite retired; a branch name in place of the sha.
+
+## No-fix sentinel
+
+A `suggested_fix` text that names no fix, such as "None needed.", "n/a" or a lone dash. The floors
+and the fix-less checks read it as blank (canonical: `noFixText` and `NO_FIX_SENTINELS` in
+`skills/war/assets/workflow-template.js`), so a Major whose fix is "None" is fix-less.
+_Avoid_: reading a sentinel as a concrete fix; restating the sentinel list here.
+
+## Reconciled follow-up
+
+A `demote:absorb-regressed` row that a later ace fixed before land. The filing pass moves it to
+`notes` as `reconciled:aced-later`, logged with the aced sha, and never files it (canonical: the
+file-followups reconcile step in `skills/war/assets/workflow-template.js`).
+_Avoid_: filing an issue for a finding the run already fixed.
+
+## Polish claim
+
+The first same-wave polish commit to touch a file outside every wave task's `files` owns that file
+for the wave. A later same-wave polish commit on the claimed file is forward-reverted, and its rows
+go to the phase-close queue ([ADR 0061](../../../docs/adr/0061-polish-claim-and-net-zero-clash-range.md)).
+_Avoid_: letting two polish commits in one wave edit one unclaimed file.
+
+## Net-zero clash range
+
+The commits after a task's approved sha that are exactly a clashing polish commit and its
+forward-revert, with the same tree as the approved sha. The merge slot moves the task branch back
+to the approved sha, so the pair never replays: the one exception to the no-reset rule
+([ADR 0061](../../../docs/adr/0061-polish-claim-and-net-zero-clash-range.md)).
+_Avoid_: treating any other range as net-zero; a reset outside this exact shape.
+
+## Enforcement ladder
+
+The six enforcement levels ranked from engine code down to the prompt: engine, capability, hook,
+git structure, check before merge, prompt. Each rule is enforced at the highest level that can
+express it ([ADR 0060](../../../docs/adr/0060-enforce-each-rule-at-the-highest-level-that-can-express-it.md)).
+_Avoid_: a prompt-only rule for a write to shared state.
+
+## Least start
+
+Each seat starts with the least context, the fewest tools and the least permission its dispatch
+needs, and gains more only at a named trigger. The triggers are a `references/` pointer for
+context, `ToolSearch` for tools and a per-`agent_type` guard arm for permission
+([ADR 0060](../../../docs/adr/0060-enforce-each-rule-at-the-highest-level-that-can-express-it.md)).
+_Avoid_: a card with no `tools:` line; widening every seat's guard arm for one seat's need.
