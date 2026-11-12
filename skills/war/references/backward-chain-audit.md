@@ -1,8 +1,8 @@
 # Backward-chain doctrine — the auditor
 
-The auditor's chain for a re-audit. The seat stays read-only: it reads the pinned sha, the fix commit body and the threaded history with the allowlisted git read verbs, and it writes only a verdict. From corrective round 2 the seat is the classifier and the oracle. Classifier: every re-block carries one `relation:` tag that names how the new blocker relates to the last fix, and that tag selects the fixer's examples. Oracle: the seat runs its own chain from the cited End state and judges the fixer's chain against it; the fixer's markers are self-reports, never evidence.
+The auditor's chain for a re-audit. The seat stays read-only. It reads the pinned sha, the fix commit body and the threaded history with the allowlisted git read verbs. It writes only a verdict. From corrective round 2 the seat is the classifier and the oracle. Classifier: every re-block carries one `relation:` tag that names how the new blocker relates to the last fix. That tag selects the fixer's examples. Oracle: the seat runs its own chain from the cited End state and judges the fixer's chain against it. The fixer's markers are self-reports, never evidence.
 
-The `## The rules` section rides byte-equal in the roster-seat audit prompt built by `skills/war/assets/workflow-template.js` at corrective round 2 or later, pinned by the `workflow-template.engine-1.test.mjs` fixture `backward-chain: audit rules gated on corrective round`. Round-1 audit prompts are unchanged, byte for byte (PIN-10): a first audit has no fix to relate to. The three gate-audit-family seats (per-task, integrated-tip, end-state) judge executed gate evidence, never a fix, and carry no backward-chain clause. The depth sections below are read by pointer: the prompt names the section for the corrective round it dispatches.
+The `## The rules` section rides byte-equal in the roster-seat audit prompt built by `skills/war/assets/workflow-template.js` at corrective round 2 or later. The `workflow-template.engine-1.test.mjs` fixture `backward-chain: audit rules gated on corrective round` pins it. Round-1 audit prompts are unchanged, byte for byte (PIN-10): a first audit has no fix to relate to. The three gate-audit-family seats (per-task, integrated-tip, end-state) judge executed gate evidence, never a fix, and carry no backward-chain clause. The depth sections below are read by pointer: the prompt names the section for the corrective round it dispatches.
 
 ## The rules
 
@@ -17,13 +17,13 @@ The `## The rules` section rides byte-equal in the roster-seat audit prompt buil
 
 ## Round 2
 
-The prompt carries the threaded prior round: the history digest (each prior blocker's title, file, severity, `relation:` tag and `upstream link:` line; the fixer's `Fix:` and `Ignore for now:` lines; the task's relation-tag sequence) and the worker's round-1 `Critical path:` block. Read the worker's chain as a claim about the task, not as your chain; run yours from the same End state and diff them.
+The prompt carries the threaded prior round: the history digest and the worker's round-1 `Critical path:` block. The digest holds each prior blocker's title, file, severity, `relation:` tag and `upstream link:` line. It also holds the fixer's `Fix:` and `Ignore for now:` lines and the task's relation-tag sequence. Read the worker's chain as a claim about the task, not as your chain. Run yours from the same End state and diff them.
 
 Peer count is not evidence (ADR 0041). A finding three seats share is three claims to verify at the pin, not one verified claim. A peer finding you cannot reproduce at the sha is stated as unverified in your rationale, never carried forward on the strength of its authors.
 
 ## Round 3 and later
 
-The prompt carries every prior round's digest lines and the task's relation-tag sequence, in order. Read the history as one chain, not as a list of rounds. The sequence itself is evidence: sibling, then residue, then consumer on one construct says the fixes landed at named sites and the common ancestor is still open.
+The prompt carries every prior round's digest lines and the task's relation-tag sequence, in order. Read the history as one chain, not as a list of rounds. The sequence itself is evidence. Sibling, then residue, then consumer on one construct says the fixes landed at named sites. It also says the common ancestor is still open.
 
 Name the common ancestor in `upstream link:`: the one link every prior blocker descends from. Your `fix:` names the class-level change at that link (a shared predicate, a helper, a proof), never the newest site. A `fix:` that names a site the fixer already patched once is a round wasted.
 
@@ -31,20 +31,20 @@ Name the common ancestor in `upstream link:`: the one link every prior blocker d
 
 Disclosed only at corrective round 5 or later (PIN-3). Everything above still applies first.
 
-Test the End state yourself with the read verbs and the Read/Grep/Glob tools only. Read its `check:` or `Done when:` command, then trace at the pin each link that command measures. The seat never executes the command. If the check cannot be made true by any change inside the task's `Files:`, or contradicts the code it measures, file one finding tagged `relation: premise` whose title names the End state number and whose rationale quotes the check's command and the pinned content that cannot satisfy it. That finding tells the fixer the outcome is the defect, and the fixer's `PLAN-DEFECT:` return is the completed outcome.
+Test the End state yourself with the read verbs and the Read/Grep/Glob tools only. Read its `check:` or `Done when:` command, then trace at the pin each link that command measures. The seat never executes the command. The check may not be made true by any change inside the task's `Files:`, or it may contradict the code it measures. Then file one finding tagged `relation: premise`. Its title names the End state number. Its rationale quotes the check's command and the pinned content that cannot satisfy it. That finding tells the fixer the outcome is the defect, and the fixer's `PLAN-DEFECT:` return is the completed outcome.
 
-Never file that finding before this tier: at rounds 2 to 4 a class that keeps re-opening is a shape signal for the fixer, not evidence against the End state. The slice-level `PLAN-DEFECT:` route (a plan that contradicts the code) is unchanged and stays available at every round; it is the worker's return, not a seat's finding.
+Never file that finding before this tier. At rounds 2 to 4 a class that keeps re-opening is a shape signal for the fixer, not evidence against the End state. The slice-level `PLAN-DEFECT:` route (a plan that contradicts the code) is unchanged and stays available at every round. It is the worker's return, not a seat's finding.
 
 ## Variants
 
-- Delta-scaled re-audit: the seat re-runs the `git diff --no-renames --name-only <pre> <sha>` its prompt names and chains only over the files the ace range touched; a changed file outside the claimed set is `scopeBreach: true` and the full panel re-runs. The `relation:` tag is still owed on every re-block.
-- Pin-content re-audit: the seat judges the pinned content against the approved tree, with no threaded findings and no corrective round; it is round 1 by definition and carries no backward-chain clause.
+- Delta-scaled re-audit: the seat re-runs the `git diff --no-renames --name-only <pre> <sha>` its prompt names. It chains only over the files the ace range touched. A changed file outside the claimed set is `scopeBreach: true` and the full panel re-runs. The `relation:` tag is still owed on every re-block.
+- Pin-content re-audit: the seat judges the pinned content against the approved tree, with no threaded findings and no corrective round. It is round 1 by definition and carries no backward-chain clause.
 
 ## Worked examples
 
 The lone-dissenter splits live here, never in the rules. Read [backward-chain-examples.md](backward-chain-examples.md); the entries whose `Roles:` line names the auditor are the ones for this file. Every external private entry is abstracted: no repo name, number or infrastructure detail (PIN-9).
 
-- One seat blocked on an off-chain doc sentence while three approved, and the split rule, not the severity, escalated the phase: `## off-path`, `one-sentence-nit-held-a-phase` and `round-zero-escalations-on-specified-majors`. The split was a claim to verify, not a vote to count.
+- One seat blocked on an off-chain doc sentence while three approved. The split rule, not the severity, escalated the phase: `## off-path`, `one-sentence-nit-held-a-phase` and `round-zero-escalations-on-specified-majors`. The split was a claim to verify, not a vote to count.
 - A seat's count-only repair was refuted by a second graph with equal counts: `## oracle`, `count-equal-counterexample-forced-tree-equality`.
 - A recommendation cited an issue and contradicted its own comments: `## premise`, `recommendation-cited-the-issue-and-contradicted-its-comments`.
 - Two seats agreed on a Major the field-keyed rule missed, and the producer was the unnamed link: `## upstream`, `round-four-rule-undid-the-round-one-clock`.
