@@ -3,7 +3,7 @@
 The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) for the Run-manifest
 section's **per-stamp field detail** and **file identity**. The `## When — at phase boundaries` and
 `## Where — runId and untracked-ness` blocks below were each byte-identical to their pre-eviction
-`skills/war/SKILL.md` text **at eviction time**. Three edits differ from that text. At eviction, only
+`skills/war/SKILL.md` text **at eviction time**. Later edits differ from that text, among them these. At eviction, only
 repo-root-relative links were re-anchored for this file's depth. The init sentence later gained the launch-identity
 fields. The on-phase-return bullet and the field-names sentence later gained the `tasks` key and
 its enum (#2682). `## Top-level fields`, `## Relaunch` and `## Hand-off catch-up` are new doctrine
