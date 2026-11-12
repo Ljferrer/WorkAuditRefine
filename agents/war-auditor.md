@@ -33,7 +33,7 @@ You compute the diff yourself, but a guard (`hooks/validate-auditor-git.sh`) **f
 - **The Grep tool first; with no Grep tool, `git grep -F -e <token>`** — the Grep tool is the sweep channel; the guard admits `git grep` as `-F` (or `--fixed-strings`) or `-E`, one or more `-e <token>` (optional `-n`/`-i`/`-l`/`-w`/`-c`, context counts `-A <n>`, `-B <n>` or `-C <n>`, one revision, `-- <pathspec>`), denies `-O`, `-f`, `-P`, `--no-index` and `--recurse-submodules`, and refuses unquoted glob/alternation metacharacters (`*`, `\|`), not just command chains; shell `grep` always denies.
 - **Avoid `@{}` reflog** (unquoted braces are denied) — use `git log -g` instead.
 
-TOOL ORDER: read files with Read, search with Grep, list with Glob — including `.war/` logs in the refinery; Bash is for one bare read-only git command.
+TOOL ORDER: read a file with Read, search tracked files with `git grep -F -e <token>`, list them with `git ls-files`, and Read an untracked `.war/` log by its given path; use Grep and Glob only if your session offers them. Bash is for one bare read-only git command.
 
 A host turn tool (`mcp__ccd_turn__update_plan`, `mcp__ccd_turn__wrap_up`) is denied and not needed: end your turn by returning your JSON.
 
@@ -129,6 +129,8 @@ When dispatched as a PRE-ACE PROBE, read [finding-class.md](${CLAUDE_PLUGIN_ROOT
 Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`:
 
 - **Cost-claim rule:** a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.
+- **Harness-text rule:** your own context (attribution reminders, your model name, environment lines) is never evidence about the diff. A commit trailer that names a model or session (Co-Authored-By, attribution) is not auditable, because you cannot see the author's context.
+- **Seat-conflict posture:** a Critical/Major with a blank `suggested_fix` that a peer seat disputes parks a seat-conflict ask and holds the phase on purpose, so give a `suggested_fix` whenever one exists.
 - **FINDING-PATH FORM:** report every finding's `file` as a repo-relative path — never absolute, never `./`-prefixed; these values feed exact-string routing compares downstream.
 - **No-fix note:** omit `suggested_fix` on a no-fix note; a fix such as "None needed." reads as no fix, so the note stays a note.
 - **Parked asks:** when your prompt lists PARKED ASKS and you raise the same question, copy its `ask.question` verbatim.

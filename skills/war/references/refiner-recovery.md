@@ -14,6 +14,32 @@ prompts in `skills/war/assets/workflow-template.js` still carry the full discrim
 (registry-pinned, `relandDiscrimination`); this file is the standing copy the grep-parity
 suite reads.
 
+Later evictions, each byte-identical to its card text at eviction time: the quoted card paragraph
+in § Submodule-as-repo provisioning (1032accd); the card's land-phase exit bullets in § Reland
+discrimination (#2657); § Evidence phase diff step 3 (plan 2026-11-08-engine-recovery-relaunch-and-land
+T4.1); and the two card paragraphs in § File-followups filing (plan
+2026-11-08-engine-findings-ace-and-late-fix D33 and D22).
+
+Post-eviction edits: each sanctioned edit to a moved block after its eviction, by block and clause.
+- § Reland discrimination: the D4 paragraph's land-advance exit arms (88663af7, #2626) and their
+  rewrite to take the land confirm (#2657); the every-attempt land-advance timeout line (#2626); the
+  Land confirm rule (#2657).
+- § Submodule land arms (2A / 2B): its Trigger line (b1f8892c); the 2A step 2 any-other-exit stderr
+  clause (4cb89f3d, 6e17afb6), its every-attempt timeout bullet (#2626) and its Land confirm bullet
+  (#2657); the 2A step 3 server-side `[remote rejected]` retry clause (#2626) and its land-confirm
+  routing (#2657).
+- § Base re-run + re-attach: the Trigger names `gate-failure-classification.md` in place of the
+  card's § Gate-failure classification (#2021).
+- § Diff probe: the `war-helper` card clause and the three-dot `<base>...<tip>` form (a46c4f09); the
+  late-fix round probe sentence (#2622).
+- § merge-task two-worktree split: the Trigger reads "before the merge-task rebase of the task
+  branch" (2b492e9d).
+- § Land-barrier endstate-check steps: step 4 **Statement boundaries**, with the per-statement
+  `cmd[i] exit: <n>` lines, the compound-command rule and the maximum rule, and step 5 **Expected
+  tip** (#2786).
+- § MergeResult merge-task-only fields: the `gate_segment` clause in the parenthetical (#2178).
+- § Evidence phase diff: step 3 says the absent arm matches nothing (#2243).
+
 ## Submodule-as-repo provisioning
 
 Trigger: a phase's `target repo` is a submodule (not the superproject).
@@ -139,7 +165,7 @@ After the serial merge queue and **before** the gate-audit pass, the Workflow di
 
 Trigger: an `evidence` dispatch reaching its step 3 (the card's `## Post-merge evidence dispatch` step 3, evicted 2026-11-09 by plan 2026-11-08-engine-recovery-relaunch-and-land T4.1, an ADR 0042 headroom eviction; the card keeps the step number and its pointer).
 
-3. **Phase diff** — `git -C <_refinery> diff --name-only <phaseBase>..$(git -C <_refinery> rev-parse HEAD)` (`<phaseBase>` = the integration/working merge-base above); return its lines as `phase_diff_files` — the gate-audit floor pass's note arm reads it (absent ⇒ that arm skips).
+3. **Phase diff** — `git -C <_refinery> diff --name-only <phaseBase>..$(git -C <_refinery> rev-parse HEAD)` (`<phaseBase>` = the integration/working merge-base above); return its lines as `phase_diff_files` — the gate-audit floor pass's note arm reads it (absent ⇒ that arm reads an empty Set and matches nothing).
 
 ## MergeResult merge-task-only fields
 

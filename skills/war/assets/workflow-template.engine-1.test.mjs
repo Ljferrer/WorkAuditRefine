@@ -5839,7 +5839,7 @@ test('intake normalization: content-distinct empty-key findings both file on re-
   assert.ok(r2.logs.some(l => typeof l === 'string' && l.includes('already filed as a follow-up')), 'the identical re-mint is refused with a log')
 })
 
-test('intake normalization: default-deny census (#1871, D26) — exactly one seatRefOf definition, zero `const seatRef =` bodies, remintKey and normalizeFinding both normalize through aceRelPath, the empty-key fold is content-keyed, and normalizeSeat strips seats/merged and demotes empty content', () => {
+test('intake normalization: default-deny census (#1871, D26) — exactly one seatRefOf definition, zero `const seatRef =` bodies, remintKey and normalizeFinding both normalize through aceRelPath, the empty-key fold is content-keyed, normalizeFinding strips seats/merged/drainCause/demoteReason, and normalizeSeat demotes empty content', () => {
   assert.equal((src.match(/^const seatRefOf = /gm) || []).length, 1, 'ONE seatRefOf definition')
   assert.equal((src.match(/const seatRef\s*=/g) || []).length, 0, 'no hand copy `const seatRef =` body exists (default-deny: the alias never returns)')
   const keyBody = windowOf(src, 'const remintKey = f =>', '\n// asks[] parking')
@@ -7387,6 +7387,19 @@ test('file-followups paired pins (#1587) (b) — the destination body and the di
   // would stay green if "never a new issue" were dropped and duplicates started being filed.
   assert.ok(fp.includes('corroboration comment') && fileFollowupsMd.includes('corroboration comment'),
     'both surfaces name the corroboration comment as the dedup write (the positive half of the rule)')
+})
+
+// D14 (#2243, PIN-14): the evicted evidence step 3 and the dispatched PHASE DIFF clause say the same
+// thing about an absent phase_diff_files: the note arm reads an empty Set and matches nothing.
+test('evidence phase-diff paired pins (D14, #2243) — refiner-recovery.md step 3 and the PHASE DIFF prompt clause say the absent arm matches nothing, never "arm skips"', () => {
+  const step = (refinerRecoveryMd.match(/^3\. \*\*Phase diff\*\* — .*$/m) || [])[0]
+  const clause = (src.match(/^.*pt`  3\. PHASE DIFF — .*$/m) || [])[0]
+  assert.ok(step, 'refiner-recovery.md § Evidence phase diff carries its step 3 line (non-vacuity)')
+  assert.ok(clause, 'the evidence dispatch carries its PHASE DIFF step line (non-vacuity)')
+  for (const [name, text] of [['refiner-recovery.md step 3', step], ['PHASE DIFF prompt clause', clause]]) {
+    assert.ok(!/arm skips/i.test(text), name + ' never says the absent arm skips')
+    assert.ok(text.includes('matches nothing'), name + ' says the absent arm matches nothing')
+  }
 })
 
 test('T1.3 criterion 3 (D2) — gate-audit seat whose audit_sha ≠ the pin is demoted (pin-mismatch, findings excluded from the HARD path); a matching-sha control stays HARD', async () => {
@@ -9274,7 +9287,10 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
                 // card ("fenced block" / "cmd_bytes_mismatch" / "intake-linted"+"`intake_lint`" /
                 // "runs end-to-end") and the dispatched prompt ("FENCED block" / "cmd_bytes_mismatch"
                 // / "INTAKE-LINTED" / "END-TO-END"), so a per-surface reword or revert reds this row.
-                /fenced/i, /cmd_bytes_mismatch/, /intake[_ -]lint/i, /end-to-end/i] },
+                /fenced/i, /cmd_bytes_mismatch/, /intake[_ -]lint/i, /end-to-end/i,
+                // D16 (PIN-16, #2254): the per-statement lines and the maximum rule, step 4 on the
+                // destination (the engine-findings plan's Statement boundaries) and the prompt's twin.
+                /cmd\[i\] exit: <n>/, /maximum/i] },
     // Task 3.2 recovery Blocker 2 (stale-but-readable artifact): .war/ is git-excluded and
     // ensure-worktree reuses a present worktree untouched, so a resumeFromRunId replay lands on
     // prior-run artifact residue — READABLE but stamped with a prior tip. The seat MUST compare the
@@ -9485,7 +9501,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
                  ['worker prompt', workerP], ['auditPrompt()', auditP], ['merge-task dispatch prompt', mergeP], ['servitor Wrap-up prompt', servitorP]],
       anchors: [new RegExp(AUTHORITY_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))] },
     // PIN-6: TOOL ORDER on both auditor cards and the audit-family prompt.
-    { name: 'TOOL ORDER (PIN-6): Read/Grep/Glob first, Bash for one bare read-only git command — both auditor cards + auditPrompt()',
+    { name: 'TOOL ORDER (PIN-6, D38): Read a file, git grep -F -e to search, git ls-files to list, Bash for one bare read-only git command — both auditor cards + auditPrompt()',
       surfaces: [['war-auditor.md', auditorMd], ['war-evidence-auditor.md', evidenceCardMd], ['auditPrompt()', auditP]],
       anchors: [new RegExp(TOOL_ORDER_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))] },
     // PIN-23: the host turn tool sentence, same surfaces as TOOL ORDER.
@@ -9556,6 +9572,10 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'net-zero clash range (D19 d, D22, #2578): a clashed task rebases only through the approved sha — clashed pin-transfer prompt + refiner card step-4 pointer + refiner-recovery.md',
       surfaces: [['clashed pin-transfer prompt', t51PinP], ['war-refiner.md', refinerMd], ['refiner-recovery.md', refinerRecoveryMd]],
       anchors: [/NET-ZERO CLASH RANGE/, /(only when the dispatch names it|NET-ZERO-DROPPED|rebases only through)/] },
+    // D18 (PIN-18, #2557): the seat lever behind the deliberate hold — both auditor cards + auditPrompt().
+    { name: 'seat-conflict posture (D18, PIN-18, #2557): a fix-less disputed blocker parks an ask and holds the phase on purpose — both auditor cards + auditPrompt()',
+      surfaces: [['war-auditor.md', auditorMd], ['war-evidence-auditor.md', evidenceCardMd], ['auditPrompt()', auditP]],
+      anchors: [/a Critical\/Major with a blank `suggested_fix` that a peer seat disputes parks a seat-conflict ask and holds the phase on purpose, so give a `suggested_fix` whenever one exists\./] },
   ]
   // citation row, value half: the doc surfaces state the engine's number; the source interpolates it.
   for (const [n, t] of [['war-auditor.md', auditorMd], ['disposition-eligibility.md', eligibilityMd]]) {
@@ -9575,8 +9595,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   assert.match(squeeze(schemasMd), /every ordinal in exactly one cluster \([^)]*`verified_fixed`[^)]*needs no cluster/, 'schemas.md names the verified_fixed exception inside its cluster partition rule')
   // A row added without a floor raise leaves slack, and slack lets a deleted row pass. The ceiling
   // turns that add red, so the floor and the row count move in one commit.
-  assert.ok(REGISTRY.length <= 58, 'the registry holds ' + REGISTRY.length + ' rows, above the floor: raise the REGISTRY.length floor and this ceiling to the new row count in the commit that adds the row')
-  assert.ok(REGISTRY.length >= 58,'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) + the four plan 2026-11-08 T1.6 prompt-prefix rows (AUTHORITY_LINE, TOOL ORDER, HOST_TURN_TOOL_LINE, WORKER_WRITE_TOOL_RULE) + the push-denied row (#2671) + the three plan 2026-11-08-engine-findings T1.1 rows (citation, parked-ask, worker-report) + the five T2.1 rows (compound-command carve-out, stale-tip phrase, gate scope, confirmed tip, confirmed tip scope) + the three T3.1 rows (exact-id, ace trailers, VERIFY FIRST) + the T4.1 empty-range conflict row + the T5.1 net-zero clash range row — 58 rows, no slack')
+  assert.ok(REGISTRY.length <= 59,'the registry holds ' + REGISTRY.length + ' rows, above the floor: raise the REGISTRY.length floor and this ceiling to the new row count in the commit that adds the row')
+  assert.ok(REGISTRY.length >= 59,'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt()), the Task 12.1 release-slot eligibility row (D20/PIN-24/#2000: auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt), and the byte-cap seat sentence row (#2167: auditor card ↔ auditPrompt()) + the four #2617 rows (same-turn poll merge-task and land, pin-transfer and merge-task stash bans) + the four plan 2026-11-08 T1.6 prompt-prefix rows (AUTHORITY_LINE, TOOL ORDER, HOST_TURN_TOOL_LINE, WORKER_WRITE_TOOL_RULE) + the push-denied row (#2671) + the three plan 2026-11-08-engine-findings T1.1 rows (citation, parked-ask, worker-report) + the five T2.1 rows (compound-command carve-out, stale-tip phrase, gate scope, confirmed tip, confirmed tip scope) + the three T3.1 rows (exact-id, ace trailers, VERIFY FIRST) + the T4.1 empty-range conflict row + the T5.1 net-zero clash range row + the doc-truth T3.2 seat-conflict posture row (D18) — 59 rows, no slack')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -12410,7 +12430,7 @@ test('auditor-evict (a) — the evicted execution-evidence checklist section is 
   assert.ok(!/\n##? /.test(body.slice(heading.length)), 'the evicted section must be the file\'s last section (heading → end of file)')
   // Non-vacuity: the extraction spans the section's tail bullet.
   assert.match(body, /\*\*End-state ownership mapping:\*\*/, 'the extracted section must span its `**End-state ownership mapping:**` tail bullet')
-  assert.equal(Buffer.byteLength(body, 'utf8'), 5937, 'the approved checklist includes the parallel-gate completion rule and the T2.1 bullets (D28 scoped to the End-state check artifacts, D30 with the intent-ordinal compare, D31, D32)')
+  assert.equal(Buffer.byteLength(body, 'utf8'), 6999, 'the approved checklist includes the parallel-gate completion rule, the T2.1 bullets (D28 scoped to the End-state check artifacts, D30 with the intent-ordinal compare, D31, D32) and the doc-truth T3.2 additions (the gate-log arms and GATE_LOG_UNTHREADED text, the D8 record-only states and per-command rule, the arm (d) expected state)')
   assert.match(body, /parallel repository gate[^\n]*missing `== gate complete:`[^\n]*SOFT cannot-confirm/)
   assert.equal(createHash('sha256').update(body, 'utf8').digest('hex'), GATE_AUDIT_CHECKLIST_SHA256,
     'the evicted checklist section must be byte-identical to the pre-eviction card text (ADR 0042 byte-identical move) — a sanctioned edit re-pins GATE_AUDIT_CHECKLIST_SHA256 in this commit with its rationale')
@@ -21100,4 +21120,132 @@ test('absorb-budget: an unseeded task re-reads its charges once', async () => {
   const mutant = await run({ ok: true }, PROBE, src.replace(GATE, 'if (false) {'))
   assert.equal(t31ProbeCalls(mutant.calls).length, 0, 'the mutant never probes')
   assert.ok(mutant.calls.some(c => (c.opts.label || '') === 'ace:polish:t1-1:a1'), 'and runs the task at slot 1')
+})
+
+// ---- Plan 2026-11-08-doc-truth-drift-and-adr-hygiene, Task 3.2 -------------------------------------
+
+// D17 / D30 (1) (PIN-17): the checklist quotes the engine's unthreaded-gate-log marker. The engine
+// literal is read by extraction (the skill-doc-contracts ptConst shape), so a later constant change
+// reds this row, not only the GATE_AUDIT_CHECKLIST_SHA256 pin.
+test('checklist-unthreaded-marker-equals-engine', () => {
+  const m = src.match(new RegExp('^const GATE_LOG_UNTHREADED = pt`((?:[^`\\\\]|\\\\.)*)`', 'm'))
+  assert.ok(m && m[1].length > 0, 'the `const GATE_LOG_UNTHREADED = pt`…`` declaration is found in the template (non-vacuity)')
+  assert.ok(gateAuditChecklistMd.includes(m[1]), 'gate-audit-checklist.md carries the engine GATE_LOG_UNTHREADED literal verbatim: ' + m[1])
+})
+
+// D31 (PIN-31, #2681): arm (d) of gate-pin-status.sh is the expected state after a later same-phase
+// merge touched a mapped file. The phrase is read from the script, then found on the checklist bullet
+// and on the dispatched POST-MERGE GATE-AUDIT clause (both-surfaces rule).
+test('stale-mismatch-arm-d-expected-after-later-merge', () => {
+  const sh = readFileSync(join(here, 'gate-pin-status.sh'), 'utf8')
+  const m = sh.match(/printf '(mapped file\(s\) changed since the gate ran)/)
+  assert.ok(m, 'gate-pin-status.sh carries the arm (d) printf phrase (non-vacuity)')
+  const phrase = m[1]
+  const bullet = (gateAuditChecklistMd.match(/^- \*\*Consume the stamped `pin_status`\*\*.*$/m) || [])[0]
+  const clause = (src.match(/^.*STALE-MISMATCH \/ ERROR \/ an absent pin-status token ⇒.*$/m) || [])[0]
+  assert.ok(bullet && clause, 'the checklist pin_status bullet and the gate-audit prompt clause are found (non-vacuity)')
+  assert.ok(bullet.includes(phrase), 'the checklist pin_status bullet names the arm (d) phrase')
+  assert.ok(clause.includes(phrase), 'the POST-MERGE GATE-AUDIT clause names the arm (d) phrase')
+  assert.match(bullet, /expected/, 'the bullet says the arm (d) state is expected')
+  assert.match(clause, /expected/, 'the prompt clause says the arm (d) state is expected')
+})
+
+// D19 (PIN-19, #2347): the Ace-Subset trailer is resume idempotency, never a footprint. Outside pt
+// prompt literals no engine code reads a trailer value into a file set: the only Ace-Subset reads are
+// the trailerGapLog presence logs, and the delta-scale readers take the tip probe's git-derived list.
+test('ace-subset-trailer-is-not-a-footprint', () => {
+  assert.equal((src.match(/const trailer = /g) || []).length, 2, 'the two `const trailer =` builds (subset and re-entry) are found (non-vacuity)')
+  let code = src
+  for (const span of ptSpanRanges(src).reverse()) code = code.slice(0, span.start) + code.slice(span.end)
+  const lines = code.split('\n').filter(l => !l.trim().startsWith('//'))
+  const subsetLines = lines.filter(l => l.includes('Ace-Subset'))
+  assert.ok(subsetLines.length >= 2, 'the trailerGapLog calls name Ace-Subset outside the prompts (non-vacuity of the scan)')
+  for (const l of subsetLines) assert.ok(l.includes('trailerGapLog('), 'an Ace-Subset name outside a prompt literal is a trailerGapLog presence log only: ' + l.trim())
+  for (const l of lines.filter(l => /\baceSubset\b/.test(l))) assert.ok(l.includes('trailerGapLog(') || l.includes('tip_trailers:'), 'aceSubset is named only by the probe schema and the presence logs: ' + l.trim())
+  const joined = lines.join('\n')
+  // `trailer` is the local the two builds bind; a property read like `proof.trailer` is another value.
+  assert.ok(!/\.aceSubset\b|(?<![.\w])trailer\s*\.\s*(split|match|slice|replace)\b|aceRelSet\(\s*trailer/.test(joined), 'no code splits a trailer value or reads tip_trailers.aceSubset into a file set')
+  const bodies = {
+    aceScope: sliceSrc('const aceScope = ', '// #1944'),
+    recordAcedTouched: sliceSrc('const recordAcedTouched = ', '// Seat-detected excess'),
+    aceScopeClause: sliceSrc('const aceScopeClause = ', 'const aceSeatRows'),
+  }
+  for (const [name, body] of Object.entries(bodies)) {
+    assert.ok(body.includes('aceRelSet(ev && ev.files)'), name + ' reads the git-derived ace file list')
+    assert.ok(!/Ace-Subset|aceSubset|\btrailer\b/.test(body), name + ' reads no trailer')
+  }
+  const evidence = sliceSrc('const aceEvidence = ', '// ---- PIN-12')
+  assert.ok(evidence.includes('files: probe.files') && evidence.includes("['ace_diff_files', w && w.ace_diff_files]"),
+    'aceEvidence carries the tip probe files and the worker ace_diff_files cross-check, never a trailer')
+})
+
+// Operator ruling 2026-11-12 (phase 2 hold): a probe whose PRE and APPROVED name one commit cannot have
+// two trees. At phase 2 a probe skipped the approved_tree command and returned the tip tree, so a
+// moved ace tip classed unchanged. tipProbe corrects approved_tree to pre_tree and logs it.
+test('tip-probe — an approved tree that disagrees with the same-commit pre tree is corrected', async () => {
+  const code = sliceSrc('const TIP_PROBE = {', '// trailerGapLog (D24 c)')
+  const cls = (src.match(/^const tipClass = .*$/m) || [])[0]
+  assert.ok(code.includes('const tipProbe = async') && cls, 'the tipProbe slice and the tipClass line are found (non-vacuity)')
+  const load = (source, reply) => {
+    const logs = [], prompts = []
+    const api = new Function('pt', 'shq', 'NS', 'spawn', 'dispatchSite', 'helperOpts', 'deathOf', 'isSha', 'log',
+      runForm(source + '\n' + cls + '\nreturn { tipProbe, tipClass }'))(
+      (s, ...v) => s.reduce((o, x, i) => o + x + (i < v.length ? v[i] : ''), ''), w => w, 'ns:', () => ({}),
+      async p => { prompts.push(p); return { ...reply } }, () => ({}), () => null,
+      s => typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s), l => logs.push(l))
+    return { api, logs, prompts }
+  }
+  const sha = p => p.padEnd(40, '0')
+  const [A, T, TT, PT] = [sha('75775f7c'), sha('28d5178c'), sha('d2134cee'), sha('1085b5f8')]
+  // The phase 2 reply shape: PRE equals APPROVED, approved_tree is the tip tree, one commit above PRE.
+  const reply = { tip_sha: T, tip_tree: TT, pre_sha: A, pre_tree: PT, approved_tree: TT, count: 1, pre_is_ancestor: true, files: ['skills/a.js'] }
+  const label = 'tip-probe:reentry:t1:a3'
+  const args = { probeId: 't1', probeSite: 'reentry', probeWorktree: '/w', probeBranch: 'b', probePre: A, probeApproved: A, label }
+  const { api, logs, prompts } = load(code, reply)
+  const p = await api.tipProbe(args)
+  assert.equal(p.approved_tree, PT, 'approved_tree is corrected to pre_tree')
+  assert.equal(api.tipClass(p), 'moved', 'the moved ace tip classes moved')
+  assert.ok(logs.some(l => l.includes(label) && l.includes(A) && l.includes(TT) && l.includes(PT)), 'the correction is logged by name, sha and both trees')
+  assert.ok(prompts[0].includes('When APPROVED and PRE name the same commit, approved_tree equals pre_tree.'), 'the probe prompt states the rule')
+  // Control: a distinct APPROVED keeps the reply as returned.
+  const ctl = load(code, reply)
+  const q = await ctl.api.tipProbe({ ...args, probeApproved: sha('ffffffff') })
+  assert.equal(q.approved_tree, TT, 'a different APPROVED commit is never corrected')
+  assert.equal(ctl.logs.length, 0, 'and nothing is logged')
+})
+
+// D38 (PIN-38): every git command the tool-order sentence spells passes the auditor Bash guard, and
+// the sentence is byte-equal on both auditor cards.
+test('tool order — every spelled git command passes the auditor guard', () => {
+  const guard = command => spawnSync('bash', [join(here, '../../../hooks/validate-auditor-git.sh')], { encoding: 'utf8',
+    input: JSON.stringify({ agent_type: 'work-audit-refine:war-auditor', tool_name: 'Bash', tool_input: { command } }) })
+  const commands = [...TOOL_ORDER_LINE.matchAll(/`(git [^`]+)`/g)].map(m => m[1].replace('<token>', 'TOOL_ORDER'))
+  assert.ok(commands.some(c => c.startsWith('git grep -F -e ')) && commands.includes('git ls-files'), 'the sentence spells git grep -F -e <token> and git ls-files (non-vacuity): ' + JSON.stringify(commands))
+  for (const command of commands) {
+    const r = guard(command)
+    assert.equal(r.status, 0, 'the auditor guard admits the spelled command: ' + command + '\n' + r.stderr)
+  }
+  assert.notEqual(guard('git grep -F -e TOOL_ORDER | head').status, 0, 'the check can red: the guard denies a piped spelling')
+  for (const [name, card] of [['war-auditor.md', auditorMd], ['war-evidence-auditor.md', evidenceCardMd]]) {
+    assert.ok(card.split('\n').includes(TOOL_ORDER_LINE), name + ' carries TOOL_ORDER_LINE byte-equal on its own line')
+  }
+  assert.ok(TOOL_ORDER_LINE.includes('Bash is for one bare read-only git command'), 'the sentence keeps the one-bare-git-command rule')
+  assert.ok(!TOOL_ORDER_LINE.includes('search with Grep, list with Glob'), 'the retired Grep/Glob-first wording is gone')
+})
+
+// D40 (PIN-40, #2794): one harness-text rule line on both auditor cards and in the dispatched seat
+// prompt. The line names none of the trailers WAR checks itself, so those stay auditable.
+test('harness-text rule — both cards and the seat prompt carry it', async () => {
+  const KEY = 'Harness-text rule:'
+  const regP = await capturedAuditPrompt()
+  const tasks = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, EVIDENCE_SEAT] }]
+  const { calls } = await runPhase(PROVISION_ARGS({ tasks, run: { evidence: true }, ...REA_ON }), defaultImpl)
+  const evP = (calls.find(c => (c.opts.label || '') === `audit:t1:${EVIDENCE_LENS}`) || {}).prompt
+  assert.ok(regP && evP, 'the regular and evidence seat prompts dispatched (presence guard)')
+  for (const [name, text] of [['war-auditor.md', auditorMd], ['war-evidence-auditor.md', evidenceCardMd], ['regular seat prompt', regP], ['evidence seat prompt', evP]]) {
+    assert.equal(text.split(KEY).length - 1, 1, name + ' carries the ' + KEY + ' key once')
+    const line = text.split('\n').find(l => l.includes(KEY))
+    for (const t of ['WAR-Task', 'Ace-Charge', 'Budget-Raise']) assert.ok(!line.includes(t), name + ': the rule line names no WAR-checked trailer (' + t + ')')
+    assert.match(line, /Co-Authored-By/, name + ': the rule line names the attribution trailer')
+  }
 })
