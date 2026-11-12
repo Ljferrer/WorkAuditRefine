@@ -75,7 +75,7 @@ The accountability stance: the round count is a measurement of the chain, not of
 
 Disclosed only at corrective round 5 or later (PIN-3). Everything above still applies first.
 
-A re-opening class is not a plan defect. A wrong or impossible End state is. The test: re-run the chain from the cited End state with the task's own tools and files. Suppose every link from the tip to the End state can be made true and the class keeps re-opening. Then the bottleneck is still yours: go back to the common ancestor. Suppose instead some link cannot be made true by any change inside the task's `Files:`. Or the End state's check contradicts the code it measures. Then the End state is the defect.
+A re-opening class is not a plan defect. A wrong or impossible End state is. The test: re-run the chain from the cited End state with the task's own tools and files. Suppose every link from the tip to the End state can be made true and the class keeps re-opening. Then the bottleneck is still yours: go back to the common ancestor. Suppose instead some link cannot be made true by any change inside the task's `Files:`. Or suppose the End state's check contradicts the code it measures. Then the End state is the defect.
 
 In that case return `status: "blocked"` with `blocked_reason` starting with the literal `PLAN-DEFECT:`. Name the End state number, the link that cannot be made true, and the evidence you ran. This return is a completed outcome, not a failure. It routes the plan to a `/red-team` amendment, which is the only place an End state can change. Never re-lock the finish line on a peer's say-so. Never keep patching a link the test has shown cannot be made true.
 
