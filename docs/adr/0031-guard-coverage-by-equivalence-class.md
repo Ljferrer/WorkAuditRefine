@@ -94,8 +94,8 @@ fails.
   absence-guard consumers do not justify a shared module; the convention plus the enumerating comment is
   the enforcement. A helper waits for a third distinct consumer.
 - **Leaving the packaging floor's Modified/Deleted no-op silent (rejected).** Ratified instead as an
-  ADR 0017 addendum — a recorded decision that Added/Renamed/Copied-only is intended, not an unrecorded
-  gap.
+  ADR 0017 (2026-07-08) decision — a recorded decision that Added/Renamed/Copied-only is intended, not
+  an unrecorded gap (ADR 0017 Decision 1; as written then: `docs/adr/0017-packaging-floor-docker-gate-ratified-backstops.md @ 7dfbc0ba`).
 
 ## Consequences
 
@@ -108,7 +108,7 @@ fails.
   absence block; the two scans are byte-unchanged.
 - `war-pipeline-structure.test.sh`'s rename absence guard excludes the README-Status/changelog prose
   region; `assert-test-in-diff.test.sh` gains a floor⊆gate parity arm (ADR 0006, tested not trusted).
-- `CONTEXT.md` gains a `### Guard coverage by equivalence class (ADR 0031)` subsection defining five
+- `GLOSSARY.md` gains a `### Guard coverage by equivalence class (ADR 0031)` subsection defining five
   terms — **Traversal equivalence class**, **Verb equivalence class (absence guard)**,
   **Subtree-anchored search root**, **Floor⊆gate parity**, **Precondition marker**.
 - Named residuals (declared backstops): allowlist-tag discipline and guard-suite hermeticity across
@@ -126,7 +126,7 @@ fails.
 - [ADR 0006](0006-deterministic-test-floor.md) — the coarse-floor / tested-shell-guard idiom the
   meta-guards and the parity test follow.
 - [ADR 0017](0017-packaging-floor-docker-gate-ratified-backstops.md) — validation must live in
-  gate/floor/backstops or escalate; the packaging-floor scope addendum lands there.
+  gate/floor/backstops or escalate; the packaging-floor scope decision lives in its Decision 1.
 - [ADR 0025](0025-drift-guard-discipline.md) — the sibling discipline binding a duplicated fact to its
   canonical source.
 - Memory lessons (the originating recurrence cluster):
@@ -138,9 +138,5 @@ fails.
 ## Decision log
 
 - 2026-10-31 · Convention 6 added in place under the 2026-09-06 living-ADR ruling (no dated amendment): pipefail early-exit pipelines, enforced by Lint 5 in `hooks/guard-conventions.test.sh` (#1840, #2007).
-
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
-
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0031-guard-coverage-by-equivalence-class.md @ b31d2203
+- 2026-11-11 · the ADR 0017 addendum citations name its folded Decision 1 in the dated and sha-pinned forms · #1850 (ADR 0063)

@@ -54,7 +54,7 @@ const adr0037 = readFileSync(
   'utf8',
 )
 // (D25) The two surfaces of ONE cross-ADR prose mirror — 0040 §B is the canonical source, 0019's
-// Amendment the mirror site. Both are read so a per-surface revert reds (ADR 0025's mirror registry).
+// class-routes paragraph (its folded 2026-07-24 section) the mirror site. Both are read so a per-surface revert reds (ADR 0025's mirror registry).
 const adr0019 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0019-target-derived-execution-values.md'),
   'utf8',
@@ -138,20 +138,32 @@ const adr0044 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0044-authoring-contract-and-merged-artifact.md'),
   'utf8',
 )
+// ADR 0044's body: the whole ADR minus its two records (ADR 0063 Decision 5), the
+// `## Considered options` section and the `## Decision log` section (D34's OLD-absent home).
+const adr0044Body = adr0044
+  .replace(/^## Considered options\n[\s\S]*?(?=^## )/m, '')
+  .replace(/^## Decision log\n[\s\S]*$/m, '')
 const surveyCorpsSkillMd = readFileSync(
   join(HERE, '..', '..', 'survey-corps', 'SKILL.md'),
   'utf8',
 )
 const workflowTemplateSrc = readFileSync(join(HERE, 'workflow-template.js'), 'utf8')
 // (D37–D42) The ask-disposition surfaces (#1550; plan 2026-08-25-ask-disposition, Task 2.3):
-// ADR 0013's dated amendment is the canonical decision record the new glossary terms
-// restate; ADR 0012 carries the one-line cross-ref; design.md + file-followups.md carry the
+// ADR 0013's `### The \`ask\` disposition` section (the folded 2026-08-25 amendment) is the
+// canonical decision record the new glossary terms restate; ADR 0012's Decision item 5 carries the
+// pointer; design.md + file-followups.md carry the
 // Task 2.2 reference mirrors; war-review's SKILL.md is the canonical home of the grind-measurement
 // doctrine. Read here so every mirror row asserts BOTH surfaces (ADR 0025: a one-sided edit reds).
 const adr0013 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0013-commanders-intent-and-disposition-routing.md'),
   'utf8',
 )
+// ADR 0013's body: the whole ADR minus its two records (ADR 0063 Decision 5), the
+// `## Considered options` section and the `## Decision log` section. Consequences and References
+// are body and stay in.
+const adr0013Body = adr0013
+  .replace(/^## Considered options\n[\s\S]*?(?=^## )/m, '')
+  .replace(/^## Decision log\n[\s\S]*$/m, '')
 const adr0012 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0012-intra-phase-visibility-and-phase-close-sweep.md'),
   'utf8',
@@ -1418,21 +1430,20 @@ test('D33 — `ensure-origin` token census: SKILL.md and every references/ file 
 // [[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]] class — this banner WAS
 // that hit, and D30 below is the mechanical census that replaces the hand-run grep). Nothing else in
 // the suite reads them, so without these two rows the doc reword would ship with no mechanical check
-// of any kind. They are PER-MEDIUM, not uniform: an ADR is append-only, so its superseded
-// sentences legitimately stay byte-intact and only NEW-present can discriminate; GLOSSARY.md is a
-// living glossary edited in place, so it gets NEW-present AND OLD-absent. Every OLD-absent
+// of any kind. Both media are living surfaces edited in place — GLOSSARY.md always was, and an ADR
+// is since the living-ADR law (ADR 0063) — so each row is NEW-present AND OLD-absent. Every OLD-absent
 // predicate is sentence-literal-scoped — never a bare `two` word test (decision 2's
 // "two pure, independently-tested exports" sentence is still true and must not trip it).
 
-// (D23) ADR 0037 decision 2 carries TWO `two`-scoped sentences — the substitution sentence ("replaces
-// exactly once each of the two `export const meta` anchor literals") AND the exports sentence ("the
-// stager also exports the two anchor literals as constants"). Task 2.1 falsifies BOTH: the stager
-// gained an optional third exactly-once substitution and now exports three anchors. The correction
-// channel is one inline dated amendment note covering both — NOT a retro-edit of the ratified
-// sentences (append-only). NEW-present only, and proven sufficient: leave the ADR unamended and every
-// row below REDs. Extraction is BY CONSTRUCT (decision 2 → decision 3), never a whole-file scan —
-// decision 3 and the Consequences section discuss the same stager and would green a deleted note.
-test('D23 — ADR 0037 decision 2 carries the dated amendment covering BOTH of its two-scoped sentences (#1134)', () => {
+// (D23) ADR 0037 decision 2 once carried TWO `two`-scoped sentences — the substitution sentence
+// ("replaces exactly once each of the two `export const meta` anchor literals") AND the exports
+// sentence ("the stager also exports the two anchor literals as constants"). Task 2.1 falsified BOTH:
+// the stager gained an optional third exactly-once substitution and exports three anchors. The fold
+// (ADR 0063) rewrote decision 2 in place to state both as current law, with a dated Decision-log
+// line, so the row is NEW-present for both facts and OLD-absent for the two-anchors exports sentence.
+// Extraction is BY CONSTRUCT (decision 2 → decision 3), never a whole-file scan — decision 3 and the
+// Consequences section discuss the same stager and would green a deleted clause.
+test('D23 — ADR 0037 decision 2 states the optional third substitution and the three exported anchors (#1134)', () => {
   const block = adr0037.match(/^2\. \*\*A dedicated stager[\s\S]*?(?=\n3\. \*\*)/m)
   assert.ok(
     block,
@@ -1442,8 +1453,19 @@ test('D23 — ADR 0037 decision 2 carries the dated amendment covering BOTH of i
   const b = norm(block[0])
   // Non-vacuous: the extraction really spans decision 2's own claims, not an empty slice.
   assert.match(b, /anchor-guard test/i, 'the extracted decision-2 block must span its anchor-guard sentence — extraction truncated')
+  assert.doesNotMatch(
+    b,
+    /exports\s+the\s+two\s+anchor\s+literals/i,
+    'ADR 0037 decision 2 still says the stager exports the two anchor literals — it exports three ' +
+      '(OLD-absent; the living-ADR law rewrites the sentence in place)',
+  )
+  assert.match(
+    adr0037,
+    /^- 2026-07-27 · decision 2's two-scoped sentences/m,
+    "ADR 0037's Decision log must carry the dated 2026-07-27 line for the folded #1134 change",
+  )
   for (const [re, what] of [
-    [/Amendment \(2026-07-27/, 'the inline dated amendment note itself'],
+    [/#1134/, 'the driving issue of the third substitution'],
     [/--args/, 'the `--args <file>` flag that introduces the third substitution'],
     [/optional[\s*_`]{0,4}third[\s*_`]{0,4}exactly-once substitution/i,
       'the THIRD exactly-once substitution (the substitution sentence’s correction)'],
@@ -1455,7 +1477,7 @@ test('D23 — ADR 0037 decision 2 carries the dated amendment covering BOTH of i
       b,
       re,
       `ADR 0037 decision 2 must name ${what}. Correct this row to a sanctioned rewording of the ` +
-        'amendment, never delete it to make a reword pass',
+        'decision, never delete it to make a reword pass',
     )
   }
 })
@@ -1500,21 +1522,22 @@ test('D24 — GLOSSARY.md staged-phase-script entry names the optional third sub
 // (D25) CROSS-ADR MIRROR — the no-chaining routing fact lives on TWO surfaces (#1115, ADR 0025).
 // ADR 0040 §B is the canonical source: a `baseline-proceed` re-dispatch that then fails
 // `environment` keeps the PRE-RETRY routing, and that routing is TWO-SITED — soft `env-blocked` at
-// the merge site, `held:land-failed` at the land site. ADR 0019's Amendment restates it; before
-// #1115 it named only the merge-site half ("keeps this ADR's original soft `env-blocked` routing"),
+// the merge site, `held:land-failed` at the land site. ADR 0019's class-routes paragraph restates it
+// (the 2026-07-24 section, folded into the body under ADR 0063); before #1115 it named only the
+// merge-site half ("keeps this ADR's original soft `env-blocked` routing"),
 // silently dropping the land-site half its own next sentence already models. This row reads BOTH
 // files so a revert on EITHER surface reds — the standing both-surfaces registry shape; neither ADR
 // may drift alone.
 //
 // Extraction is BY CONSTRUCT per surface, never a whole-file scan — and the 0019 side is scoped to
-// the NO-CHAINING clause alone, NOT the whole Amendment paragraph. That scoping is the row's whole
+// the NO-CHAINING clause alone, NOT the whole class-routes paragraph. That scoping is the row's whole
 // discriminating power: the immediately following "Exhaustion routes by site" sentence already
 // carries `merge site`, `land site` and `held:land-failed`, so a paragraph-wide presence check
 // would read green against the reverted single-site clause (the recorded presence-anywhere blind
 // spot, [[multi-token-presence-loop-needs-paired-first-following-match-to-catch-a-swap]]). Keys are
 // ORDERED and per-surface, anchored on the ADRs' own tokens rather than either ADR's sentence bytes,
 // so sanctioned rewording latitude on either side does not false-red.
-test('D25 — the no-chaining two-site routing fact is present on BOTH mirror surfaces, ADR 0019 Amendment and ADR 0040 §B (#1115)', () => {
+test('D25 — the no-chaining two-site routing fact is present on BOTH mirror surfaces, ADR 0019 class routes and ADR 0040 §B (#1115)', () => {
   // 0019: the no-chaining clause — its own `(ADR 0040 §B)` cross-reference (the mirror pointer)
   // through to the start of the separate exhaustion sentence.
   const clause0019 = adr0019.match(/\(ADR 0040 §B\)[\s\S]*?(?=Exhaustion routes by site)/)
@@ -1540,7 +1563,7 @@ test('D25 — the no-chaining two-site routing fact is present on BOTH mirror su
         'corrected on the 0019 side',
     ],
     [
-      'ADR 0019 Amendment (mirror site)',
+      'ADR 0019 class-routes paragraph (mirror site)',
       clause0019[0],
       /env-blocked[\s\S]{0,80}merge[\s*_`]{0,4}site[\s\S]{0,80}held:land-failed[\s\S]{0,80}land[\s*_`]{0,4}site/,
       'both statuses WITH their sites — soft `env-blocked` at the merge site, `held:land-failed` ' +
@@ -1561,13 +1584,20 @@ test('D25 — the no-chaining two-site routing fact is present on BOTH mirror su
         'sanctioned rewording, never drop a surface or a half to make it pass',
     )
   }
-  // OLD-absent on the mirror site only (an ADR Amendment is edited in place; the superseded
-  // original Decision text above it is append-only and deliberately untouched — D24's idiom).
+  // OLD-absent on the mirror site: the single-site no-chaining form.
   assert.doesNotMatch(
     norm(clause0019[0]),
     /keeps this ADR.s original soft/i,
     'ADR 0019\'s no-chaining clause still carries the single-site form ("keeps this ADR\'s ' +
       'original soft `env-blocked` routing") — it must name both sites, mirroring ADR 0040 §B (#1115)',
+  )
+  // OLD-absent on the whole ADR (the living-ADR law, ADR 0063, retired the append-only exemption):
+  // the superseded zero-retry `environment` route is folded out of ADR 0019's Decision text.
+  assert.doesNotMatch(
+    norm(adr0019),
+    /soft-escalate\s+reusing\s+the/i,
+    'ADR 0019 still states the retired zero-retry `environment` route — ADR 0040 superseded it, and ' +
+      'the fold rewrote the class-routes paragraph in place',
   )
 })
 
@@ -2548,13 +2578,14 @@ test('disposition-eligibility.md absorb block carries the source-derivable eligi
 // sweep.) Both directions are committed assertions, per the
 // recorded [[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]] lesson: the
 // NEW-present half is extracted BY CONSTRUCT from the owning glossary entry (D19/D26's idiom), and
-// the OLD-absent half sweeps the CONTEXT.md router (#2636) and all THREE converged surfaces (GLOSSARY.md + the two canonical
-// war-strategy homes) so a revert on any one reds. Keys are `\s+`-wrapped so the retired literal
+// the OLD-absent half sweeps the CONTEXT.md router (#2636), the converged surfaces (GLOSSARY.md + the canonical
+// war-strategy SKILL.md and plan-interview.md homes) and ADR 0044's body, so a revert on any one reds. Keys are `\s+`-wrapped so the retired literal
 // never appears contiguously in this file and a wrapped line still matches (D18's idiom).
-// Deliberately OUT of the OLD-absent sweep: ADR 0044 §Decision item 4 (a historical decision
-// record, outside the pin sweep), skills/war-machine/SKILL.md's conversion directive, and
+// ADR 0044's body (records removed) is a living home too: ADR 0063 exempts
+// no ADR from an absence guard, so its item 4 carries the converged connectives and joins the sweep.
+// Deliberately OUT of the OLD-absent sweep: skills/war-machine/SKILL.md's conversion directive, and
 // skills/survey-corps/SKILL.md's already-converged "carries" phrasing — per #1498's own survey.
-test('D34 — GLOSSARY.md carries the converged D4/D5 connectives; the retired forms are absent on all three converged surfaces (#1498)', () => {
+test('D34 — GLOSSARY.md carries the converged D4/D5 connectives; the retired forms are absent on the converged surfaces, the router and ADR 0044 (#1498)', () => {
   // NEW-present, by construct: the **Evidence tag** entry carries the converged D4 clause.
   const evTag = glossaryMd.match(/^\*\*Evidence tag\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
   assert.ok(evTag, 'could not locate the `**Evidence tag**:` glossary entry in GLOSSARY.md')
@@ -2574,12 +2605,22 @@ test('D34 — GLOSSARY.md carries the converged D4/D5 connectives; the retired f
     'the GLOSSARY.md **Done-when** entry must carry the converged D5 connective ' +
       '("permitted (not required) on any other task; otherwise `None — <basis>`")',
   )
-  // OLD-absent, all three converged surfaces and the router — the committed half of the both-directions gate.
+  // NEW-present, ADR 0044 Decision item 4: the living ADR states both converged connectives.
+  assert.ok(adr0044Body.length < adr0044.length, 'ADR 0044: the record sections were not removed — the body cannot be scoped (fail closed)')
+  assert.ok(adr0044Body.length > 2000, 'ADR 0044: the body (records removed) did not extract (non-vacuity guard)')
+  assert.ok(!/decision\s+records\s+are\s+excluded/i.test(norm(adr0044Body)),
+    'ADR 0044 must not exempt decision records from the guard (ADR 0063 Decision 9 retired that premise)')
+  assert.match(norm(adr0044Body), /issue-derived\s+facts\s+use\s+`?\(verified:\s+issue\s+#N/i,
+    'ADR 0044 Decision item 4 must carry the converged D4 clause ("issue-derived facts use `(verified: issue #N (<date>))`")')
+  assert.match(norm(adr0044Body), /permitted\s+\(not\s+required\)\s+on\s+any\s+other\s+task;\s+otherwise/i,
+    'ADR 0044 Decision item 4 must carry the converged D5 connective ("permitted (not required) on any other task; otherwise")')
+  // OLD-absent, the converged surfaces, ADR 0044's body and the router — the committed half of the both-directions gate.
   for (const [name, text] of [
     ['GLOSSARY.md', glossaryMd],
     ['CONTEXT.md', routerMd],
     ['skills/war-strategy/SKILL.md', warStrategySkillMd],
     ['skills/war-strategy/references/plan-interview.md', planInterviewMd],
+    ['docs/adr/0044 body', adr0044Body],
   ]) {
     assert.doesNotMatch(
       norm(text),
@@ -2598,7 +2639,8 @@ test('D34 — GLOSSARY.md carries the converged D4/D5 connectives; the retired f
 
 // (D35) TOUCHED-DOC ACCURACY DUTY MIRROR (#1603) — the GLOSSARY.md **Touched-doc accuracy duty**
 // glossary entry restates doctrine whose canonical operative home is `/war-strategy` §3 authoring
-// rule 8 (with ADR 0025's 2026-08-19 amendment as the decision record). The entry landed with
+// rule 8 (with ADR 0025's touched-doc scope section, its 2026-08-19 Decision-log line, as the
+// decision record). The entry landed with
 // zero mechanical coverage — this row is the same-commit-family guard the file's own D26/D29
 // precedent mandates (ADR 0025: a new mirror ships its drift guard). Extraction is BY CONSTRUCT
 // on both surfaces — the bolded glossary term → next bolded term or `###` heading, and rule 8's
@@ -2782,7 +2824,9 @@ const D36_ROWS = [
           [/Evidence\s+artifacts[`*_]{0,4}\s+section/i, 'the `## Evidence artifacts` section name'],
           [/survey-corps/, 'the /survey-corps issue-template home'],
           [/clustered\s+filing\s+prompt/i, "the /war clustered filing prompt's emission home"],
-          [/amendment\s+records\s+the\s+decision/i, 'the ADR-records-the-decision division of labour'],
+          // The ADR side reads "the ADR records the decision" since the ADR 0063 fold; the glossary
+          // mirror's "the ADR 0044 amendment records the decision" is a legacy dated citation (D27).
+          [/(ADR|amendment)\s+records\s+the\s+decision/i, 'the ADR-records-the-decision division of labour'],
         ],
         canonicalOnly: [
           [
@@ -2953,7 +2997,7 @@ test('D36 — the eight authoring-side-verification GLOSSARY.md glossary terms m
 // home is the engine suite outside this task's Files list.
 
 // (D37) THE SEVEN ASK-DISPOSITION GLOSSARY TERMS — each new glossary entry (now in GLOSSARY.md) restates doctrine
-// whose canonical home is the ADR 0013 dated amendment (the decision record), the SKILL.md
+// whose canonical home is ADR 0013's ask-disposition section (the decision record), the SKILL.md
 // Checkpoint (the ruling-gate duties), or war-review's SKILL.md (the grind-measurement rows).
 // Per the recorded [[context-md-doctrine-mirror-can-land-without-a-skill-doc-contracts-drift-guard-row]]
 // lesson a glossary mirror is guarded ONLY when its row is authored deliberately — these are those
@@ -2990,7 +3034,7 @@ test('D37 — the seven ask-disposition GLOSSARY.md glossary terms mirror their 
   for (const [term, canonicalName, canonicalText, keys] of [
     [
       'Ask disposition',
-      'docs/adr/0013 (2026-08-25 amendment)',
+      'docs/adr/0013 (the `ask` disposition, folded 2026-08-25 section)',
       adr0013,
       [
         [/Minor\/Nit-only/i, 'the Minor/Nit-only scope'],
@@ -3002,7 +3046,7 @@ test('D37 — the seven ask-disposition GLOSSARY.md glossary terms mirror their 
     ],
     [
       'asks[] channel',
-      'docs/adr/0013 (2026-08-25 amendment)',
+      'docs/adr/0013 (the `ask` disposition, folded 2026-08-25 section)',
       adr0013,
       [
         [/asks\[\]/, 'the `asks[]` record itself'],
@@ -3014,7 +3058,7 @@ test('D37 — the seven ask-disposition GLOSSARY.md glossary terms mirror their 
     ],
     [
       'Ruled / unruled ask',
-      'docs/adr/0013 (2026-08-25 amendment)',
+      'docs/adr/0013 (the `ask` disposition, folded 2026-08-25 section)',
       adr0013,
       [
         [/Lead-side/i, 'the ruled-ask Lead-side filing site'],
@@ -3219,21 +3263,19 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
   )
 })
 
-// (D38) THE ADR 0013 DATED AMENDMENT + THE ADR 0012 CROSS-REF (D5 · PIN-6), D23's idiom: the
-// correction channel is one dated append-only amendment, never a retro-edit of ratified body text.
-// Since the 2026-09-06 living-ADR ruling that law is amendment-scoped: Decision-section prose on
-// ADR 0013 is edited in place with a dated `## Decision log` line (Decision 4, 2026-09-08), while
-// the pre-existing dated amendments stay append-only and byte-untouched.
-// Extraction is BY CONSTRUCT — the 2026-08-25 amendment heading to the NEXT H2 (or EOF), so a
-// later appended amendment cannot satisfy a key on the guarded amendment's behalf (sibling
-// amendments carry the same byte-discipline closing sentence, so an EOF-bound or whole-file key
-// could not tell a deleted amendment apart). The Status currency line is asserted separately.
-test('D38 — ADR 0013 carries the dated 2026-08-25 ask-disposition amendment and ADR 0012 the cross-ref (#1550)', () => {
-  const block = adr0013.match(/^## Amendment \(2026-08-25\)(?:(?!\n## )[\s\S])*/m)
+// (D38) THE ADR 0013 `ask` DISPOSITION SECTION + THE ADR 0012 POINTER (D5 · PIN-6). Under the
+// living-ADR law (ADR 0063) the 2026-08-25 amendment folded into ADR 0013's `## Decision` as the
+// date-free `### The \`ask\` disposition` section, with its dated Decision-log line, and the Channel-2
+// deferral reads as current law: enacted in Decision 4 (#2269). ADR 0012's one-line 2026-08-25
+// cross-reference folded into its Decision item 5, which links ADR 0013's file.
+// Extraction is BY CONSTRUCT — the H3 heading to the NEXT `###` or `##` heading, so a sibling
+// section cannot satisfy a key on this section's behalf.
+test('D38 — ADR 0013 carries the folded ask-disposition section and ADR 0012 the pointer (#1550)', () => {
+  const block = adr0013.match(/^### The `ask` disposition(?:(?!\n#{2,3} )[\s\S])*/m)
   assert.ok(
     block,
-    'could not locate the `## Amendment (2026-08-25)` heading in ADR 0013 — the extraction ' +
-      'construct rotted (or the amendment was removed: it is append-only, restore it)',
+    'could not locate the `### The `ask` disposition` section in ADR 0013 — the extraction ' +
+      'construct rotted (re-anchor this row to the section\'s heading, never delete it)',
   )
   const b = norm(block[0])
   for (const [re, what] of [
@@ -3243,34 +3285,35 @@ test('D38 — ADR 0013 carries the dated 2026-08-25 ask-disposition amendment an
     [/absolute\s+advance\s+floor/i, 'the absolute advance floor'],
     [/strike-list\s+gate/i, 'the one Checkpoint strike-list gate'],
     [/two\s+→\s+three/, 'the adjudication producer widening two → three'],
-    [/#1664/, 'the channel-2 deferral tracker'],
-    [/backstop-dependent/i, "the roundLimit=6 justification's backstop dependence"],
-    [/pre-existing body text above/i, 'the byte-discipline closing sentence (append-only law)'],
+    [/#1664/, 'the channel-2 tracker'],
+    [/enacted\s+in\s+Decision\s+4/i, 'the Channel-2 valve as current law (enacted in Decision 4, #2269)'],
   ]) {
     assert.match(
       b,
       re,
-      `the ADR 0013 2026-08-25 amendment must record ${what}. Correct this row to a sanctioned ` +
-        'rewording of the amendment, never delete it to make a reword pass',
+      `the ADR 0013 ask-disposition section must record ${what}. Correct this row to a sanctioned ` +
+        'rewording of the section, never delete it to make a reword pass',
     )
   }
-  assert.match(
-    norm(adr0013.slice(0, adr0013.indexOf('## Amendment'))),
-    /amended\s+2026-08-25/i,
-    "ADR 0013's Status currency line must name the 2026-08-25 amendment (the D23 precedent: the " +
-      'status line and the amendment land together)',
-  )
-  const xref = adr0012.match(/^\*Cross-reference \(2026-08-25\):[^\n]*$/m)
+  // OLD-absent on the whole ADR: the deferral and the append-only closing are retired (ADR 0063).
+  assert.doesNotMatch(norm(adr0013), /deferred\s+to\s+#1664,\s+not\s+enacted/i,
+    'ADR 0013 still calls Channel 2 deferred — it is enacted in Decision 4 (#2269)')
+  assert.doesNotMatch(norm(adr0013), /pre-existing\s+body\s+text\s+above\s+—\s+beyond/i,
+    'ADR 0013 still carries an append-only "pre-existing body text above" closing sentence (retired by ADR 0063)')
+  assert.match(adr0013, /^- 2026-08-25 · the `ask` disposition/m,
+    "ADR 0013's Decision log must carry the dated 2026-08-25 line for the folded ask-disposition section")
+  const item = adr0012.match(/^5\. \*\*The sweep consumes `absorb` rows only\.\*\*[^\n]*(?:\n {3}[^\n]*)*/m)
   assert.ok(
-    xref,
-    'ADR 0012 must carry the one-line 2026-08-25 cross-reference (its line-90 style) — the ' +
-      'extraction construct rotted or the line was dropped',
+    item,
+    'ADR 0012 must carry its Decision item 5 (the folded 2026-08-25 cross-reference) — the ' +
+      'extraction construct rotted or the item was dropped',
   )
   assert.match(
-    xref[0],
+    item[0],
     /0013-commanders-intent-and-disposition-routing\.md/,
-    "the ADR 0012 cross-ref must link ADR 0013's file (the 0012↔0013 cross-ref guardrail, PIN-6)",
+    "ADR 0012's item 5 must link ADR 0013's file (the 0012↔0013 cross-ref guardrail, PIN-6)",
   )
+  assert.ok(!/^\*Cross-reference \(/m.test(adr0012), 'ADR 0012 still carries a dated `*Cross-reference (…)*` line (folded by ADR 0063)')
 })
 
 // (D39) THE TOUR ARM (D10 · PIN-10) — tour step 8 is retyped to the disposition world, and every
@@ -3530,17 +3573,12 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
 // GLOSSARY.md's **Ace bisection** glossary row, and design.md §18's disposition-routing bullet —
 // plus the retired literals' absence on those same surfaces.
 //
-// THE ADR 0013 HOME IS DELIBERATELY EXEMPT, and the exemption is APPEND-ONLY-LAW-DERIVED, never
-// oversight: the 2026-08-20 amendment's ratified clause ("the remainder demotes on budget
-// exhaustion") and the 2026-08-27 amendment's currency clause (the floor-retry reserve) are
-// historical law that survives byte-untouched by design, each superseded in *currency* by a dated
-// note rather than edited. A blanket absence assert over the ADR would demand the very edit the
-// append-only law forbids. (The 2026-09-06 living-ADR ruling scopes that law to the dated
-// amendments: Decision-section prose is edited in place with a dated `## Decision log` line, and
-// the amendments themselves stay append-only — so the exemption still holds for them.) So the
-// exemption is not a hole: the final block below asserts BOTH
-// sides of it — the historical clauses still present AND the dated supersession notes present —
-// so deleting the history, or dropping the note that makes it readable as history, reds here.
+// ADR 0013 IS A FOURTH HOME, with no exemption. The living-ADR law (ADR 0063) folded the dated
+// 2026-08-20, 2026-08-27 and 2026-09-03 amendments into ADR 0013's Decision as current law, so the
+// retired budget-exhaustion and reserve literals are OLD-absent there too, scoped to the ADR's
+// body (`adr0013Body`): the Considered options and the Decision log are records that may name a
+// retired rule, and Consequences and References are body. The final block below binds the folded `### The absorb
+// budget` section to the same arithmetic and sweep route the three living-doc homes carry.
 //
 // Extraction is BY CONSTRUCT on all three surfaces (the D35 idiom — never line numbers, which rot
 // across the serial merge queue): the `--ace` bullet → next top-level `- **` bullet; the bolded
@@ -3622,13 +3660,15 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
   // OLD-absent, whole-surface (End state 9's own form). The exhaustion literals were verified
   // present at the 2026-08-27 task's cut base — SKILL.md and CONTEXT.md each carried `exhaustion
   // demotes the remainder` once, design.md `budget-exhausted remainder` once — so these guard a
-  // revert of that flip, never a never-present value (PIN-8). Deliberately NOT applied to
-  // docs/adr/0013 — see the append-only-law exemption in the header comment and its two-sided
-  // proof below.
+  // revert of that flip, never a never-present value (PIN-8). ADR 0013's body carried
+  // `the remainder demotes on budget exhaustion` until the ADR 0063 fold; it is a home too now.
+  assert.ok(adr0013Body.length > 2000, 'ADR 0013: the body (records removed) did not extract (non-vacuity guard)')
   for (const [name, text, literal] of [
     ['skills/war/SKILL.md', skillMd, 'exhaustion demotes the remainder'],
     ['GLOSSARY.md', glossaryMd, 'exhaustion demotes the remainder'],
     ['skills/war/references/design.md', designRefMd, 'budget-exhausted remainder'],
+    ['docs/adr/0013 body', adr0013Body, 'the remainder demotes on budget exhaustion'],
+    ['docs/adr/0013 body', adr0013Body, 'exhaustion demotes the remainder'],
   ]) {
     assert.ok(
       !norm(text).includes(literal),
@@ -3636,51 +3676,25 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
         '(OLD-absent, base-verified; #1812, PIN-8) — the living docs carry the absorb budget now',
     )
   }
-  // The ADR home's exemption, proven from BOTH sides so the carve-out cannot hollow the row.
-  // Construct-scoped (the D35 idiom): each supersession note QUOTES the historical literal
-  // verbatim, so a whole-surface match is satisfied by the quotation alone — deleting the
-  // superseded clause (the exact append-only-law violation this assert exists to catch) leaves a
-  // whole-file assert green (proven: the scratch deletion passed before this scoping). Extract
-  // each amendment section and assert inside THAT span.
-  // Extract from the RAW text (norm() joins every line and strips '#', so headings do not survive
-  // it), then normalize the extracted span for the literal match.
-  const section = (date) =>
-    norm((adr0013.match(new RegExp(`## Amendment \\(${date}\\)[\\s\\S]*?(?=\\n## |$)`)) || [''])[0])
-  const adr0820 = section('2026-08-20')
-  const adr0827 = section('2026-08-27')
-  const adr0903 = section('2026-09-03')
-  for (const [date, span] of [['2026-08-20', adr0820], ['2026-08-27', adr0827], ['2026-09-03', adr0903]]) {
-    assert.ok(
-      span.length > 200,
-      `ADR 0013: the \`## Amendment (${date})\` section did not extract (non-vacuity guard) — a ` +
-        'heading rename or removal reds here before the scoped asserts below can pass vacuously',
-    )
-  }
+  // The ADR 0013 home, positive half: the folded `### The absorb budget` section (the 2026-09-03
+  // amendment, ADR 0063) states the same arithmetic and the same bisection sweep route as the three
+  // living-doc homes. Extract from the RAW text (norm() strips '#', so headings do not survive it),
+  // heading to the next `###` or `##`, then normalize the span.
+  const budget = adr0013.match(/^### The absorb budget(?:(?!\n#{2,3} )[\s\S])*/m)
+  assert.ok(budget && budget[0].length > 200, 'ADR 0013: the `### The absorb budget` section did not extract (non-vacuity guard)')
+  const b = norm(budget[0])
+  assert.match(b, /absorbRounds\s*<\s*run\.absorbRounds/, 'ADR 0013 `### The absorb budget` must state the absorb-budget gate')
   assert.match(
-    adr0820,
-    /the remainder demotes on budget exhaustion/,
-    "ADR 0013's 2026-08-20 clause is ratified append-only law and must survive byte-untouched — " +
-      'this row exempts the ADR from the living-doc absence asserts precisely because of that law; ' +
-      'restore the historical clause rather than editing it out',
+    b,
+    /(subsets still queued|still-queued subsets|still-queued \(never re-audited\) bisection subsets)[\s\S]{0,160}?(sweep|ride there)/i,
+    'ADR 0013 `### The absorb budget` must send the still-queued bisection subsets to the sweep as absorbs (D5)',
   )
-  assert.match(
-    adr0827,
-    /floor-retry reserve \(`fixRounds < roundLimit − 2`\)/,
-    "ADR 0013's 2026-08-27 currency clause (the floor-retry reserve) is ratified append-only law " +
-      'and must survive byte-untouched — the 2026-09-03 note supersedes its currency, never its bytes',
+  assert.ok(
+    !/(subsets still queued|still-queued subsets|remaining subsets)[\s\S]{0,60}?demote/i.test(norm(adr0013Body)),
+    'ADR 0013 body still states the retired reserve-stop demote arm (the still-queued subsets demote)',
   )
-  assert.match(
-    adr0903,
-    /absorbRounds\s*<\s*run\.absorbRounds/,
-    'ADR 0013 must carry the dated 2026-09-03 supersession note naming the absorb budget — it is ' +
-      'what makes the surviving 2026-08-27 clause readable as history rather than current doctrine ' +
-      '(the exemption above is only sound while this note stands)',
-  )
-  assert.match(
-    adr0903,
-    /2026-08-27 clause[\s\S]{0,120}?historical/i,
-    "ADR 0013's 2026-09-03 amendment must name the 2026-08-27 currency clause as historical",
-  )
+  assert.match(adr0013, /^- 2026-09-03 · the absorb budget supersedes the floor-retry reserve/m,
+    "ADR 0013's Decision log must carry the dated 2026-09-03 line for the folded absorb-budget section")
 })
 
 // (reserve-retired) THE `roundLimit − 2` RESERVE ARITHMETIC IS ABSENT FROM EVERY LIVING SURFACE
@@ -3694,9 +3708,12 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
 // are guarded: the arithmetic itself (`roundLimit − 2`, either minus glyph, any spacing, case-
 // folded — the End-state check's own regex) and the retired token `floor-retry reserve` (the
 // merge-floor retry LOOP keeps its `floor-retry` label — only the reserve compound is retired).
-// ADR 0013 is exempt (append-only law — D43 proves both sides of that exemption).
-test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-retry-reserve token are absent from the six living surfaces and the router (End state 5, PIN-7)', () => {
+// ADR 0013's body is a home too since the living-ADR fold (ADR 0063 retired the
+// append-only exemption); its Considered options and Decision log are records and may name the
+// retired reserve.
+test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-retry-reserve token are absent from the living surfaces and the router (End state 5, PIN-7)', () => {
   for (const [name, text] of [
+    ['docs/adr/0013 body', adr0013Body],
     ['skills/war/SKILL.md', skillMd],
     ['GLOSSARY.md', glossaryMd],
     ['CONTEXT.md', routerMd],
@@ -3819,23 +3836,24 @@ test('refiner-evict (c) — no `#gate-failure-classification` anchor token survi
 
 // (D44) THE INTENT-CEILING LATITUDE MIRROR (#1513) — GLOSSARY.md's **Intent ceiling / plan floor**
 // glossary entry restates the `Mechanism latitude:` reading whose canonical decision record is
-// ADR 0013's `## Amendment (2026-08-17): the latitude-clause reading`. The entry landed with no
-// mechanical coverage of that half: D38 binds only the 2026-08-25 ask amendment, D43 the #1812
+// ADR 0013's `### The latitude-clause reading` (the 2026-08-17 amendment, folded into the Decision by
+// ADR 0063). The entry landed with no
+// mechanical coverage of that half: D38 binds only the 2026-08-25 ask section, D43 the #1812
 // reserve rows, and no other row reads this pair — so a rewrite of either surface alone shipped
 // silent, which is exactly the [[context-md-doctrine-mirror-can-land-without-a-skill-doc-contracts-drift-guard-row]]
 // class ADR 0025 makes a same-commit duty. The clause is a standing latitude fence every worker
 // and auditor prompt threads, so the mirror is load-bearing at run time, not decorative.
 //
 // Extraction is BY CONSTRUCT on both surfaces (the D35 idiom): the bolded glossary term → next
-// bolded term or `###` heading, and the dated amendment heading → the next `## ` heading — never a
-// whole-file scan, because ADR 0013 carries several dated amendments and GLOSSARY.md's neighbouring
+// bolded term or `###` heading, and the section heading → the next `###` or `##` heading — never a
+// whole-file scan, because ADR 0013 carries several routing sections and GLOSSARY.md's neighbouring
 // **Disposition** entry shares this vocabulary. Each extraction must span its own tail marker (the
-// `_Avoid_` line; the amendment's never-waives bullet) so a truncated read reds instead of passing
+// `_Avoid_` line; the section's never-waives bullet) so a truncated read reds instead of passing
 // vacuously. Anchor literals are copied from the post-plan-A, post-Phase-1-eviction tree — Phase 1
 // Task 5 kept the latitude clause HOT in CONTEXT.md (now GLOSSARY.md), so these are live bytes, not evicted ones.
 // Keys are token-anchored `\s+`-wrapped forms asserted on BOTH surfaces: a one-sided edit reds,
 // and sanctioned rewording latitude on either surface must not false-red.
-test("D44 — GLOSSARY.md **Intent ceiling / plan floor** mirrors ADR 0013's 2026-08-17 latitude-clause amendment (#1513)", () => {
+test("D44 — GLOSSARY.md **Intent ceiling / plan floor** mirrors ADR 0013's latitude-clause section (#1513)", () => {
   const entry = glossaryMd.match(
     /^\*\*Intent ceiling \/ plan floor\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m,
   )
@@ -3850,19 +3868,20 @@ test("D44 — GLOSSARY.md **Intent ceiling / plan floor** mirrors ADR 0013's 202
     'the extracted **Intent ceiling / plan floor** entry must span its `_Avoid_` line — ' +
       'extraction truncated',
   )
-  const amendment = adr0013.match(
-    /## Amendment \(2026-08-17\): the latitude-clause reading[\s\S]*?(?=\n## )/,
+  const section = adr0013.match(
+    /^### The latitude-clause reading[\s\S]*?(?=\n#{2,3} )/m,
   )
   assert.ok(
-    amendment,
-    "could not locate ADR 0013's `## Amendment (2026-08-17): the latitude-clause reading` section " +
-      '(heading → next `## ` heading) — the canonical home rotted; re-anchor BOTH surfaces together',
+    section,
+    "could not locate ADR 0013's `### The latitude-clause reading` section (the folded 2026-08-17 " +
+      'amendment; heading → next `###` or `##` heading) — the canonical home rotted; re-anchor BOTH ' +
+      'surfaces together',
   )
-  const canonical = norm(amendment[0])
+  const canonical = norm(section[0])
   assert.match(
     canonical,
     /never\s+waives\s+a\s+check,\s+gate,\s+or\s+backstop/i,
-    'the extracted 2026-08-17 amendment must span its never-waives bullet — extraction truncated ' +
+    'the extracted latitude-clause section must span its never-waives bullet — extraction truncated ' +
       '(a short read would satisfy the keys below vacuously)',
   )
   for (const [key, what] of [
@@ -3878,7 +3897,7 @@ test("D44 — GLOSSARY.md **Intent ceiling / plan floor** mirrors ADR 0013's 202
   ]) {
     for (const [surface, text] of [
       ['GLOSSARY.md **Intent ceiling / plan floor** entry (mirror)', norm(entry[0])],
-      ['docs/adr/0013 `## Amendment (2026-08-17)` (canonical home)', canonical],
+      ['docs/adr/0013 `### The latitude-clause reading` (canonical home)', canonical],
     ]) {
       assert.match(
         text,
@@ -3977,15 +3996,16 @@ test('economy-ace-flip — NEW-present: every surface carries the inherited-on f
   }
 })
 
-// (old-default-absent) THE RETIRED "ABSORB IS NEVER A DEFAULT" CONJUNCTIONS ARE ABSENT FROM THE EIGHT
+// (old-default-absent) THE RETIRED "ABSORB IS NEVER A DEFAULT" CONJUNCTIONS ARE ABSENT FROM THE
 // LIVING SURFACES (plan 2026-09-03-in-band-absorb-default, End state 8 · Task 3.2; D1/D2). The
 // in-diff `absorb` default retired three conjunction shapes, base-verified at this task's cut base:
 // `absorb` and `ask` are never default* (CLAUDE.md, CONTEXT.md (now GLOSSARY.md), SKILL.md, design.md, the card,
 // `schemas.md`, and the three `workflow-template.js` sites Task 3.1 rewrote — the `*` covers
 // `defaults` and `defaulted`; rule 7: this row reads those last three surfaces after the dep
 // rebase), `absorb` and `ask` never defaulted (gastown-design-params.md), and the zero-token-gap
-// `absorb` is never a default (the ADR 0013 Decision 4 literal, guard-exempt here, and the earlier
-// CONTEXT.md (now GLOSSARY.md) retirement D37a still pins — never present on the other seven surfaces at base, so
+// `absorb` is never a default (the ADR 0013 Decision 4 literal, which the ADR 0063 fold retired
+// from ADR 0013's Decision text, and the earlier
+// CONTEXT.md (now GLOSSARY.md) retirement D37a still pins — never present on the other surfaces at base, so
 // its assert guards a first appearance, not a revert). Detection runs on a NORMALIZED
 // surface — `//`/`>`/`#` line leaders stripped by `norm` BEFORE the join (so a phrase wrapped
 // across a comment boundary flattens contiguous), then backticks and single and double quotes
@@ -3994,9 +4014,9 @@ test('economy-ace-flip — NEW-present: every surface carries the inherited-on f
 // cannot evade it (the recorded [[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]] lesson).
 // The lawful rewrite keeps an
 // `ask`-only tail ("defaults to absorb; ask is never a default"), which shares no shape with the
-// three retired forms — the self-check below proves both halves of the detector. ADR 0013 is
-// exempt (append-only law): Decision 4's ratified clause survives byte-untouched, and the
-// 2026-09-04 amendment section carries the supersession — pinned present in row (b).
+// three retired forms — the self-check below proves both halves of the detector. ADR 0013's
+// Decision text is a surface too: the living-ADR fold (ADR 0063) rewrote Decision 4's defaults in
+// place, and its `### The in-diff absorb default and the barrier list` section is pinned in row (b).
 const oldDefaultFlat = (s) => norm(s).replace(/[`'"]/g, '').replace(/\s+/g, ' ').toLowerCase()
 const OLD_DEFAULT_SHAPES = [
   [/absorb and ask are never default/, '`absorb` and `ask` are never default*'],
@@ -4012,6 +4032,9 @@ const OLD_DEFAULT_SURFACES = [
   ['skills/war/references/design.md', designRefMd],
   ['skills/war/references/gastown-design-params.md', gastownMd],
   ['skills/war/references/schemas.md', schemasMd],
+  // ADR 0063: the ADR is a living home too. Its body only — Considered options records the
+  // retired rule as a rejected option, and the Decision log is a record.
+  ['docs/adr/0013 body', adr0013Body],
 ]
 const oldDefaultHits = (text) => OLD_DEFAULT_SHAPES.filter(([re]) => re.test(oldDefaultFlat(text))).map(([, what]) => what)
 
@@ -4083,7 +4106,7 @@ test('barrier-list — the GLOSSARY.md **Barrier list** entry names every canoni
   )
 })
 
-test('old-default-absent (a) — the three retired conjunction shapes are absent from the eight living surfaces and the router after normalization (End state 8)', () => {
+test('old-default-absent (a) — the three retired conjunction shapes are absent from the living surfaces and the router after normalization (End state 8)', () => {
   for (const [name, text] of [...OLD_DEFAULT_SURFACES, ['CONTEXT.md', routerMd]]) {
     const hits = oldDefaultHits(text)
     assert.deepEqual(
@@ -4096,7 +4119,7 @@ test('old-default-absent (a) — the three retired conjunction shapes are absent
   }
 })
 
-test('old-default-absent (b) — every living surface carries the in-diff absorb default and ADR 0013 carries the 2026-09-04 amendment section', () => {
+test('old-default-absent (b) — every living surface carries the in-diff absorb default and ADR 0013 carries the folded in-diff default section', () => {
   // The positive half: an emptied surface cannot satisfy the absence asserts vacuously.
   for (const [name, text] of OLD_DEFAULT_SURFACES) {
     assert.match(
@@ -4106,10 +4129,10 @@ test('old-default-absent (b) — every living surface carries the in-diff absorb
         'the retired-shape asserts are only meaningful while the successor is present',
     )
   }
-  // The ADR home is exempt from the absence guard (append-only law) and instead pins the
-  // amendment section by construct: the dated heading through the NEXT H2 (or EOF).
-  const block = adr0013.match(/^## Amendment \(2026-09-04\)(?:(?!\n## )[\s\S])*/m)
-  assert.ok(block, 'ADR 0013 must carry the `## Amendment (2026-09-04)` in-diff absorb default section (Task 3.2)')
+  // ADR 0013 also pins its folded section by construct: the date-free H3 through the next `###` or
+  // `##` heading (the 2026-09-04 amendment, folded by ADR 0063), plus its dated Decision-log line.
+  const block = adr0013.match(/^### The in-diff `absorb` default and the barrier list(?:(?!\n#{2,3} )[\s\S])*/m)
+  assert.ok(block, 'ADR 0013 must carry the `### The in-diff `absorb` default and the barrier list` section (Task 3.2, folded)')
   const a = norm(block[0])
   for (const [re, what] of [
     [/defaults to `absorb`/, 'the in-diff absorb default'],
@@ -4117,14 +4140,14 @@ test('old-default-absent (b) — every living surface carries the in-diff absorb
     [/`barrier:release-slot`, `barrier:underspecified`, `barrier:rationale-comment`/, 'the three follow-up barriers'],
     [/`barrier:trade-off`/, 'the ask-route barrier'],
     [/scope argument is never a barrier/i, 'the scope-argument exclusion'],
-    [/byte-untouched/, "Decision 4's byte-untouched clause"],
   ]) {
-    assert.match(a, re, `the ADR 0013 2026-09-04 amendment must carry ${what}`)
+    assert.match(a, re, `the ADR 0013 in-diff default section must carry ${what}`)
   }
-  assert.match(
-    adr0013,
-    /Nit → note; `absorb` is never a default\. Critical\/Major blocking is untouched\./,
-    "Decision 4's ratified clause must survive byte-untouched in ADR 0013 (append-only law)",
+  assert.match(adr0013, /^- 2026-09-04 · the in-diff `absorb` default and the barrier list/m,
+    "ADR 0013's Decision log must carry the dated 2026-09-04 line for the folded in-diff default section")
+  assert.ok(
+    !/Nit → note; `absorb` is never a default\./.test(adr0013),
+    "ADR 0013 Decision 4 still states the retired `absorb` is never a default clause — the fold rewrote it in place (ADR 0063)",
   )
 })
 
@@ -4287,6 +4310,13 @@ test('ace-off-route — OLD-absent: skills/war/SKILL.md no longer says every abs
       'wording (OLD-absent, base-verified; End state 12, D14, PIN-16) — with ace off a defaulted absorb routes ' +
       'phaseClose:true to the sweep; rewrite the bullet, never drop this row',
   )
+  assert.equal(
+    aceOffHits(adr0013Body),
+    false,
+    'docs/adr/0013 body (records removed) still carries the retired "with `--ace` off every ' +
+      'absorb demotes this way" Residual-rule wording — a living ADR states current law, so name the retired ' +
+      'wording without spelling it',
+  )
   const bullet = skillMd.match(/^ {2}- \*\*`--ace`[\s\S]*?(?=\n- \*\*)/m)
   assert.ok(bullet, 'could not locate the skills/war/SKILL.md `--ace` bullet (`  - **`--ace`` → next top-level `- **` bullet) — the extraction construct rotted')
   const b = norm(bullet[0])
@@ -4299,14 +4329,12 @@ test('ace-off-route — OLD-absent: skills/war/SKILL.md no longer says every abs
   }
 })
 
-// (adr-0013-phase-4) ADR 0013 carries the Phase 4 amendment section — ace-off routing to the sweep
-// and the demote-reason prefix — pinned by construct (the dated heading through the NEXT H2 or EOF).
-// Two amendments share the 2026-09-04 date, so the extraction keys on the full heading, never the
-// bare date. The ADR home is exempt from the `ace-off-route` absence guard (append-only law): the
-// superseded 2026-08-20 narration survives byte-untouched, and this section records the supersession.
-test('adr-0013-phase-4 — ADR 0013 carries the ace-off routing and demote-prefix amendment section and its Status currency clause (Task 4.2)', () => {
-  const block = adr0013.match(/^## Amendment \(2026-09-04\) — ace-off routing to the sweep and the demote-reason prefix(?:(?!\n## )[\s\S])*/m)
-  assert.ok(block, 'ADR 0013 must carry the `## Amendment (2026-09-04) — ace-off routing to the sweep and the demote-reason prefix` section (Task 4.2)')
+// (adr-0013-phase-4) ADR 0013 carries the Phase 4 section — ace-off routing to the sweep and the
+// demote-reason prefix — pinned by construct (the date-free H3 through the next `###` or `##`; the
+// 2026-09-04 amendment, folded by ADR 0063). Its dated Decision-log line carries the folded title.
+test('adr-0013-phase-4 — ADR 0013 carries the ace-off routing and demote-prefix section and its Decision-log line (Task 4.2)', () => {
+  const block = adr0013.match(/^### Ace-off routing to the sweep and the demote-reason prefix(?:(?!\n#{2,3} )[\s\S])*/m)
+  assert.ok(block, 'ADR 0013 must carry the `### Ace-off routing to the sweep and the demote-reason prefix` section (Task 4.2, folded)')
   const a = norm(block[0])
   for (const [re, what] of [
     [/`run\.ace` gates the per-task ace ladder only/, 'the run.ace scope clause (PIN-16)'],
@@ -4315,9 +4343,8 @@ test('adr-0013-phase-4 — ADR 0013 carries the ace-off routing and demote-prefi
     [/"absorb requires --ace" demote arms in `workflow-template\.js` are retired/, 'the retired demote arms'],
     [/`DEMOTE_REASONS` prefix/, 'the demote-reason prefix (PIN-15)'],
     [/`demote:unclassified` \(itself a member\)/, 'the unclassified fallback'],
-    [/byte-untouched/, 'the byte-untouched clause (append-only law)'],
   ]) {
-    assert.match(a, re, `the ADR 0013 Phase 4 amendment must carry ${what}`)
+    assert.match(a, re, `the ADR 0013 Phase 4 section must carry ${what}`)
   }
   const lit = landDecisionSrc.match(/export const DEMOTE_REASONS = (\[[^\]]+\])/)
   assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
@@ -4325,16 +4352,19 @@ test('adr-0013-phase-4 — ADR 0013 carries the ace-off routing and demote-prefi
   assert.deepEqual(
     [...new Set(a.match(/demote:[a-z-]+/g) || [])].sort(),
     [...canonical].sort(),
-    'the ADR 0013 Phase 4 amendment must enumerate exactly the canonical DEMOTE_REASONS members',
+    'the ADR 0013 Phase 4 section must enumerate exactly the canonical DEMOTE_REASONS members',
   )
-  assert.match(
-    norm(adr0013.slice(0, adr0013.indexOf('## Amendment'))),
-    /amended 2026-09-04 \(Phase 4\) — with `run\.ace` off a defaulted `absorb` routes `phaseClose:true`/,
-    "ADR 0013's Status currency line must name the Phase 4 amendment (the status line and the amendment land together)",
-  )
-  // The earlier 2026-09-04 in-diff-default amendment still resolves as the FIRST bare-date match.
-  const first = adr0013.match(/^## Amendment \(2026-09-04\)[^\n]*/m)
-  assert.match(first[0], /the in-diff `absorb` default and the barrier list/, 'the in-diff-default amendment must stay the first 2026-09-04 section (its bare-date pins read the first match)')
+  // The dated Decision-log line carries the folded title, so a legacy "ADR 0013 Amendment
+  // (2026-09-04)" citation resolves under the dated citation form (ADR 0063).
+  assert.match(adr0013, /^- 2026-09-04 · ace-off routing to the sweep and the demote-reason prefix/m,
+    "ADR 0013's Decision log must carry the dated 2026-09-04 line for the folded Phase 4 section")
+  // The Status line carries no currency clause after the fold (ADR 0063).
+  // Sliced to the blank line that ends the wrapped Status paragraph, so a clause on any wrapped line reds.
+  const statusStart = adr0013.indexOf('**Status:**')
+  assert.ok(statusStart >= 0, "could not locate ADR 0013's `**Status:**` paragraph")
+  const statusEnd = adr0013.indexOf('\n\n', statusStart)
+  const status = norm(adr0013.slice(statusStart, statusEnd < 0 ? undefined : statusEnd))
+  assert.ok(!/amended\s+2026-/.test(status), "ADR 0013's Status paragraph still carries a dated `amended` currency clause")
 })
 
 // (terminal-pass-term) GLOSSARY.md carries the Phase 5 glossary terms **Terminal pass** and
@@ -4342,8 +4372,8 @@ test('adr-0013-phase-4 — ADR 0013 carries the ace-off routing and demote-prefi
 // **sweep-raised finding** entry no longer claims "never aced, never re-queued" — on the merged arm
 // a sweep-raised absorb joins the terminal pass (the retired merged-sweep demote arm's successor).
 // Extracted by construct (bolded term to the next bolded term or `###` heading), never by line.
-// ADR 0012 carries the one-line dated cross-reference naming the terminal pass as that successor
-// (its existing cross-reference line style; the ratified body stays byte-untouched).
+// ADR 0012's Decision item 4 names the terminal pass as that successor (the 2026-09-04
+// cross-reference line, folded into the body by ADR 0063, with its dated Decision-log line).
 test('terminal-pass-term — GLOSSARY.md carries **Terminal pass** and **Carried queue**, retires the sweep-raised never-re-queued sentence, and ADR 0012 names the successor (Task 5.2)', () => {
   const pick = (label, re) => {
     const m = glossaryMd.match(re)
@@ -4393,17 +4423,22 @@ test('terminal-pass-term — GLOSSARY.md carries **Terminal pass** and **Carried
   assert.doesNotMatch(s, /never aced, never re-queued/i, 'the GLOSSARY.md **sweep-raised finding** entry must retire "never aced, never re-queued" — a merged-arm absorb joins the terminal pass now (Task 5.2, PIN-4)')
   assert.match(s, /on the merged arm an absorb joins the terminal pass/, 'the GLOSSARY.md **sweep-raised finding** entry must carry the merged-arm terminal-pass route')
   assert.match(s, /on the discard arm it rides the carried queue \(non-final phase\) or demotes `demote:sweep-discarded`/, 'the GLOSSARY.md **sweep-raised finding** entry must carry the discard-arm carry-or-demote route')
-  // ADR 0012: the dated successor line, in its cross-reference line style (append-only law).
-  const xref = adr0012.match(/^\*Cross-reference \(2026-09-04\):[^\n]*$/m)
-  assert.ok(xref, 'ADR 0012 must carry the one-line 2026-09-04 cross-reference naming the terminal pass (Task 5.2)')
+  // ADR 0012: the successor, folded from its 2026-09-04 cross-reference line into Decision item 4
+  // (ADR 0063), with the dated Decision-log line. Item 4 → item 5, by construct.
+  const item4 = adr0012.match(/^4\. \*\*The terminal pass succeeds the merged-sweep demote arm\.\*\*[\s\S]*?(?=\n5\. \*\*)/m)
+  assert.ok(item4, 'ADR 0012 must carry Decision item 4 naming the terminal pass (Task 5.2; folded 2026-09-04 cross-reference)')
+  const it4 = norm(item4[0])
   for (const [re, what] of [
-    [/merged-sweep demote arm[^\n]*is retired/, 'the retired-arm clause'],
+    [/merged-sweep demote arm[\s\S]*?is retired/, 'the retired-arm clause'],
     [/its successor is the terminal pass/, 'the successor clause'],
     [/once per phase/, 'the one-pass bound'],
     [/`carriedPhaseClose`/, 'the carry key'],
     [/2026-09-03-in-band-absorb-default\.md/, "the plan's file (the decision record it points at)"],
-  ]) assert.match(xref[0], re, `the ADR 0012 2026-09-04 cross-reference must carry ${what}`)
-  assert.ok(adr0012.match(/^\*Cross-reference \(2026-08-25\):[^\n]*$/m), 'the pre-existing 2026-08-25 cross-reference must still be present (append-only law)')
+  ]) assert.match(it4, re, `ADR 0012 Decision item 4 must carry ${what}`)
+  assert.match(adr0012, /^- 2026-09-04 · Cross-reference: the merged-sweep demote arm is retired/m,
+    "ADR 0012's Decision log must carry the dated 2026-09-04 line for the folded cross-reference")
+  assert.match(adr0012, /^- 2026-08-25 · Cross-reference: the routing taxonomy gains a fourth/m,
+    "ADR 0012's Decision log must carry the dated 2026-08-25 line for the folded cross-reference")
 })
 
 // (sweep-exclusion-pin / lead-carry-pin / afk-ask-prefix-pin) THE LEAD LAUNCH AND RELAUNCH PROSE
@@ -4595,8 +4630,7 @@ test('D17 (2026-09-06 engine-and-audit-verdict-integrity plan) — the split bou
   assert.match(norm(resumeMd), /escalated\[\]` record carries a seat's `escalate_reason` \(a \*\*decision-forked\*\* blocking finding/, "resume-and-recovery.md's step-1 adjudication arm must read a seat's escalate_reason as plan-shaped (D18)")
   assert.match(norm(warReviewSkillMd), /Two-sided boundary/, "war-review's grind row must be re-pointed at the two-sided boundary (D18)")
   // ADR 0013 — Decision 4 edited in place (the living-ADR ruling) and the dated Decision-log line.
-  const decisions = adr0013.slice(0, adr0013.indexOf('## Considered options'))
-  assert.match(norm(decisions), /blockers ALL carry a concrete in-file `suggested_fix`/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
+  assert.match(norm(adr0013Body), /blockers ALL carry a concrete in-file `suggested_fix`/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
   assert.match(adr0013, /^## Decision log$/m, 'ADR 0013 must carry a `## Decision log` section (the 2026-09-06 living-ADR ruling)')
   assert.match(adr0013, /^- 2026-09-08 · Decision 4 edited in place/m, "ADR 0013's Decision log must carry the dated Task 11.2 line")
 })
@@ -4655,12 +4689,11 @@ test('D20 — release-slot eligibility by literal: eligibility absorb block, GLO
     [/ADR 0013/, 'the ADR pointer'],
   ]) assert.match(e, re, `GLOSSARY.md's **Version-literal guard** entry must carry ${what} (D20)`)
   // ADR 0013 — Decision 5 edited in place (the living-ADR ruling) and the dated Decision-log line.
-  const cut = adr0013.indexOf('## Considered options')
-  assert.ok(cut > 0, "ADR 0013: '## Considered options' heading not found — the Decision-body slice cannot be scoped (fail closed)")
-  const decisions = adr0013.slice(0, cut)
-  assert.match(norm(decisions), /Release-slot eligibility is otherwise by literal, not by file/, 'ADR 0013 Decision 5 must carry the in-place by-literal rule (D20; no dated amendment)')
-  assert.match(norm(decisions), /`version-slots\.test\.mjs`/, 'ADR 0013 Decision 5 must name `version-slots.test.mjs` as the merge guard')
-  assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(norm(decisions)), "ADR 0013 Decision 5's retired file-based routing sentence must be gone (OLD-absent, in-place edit)")
+  assert.ok(adr0013Body.length < adr0013.length, "ADR 0013: the record sections were not removed — the body cannot be scoped (fail closed)")
+  assert.ok(adr0013Body.length > 2000, 'ADR 0013: the body (records removed) did not extract (non-vacuity guard)')
+  assert.match(norm(adr0013Body), /Release-slot eligibility is otherwise by literal, not by file/, 'ADR 0013 Decision 5 must carry the in-place by-literal rule (D20; no dated amendment)')
+  assert.match(norm(adr0013Body), /`version-slots\.test\.mjs`/, 'ADR 0013 Decision 5 must name `version-slots.test.mjs` as the merge guard')
+  assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(norm(adr0013Body)), "ADR 0013 Decision 5's retired file-based routing sentence must be gone (OLD-absent, in-place edit)")
   assert.match(adr0013, /^- 2026-09-08 · Decision 5 edited in place/m, "ADR 0013's Decision log must carry the dated Task 12.2 line")
   // SKILL.md — the `--ace` bullet's file-based routing clause is retired (OLD-absent, present at ffb3ab6).
   assert.ok(!/or a release-slot filename routes to the/.test(norm(skillMd)), "skills/war/SKILL.md's `--ace` bullet must no longer route by release-slot filename (OLD-absent; D20)")
@@ -4682,7 +4715,13 @@ test('#2300: canonical launch surfaces use the fresh-ID producer and never waive
     assert.match(text, /launch-identity\.md/, file + ' points to the canonical mint/persist/replay procedure')
     assert.doesNotMatch(text, /runId` = `<plan-slug>-<YYYY-MM-DD>/, file + ' cannot define a repeating fresh ID')
   }
-  assert.match(adr0037, /Amendment \(2026-09-11, #2300\): fresh execution identity[\s\S]*supersedes decision 3/)
+  // ADR 0037 decision 3 states fresh execution identity in place (the 2026-09-11 amendment, folded by
+  // ADR 0063): the UUID producer, and no date-based runId format.
+  const decision3 = adr0037.match(/^3\. \*\*Write-if-absent[\s\S]*?(?=\n4\. \*\*)/m)
+  assert.ok(decision3, 'could not locate ADR 0037 decision 3 (`3. **Write-if-absent` → `4. **`)')
+  assert.match(decision3[0], /\*\*Fresh execution identity \(#2300\)\.\*\*[\s\S]*new-run-id\.mjs/)
+  assert.doesNotMatch(decision3[0], /runId` is `<plan-slug>-<YYYY-MM-DD>`/, 'ADR 0037 decision 3 still states the retired date-based runId')
+  assert.match(adr0037, /^- 2026-09-11 · fresh execution identity · #2300/m)
 })
 
 
@@ -5100,4 +5139,43 @@ test('living-adr-terms — the meta-ADR resolves by slug to one file, and its De
   const lines = log[1].split('\n').filter((l) => l.startsWith('- '))
   assert.ok(lines.length > 0, 'the meta-ADR Decision log has no lines')
   for (const line of lines) assert.match(line, DECISION_LOG_LINE, `meta-ADR Decision-log line breaks the form: ${line}`)
+})
+
+// (living-adr-fold) THE WHOLE ADR CORPUS IS IN THE LIVING FORM (plan 2026-11-08-doc-truth-drift-and-
+// adr-hygiene, Task 2.1; End states 3, 4 and 36; A16, OD-1 ruled 2026-11-08: no exemption). It reads
+// every `docs/adr/0*.md`, so an ADR a later plan lands with a dated amendment reds here. Three shapes
+// are refused: an amendment heading at any level (`## Amendment (…)`, `### Addendum (…)`, an
+// `## Amendments` container), a bold dated run-in paragraph (`**Amended …**`, an indented
+// `**Amendment (…)**`, a bulleted `- **Correction (…)**`), and an ADR with no `## Decision log`.
+// Every `retired:` field names its own ADR file and a hex sha (ADR 0063 Decision 2 and 3), and its
+// line keeps the D2 form. Non-vacuity floor: the glob must read at least one ADR, and the refused
+// shapes are proven to fire on fixtures.
+const AMENDMENT_HEADING = /^#{2,} (Amendment|Addendum|Correction)s?\b/m
+const AMENDMENT_RUN_IN = /^\s*(- )?\*\*(Amended|Amendment|Addendum|Correction)/m
+test('living-adr-fold — no ADR carries an amendment heading or a bold dated run-in, and every ADR carries a Decision log', () => {
+  // The detectors fire on the shapes they refuse (fixtures), and pass the living form.
+  for (const bad of ['## Amendment (2026-08-25): x', '### Amendment (2026-08-25): x', '## Addendum — 2026-07-12: x',
+    '## Correction (2026-08-20, #1266): x', '## Amendments']) {
+    assert.match(bad, AMENDMENT_HEADING, `the heading detector must refuse ${JSON.stringify(bad)}`)
+  }
+  for (const bad of ['**Amended 2026-10-31 (0.21.25): x.**', '   **Amendment (2026-09-06, #2099):** x', '  - **Correction (2026-08-02, #1240):** x']) {
+    assert.match(bad, AMENDMENT_RUN_IN, `the run-in detector must refuse ${JSON.stringify(bad)}`)
+  }
+  assert.doesNotMatch('### The latitude-clause reading\n\n**Living ADR.** x', AMENDMENT_HEADING)
+  assert.doesNotMatch('**Living ADR.** x', AMENDMENT_RUN_IN)
+  const adrDir = join(HERE, '..', '..', '..', 'docs', 'adr')
+  const files = readdirSync(adrDir).filter((f) => /^0\d{3}-.+\.md$/.test(f)).sort()
+  assert.ok(files.length >= 1, 'the docs/adr/0*.md glob read no ADR (non-vacuity floor)')
+  for (const f of files) {
+    const text = readFileSync(join(adrDir, f), 'utf8')
+    const heading = text.match(AMENDMENT_HEADING)
+    assert.ok(!heading, `docs/adr/${f} carries an amendment heading (${heading && heading[0]}) — fold it into the body as current law with a Decision-log line (ADR 0063)`)
+    const runIn = text.match(AMENDMENT_RUN_IN)
+    assert.ok(!runIn, `docs/adr/${f} carries a bold dated run-in (${runIn && runIn[0].trim()}) — fold it into the body as current law with a Decision-log line (ADR 0063)`)
+    assert.match(text, /^## Decision log$/m, `docs/adr/${f} carries no \`## Decision log\` (ADR 0063 Decision 2)`)
+    for (const line of text.split('\n').filter((l) => /^- \d{4}-\d{2}-\d{2} · .* · retired: /.test(l))) {
+      assert.match(line, DECISION_LOG_LINE, `docs/adr/${f}: a Decision-log line with a retired: field breaks the D2 form: ${line}`)
+      assert.ok(line.includes(` · retired: docs/adr/${f} @ `), `docs/adr/${f}: a retired: field must name its own ADR file: ${line}`)
+    }
+  }
 })

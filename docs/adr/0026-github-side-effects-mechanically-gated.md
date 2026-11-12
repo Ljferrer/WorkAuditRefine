@@ -61,8 +61,9 @@ epic halts the checkpoint and `status:done` can never again survive an open epic
 ### (D) Everything is Lead-side — no confined-agent capability widening
 
 The preflight and the floor are **Lead-invoked checks**; neither grants the refiner, auditor, worker,
-or servitor a `gh` verb (**C2**, [ADR 0002](0002-scope-by-agent-type.md)). All `gh` writes stay where
-they already were — Lead-side, where Bash is fail-open advisory. A PreToolUse hook intercepting every
+or servitor a `gh` verb (**C2**, [ADR 0002](0002-scope-by-agent-type.md)). Every `gh` write stays
+Lead-side, where Bash is fail-open advisory, except the one bounded dispatched-refiner filing class
+(E). A PreToolUse hook intercepting every
 `gh` call was considered and rejected as over-built: preflight-before-batch plus the checkpoint floor
 cover the observed failures with far less surface (revisit only if a batch bypasses the preflight in
 practice).
@@ -74,11 +75,9 @@ bookkeeping intent, for which no run-`ledger.json` validator exists in this repo
 is **human ledger review at Decompose** (the Lead reads the ledger's `tasks[]` against the plan's task
 list before dispatch), not a mechanical gate. No claim of mechanical validation.
 
-## Addendum (2026-08-25): the dispatched-refiner `file-followups` gh-write class
+### (E) The dispatched-refiner `file-followups` gh-write class
 
-Decision **(D)** says every `gh` write stays Lead-side. That is no longer literally true: the engine
-now dispatches a refiner to file follow-ups. This addendum records the class and why it holds the
-boundary the decision actually drew. The ratified text above is byte-untouched.
+The engine dispatches a refiner to file follow-ups. This class holds the boundary (D) draws.
 
 **The class.** After a phase's land decision resolves, `workflow-template.js` dispatches ONE
 `file-followups:phase-<id>` run (`dispatchKind: file-followups`, `agentType` `war-refiner`, phase
@@ -97,7 +96,7 @@ surface, and no hook-gated agent handed a `gh` verb* — not *no agent but the L
   not bypassed.
 - **No confinement is widened (C2).** The refiner is not a capability-confined agent under
   [ADR 0002](0002-scope-by-agent-type.md) — its Bash is fail-open advisory, exactly like the Lead's.
-  No hook denied it `gh` before; none is loosened now. The auditor, worker, and servitor are
+  No hook denies it `gh`, and none is loosened. The auditor, worker, and servitor are
   untouched.
 - **The write is bounded and typed.** One batch per phase, one dispatch, a fixed row set assembled by
   the engine, a schema-validated return. Dedup is mandatory: an open `war-followup` match gets a
@@ -110,8 +109,7 @@ surface, and no hook-gated agent handed a `gh` verb* — not *no agent but the L
   the DAG advance on any null `issue`. The mechanism that *verifies* filing is still Lead-side and
   still keys on the ledger; only the labor moved.
 
-**Named residual.** The pre-existing `ponytail:` limitation is unchanged and now has a sibling: a
-finding the engine never routed into `minorsFiled` is invisible to both the dispatch and the floor.
+**Named residual.** The `ponytail:` limitation of (D) has a sibling: a finding the engine never routed into `minorsFiled` is invisible to both the dispatch and the floor.
 The forcing function stays the same — the audit disposition routing, not a `gh`-side validator.
 
 ## Relationship to prior ADRs
@@ -126,7 +124,7 @@ The forcing function stays the same — the audit disposition routing, not a `gh
 - **Joins the [ADR 0006](0006-deterministic-test-floor.md) floor family.** `assert-issues-filed.sh`
   mirrors the `assert-*-in-diff.sh` `0/1/2` exit contract exactly (C5); a `2` (tooling/ref error) never
   collapses into the `1` named route.
-- Historical ADRs are superseded, never edited.
+- Prior ADRs are rewritten in place under the living-ADR law ([ADR 0063](0063-living-adrs-git-is-the-archive.md)).
 
 ## Considered options
 
@@ -175,3 +173,8 @@ The forcing function stays the same — the audit disposition routing, not a `gh
 - Memory lessons / frictions (the originating cluster, enumerated in spec §1):
   [[war-execution-must-file-issues]], the `gh` account-flip friction (spec §1),
   [[close-epic-when-status-done]].
+
+## Decision log
+
+- 2026-08-25 · the dispatched-refiner `file-followups` gh-write class · Follow-up filing floor (D4, #1331) · failed because: "all `gh` writes stay Lead-side" stopped being literally true once the engine dispatched a refiner to file follow-ups · retired: docs/adr/0026-github-side-effects-mechanically-gated.md @ 7c1b028b
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063) · retired: docs/adr/0026-github-side-effects-mechanically-gated.md @ 51a999f3

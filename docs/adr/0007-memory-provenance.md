@@ -32,3 +32,7 @@ Make a memory fact's trustworthiness **legible and consequential** via a provena
 - Design spec: [`docs/specs/2026-06-29-memory-provenance-design.md`](../specs/2026-06-29-memory-provenance-design.md) — full mechanics, surface changes, validation criteria.
 - Audit finding **M3** (2026-06-29 agent-architecture audit) — the originating defect.
 - [ADR-0002](0002-scope-by-agent-type.md) — the `agent_type` PreToolUse gating precedent this hook extends from path to content.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

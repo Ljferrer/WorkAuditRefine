@@ -84,7 +84,7 @@ becomes a land or escalation enum member.**
    escalation record carries a seat's `escalate_reason` (ADR 0013, Decision log 2026-09-08) — likewise
    escalation-record metadata, likewise never a land or escalation enum member. (§4.3)
 
-6. **No amendment to ADR 0005 or ADR 0008 is needed — this doctrine operates strictly inside both.** Nothing
+6. **This doctrine operates strictly inside ADR 0005 and ADR 0008.** Nothing
    here adds a `HARD_ESCALATION_REASONS` / `KNOWN_LAND_DECISIONS` member or a new task/phase status (ADR 0005:
    the re-dispatch path classifies already-integrated tasks with the existing terminal `merged`); every
    reconciliation moves records toward git and never destroys unadjudicated work (ADR 0008). The doctrine is
@@ -161,3 +161,7 @@ becomes a land or escalation enum member.**
   / `KNOWN_LAND_DECISIONS` enum sets `defectClass` is deliberately kept out of.
 - [ADR-0003 — plan-namespaced branches](0003-plan-namespaced-branches.md) — the foreign/unowned-ref
   fail-loud default the adopt and reclaim flags opt out of only behind their proofs.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law; item 6 states that the doctrine operates inside ADR 0005 and ADR 0008 without the stale no-amendment-needed claim (ADR 0008 has since gained in-place Decision-log lines) · #1850 (ADR 0063)

@@ -29,18 +29,32 @@ frozen base or the resume guarantees. Full mechanics:
    flagging auditor.** After the land decision is computed and before the land dispatch (as landed —
    the spec's "between the gate-audit pass and the Land block" seam sits where `landDecision` does not
    exist yet) — only when the phase would land (`landDecision === 'landed'`) and the `phaseCloseQueue`
-   is non-empty — the refiner cuts a `_polish` worktree at
+   is non-empty — the refiner cuts a `p<N>-polish` worktree at
    the *integrated* tip (existing `ensure-worktree`, new tip argument) and one war-worker fixes ONLY the
    queued findings. A referential seam (an anchor/heading/symbol one merged task defines and another
    references, dangling at the integrated tip) reaches the queue **exclusively** as an auditor-flagged
    `disposition:'absorb'` + `phaseClose:true` finding — audit-time discovery, never ad-hoc sweep-time
    hunting; the bounded scope is what makes discard sufficient. A full auditor panel re-audits the polish
    SHA, and the refiner merges it — or **discards** it, in which case the pre-polish tip lands exactly as
-   it would have (fail-open; the ace never-hold invariant extended to phase scope). Discarded queue
-   findings re-file as follow-ups.
+   it would have (fail-open; the ace never-hold invariant extended to phase scope). The arms after
+   the sweep are item 4.
 3. **Never-reset-on-reuse is preserved.** No script-side branch resets exist in either mechanism. A
    resume-with-commits dispatch rebase can conflict — earlier and cheaper than today's merge-time conflict —
    and the worker must return `status:blocked` (existing escalation), never resolve.
+4. **The terminal pass succeeds the merged-sweep demote arm.** The merged-sweep demote arm (a
+   sweep-raised `absorb` demoted to `follow-up` at the merged arm) is retired; its successor is the
+   terminal pass — one ace-shaped commit plus one re-audit seat after the polish merge, once per
+   phase. A held phase's absorbs, a non-final discarded sweep's queue, and a non-final terminal
+   pass's rows ride `carriedPhaseClose` into the relaunch. A discarded sweep's queued rows file as
+   `demote:sweep-discarded` follow-ups naming the branch on the final phase, and on any phase when
+   the polish panel approved that branch and its merge never landed (the approve trail,
+   verdict-integrity D15, #2087); a sweep-raised absorb still carries. Source: the in-band-absorb-default
+   plan's D3a/D3b (`docs/plans/2026-09-03-in-band-absorb-default.md`).
+5. **The sweep consumes `absorb` rows only.** The routing taxonomy of
+   [ADR 0013](0013-commanders-intent-and-disposition-routing.md) carries a fourth Minor/Nit-only
+   member, `ask`: it parks in the artifact and is ruled at the Checkpoint strike-list gate, never
+   consumed by the sweep. The per-task ace ladder's regression recovery (bisection) is ADR 0013's
+   law too.
 
 ## Considered options
 
@@ -87,8 +101,9 @@ frozen base or the resume guarantees. Full mechanics:
   friction this dispatch-time mechanism sidesteps.
 - Reference run: epics #416/#417, follow-up litter #422 — the T1→T4 dangling-link case.
 
-*Cross-reference (2026-08-20): ace regression-recovery semantics amended — see [ADR-0013's ace bisection amendment](0013-commanders-intent-and-disposition-routing.md).*
+## Decision log
 
-*Cross-reference (2026-08-25): the routing taxonomy gains a fourth Minor/Nit-only member, `ask` — parked in the artifact and ruled at the Checkpoint strike-list gate, never consumed by the sweep — see [ADR-0013's ask-disposition amendment](0013-commanders-intent-and-disposition-routing.md).*
-
-*Cross-reference (2026-09-04): the merged-sweep demote arm (a sweep-raised `absorb` demoted to `follow-up` at the merged arm) is retired; its successor is the terminal pass — one ace-shaped commit plus one re-audit seat after the polish merge, once per phase — and a held phase's absorbs, a non-final discarded sweep's (its queued rows file as `demote:sweep-discarded` follow-ups naming the branch on any phase when the polish panel approved that branch and its merge never landed: the approve trail, verdict-integrity D15, #2087; a sweep-raised absorb still carries), and a non-final terminal pass's rows ride `carriedPhaseClose` into the relaunch — see the in-band-absorb-default plan's D3a/D3b (`docs/plans/2026-09-03-in-band-absorb-default.md`).*
+- 2026-08-20 · Cross-reference: ace regression-recovery semantics amended in ADR 0013 (ace bisection) · #1547 · retired: docs/adr/0012-intra-phase-visibility-and-phase-close-sweep.md @ 44bbe6e1
+- 2026-08-25 · Cross-reference: the routing taxonomy gains a fourth Minor/Nit-only member, `ask`, never consumed by the sweep · #1550 · retired: docs/adr/0012-intra-phase-visibility-and-phase-close-sweep.md @ 10df1eef
+- 2026-09-04 · Cross-reference: the merged-sweep demote arm is retired; its successor is the terminal pass · plan 2026-09-03-in-band-absorb-default D3a/D3b · failed because: a sweep-raised absorb demoted to `follow-up` at the merged arm outlived the run as an issue · retired: docs/adr/0012-intra-phase-visibility-and-phase-close-sweep.md @ 85de3d86
+- 2026-11-11 · adopted under the living-ADR law; the polish worktree path reads `p<N>-polish` (ADR 0021 (D)), and the discard sentence names the item 4 arms · #1850 (ADR 0063) · retired: docs/adr/0012-intra-phase-visibility-and-phase-close-sweep.md @ 946b9431

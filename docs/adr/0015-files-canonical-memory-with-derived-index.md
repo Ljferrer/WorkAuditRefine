@@ -82,3 +82,7 @@ Three sub-decisions, one principle: **commit text, derive binaries.**
 - [ADR-0002](0002-scope-by-agent-type.md) — the `agent_type` scope-hook confinement this design
   deliberately avoids widening.
 - The 2026-07-03 compaction failure report (operator-supplied) — the originating defect.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

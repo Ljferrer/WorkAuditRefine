@@ -1,8 +1,7 @@
 # Specs are posterity; live surfaces cite maintained homes
 
 **Status:** accepted (operator-ratified F7 + README extension, 2026-08-05; ratified and
-guarded by [the plan](../plans/2026-08-05-precision-chain-and-loop-breaker.md), Task 5.4);
-amended 2026-08-16 (guard-corpus decoupling + Spec-truth-guard supersession row)
+guarded by [the plan](../plans/2026-08-05-precision-chain-and-loop-breaker.md), Task 5.4)
 
 A design spec (`docs/specs/`) is an *input shape*: it exists to be consumed — by
 `/war-strategy` conversion into a merged plan, or as the decision digest a merged plan's
@@ -43,8 +42,8 @@ surfaces or by `README.md`. Live surfaces cite only maintained-truthful homes: A
   `README.md`), while the verb rule keeps its readdir-derived `skills/*/SKILL.md` scan
   plus its enumerated `EVICTION_DESTINATIONS` list, whose `skills/*/references/*.md`
   membership is bound by the default-deny placement census against
-  `VERB_SCAN_EXCLUSIONS` — both constructs maintained in the suite itself
-  *(corpus description amended 2026-08-16; the two rules' corpora are decoupled)*.
+  `VERB_SCAN_EXCLUSIONS` — both constructs maintained in the suite itself; the two rules'
+  corpora are decoupled.
 - **Code comments and ADRs are out of scope.** A code comment citing the spec it
   implemented is provenance, not doctrine a reader is told to trust as current; ADRs are
   themselves records and may cite the spec that motivated them. The rule binds the
@@ -81,10 +80,10 @@ surfaces or by `README.md`. Live surfaces cite only maintained-truthful homes: A
   forward: this ADR's posterity rule supersedes it for all future spec claims — its
   growth premise (landed specs track reality) is the exact posture this ADR rejects,
   and the existing rows stay green as historical locks on now-frozen text; the
-  `CONTEXT.md` entry carries the supersession note.
+  `GLOSSARY.md` entry carries the supersession note.
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-08-16 · guard-corpus decoupling + Spec-truth-guard supersession row (Status currency clause) · plan 2026-08-05-precision-chain-and-loop-breaker · retired: docs/adr/0046-specs-are-posterity-skills-cite-maintained-surfaces.md @ 130b3dbd
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0046-specs-are-posterity-skills-cite-maintained-surfaces.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

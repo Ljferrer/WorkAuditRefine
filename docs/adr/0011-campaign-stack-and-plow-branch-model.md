@@ -73,8 +73,7 @@ campaign instead **stacks**. Full mechanics: [the design spec](../specs/2026-07-
 - [ADR-0010 — Submodule landing authority](0010-submodule-landing-authority.md) — the AFK submodule-ownership
   gate a campaign inherits.
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. The roadmap link above now points at `GLOSSARY.md`.
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0011-campaign-stack-and-plow-branch-model.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

@@ -55,7 +55,7 @@ manual `git push origin --delete`** outside aftermath's gates — aftermath neve
   gh-close batch is guarded by the same `gh-preflight.sh`
   ([ADR 0026](0026-github-side-effects-mechanically-gated.md)) — a mid-run account flip never silently
   drops an aftermath close.
-- Historical ADRs are superseded, never edited.
+- Prior ADRs are rewritten in place under the living-ADR law ([ADR 0063](0063-living-adrs-git-is-the-archive.md)).
 
 ## Considered options
 
@@ -100,3 +100,7 @@ manual `git push origin --delete`** outside aftermath's gates — aftermath neve
 - [ADR 0002](0002-scope-by-agent-type.md) — capability-first confinement (the allowlist is
   Lead-consulted; no confined agent gains a deletion verb).
 - Memory lesson (the originating friction): [[aftermath-2026-07-03-stranded-remote-set]].
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063) · retired: docs/adr/0027-aftermath-known-stranded-allowlist.md @ 51a999f3
