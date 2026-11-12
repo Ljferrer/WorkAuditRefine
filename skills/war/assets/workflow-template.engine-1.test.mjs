@@ -21146,8 +21146,8 @@ test('stale-mismatch-arm-d-expected-after-later-merge', () => {
   assert.ok(bullet && clause, 'the checklist pin_status bullet and the gate-audit prompt clause are found (non-vacuity)')
   assert.ok(bullet.includes(phrase), 'the checklist pin_status bullet names the arm (d) phrase')
   assert.ok(clause.includes(phrase), 'the POST-MERGE GATE-AUDIT clause names the arm (d) phrase')
-  assert.match(bullet, /expected/, 'the bullet says the arm (d) state is expected')
-  assert.match(clause, /expected/, 'the prompt clause says the arm (d) state is expected')
+  assert.match(bullet, /the expected state once a later merge in the same phase touched a mapped file/, 'the bullet says the arm (d) state is expected')
+  assert.match(clause, /changed since the gate ran\\?`? is expected after a later same-phase merge/, 'the prompt clause says the arm (d) state is expected')
 })
 
 // D19 (PIN-19, #2347): the Ace-Subset trailer is resume idempotency, never a footprint. Outside pt
@@ -21212,6 +21212,11 @@ test('tip-probe — an approved tree that disagrees with the same-commit pre tre
   const q = await ctl.api.tipProbe({ ...args, probeApproved: sha('ffffffff') })
   assert.equal(q.approved_tree, TT, 'a different APPROVED commit is never corrected')
   assert.equal(ctl.logs.length, 0, 'and nothing is logged')
+  // Control: PRE equals APPROVED and the trees already agree, so the probe stays silent.
+  const eq = load(code, { ...reply, approved_tree: PT })
+  const e = await eq.api.tipProbe(args)
+  assert.equal(e.approved_tree, PT, 'an agreeing same-commit approved_tree is unchanged')
+  assert.equal(eq.logs.length, 0, 'and no misread is logged')
 })
 
 // D38 (PIN-38): every git command the tool-order sentence spells passes the auditor Bash guard, and

@@ -4394,8 +4394,8 @@ if (tasks.length) {
   // returned preMerged: task ids whose local branch is an ancestor of the frozen integration tip AND
   // was merged by a first-parent merge commit whose WAR-Task trailer names it and whose second parent is
   // its tip, with that merge's owned-path content (M^1..M^2) preserved at integration (#2485 D14), or
-  // changed there later only by another task's first-parent merge commit (#2571). A
-  // zero-commit ancestor has no merge commit and is never reported (#1895) — proved integrated by task-integrated.sh, so skipped. Record each as terminal `merged` (NEVER `landed` — that is
+  // changed there later only by another task's first-parent merge commit (#2571); each is proved integrated by
+  // task-integrated.sh, so skipped. A zero-commit ancestor has no merge commit and is never reported (#1895). Record each as terminal `merged` (NEVER `landed` — that is
   // phase-level) with the recovered note; enter done + succeeded (so a dep-block pre-check on the
   // re-dispatched task passes — no spurious dep-failed) and the bare-id landed list; one auditLog entry;
   // NO worker dispatch. Deliberately NOT pushed to mergedTasksForGateAudit — no gate ran for it this run —

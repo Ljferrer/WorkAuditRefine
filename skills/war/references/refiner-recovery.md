@@ -17,7 +17,7 @@ suite reads.
 Later evictions, each byte-identical to its card text at eviction time: the quoted card paragraph
 in § Submodule-as-repo provisioning (1032accd); the card's land-phase exit bullets in § Reland
 discrimination (#2657); § Evidence phase diff step 3 (plan 2026-11-08-engine-recovery-relaunch-and-land
-T4.1); and the two card paragraphs in § File-followups filing (plan
+T4.1); and the card paragraphs in § File-followups filing (plan
 2026-11-08-engine-findings-ace-and-late-fix D33 and D22).
 
 Post-eviction edits: each sanctioned edit to a moved block after its eviction, by block and clause.
