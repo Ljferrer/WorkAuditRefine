@@ -1974,7 +1974,7 @@ test('D29 — ADR 0042 doctrine mirrors (GLOSSARY.md glossary terms, CLAUDE.md h
 // the dispatch-args census below, so the row lands as D32) moved five cold recovery-entry bodies
 // out of CONTEXT.md (now GLOSSARY.md) into the unbudgeted cold home references/glossary-cold.md, leaving per-term
 // `when <trigger>, read …` pointers; a second wave (2026-08-27, marked inline below) moved three
-// more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned; wave 7 moved two from GLOSSARY.md) and, since wave 5, the born-cold terms too, not one plan's five (wave 6's four born-cold merge-provenance bodies are pinned by skills/red-team/assets/workflow-scaffold.test.mjs, not by this row). Modelled on D28: each residue is a hand-copied cross-file
+// more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned; wave 7 moved two from GLOSSARY.md) and, since wave 5, the born-cold terms too, not one plan's five (wave 6's four born-cold merge-provenance bodies are pinned by skills/red-team/assets/workflow-scaffold.test.mjs, not by this row, and wave 9's three living-ADR bodies by the living-adr-terms row). Modelled on D28: each residue is a hand-copied cross-file
 // fact (the destination path plus the per-term heading it must resolve to) with no other guard —
 // a renamed or dropped destination heading must red here while GLOSSARY.md still promises it, and
 // a residue that loses its trigger clause or destination path must red too (a pointer without a

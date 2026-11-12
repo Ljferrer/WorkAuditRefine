@@ -16,7 +16,8 @@ GLOSSARY.md pointers to their bodies here — wave 4's bodies are deliberately u
 carrying no live drift-guard key, and so are wave 8's (#2273, plan 2026-11-08-model-routing-and-prompt-byte-budgets
 Task 1.2: the bodies from `## Worker block` through `## memory-mined`, moved to bring `GLOSSARY.md` under its
 advisory line); wave 6's four born-cold merge-provenance bodies are pinned instead by
-`skills/red-team/assets/workflow-scaffold.test.mjs`): a term qualifies when it names a
+`skills/red-team/assets/workflow-scaffold.test.mjs`, and wave 9's three living-ADR bodies by the
+`living-adr-terms` row in `skills/war/assets/skill-doc-contracts.test.mjs`): a term qualifies when it names a
 retired mechanism, or when it is fully narrated in its own operative home (a `references/` file, an
 owning skill's SKILL.md, or its ADR) so the glossary needs only a pointer — incident-only recovery
 and one-command forensics entries are the standing example. Bold glossary cross-references inside
@@ -1098,6 +1099,6 @@ restates the old text; putting `failed because:` after `retired:`.
 
 An ADR citation of the form `docs/adr/<file> @ <sha>`: it means the file at that commit, so it is
 the form for citing retired text. It is one of three citation forms. A bare citation (`ADR 0013`)
-means current law. A dated citation (`ADR 0013 (2026-08-25)` or `ADR 0013 amendment 2026-08-25`)
-resolves to that date's **Decision log** line.
+means current law. A dated citation (`ADR 0013 (2026-08-25)`, `ADR 0013 amendment 2026-08-25` or
+`ADR 0013, amended 2026-08-25`) resolves to that date's **Decision log** line.
 _Avoid_: a bare citation for text a later rewrite retired; a branch name in place of the sha.

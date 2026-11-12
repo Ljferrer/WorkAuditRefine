@@ -36,8 +36,8 @@ unrun plan `docs/plans/2026-09-06-doc-truth-drift-guards-and-authoring-doctrine.
    trims it, because a rejected option records what was tried.
 6. **Three citation forms.**
    - A bare citation (`ADR 0013`) means current law.
-   - A dated citation (`ADR 0013 (2026-08-25)` or `ADR 0013 amendment 2026-08-25`) resolves to
-     that date's Decision-log line.
+   - A dated citation (`ADR 0013 (2026-08-25)`, `ADR 0013 amendment 2026-08-25` or
+     `ADR 0013, amended 2026-08-25`) resolves to that date's Decision-log line.
    - A Sha-pinned citation (`docs/adr/<file> @ <sha>`) means the file at that commit. Cite a
      retired text this way.
 7. **Folds.** A fold rewrites a dated section into the body as current law. Its Decision-log line
@@ -59,10 +59,8 @@ unrun plan `docs/plans/2026-09-06-doc-truth-drift-guards-and-authoring-doctrine.
   its ADR body. It adds a Decision-log line for each fold and a `## Decision log` to every ADR
   that lacks one. It re-anchors every test that extracts by an amendment token, and it adds a guard
   row that reds on any amendment heading in `docs/adr/0*.md`.
-- Until that migration lands, older ADRs still carry dated sections. A dated citation of one of
-  them still resolves to its section.
 - The `living-adr-terms` row in `skills/war/assets/skill-doc-contracts.test.mjs` finds this ADR by
-  slug, so its number may change at land time. Two files with this slug red the row.
+  slug, never by number. Two files with this slug red the row.
 - `skills/war/references/glossary-cold.md` defines **Living ADR**, **Decision log** and
   **Sha-pinned citation**. `GLOSSARY.md` carries one pointer row to them.
 
