@@ -2007,7 +2007,7 @@ test('D29 — ADR 0042 doctrine mirrors (GLOSSARY.md glossary terms, CLAUDE.md h
 // the dispatch-args census below, so the row lands as D32) moved five cold recovery-entry bodies
 // out of CONTEXT.md (now GLOSSARY.md) into the unbudgeted cold home references/glossary-cold.md, leaving per-term
 // `when <trigger>, read …` pointers; a second wave (2026-08-27, marked inline below) moved three
-// more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned; wave 7 moved two from GLOSSARY.md) and, since wave 5, the born-cold terms too, not one plan's five (wave 6's four born-cold merge-provenance bodies are pinned by skills/red-team/assets/workflow-scaffold.test.mjs, not by this row, and wave 9's three living-ADR bodies by the living-adr-terms row). Modelled on D28: each residue is a hand-copied cross-file
+// more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned; wave 7 moved two from GLOSSARY.md) and, since wave 5, the born-cold terms too, not one plan's five (wave 6's four born-cold merge-provenance bodies are pinned by skills/red-team/assets/workflow-scaffold.test.mjs, not by this row, wave 9's three living-ADR bodies by the living-adr-terms row, and the doc-truth born-cold bodies by the doc-truth-cold-terms row). Modelled on D28: each residue is a hand-copied cross-file
 // fact (the destination path plus the per-term heading it must resolve to) with no other guard —
 // a renamed or dropped destination heading must red here while GLOSSARY.md still promises it, and
 // a residue that loses its trigger clause or destination path must red too (a pointer without a
@@ -5161,6 +5161,35 @@ test('living-adr-terms — the meta-ADR resolves by slug to one file, and its De
   for (const line of lines) assert.match(line, DECISION_LOG_LINE, `meta-ADR Decision-log line breaks the form: ${line}`)
 })
 
+// (doc-truth-cold-terms) THE DOC-TRUTH BORN-COLD BODIES AND THEIR POINTER ROWS (plan 2026-11-08-doc-
+// truth-drift-and-adr-hygiene, Task 3.5; End state 44). The No-fix sentinel, Reconciled follow-up,
+// Polish claim, Net-zero clash range, Enforcement ladder and Least start bodies live only in
+// glossary-cold.md. Each must resolve to exactly one `## <term>` heading whose body is non-empty and
+// spans its _Avoid_ line. GLOSSARY.md must carry both pointer rows, each with its trigger, its
+// destination and its first term at a line start. The ADR 0060 bodies must name ADR 0060.
+test('doc-truth-cold-terms — each born-cold glossary body resolves once, and both GLOSSARY.md pointer rows keep their trigger', () => {
+  const glossaryColdMd = readFileSync(join(HERE, '..', 'references', 'glossary-cold.md'), 'utf8')
+  const rows = [
+    { terms: ['No-fix sentinel', 'Reconciled follow-up', 'Polish claim', 'Net-zero clash range'],
+      trigger: 'a fix-less finding, a reconciled row or a polish clash is in play' },
+    { terms: ['Enforcement ladder', 'Least start'], adr: 'ADR 0060',
+      trigger: 'you choose where a rule is enforced or what a seat starts with' },
+  ]
+  for (const { terms, trigger, adr } of rows) {
+    for (const term of terms) {
+      const heads = glossaryColdMd.split('\n').filter((l) => l === `## ${term}`)
+      assert.equal(heads.length, 1, `glossary-cold.md must carry exactly one \`## ${term}\` heading, found ${heads.length}`)
+      const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const body = glossaryColdMd.match(new RegExp(`\\n## ${esc}\\n([\\s\\S]*?)(?=\\n## |(?![\\s\\S]))`))
+      assert.ok(body && body[1].trim().length > 0, `glossary-cold.md \`## ${term}\` has an empty body`)
+      assert.match(body[1], /\n_Avoid_: \S/, `glossary-cold.md \`## ${term}\` body must span its _Avoid_ line`)
+      if (adr) assert.ok(body[1].includes(adr), `glossary-cold.md \`## ${term}\` body must name ${adr}`)
+    }
+    const row = `\n${terms.map((t) => `**${t}**`).join(' · ')}:\nwhen ${trigger}, read skills/war/references/glossary-cold.md\n`
+    assert.ok(glossaryMd.includes(row), `GLOSSARY.md must carry the pointer row for ${terms.join(', ')} with its first term at a line start: ${JSON.stringify(row)}`)
+  }
+})
+
 // (living-adr-fold) THE WHOLE ADR CORPUS IS IN THE LIVING FORM (plan 2026-11-08-doc-truth-drift-and-
 // adr-hygiene, Task 2.1; End states 3, 4 and 36; A16, OD-1 ruled 2026-11-08: no exemption). It reads
 // every `docs/adr/0*.md`, so an ADR a later plan lands with a dated amendment reds here. Three shapes
@@ -5214,6 +5243,13 @@ test('engine-fact-pin — ace label', () => {
   assert.ok(schemasMd.includes('`ace:<site>:<task>:a<n>`'), 'schemas.md must name the ace dispatch label `ace:<site>:<task>:a<n>` the engine `aceLabel` mints (#2231)')
   assert.ok(!schemasMd.includes('`ace:<task>:a<n>`'), 'schemas.md still names the site-less ace label `ace:<task>:a<n>` (#2231, OLD-absent)')
   assert.ok(schemasMd.includes('`ace-gate:<task>:a<n>`'), 'schemas.md keeps the ace-gate label `ace-gate:<task>:a<n>` (no site segment)')
+  // The `<site>` set: every site the engine passes to aceLabel must be named in the schemas.md sentence.
+  const sites = [...new Set([...workflowTemplateSrc.matchAll(/aceLabel\(r, '(\w+)'\)/g)].map((x) => x[1]))]
+  assert.ok(sites.length > 0, 'could not extract any `aceLabel(r, \'<site>\')` call site from workflow-template.js (non-vacuity floor)')
+  const sentence = schemasMd.match(/ace dispatch labels carry it too \([^)]*\)/)
+  assert.ok(sentence, 'could not locate the schemas.md `ace dispatch labels carry it too (…)` sentence — the construct rotted')
+  for (const site of sites)
+    assert.ok(sentence[0].includes('`' + site + '`'), `the schemas.md ace label sentence must name the \`${site}\` site the engine passes to aceLabel`)
 })
 test('engine-fact-pin — handoff asks keys', () => {
   const m = workflowTemplateSrc.match(/asks: asks\.map\(a => \(\{ ([^\n]*)\n((?:\s+\.\.\.\([^\n]*\n)+)/)
@@ -5230,9 +5266,10 @@ test('engine-fact-pin — handoff asks keys', () => {
 test('engine-fact-pin — citation keys', () => {
   const fn = workflowTemplateSrc.match(/const citationOf = f => \{[\s\S]*?\n\}/)
   assert.ok(fn, 'could not extract `const citationOf = f => { … }` from workflow-template.js — the construct rotted (non-vacuity floor)')
-  const ret = fn[0].match(/return \{ (row: threadedRow, threadedRow, cited: row, rationale): /)
-  assert.ok(ret, "could not extract citationOf's `return { row: threadedRow, threadedRow, cited: row, rationale … }` — the construct rotted (non-vacuity floor)")
-  const keys = ret[1].split(',').map((k) => k.trim().split(':')[0])
+  // Capture the whole return literal, so a key the engine appends after `rationale` reds the deepEqual.
+  const ret = fn[0].match(/return \{ (row: threadedRow[^\n]*) \}\n/)
+  assert.ok(ret, "could not extract citationOf's `return { row: threadedRow, … }` literal — the construct rotted (non-vacuity floor)")
+  const keys = ret[1].split(', ').map((k) => k.split(':')[0].trim())
   assert.deepEqual(keys, ['row', 'threadedRow', 'cited', 'rationale'], 'the extracted citationOf return keys — extraction truncated')
   const row = schemasMd.match(/^\s*citation\?,[^\n]*$/m)
   assert.ok(row, 'could not locate the AuditVerdict `citation?` row in schemas.md — the construct rotted')

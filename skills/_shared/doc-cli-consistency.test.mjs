@@ -254,7 +254,7 @@ const VERB_SCAN_EXCLUSIONS = [
   'skills/war/references/worker-servitor-edges.md', // no shell-out prose for the scanned modules
   // run-manifest.md holds the SKILL.md Run-manifest per-stamp field detail (evicted to byte-fund
   // the card's 56 B of headroom, #1855 completion); it points at setup.md § Run root for the
-  // run-root rule, and its only command prose is a `date -u` clock read — not a scanned module.
+  // run-root rule, and its command prose (a `date -u` clock read and a `git -C <pluginRoot> rev-parse HEAD` read) names no scanned module.
   'skills/war/references/run-manifest.md',
   'skills/red-team/references/lenses.md',           // no shell-out prose for the scanned modules
   'skills/red-team/references/loop-budget.md',      // no shell-out prose for the scanned modules
