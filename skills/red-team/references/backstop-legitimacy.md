@@ -13,7 +13,7 @@ Findings route the **normal plan-patch loop** (Steps 4–5). `needsDecision` blo
 
 ## `judge:`-tag grading rule (the spec-§8 box-ticking mitigation)
 
-A merged plan's tagged End states (and backstop entries) close with one of three tags. It may be a `check:` command that proves the condition, or a `gate:` or `backstop:` tag. It may also be a `judge:` / `HARD at audit_sha` tag: a named seat judges an observable instead of a command proving it. The judged form is legitimate only when no command can decide the condition. For **each** End state or backstop entry carrying a `judge:` or `HARD at audit_sha` tag, grade: **could this have been a `check:` command?** — a deterministic command, test, or grep a gate/floor could run.
+A merged plan's tagged End states (and backstop entries) close with a `check:` command that proves the condition, or with a `gate:` or `backstop:` tag. It may also be a `judge:` / `HARD at audit_sha` tag: a named seat judges an observable instead of a command proving it. The judged form is legitimate only when no command can decide the condition. For **each** End state or backstop entry carrying a `judge:` or `HARD at audit_sha` tag, grade: **could this have been a `check:` command?** — a deterministic command, test, or grep a gate/floor could run.
 
 - **Commandable-but-judged → `needsDecision`**: recommend converting the entry to a `check:` command. The exception is a plan that names a concrete reason no command can decide it. For example, the evidence is deliberately-uncommitted done-report evidence, or the observable is a sandbox probe no committed command reproduces.
 - A justified judged entry passes. The grading exists to catch box-ticking (a tag pasted on to skip authoring the command), never to outlaw judgment.
