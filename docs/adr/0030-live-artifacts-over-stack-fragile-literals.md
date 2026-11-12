@@ -161,4 +161,4 @@ this spec dropped its duplicate `version-consistency.test.mjs` to avoid two test
 
 - 2026-08-20 · the convention block gained the Dated-snapshots form; membership is owned by the live SKILL.md §2 block · #1363 · retired: docs/adr/0030-live-artifacts-over-stack-fragile-literals.md @ 9a02e5ff
 - 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0030-live-artifacts-over-stack-fragile-literals.md @ b31d2203
-- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063) · retired: docs/adr/0030-live-artifacts-over-stack-fragile-literals.md @ a9bead4d

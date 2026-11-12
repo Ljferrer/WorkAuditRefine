@@ -177,4 +177,4 @@ The forcing function stays the same — the audit disposition routing, not a `gh
 ## Decision log
 
 - 2026-08-25 · the dispatched-refiner `file-followups` gh-write class · Follow-up filing floor (D4, #1331) · failed because: "all `gh` writes stay Lead-side" stopped being literally true once the engine dispatched a refiner to file follow-ups · retired: docs/adr/0026-github-side-effects-mechanically-gated.md @ 7c1b028b
-- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063) · retired: docs/adr/0026-github-side-effects-mechanically-gated.md @ 51a999f3

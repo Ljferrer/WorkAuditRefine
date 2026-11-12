@@ -3690,7 +3690,7 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
 // ADR 0013's Decision text is a home too since the living-ADR fold (ADR 0063 retired the
 // append-only exemption); its Considered options and Decision log are records and may name the
 // retired reserve.
-test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-retry-reserve token are absent from the six living surfaces and the router (End state 5, PIN-7)', () => {
+test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-retry-reserve token are absent from the living surfaces and the router (End state 5, PIN-7)', () => {
   for (const [name, text] of [
     ['docs/adr/0013 Decision text', adr0013.slice(0, adr0013.indexOf('## Considered options'))],
     ['skills/war/SKILL.md', skillMd],
@@ -3975,15 +3975,16 @@ test('economy-ace-flip — NEW-present: every surface carries the inherited-on f
   }
 })
 
-// (old-default-absent) THE RETIRED "ABSORB IS NEVER A DEFAULT" CONJUNCTIONS ARE ABSENT FROM THE EIGHT
+// (old-default-absent) THE RETIRED "ABSORB IS NEVER A DEFAULT" CONJUNCTIONS ARE ABSENT FROM THE
 // LIVING SURFACES (plan 2026-09-03-in-band-absorb-default, End state 8 · Task 3.2; D1/D2). The
 // in-diff `absorb` default retired three conjunction shapes, base-verified at this task's cut base:
 // `absorb` and `ask` are never default* (CLAUDE.md, CONTEXT.md (now GLOSSARY.md), SKILL.md, design.md, the card,
 // `schemas.md`, and the three `workflow-template.js` sites Task 3.1 rewrote — the `*` covers
 // `defaults` and `defaulted`; rule 7: this row reads those last three surfaces after the dep
 // rebase), `absorb` and `ask` never defaulted (gastown-design-params.md), and the zero-token-gap
-// `absorb` is never a default (the ADR 0013 Decision 4 literal, guard-exempt here, and the earlier
-// CONTEXT.md (now GLOSSARY.md) retirement D37a still pins — never present on the other seven surfaces at base, so
+// `absorb` is never a default (the ADR 0013 Decision 4 literal, which the ADR 0063 fold retired
+// from ADR 0013's Decision text, and the earlier
+// CONTEXT.md (now GLOSSARY.md) retirement D37a still pins — never present on the other surfaces at base, so
 // its assert guards a first appearance, not a revert). Detection runs on a NORMALIZED
 // surface — `//`/`>`/`#` line leaders stripped by `norm` BEFORE the join (so a phrase wrapped
 // across a comment boundary flattens contiguous), then backticks and single and double quotes
@@ -4014,7 +4015,7 @@ const OLD_DEFAULT_SURFACES = [
   // retired rule as a rejected option, and the Decision log is a record.
   ['docs/adr/0013 Decision text', adr0013.slice(0, adr0013.indexOf('## Considered options'))],
 ]
-const oldDefaultHits =(text) => OLD_DEFAULT_SHAPES.filter(([re]) => re.test(oldDefaultFlat(text))).map(([, what]) => what)
+const oldDefaultHits = (text) => OLD_DEFAULT_SHAPES.filter(([re]) => re.test(oldDefaultFlat(text))).map(([, what]) => what)
 
 test('old-default-absent (self-check) — the lawful rewrite passes and each single-quoted comment site reds on its own', () => {
   // Positive fixture: the sanctioned `ask`-only tail is not an OLD hit.
@@ -4084,7 +4085,7 @@ test('barrier-list — the GLOSSARY.md **Barrier list** entry names every canoni
   )
 })
 
-test('old-default-absent (a) — the three retired conjunction shapes are absent from the eight living surfaces and the router after normalization (End state 8)', () => {
+test('old-default-absent (a) — the three retired conjunction shapes are absent from the living surfaces and the router after normalization (End state 8)', () => {
   for (const [name, text] of [...OLD_DEFAULT_SURFACES, ['CONTEXT.md', routerMd]]) {
     const hits = oldDefaultHits(text)
     assert.deepEqual(
@@ -4330,7 +4331,12 @@ test('adr-0013-phase-4 — ADR 0013 carries the ace-off routing and demote-prefi
   assert.match(adr0013, /^- 2026-09-04 · ace-off routing to the sweep and the demote-reason prefix/m,
     "ADR 0013's Decision log must carry the dated 2026-09-04 line for the folded Phase 4 section")
   // The Status line carries no currency clause after the fold (ADR 0063).
-  assert.ok(!/^\*\*Status:\*\*[^\n]*amended 2026-/m.test(adr0013), "ADR 0013's Status line still carries a dated `amended` currency clause")
+  // Sliced to the blank line that ends the wrapped Status paragraph, so a clause on any wrapped line reds.
+  const statusStart = adr0013.indexOf('**Status:**')
+  assert.ok(statusStart >= 0, "could not locate ADR 0013's `**Status:**` paragraph")
+  const statusEnd = adr0013.indexOf('\n\n', statusStart)
+  const status = norm(adr0013.slice(statusStart, statusEnd < 0 ? undefined : statusEnd))
+  assert.ok(!/amended\s+2026-/.test(status), "ADR 0013's Status paragraph still carries a dated `amended` currency clause")
 })
 
 // (terminal-pass-term) GLOSSARY.md carries the Phase 5 glossary terms **Terminal pass** and

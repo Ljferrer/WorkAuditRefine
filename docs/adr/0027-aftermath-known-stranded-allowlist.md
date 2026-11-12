@@ -103,4 +103,4 @@ manual `git push origin --delete`** outside aftermath's gates — aftermath neve
 
 ## Decision log
 
-- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063) · retired: docs/adr/0027-aftermath-known-stranded-allowlist.md @ 51a999f3

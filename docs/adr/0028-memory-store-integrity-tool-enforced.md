@@ -138,4 +138,4 @@ judgment — which hub to keep, which lesson to compress — stays human.** Conc
 - 2026-08-29 · the archive mover fails closed on an occupied `archive/` destination · #1924 · failed because: `fs.renameSync` replaced an occupied destination, so archiving destroyed the archived copy · retired: docs/adr/0028-memory-store-integrity-tool-enforced.md @ 769f651c
 - 2026-10-30 · every hub count is a hot count · ADR 0055 · failed because: a cold citer cannot pin a row · retired: docs/adr/0028-memory-store-integrity-tool-enforced.md @ 6d3bb739
 - 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0028-memory-store-integrity-tool-enforced.md @ b31d2203
-- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063) · retired: docs/adr/0028-memory-store-integrity-tool-enforced.md @ 27e8bac4

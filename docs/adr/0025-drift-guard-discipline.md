@@ -190,3 +190,4 @@ evidence-tag discipline (D4) and the escape rules above, not by this duty.
 - 2026-08-20 · the glossary term count is owned by the live CONTEXT.md subsection · #1266 · failed because: the "defining five terms" figure was a dated snapshot that two later terms made stale · retired: docs/adr/0025-drift-guard-discipline.md @ 9a02e5ff
 - 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0025-drift-guard-discipline.md @ b31d2203
 - 2026-11-11 · adopted under the living-ADR law; the append-only correction-note shape is retired · #1850 (ADR 0063) · failed because: a reader had to replay each correction note to learn the current law · retired: docs/adr/0025-drift-guard-discipline.md @ 9a02e5ff
+- 2026-11-11 · the superseded-never-edited bullet restates the living-ADR law · #1850 (ADR 0063) · retired: docs/adr/0025-drift-guard-discipline.md @ a0bcc65f

@@ -161,4 +161,5 @@ a HARD hold via this trigger.
 - 2026-09-07 · §(C) gains the gate-log completeness qualifier (`tip_sha:` first for the gated sha, `exit_code:` last, else SOFT cannot-confirm), mirrored from `agents/war-auditor.md` and ranked as ADR 0041 `execution` rung 1 · issue #2156
 
 - 2026-09-09 · PR #2297 finalization: every task panel gets independent full Git object resolution, including equal abbreviated reports. Only confirmed unanimity emits approval-transfer receipts. Gate capture uses an engine-owned logical-attempt prefix plus a filesystem-allocated suffix; producer-boundary validation rejects other attempts before readers. Artifact absence remains SOFT; uncertain Git mutations still require successful recovery proof before land. See the finalization ledger and schemas.md's task audit pin amendment.
-- 2026-11-11 · the pin-equality bullet's dated "Finalization amendment" run-in reads as body text · #1850 (ADR 0063)
+- 2026-11-11 · the pin-equality bullet's dated "Finalization amendment" run-in reads as body text · #1850 (ADR 0063) · retired: docs/adr/0024-audit-gate-verdicts-integrated-tip-captured-evidence.md @ 1bd9474b
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063) · retired: docs/adr/0024-audit-gate-verdicts-integrated-tip-captured-evidence.md @ 22ae82a9

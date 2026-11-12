@@ -122,4 +122,4 @@ see a collision and cut a fresh `dev/<date>-<slug>` fork.
 
 ## Decision log
 
-- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063) · retired: docs/adr/0022-servitor-local-root-writes-gate-2-promotion.md @ b99fee65
