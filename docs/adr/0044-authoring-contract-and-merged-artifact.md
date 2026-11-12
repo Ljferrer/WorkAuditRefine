@@ -62,7 +62,8 @@ doctrine in-repo.**
 4. **The authoring output contract (D4–D5, D18–D19).**
    - *Evidence tags (D4; source forms D11).* Every claim of fact in Part 1 carries one of
      `(user)` · `(verified: <source> at <base>)` · `[assumed: <default> — if wrong:
-     <consequence>]`; issue-derived facts use `(verified: issue #N (<date>))`.     One CONTEXT.md glossary entry maps the tags onto [ADR 0007](0007-memory-provenance.md)'s
+     <consequence>]`; issue-derived facts use `(verified: issue #N (<date>))`.
+     One CONTEXT.md glossary entry maps the tags onto [ADR 0007](0007-memory-provenance.md)'s
      provenance ladder while keeping distinct syntax — the
      [ADR 0024](0024-audit-gate-verdicts-integrated-tip-captured-evidence.md) collision-avoidance
      precedent: ladder tier names stay reserved for how a *memory fact* was established.
