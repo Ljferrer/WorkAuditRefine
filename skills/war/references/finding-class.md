@@ -1,6 +1,6 @@
 # Finding class — behavior or cosmetic, and the stale-looking-but-correct calibration
 
-The `## Finding class` section is born cold here (plan 2026-11-04-late-defects-fixed-in-run, Task 2.1, D2/D7/D24). The `### Stale-looking-but-correct calibration` block under `## Moved from the auditor card` is a verbatim eviction from `agents/war-auditor.md` (same task, ADR 0042): it was byte-identical to its pre-eviction card text **at eviction time** (2,516 B, heading through the trailing blank line). The card keeps the same `###` heading over one trigger pointer to this file, and the dispatched `STALE-LOOKING-BUT-CORRECT CALIBRATION` skeleton in `workflow-template.js` still carries rules 1 to 4. The `late-defect: class` rows in `skills/war/assets/reference-link-integrity.test.mjs` pin the block by digest, so a sanctioned later edit re-pins the digest in the same commit with its rationale.
+The `## Finding class` section is born cold here (plan 2026-11-04-late-defects-fixed-in-run, Task 2.1, D2/D7/D24). The `### Stale-looking-but-correct calibration` block under `## Moved from the auditor card` is a verbatim eviction from `agents/war-auditor.md` (same task, ADR 0042). It was byte-identical to its pre-eviction card text **at eviction time** (2,516 B, heading through the trailing blank line). The card keeps the same `###` heading over one trigger pointer to this file. The dispatched `STALE-LOOKING-BUT-CORRECT CALIBRATION` skeleton in `workflow-template.js` still carries rules 1 to 4. The `late-defect: class` rows in `skills/war/assets/reference-link-integrity.test.mjs` pin the block by digest, so a sanctioned later edit re-pins the digest in the same commit with its rationale.
 
 ## Finding class
 
@@ -13,17 +13,17 @@ Set `findingClass` on each Minor and Nit. The values are the `FINDING_CLASSES` e
 How the engine routes the class:
 
 - A behavior defect this task adds stays a finding even when the slice pins its mechanism. The latitude rule licenses the pinned mechanism, never a defect inside it. Route the finding `absorb` or `ask`, never `note`.
-- The intake floor turns a behavior `note` with a fix on a named file into `absorb`. In the task diff it joins the task's ace batch. Outside the diff, or with no diff probe, it rides `phaseClose:true` to the behavior-row sort (PIN-21), which sends it to the late-fix pass or demotes it naming the owner. Any other behavior `note` parks as an ask for the Checkpoint ruling. The gate-audit floor pass applies the same rule, always through the behavior-row sort.
-- The polish panel and the terminal seat skip the intake floor. A behavior row they raise with a fix on a named file carries on `carriedTasks[]` (non-final) or files "raised after the late-fix pass" (final), PIN-21. Any other behavior row they raise parks as an ask (#2624).
+- The intake floor turns a behavior `note` with a fix on a named file into `absorb`. In the task diff it joins the task's ace batch. Outside the diff, or with no diff probe, it rides `phaseClose:true` to the behavior-row sort (PIN-21). That sort sends it to the late-fix pass or demotes it naming the owner. Any other behavior `note` parks as an ask for the Checkpoint ruling. The gate-audit floor pass applies the same rule, always through the behavior-row sort.
+- The polish panel and the terminal seat skip the intake floor. A behavior row they raise with a fix on a named file follows PIN-21. On a non-final phase it carries on `carriedTasks[]`. On the final phase it files "raised after the late-fix pass". Any other behavior row they raise parks as an ask (#2624).
 - A cosmetic row, or a row with no class, keeps today's route. Intake drops a value outside the export, so that row reads as classless.
 
 ## Pre-ace probe
 
-A regressed ace re-audit dispatches one PRE-ACE PROBE seat per Critical or Major blocker, before the engine names culprits or reverts a range (plan 2026-11-04-late-defects-fixed-in-run, D3/D11, PIN-3/PIN-11). The seat is read-only and judges one question: does this blocker already exist at the pre-ace tip, the tip the ace commit was cut from? That tip is the approved tip, or the post-revert tip at an `aceBisect` subset or an `aceReentry` batch.
+A regressed ace re-audit dispatches one PRE-ACE PROBE seat per Critical or Major blocker. It does so before the engine names culprits or reverts a range. The source is plan 2026-11-04-late-defects-fixed-in-run (D3/D11, PIN-3/PIN-11). The seat is read-only and judges one question. Does this blocker already exist at the pre-ace tip, the tip the ace commit was cut from? That tip is the approved tip, or the post-revert tip at an `aceBisect` subset or an `aceReentry` batch.
 
 - Read the pre-ace tip through git only, with `git show <pre-ace sha>:<file>` and `git diff <pre-ace sha> <ace sha>`. The task worktree sits at the ace tip, so a plain file read shows the wrong commit.
 - Return `{ exists: 'yes' | 'no' | 'unknown', evidence }`. `evidence` names the lines you read.
-- `yes`: the same defect is there at the pre-ace tip. The engine keeps the ace's absorbs, counts your seat as approving that blocker for that re-audit (the batch, the subset or the re-entry batch), and sends the blocker to the late-fix pass.
+- `yes`: the same defect is there at the pre-ace tip. The engine keeps the ace's absorbs and sends the blocker to the late-fix pass. It counts your seat as approving that blocker for that re-audit (the batch, the subset or the re-entry batch).
 - `no`: the ace commit added it. Today's regression arms run: culprit excision, halving, or the whole-range revert.
 - `unknown`: git cannot settle it. The engine reverts as today, and the blocker still joins the late-fix pass as a `behavior` row. A dead seat or a malformed answer reads as `unknown`.
 - Never answer `yes` to save an absorb. A wrong `yes` keeps a regression on the branch until the late-fix pass fixes it.

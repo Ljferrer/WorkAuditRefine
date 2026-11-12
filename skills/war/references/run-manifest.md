@@ -3,14 +3,15 @@
 The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) for the Run-manifest
 section's **per-stamp field detail** and **file identity**. The `## When — at phase boundaries` and
 `## Where — runId and untracked-ness` blocks below were each byte-identical to their pre-eviction
-`skills/war/SKILL.md` text **at eviction time** (only repo-root-relative links were re-anchored for
-this file's depth, the init sentence later gained the launch-identity fields, and the on-phase-return
-bullet and the field-names sentence later gained the `tasks` key and its enum, #2682); `## Top-level fields`,
-`## Relaunch` and `## Hand-off catch-up` are new doctrine authored here (ADR 0042's default placement), never an eviction,
-and have no card twin. The section's **hot** half stays on the card: the `## Run manifest (telemetry)`
-anchor, the run-root location (whose rule lives in [setup.md](setup.md) § Run root), and the
-fail-open / never-resume-input invariant. Positional words below ("above", "the Run-manifest
-section") refer to that card section.
+`skills/war/SKILL.md` text **at eviction time**. Three edits differ from that text. At eviction, only
+repo-root-relative links were re-anchored for this file's depth. The init sentence later gained the launch-identity
+fields. The on-phase-return bullet and the field-names sentence later gained the `tasks` key and
+its enum (#2682). `## Top-level fields`, `## Relaunch` and `## Hand-off catch-up` are new doctrine
+authored here (ADR 0042's default placement), never an eviction, and have no card twin. The
+section's **hot** half stays on the card. It holds the `## Run manifest (telemetry)` anchor, the
+run-root location (whose rule lives in [setup.md](setup.md) § Run root), and the fail-open /
+never-resume-input invariant. Positional words below ("above", "the Run-manifest section") refer
+to that card section.
 
 ## When — at phase boundaries (the per-stamp field set)
 
@@ -45,16 +46,16 @@ the card's init-stamp sentence point here and do not restate it.
 | `pluginSha` | optional, null-tolerated | run start | `git -C <pluginRoot> rev-parse HEAD`, or `null` when the root is not a Git checkout |
 | `phases` | MUST | per phase | the per-stamp field set in § When above |
 
-The three plugin fields take the `workflowRunId` posture: a value the Lead cannot source is `null`,
-never fabricated, and a manifest written before these fields existed simply lacks them. They record
+The three plugin fields take the `workflowRunId` posture. A value the Lead cannot source is `null`,
+never fabricated. A manifest written before these fields existed simply lacks them. They record
 which engine executed the run, so a recovery relaunch can execute from the same plugin root and
 version as the launch it recovers ([launch-identity.md](launch-identity.md)).
 
 ## Relaunch — a died attempt is archived, never overwritten silently (D22, #1916)
 
-A **relaunch attempt** is one Workflow run of a phase that a prior run of the same phase did not finish: a `resumeFromRunId` retry of a `held:phase-incomplete` phase, or a Recovery relaunch of a `held:workflow-error` / escalated phase ([resume-and-recovery.md](resume-and-recovery.md) § Recovery relaunch). Each attempt has its **own** `workflowRunId` and `transcriptDir` **when the launch envelope surfaces a fresh run id** (the transcript dir's basename **is** that run id); a relaunch whose launch envelope repeats the prior `workflowRunId` archives nothing — the pair is unchanged — and only attempts with distinct run ids are summed. The manifest keeps the phase record **current** and the history **complete**:
+A **relaunch attempt** is one Workflow run of a phase that a prior run of the same phase did not finish. It is either a `resumeFromRunId` retry of a `held:phase-incomplete` phase, or a Recovery relaunch of a `held:workflow-error` / escalated phase ([resume-and-recovery.md](resume-and-recovery.md) § Recovery relaunch). Each attempt has its **own** `workflowRunId` and `transcriptDir` **when the launch envelope surfaces a fresh run id** (the transcript dir's basename **is** that run id). A relaunch whose launch envelope repeats the prior `workflowRunId` archives nothing, because the pair is unchanged. Only attempts with distinct run ids are summed. The manifest keeps the phase record **current** and the history **complete**:
 
-- **On every relaunch, overwrite `workflowRunId` + `transcriptDir` together** — never one without the other. Read both from the new launch envelope (the `At phase launch` bullet above); a phase whose `transcriptDir` basename differs from its `workflowRunId` is a half-stamped relaunch, and `/war-review` reports it as the half-stamped relaunch friction row (§ 4) instead of mining that dir.
+- **On every relaunch, overwrite `workflowRunId` + `transcriptDir` together** — never one without the other. Read both from the new launch envelope (the `At phase launch` bullet above). A phase whose `transcriptDir` basename differs from its `workflowRunId` is a half-stamped relaunch. `/war-review` reports it as the half-stamped relaunch friction row (§ 4) instead of mining that dir.
 - **Archive the died attempt under `attempts[]`** before overwriting — the authoritative shape (this file is the only home; `schemas.md` § Run manifest points here and does not restate it):
   ```jsonc
   attempts: [                                   // one entry per attempt that did NOT finish the phase; absent or [] on a first-try phase
@@ -65,10 +66,10 @@ A **relaunch attempt** is one Workflow run of a phase that a prior run of the sa
       envelope: { totalTokens, totalToolCalls, agentCount } | null,   // that attempt's own envelope aggregates; null when unsurfaced
       cause: "held:phase-incomplete | held:workflow-error | escalated | …" } ]   // why it did not finish — the landDecision or task status that ended it
   ```
-- **Dispatch counts are summed across attempts.** The phase's top-level `dispatches` is the sum of every attempt's counts (archived entries + the current attempt) — the phase paid for every seat it ran, and `/war-review`'s cost view must see them all; a repeated-run-id relaunch archives no entry, so its prior counts are unrecoverable and the sum covers the current attempt alone. `envelope` aggregates stay **binding-to-attempt** (the current attempt's envelope only; a died attempt's envelope, when sourced, rides its `attempts[]` entry). `dispatchModels` stays binding-to-attempt like the envelope: the current attempt's rows only, and a died attempt's rows are not archived (row shape: [schemas.md](schemas.md)).
+- **Dispatch counts are summed across attempts.** The phase's top-level `dispatches` is the sum of every attempt's counts (archived entries + the current attempt). The phase paid for every seat it ran, and `/war-review`'s cost view must see them all. A repeated-run-id relaunch archives no entry. So its prior counts are unrecoverable, and the sum covers the current attempt alone. `envelope` aggregates stay **binding-to-attempt** (the current attempt's envelope only; a died attempt's envelope, when sourced, rides its `attempts[]` entry). `dispatchModels` stays binding-to-attempt like the envelope: the current attempt's rows only, and a died attempt's rows are not archived (row shape: [schemas.md](schemas.md)).
 - **Restamp the whole phase record, not only the id pair (D29).** On every relaunch's return, restamp `workflowRunId` + `transcriptDir`, the envelope aggregates from the relaunch's own envelope, and `land`, `endedAt` and `dispatchModels` from the relaunch's return. The stale shape this prevents: `land` still names a prior attempt's hold while git shows the phase landed, or `agentCount` still comes from attempt 1.
 
-**Checkpoint on-return reminder.** On every relaunch's return — the Checkpoint's on-phase-return stamp — re-check that the phase record's `workflowRunId` + `transcriptDir` are the **relaunch's** pair and that the prior pair sits in `attempts[]`; a record carrying ONE field of the died attempt's pair is the half-stamped relaunch friction row `/war-review` reports (basename ≠ `workflowRunId`); a record carrying BOTH stale fields is self-consistent and invisible to that check — this re-stamp is its only guard. Fail-open as every other stamp: a failed write logs one line and the run proceeds.
+**Checkpoint on-return reminder.** On every relaunch's return (the Checkpoint's on-phase-return stamp), re-check that the phase record's `workflowRunId` + `transcriptDir` are the **relaunch's** pair. Also check that the prior pair sits in `attempts[]`. A record carrying ONE field of the died attempt's pair is the half-stamped relaunch friction row `/war-review` reports (basename ≠ `workflowRunId`). A record carrying BOTH stale fields is self-consistent and invisible to that check. This re-stamp is its only guard. Fail-open as every other stamp: a failed write logs one line and the run proceeds.
 
 ## Hand-off catch-up
 
