@@ -61,6 +61,8 @@ findings route once judgment is licensed. Full mechanics:
    one locus with mandate-shaped or adjudication-match rationale; its operator `ask` preserves
    the fix-now / follow-up-and-merge fork while held. It never erases blockers or grants approval;
    a ruling and re-audit precede approval in interactive and unattended runs (#2279/#2280).
+   A seat conflict with no fix parks its ask and still holds the phase on purpose; a fixable
+   blocker takes a fix round first (#2557).
    Explicit escalation and budget exhaustion still hold. *(Coupled —
    [ADR-0032](0032-red-team-grades-by-artifact-kind.md) refines *what counts as a finding at all* when
    `/red-team` grades a plan against a not-yet-mutated repo: a `deliverableAbsence`-flagged finding is a
@@ -413,9 +415,10 @@ PIN-15, PIN-16) sets two rules on the terminal-disposition ladder:
   `demote:release-slot`, `demote:floor-skipped`, `demote:ask-unruled-afk`, `demote:unclassified`,
   `demote:land-gate`.
   `demote()` validates every `follow-up` reason against the enum at runtime; on a miss it prepends
-  `demote:unclassified` (itself a member) and logs the site loudly, never a throw. Three
-  failed-attempt sites (an untouched file, a dead ace worker, a red gate at the ace tip) stop
-  filing and route the row to the sweep as an absorb; a fix that broke something still files with
+  `demote:unclassified` (itself a member) and logs the site loudly, never a throw. A failed
+  attempt (an untouched file, a non-moved tip after a polish, subset or re-entry dispatch, a red
+  gate at the ace tip, a regressed multi-commit range, #2485 D2/D4) stops filing and routes the
+  row to the sweep as an absorb; a fix that broke something still files with
   `demote:absorb-regressed`. Each engine-filed issue body carries the prefix on its first
   `Demote-Reason:` line; the Checkpoint's `--afk` no-match ask lane files Lead-side with
   `demote:ask-unruled-afk`.
@@ -522,3 +525,5 @@ PIN-17) bounds Decision 4's `note` clause on two points (#2056):
 - 2026-11-10 · Amendment: single-layer choice (#2633, D6, PIN-6): `FIX_GATE_RULE` in `workflow-template.js` is the one copy of the rule; `agents/war-worker.md` step 4 carries only the trigger sentence "skip the full gate and follow the gate rule your prompt states", pinned by `prompt truth (D6, #2617)`.
 - 2026-11-11 · adopted under the living-ADR law: every dated section folds into the body as current law, and Channel 2 reads as enacted in Decision 4 · #1850 (ADR 0063), #2269 · failed because: the deferral to #1664 stayed in the text after Decision 4 enacted the two-sided boundary · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 10df1eef
 - 2026-11-11 · the relaunch-seed twin phrase reads `carried no map`, matching `schemas.md` · #2801 · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 06660104
+- 2026-11-12 · Decision 4 states the seat-conflict posture in place: a seat conflict with no fix parks its ask and holds the phase on purpose, and a fixable blocker takes a fix round first · #2557
+- 2026-11-12 · the `DEMOTE_REASONS` failed-attempt list matches GLOSSARY.md's **Demote reason prefix** entry: a dead ace worker leaves it, and a non-moved tip and a regressed multi-commit range join it · #2485 D2/D4 (plan 2026-11-08-doc-truth-drift-and-adr-hygiene D42) · failed because: a dead ace worker with a moved tip is re-audited, so it is no longer a failed attempt · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 49afcb1d
