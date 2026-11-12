@@ -749,7 +749,7 @@ test('Segmented-land bullet — filing-on-held names the filing dispatch alone; 
   assert.match(region, /Filing-on-held:/, 'the extracted Segmented-land region must reach item (2) `Filing-on-held:` — extraction truncated')
   assert.match(region, /filing dispatch still runs/, 'item (2) must keep the one true shape: the follow-up filing dispatch still runs on held:land-failed')
   assert.match(region, /`minorsFiled`/, 'item (2) must say where the stamped issue numbers ride on held:land-failed (the top-level return\'s `minorsFiled`)')
-  assert.doesNotMatch(region, /unfiled-followups block/i, 'the OLD `unfiled-followups block` disjunct is still in the Segmented-land bullet — no engine path emits a handoff on held:land-failed (#1801)')
+  assert.doesNotMatch(region, /unfiled-followups block/i, 'the OLD `unfiled-followups block` disjunct is still in the Segmented-land bullet — no handoff carries an unfiled-followups block; the stamped issue numbers ride `minorsFiled` (#1801)')
   assert.doesNotMatch(region, /or the `handoff` carries/i, 'the OLD emit-on-held disjunct (`or the `handoff` carries …`) is still in the Segmented-land bullet (#1801)')
 })
 
@@ -760,9 +760,10 @@ test('Segmented-land bullet — filing-on-held names the filing dispatch alone; 
 // and (late fix 4) the two "handoff-emitting phase" readers — SKILL.md's Follow-up filing floor
 // bullet and war-review's unfiled follow-ups bullet — must name every member, and the retired
 // pair-only sentences must be gone from every swept surface.
-// schemas.md is NOT swept here: its `handoff?` comment still reads "landed / held:escalation only" and
-// is locked by PIN-24 of the 2026-11-08 engine-recovery plan (a later plan retunes it).
+// schemas.md's handoff emit paragraph joined the sweep when plan 2026-11-08-doc-truth-drift-and-adr-hygiene
+// T3.5 retuned it (#2765; the engine-recovery plan's PIN-24 had left the file to that plan).
 const wrapUpDocSurfaces = () => [
+  ['schemas.md handoff emit paragraph', schemasMd, /^`handoff` is emitted on /, /^/],
   ['SKILL.md return bullet', skillMd, /^- returns `\{ landed, escalated/, /^- /],
   ['SKILL.md Checkpoint learnings bullet', skillMd, /^- \*\*Every landed phase captures learnings once, plus one resolution-fed pass after a held phase lands\*\*/, /^- /],
   ['SKILL.md Follow-up filing floor bullet', skillMd, /^- \*\*Follow-up filing floor — gate the DAG advance \(D4, #1331\)\.\*\*/, /^- /],
@@ -816,7 +817,7 @@ test('2702/D34 — the Wrap-up gate equals the handoff emit gate, and every doc 
   }
   // Bare-rendering ban: the retired pair-only sentences (the spellings at 4cb017a7, before the sweep),
   // whitespace-folded, over ALL of each surface.
-  for (const [label, src] of [['SKILL.md', skillMd], ['resume-and-recovery.md', resumeMd], ['design.md', designRefMd], ['war-review SKILL.md', warReviewSkillMd]]) {
+  for (const [label, src] of [['SKILL.md', skillMd], ['resume-and-recovery.md', resumeMd], ['design.md', designRefMd], ['war-review SKILL.md', warReviewSkillMd], ['schemas.md', schemasMd]]) {
     const folded = norm(src)
     for (const [re, what] of [
       [/handoff-emitting phase \(`landed` \/ `held:escalation`\)/i, 'the retired pair-only "handoff-emitting phase (`landed` / `held:escalation`)" reader'],
@@ -827,6 +828,8 @@ test('2702/D34 — the Wrap-up gate equals the handoff emit gate, and every doc 
       [/is null unless the Workflow landed the phase itself/i, 'the retired "is null unless the Workflow landed the phase itself" servitorResult rule'],
       [/present on `landed` \*\*and\*\* `held:escalation`/i, 'the retired pair-only handoff presence set'],
       [/the in-flow Wrap-up when the Workflow lands \(`landDecision === 'landed'`\)/i, 'the retired landed-only Checkpoint Wrap-up condition'],
+      [/is emitted on `landed` \*\*and\*\* `held:escalation`/i, 'the retired pair-only schemas.md emit sentence (#2765)'],
+      [/no handoff emits there/i, 'the retired schemas.md "no handoff emits there" consolidation clause (#2765)'],
     ]) {
       assert.doesNotMatch(folded, re, `${what} is still in ${label} — the Wrap-up and handoff also fire on held:land-failed (#2702)`)
     }
@@ -2167,17 +2170,17 @@ test('D32 companion — glossary-cold.md\'s header admits born-cold bodies besid
 // failure message here names the sweep descriptively and never quotes its alternation.
 //
 // PER-ALTERNATE, not merely the union: the two identifiers are NOT independently load-bearing at
-// this base. The embedded-args identifier hits all four surfaces; the fallback-anchor identifier
-// hits only the three non-SKILL.md ones (SKILL.md's staging prose cites the first and not the
-// second). A union-only equality is therefore fully satisfiable by the first alternate alone, so a
+// this base. The embedded-args identifier hits all five surfaces (the args preflight test joined
+// the original four, #1775); the fallback-anchor identifier hits only the three that are neither
+// SKILL.md nor that test (each cites the first and not the second). A union-only equality is therefore fully satisfiable by the first alternate alone, so a
 // rotted second fragment would narrow this census SILENTLY. Split-fragment construction is what
 // makes that fragment uniquely rot-prone: the literal is by design un-findable by the very sweep it
 // implements, so no repo-wide grep can catch a typo in it either. The per-alternate sets are the
 // only mechanical hold on it.
 //
-// Designed friction: this row intentionally REDs on legitimate growth. A fifth surface carrying
+// Designed friction: this row intentionally REDs on legitimate growth. A sixth surface carrying
 // either identifier is a correct change that must update the expected list in the SAME diff.
-test('D30 — the dispatch-args identifier sweep hits exactly its four expected surfaces, per alternate and in union (#1241, #1163)', () => {
+test('D30 — the dispatch-args identifier sweep hits exactly its five expected surfaces, per alternate and in union (#1241, #1163)', () => {
   // Split fragments — see the self-exclusion note above. Rotting either half of either token
   // REDs that alternate's own assert, which is the proof neither half is dead weight.
   const embeddingToken = 'EMBEDDED' + '_ARGS'
@@ -2219,7 +2222,7 @@ test('D30 — the dispatch-args identifier sweep hits exactly its four expected 
     assert.deepEqual(
       actual,
       want,
-      `${label}: the four-surface sweep census drifted — missing ${JSON.stringify(missing)}, ` +
+      `${label}: the five-surface sweep census drifted — missing ${JSON.stringify(missing)}, ` +
         `unexpected ${JSON.stringify(unexpected)}. A new surface carrying the identifier is a ` +
         'correct change that must update this expected list in the SAME diff; a missing surface ' +
         'means the occurrence was dropped — restore it, or retire the entry deliberately. Never ' +
@@ -3363,7 +3366,8 @@ test('D39 — tour step 8 is retyped to the disposition ladder; touched steps ca
 // (D40) SCHEMAS.MD ENUM-LINE PINS (D6 CLASS-1/CLASS-2) — the audit-outcome disposition enum line,
 // the mandatory `ask` field row, the top-level `asks` return row, the ninth handoff `asks` row
 // (ADDITIVE — no exact-key validator exists or is introduced, PIN-13), the widened
-// GitHub-conventions routing sentence, and the Three-producers adjudications paragraph. OLD-absent
+// GitHub-conventions routing sentence, and the member-naming adjudications producers paragraph
+// (its count word dropped by plan 2026-11-08-doc-truth-drift-and-adr-hygiene T3.5, #2136). OLD-absent
 // keys cite literals verified present at the plan's implementation base `a60221a` and retired at
 // this task's base by merged dep Task 2.2 — each absence assert guards against a revert of that
 // widening, never a never-present value (PIN-8): the pre-widening enum tail
@@ -3389,10 +3393,10 @@ test('D40 — schemas.md carries the widened enum/field/return/handoff/producer 
     [/"absorb"\|"follow-up"\|"note"\|"ask"/, 'the four-member disposition enum comment'],
     [/ask\?,\s+\/\/ \{ question, fork \} — MANDATORY on a disposition:'ask' finding/, 'the mandatory ask field row (question+fork)'],
     [/asks: \[ \{ task, seat, sha, question, fork, finding \} \]/, 'the top-level return `asks` row (full finding kept)'],
-    [/asks: \[ \{ task, seat, sha, question, fork \} \]/, 'the handoff ninth `asks` row (lossy projection)'],
+    [/asks: \[ \{ task, seat, sha, question, fork, corroborators\?, citationPrefill\? \} \]/, 'the handoff ninth `asks` row (lossy projection, with the optional spread keys, D9/#2137)'],
     [/NINTH handoff key, ADDITIVE/, "the ninth key's additive law (no exact-key validator)"],
     [/refuses an ask/i, "demote()'s ask refusal in the routing sentence"],
-    [/Three producers/i, 'the widened Three-producers adjudications paragraph'],
+    [/The set's \*\*producers\*\* are the plan's red-team report[^\n]*the Lead's own decompose-gate[^\n]*and the Checkpoint ask rulings/, 'the member-naming adjudications producers paragraph (no count word, #2136)'],
   ]) {
     assert.match(
       schemasMd,
@@ -3412,6 +3416,8 @@ test('D40 — schemas.md carries the widened enum/field/return/handoff/producer 
   for (const [re, what] of [
     [/"note" — auditor-owned/, 'the pre-widening three-member enum tail'],
     [/\*\*Two producers\*\*/, 'the pre-widening producer count literal'],
+    [/\*\*Three producers\*\*/, 'the retired producer count literal (T3.5, #2136)'],
+    [/asks: \[ \{ task, seat, sha, question, fork \} \]/, 'the pre-D9 handoff `asks` key list without its optional keys (#2137)'],
   ]) {
     assert.ok(
       !re.test(schemasMd),
@@ -4401,6 +4407,7 @@ test('terminal-pass-term — GLOSSARY.md carries **Terminal pass** and **Carried
     [/held phase'?s whole queue/, 'the held-phase carry'],
     [/discarded sweep'?s absorbs/, 'the discard-arm carry'],
     [/non-final terminal pass'?s rows/, 'the terminal-pass carry'],
+    [/approve trail never carries[^.]*`sweepApproved`[^.]*follow-up on any phase/, 'the approve-trail exception (`sweepApproved` demotes on any phase, #2247)'],
   ]) assert.match(cq, re, `the GLOSSARY.md **Carried queue** entry must carry ${what}`)
   // The two corrected carry-or-demote sentences (ace re-entry r3): the **Re-entry** budget-spent
   // route and the **Phase-close coherence sweep** discard clause each carry `carriedPhaseClose`
@@ -4408,8 +4415,10 @@ test('terminal-pass-term — GLOSSARY.md carries **Terminal pass** and **Carried
   // opens a line with a bolded cross-reference (`**Absorb budget** (...)`) before its `_Avoid_`.
   const rr = pick('Re-entry', /^\*\*Re-entry\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
   assert.match(rr, /sweep-discard ⇒ carried on `carriedPhaseClose` \(non-final phase\) or `follow-up` \(final\)/, 'the GLOSSARY.md **Re-entry** entry must carry the budget-spent carry-or-demote route (`carriedPhaseClose`, non-final phase)')
+  assert.match(rr, /approve trail \(`sweepApproved`[^)]*\), which demotes to `follow-up`\s+on any phase/, 'the GLOSSARY.md **Re-entry** entry must carry the approve-trail exception (#2247)')
   const pc = pick('Phase-close coherence sweep', /^\*\*Phase-close coherence sweep\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
   assert.match(pc, /queue carries on `carriedPhaseClose` \(non-final phase\) or demotes to follow-up \(final\)/, 'the GLOSSARY.md **Phase-close coherence sweep** entry must carry the discard-arm carry-or-demote clause (`carriedPhaseClose`, non-final phase)')
+  assert.match(pc, /approve trail[^;]*`sweepApproved`[^;]*demotes to follow-up on any phase/, 'the GLOSSARY.md **Phase-close coherence sweep** entry must carry the approve-trail exception (#2247)')
   // The two sentences corrected at ace re-entry r3 (same revert-green rationale as the pair above):
   // the **Absorb budget** terminal-pass charge clause and the **Drain cause** carry route.
   const ab = pick('Absorb budget', /^\*\*Absorb budget\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
@@ -4661,7 +4670,7 @@ test('D17 sibling — design.md §4 step 3 restates DEFAULTS.audit.roster verbat
 // slot` sentence there, so the decisive assert is the NEW rule beside the unchanged
 // `barrier:release-slot` bullet. The barrier bullet itself stays byte-stable: `plugin.json` /
 // `marketplace.json` only.
-test('D20 — release-slot eligibility by literal: eligibility absorb block, GLOSSARY.md entry, ADR 0013 Decision 5 + log line, and the retired SKILL.md `--ace` routing clause', () => {
+test('D20 — release-slot eligibility by literal: eligibility absorb block, GLOSSARY.md Version-literal guard and Disposition entries, ADR 0013 Decision 5 + log line, and the retired SKILL.md `--ace` routing clause', () => {
   const block = eligibilityRef.match(/`disposition:'absorb'`[\s\S]*?(?=\n\n|\n- )/)
   assert.ok(block, "could not locate the `disposition:'absorb'` block in disposition-eligibility.md — construct rotted")
   const b = norm(block[0])
@@ -4688,6 +4697,14 @@ test('D20 — release-slot eligibility by literal: eligibility absorb block, GLO
     [/version literal/i, 'the by-literal rule'],
     [/ADR 0013/, 'the ADR pointer'],
   ]) assert.match(e, re, `GLOSSARY.md's **Version-literal guard** entry must carry ${what} (D20)`)
+  // GLOSSARY.md **Disposition** — the scope widening #2660 asked for: the routing entry states the D20
+  // rule and never routes a release-slot-adjacent absorb to the sweep (#2287).
+  const disp = glossaryMd.match(/^\*\*Disposition\*\* \([^\n]*\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(disp, 'could not locate the `**Disposition** (…):` glossary entry in GLOSSARY.md — construct rotted')
+  const d = norm(disp[0])
+  assert.match(d, /_Avoid_/, 'the extracted **Disposition** entry must span its `_Avoid_` line — extraction truncated')
+  assert.match(d, /`RELEASE_SLOT_FILES` basenames refuse by filename/, "GLOSSARY.md's **Disposition** entry must state the D20 rule (only the `RELEASE_SLOT_FILES` basenames refuse by filename)")
+  assert.doesNotMatch(norm(glossaryMd), /release-slot-adjacent/, 'GLOSSARY.md still routes a release-slot-adjacent absorb to the sweep (#2287, OLD-absent)')
   // ADR 0013 — Decision 5 edited in place (the living-ADR ruling) and the dated Decision-log line.
   assert.ok(adr0013Body.length < adr0013.length, "ADR 0013: the record sections were not removed — the body cannot be scoped (fail closed)")
   assert.ok(adr0013Body.length > 2000, 'ADR 0013: the body (records removed) did not extract (non-vacuity guard)')
@@ -4965,11 +4982,14 @@ test('late-defect: doctrine ADR — ADR 0058 records the in-run fix and amends A
 // Each row's digest is the sha256 of the block's bytes in SKILL.md at base 6944d93, measured before
 // the move, so it is an oracle independent of the destination file. A reword, a dropped bullet or a
 // re-flow reds here. A sanctioned later edit re-pins the digest in the same commit, with its reason.
+// Re-pinned for #2713 (plan 2026-11-08-doc-truth-drift-and-adr-hygiene T3.5, PIN-33): § Promotion
+// steps gained the compare-before-the-copy bullet (the stale-local hold) and the copy and lint
+// bullets name it, a disclosed post-eviction edit (the file header's `Post-eviction edits:`).
 const PUBLICATION_EVICTIONS = [
   {
     section: '## Promotion steps (Gate 2 step 2)',
-    bytes: 6153,
-    sha256: '4fb7c883e435d96dfdd86154f34fd10b618cd37ef3f244b4652610d028e847bc',
+    bytes: 6637,
+    sha256: 'c7750bb604391817ae6c32a03128423878d1b5e8320f0c6aa82fe0324b47a3ac',
     gone: ['Provision a transient publication worktree', 'Pre-push staged-file check', 'Neutralized-pair exemption', 'stamp each promoted local original'],
   },
   {
@@ -5178,4 +5198,147 @@ test('living-adr-fold — no ADR carries an amendment heading or a bold dated ru
       assert.ok(line.includes(` · retired: docs/adr/${f} @ `), `docs/adr/${f}: a retired: field must name its own ADR file: ${line}`)
     }
   }
+})
+
+// ---- Doc-truth pins (plan 2026-11-08-doc-truth-drift-and-adr-hygiene, Task 3.5) ----
+//
+// (D30, PIN-30 (2)–(4)) ENGINE-FACT PINS. Three facts schemas.md restates get an
+// extraction-plus-equality row, never an absent-only grep: each row extracts its construct from
+// workflowTemplateSrc (non-vacuity: the extraction matched) and asserts the schemas.md row names
+// the same keys or shape, so either side rotting reds the pair. CITATION_MIN_LENGTH stays
+// de-mirrored by name (the citation? row names the constant, never its value).
+test('engine-fact-pin — ace label', () => {
+  const m = workflowTemplateSrc.match(/const aceLabel = \(r, site\) => 'ace:' \+ site \+ ':' \+ r\.task\.id \+ ':a' \+ \(r\.task\.absorbRounds \+ 1\)/)
+  assert.ok(m, 'could not extract `const aceLabel = (r, site) => \'ace:\' + site + \':\' + r.task.id + \':a\' + …` from workflow-template.js — the construct rotted (non-vacuity floor)')
+  // The engine label is ace:<site>:<task>:a<n>; the doc must name the same segment order.
+  assert.ok(schemasMd.includes('`ace:<site>:<task>:a<n>`'), 'schemas.md must name the ace dispatch label `ace:<site>:<task>:a<n>` the engine `aceLabel` mints (#2231)')
+  assert.ok(!schemasMd.includes('`ace:<task>:a<n>`'), 'schemas.md still names the site-less ace label `ace:<task>:a<n>` (#2231, OLD-absent)')
+  assert.ok(schemasMd.includes('`ace-gate:<task>:a<n>`'), 'schemas.md keeps the ace-gate label `ace-gate:<task>:a<n>` (no site segment)')
+})
+test('engine-fact-pin — handoff asks keys', () => {
+  const m = workflowTemplateSrc.match(/asks: asks\.map\(a => \(\{ ([^\n]*)\n((?:\s+\.\.\.\([^\n]*\n)+)/)
+  assert.ok(m, 'could not extract the handoff `asks: asks.map(a => ({ … }))` projection from workflow-template.js — the construct rotted (non-vacuity floor)')
+  const plain = [...m[1].matchAll(/(\w+): a\.\w+/g)].map((x) => x[1])
+  const spread = [...m[2].matchAll(/\{ (\w+): a\.\w+ \}/g)].map((x) => x[1])
+  assert.deepEqual(plain, ['task', 'seat', 'sha', 'question', 'fork'], 'the extracted projection must carry its plain keys — extraction truncated')
+  assert.ok(spread.length >= 2, 'the extracted projection must carry its optional spread keys — extraction truncated')
+  const row = schemasMd.match(/^ {4}asks: \[ \{ ([^}]*) \} \],/m)
+  assert.ok(row, 'could not locate the handoff `asks: [ { … } ],` row in schemas.md — the construct rotted')
+  const docKeys = row[1].split(',').map((k) => k.trim())
+  assert.deepEqual(docKeys, [...plain, ...spread.map((k) => k + '?')], 'the schemas.md handoff `asks` key list must equal the engine projection: plain keys, then each optional spread key with `?` (D9, #2137)')
+})
+test('engine-fact-pin — citation keys', () => {
+  const fn = workflowTemplateSrc.match(/const citationOf = f => \{[\s\S]*?\n\}/)
+  assert.ok(fn, 'could not extract `const citationOf = f => { … }` from workflow-template.js — the construct rotted (non-vacuity floor)')
+  const ret = fn[0].match(/return \{ (row: threadedRow, threadedRow, cited: row, rationale): /)
+  assert.ok(ret, "could not extract citationOf's `return { row: threadedRow, threadedRow, cited: row, rationale … }` — the construct rotted (non-vacuity floor)")
+  const keys = ret[1].split(',').map((k) => k.trim().split(':')[0])
+  assert.deepEqual(keys, ['row', 'threadedRow', 'cited', 'rationale'], 'the extracted citationOf return keys — extraction truncated')
+  const row = schemasMd.match(/^\s*citation\?,[^\n]*$/m)
+  assert.ok(row, 'could not locate the AuditVerdict `citation?` row in schemas.md — the construct rotted')
+  assert.ok(row[0].includes('{ ' + keys.join(', ') + ' }'), `the schemas.md \`citation?\` row must name the aced record keys { ${keys.join(', ')} } citationOf returns (D12, #2226)`)
+  assert.ok(row[0].includes('`CITATION_MIN_LENGTH`'), 'the schemas.md `citation?` row names the floor by its constant `CITATION_MIN_LENGTH`, never its value (A5)')
+  assert.ok(row[0].includes('`citationStamp`'), 'the schemas.md `citation?` row names `citationStamp` for the sweep-polish and terminal commit rows (D12)')
+})
+
+// (D32, PIN-32, #2682) The run manifest's per-phase task map is the `tasks` key valued from the
+// ledger.json task-status enum. run-manifest.md § When, the Lead's stamp procedure, names the key
+// and the enum in its on-phase-return bullet and points at schemas.md § Run manifest; no surface
+// names the `taskStatuses` key a Lead once wrote. Extraction by H2, then by the bullet's lead-in.
+test('manifest-tasks-key-and-enum', () => {
+  const when = runManifestMd.match(/^## When — at phase boundaries[^\n]*\n[\s\S]*?(?=\n## )/m)
+  assert.ok(when, 'could not locate `## When — at phase boundaries` in run-manifest.md — the construct rotted (non-vacuity floor)')
+  const bullet = when[0].match(/^- \*\*On phase return\*\* —[^\n]*$/m)
+  assert.ok(bullet, 'could not locate the `- **On phase return** —` bullet in run-manifest.md § When — the construct rotted (non-vacuity floor)')
+  for (const token of ['`tasks`', '`merged`', 'never `landed`', 'schemas.md'])
+    assert.ok(bullet[0].includes(token), `the run-manifest.md on-phase-return bullet must name ${token} (#2682)`)
+  for (const [name, src] of [['run-manifest.md', runManifestMd], ['schemas.md', schemasMd]])
+    assert.ok(!src.includes('taskStatuses'), `${name} must never name a \`taskStatuses\` key — the per-phase key is \`tasks\` (#2682)`)
+  const vs = schemasMd.match(/^- \*\*`tasks` vs `land`\*\*[^\n]*$/m)
+  assert.ok(vs, 'could not locate the schemas.md `tasks` vs `land` bullet — the construct rotted')
+  assert.ok(vs[0].includes('`merged`'), 'the schemas.md `tasks` vs `land` bullet must name `merged`')
+})
+
+// (D33, PIN-33, #2713) THE GATE-2 STALE-LOCAL HOLD. § Promotion steps compares each same-slug
+// pair before the copy, and a local copy the repo copy outgrew is held as stale-local, never
+// promoted over newer repo text. ADR 0022 §(I) and the cold **Promotion** body say so (the
+// GLOSSARY.md pointer row is unchanged). publicationSection's heading assert is the non-vacuity floor.
+test('gate2-promotion-staleness-compare', () => {
+  const steps = publicationSection(publicationMd, '## Promotion steps (Gate 2 step 2)')
+  assert.ok(steps.length > 0, 'the § Promotion steps body is empty (non-vacuity floor)')
+  for (const token of ['stale-local', 'diff <repo-file> <local-file>', 'overwrite-on-promote', 'flagged or stale-local'])
+    assert.ok(steps.includes(token), `learnings-publication.md § Promotion steps must carry ${JSON.stringify(token)} (#2713)`)
+  assert.ok(steps.indexOf('stale-local') < steps.indexOf('Copy the rest of the selection'), 'the compare runs BEFORE the copy bullet (#2713)')
+  const adr0022 = readFileSync(join(HERE, '..', '..', '..', 'docs', 'adr', '0022-servitor-local-root-writes-gate-2-promotion.md'), 'utf8')
+  const sectionI = adr0022.match(/^### \(I\) [^\n]*\n[\s\S]*?(?=\n##)/m)
+  assert.ok(sectionI, 'could not locate ADR 0022 §(I) — the construct rotted (non-vacuity floor)')
+  assert.ok(sectionI[0].includes('stale-local'), 'ADR 0022 §(I) must carry the stale-local hold (#2713)')
+  assert.match(adr0022, /^- \d{4}-\d{2}-\d{2} · [^\n]*#2713/m, 'ADR 0022 must carry a Decision-log line citing #2713 (living-ADR form)')
+  const coldMd = readFileSync(join(HERE, '..', 'references', 'glossary-cold.md'), 'utf8')
+  const promotion = coldMd.match(/^## Promotion\n[\s\S]*?(?=\n## )/m)
+  assert.ok(promotion, 'could not locate `## Promotion` in glossary-cold.md — the construct rotted (non-vacuity floor)')
+  assert.ok(promotion[0].includes('stale-local'), 'the glossary-cold.md § Promotion body must carry the stale-local hold (#2713)')
+})
+
+// (D8, PIN-8, #2120) THE RELAUNCH DE-MIRROR. run-manifest.md § Relaunch is the one home of the
+// relaunch rules. The home phrases are asserted present (the present half that keeps the absent
+// half from passing vacuously), and the mirror phrases absent from the two mirrors, which keep a
+// definition plus a pointer.
+test('relaunch-de-mirror — the relaunch rules live only in run-manifest.md § Relaunch (D8, #2120)', () => {
+  const home = runManifestMd.match(/^## Relaunch — [^\n]*\n[\s\S]*?(?=\n## )/m)
+  assert.ok(home, 'could not locate `## Relaunch` in run-manifest.md — the construct rotted (non-vacuity floor)')
+  for (const phrase of ['Dispatch counts are summed across attempts', 'overwrite `workflowRunId` + `transcriptDir` together', 'Archive the died attempt under `attempts[]`'])
+    assert.ok(home[0].includes(phrase), `run-manifest.md § Relaunch must carry the home phrase ${JSON.stringify(phrase)}`)
+  const schemasBullet = schemasMd.match(/^- \*\*Relaunch \(`attempts\[\]`\)\*\*[^\n]*$/m)
+  assert.ok(schemasBullet, 'could not locate the schemas.md `- **Relaunch (`attempts[]`)**` bullet — the construct rotted (non-vacuity floor)')
+  const coldMd = readFileSync(join(HERE, '..', 'references', 'glossary-cold.md'), 'utf8')
+  const coldBody = coldMd.match(/^## Relaunch attempt\n[\s\S]*?(?=\n## |(?![\s\S]))/m)
+  assert.ok(coldBody, 'could not locate `## Relaunch attempt` in glossary-cold.md — the construct rotted (non-vacuity floor)')
+  for (const [name, mirror] of [['schemas.md Relaunch bullet', schemasBullet[0]], ['glossary-cold.md § Relaunch attempt', norm(coldBody[0])]]) {
+    assert.match(mirror, /run-manifest\.md[^\n]*§ Relaunch/, `${name} must point at run-manifest.md § Relaunch`)
+    for (const phrase of [/sums dispatch counts/i, /summed across attempts/i, /archives the died attempt/i])
+      assert.doesNotMatch(mirror, phrase, `${name} restates the relaunch rule ${phrase} — it lives only in run-manifest.md § Relaunch (D8)`)
+  }
+})
+
+// (PIN-18 glossary half, #2557; #2283; #2138) THE POSTURE, §18 AND CHECKPOINT PINS. The seat-conflict
+// posture sentence sits on GLOSSARY **Seat-conflict ask** and ADR 0013 Decision 4; design.md §18
+// states the D20 rule by its constant, never the retired sweep route; skills/war/SKILL.md names
+// `corroborators` in both Checkpoint lists (the phase-report handoff render and the strike list).
+test('doc-truth-pins — the seat-conflict posture, design.md §18 and the Checkpoint corroborators lists (#2557, #2283, #2138)', () => {
+  const POSTURE = 'A seat conflict with no fix parks its ask and still holds the phase on purpose; a fixable blocker takes a fix round first'
+  const entry = glossaryMd.match(/^\*\*Seat-conflict ask\*\* \(audit\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the `**Seat-conflict ask** (audit):` entry in GLOSSARY.md — the construct rotted (non-vacuity floor)')
+  assert.match(norm(entry[0]), /_Avoid_/, 'the extracted **Seat-conflict ask** entry must span its `_Avoid_` line — extraction truncated')
+  assert.ok(norm(entry[0]).includes(POSTURE), 'GLOSSARY.md **Seat-conflict ask** must carry the posture sentence (#2557)')
+  const decision = adr0013.match(/^## Decision\n[\s\S]*?(?=\n### |\n## )/m)
+  assert.ok(decision, 'could not locate ADR 0013 `## Decision` — the construct rotted (non-vacuity floor)')
+  // terminator: the next numbered item or the true end of the section (a bare `$` under `m` would
+  // stop at the first line end)
+  const d4 = decision[0].match(/^4\. [\s\S]*?(?=\n\d+\. |(?![\s\S]))/m)
+  assert.ok(d4, 'could not locate ADR 0013 Decision 4 — the construct rotted (non-vacuity floor)')
+  assert.ok(norm(d4[0]).includes(POSTURE), 'ADR 0013 Decision 4 must carry the posture sentence (#2557)')
+  const s18 = designRefMd.match(/^## 18\. [^\n]*\n[\s\S]*?(?=\n## )/m)
+  assert.ok(s18, 'could not locate design.md `## 18.` — the construct rotted (non-vacuity floor)')
+  assert.ok(!/route to the sweep instead of being refused/i.test(norm(s18[0])), 'design.md §18 still routes README and other shared files to the sweep (#2283, OLD-absent)')
+  assert.ok(s18[0].includes('RELEASE_SLOT_FILES'), 'design.md §18 must state the D20 rule by its constant `RELEASE_SLOT_FILES` (#2283)')
+  const report = skillMd.match(/^Post a phase report — [^\n]*$/m)
+  assert.ok(report, 'could not locate the SKILL.md `Post a phase report —` Checkpoint line — the construct rotted (non-vacuity floor)')
+  assert.match(report[0], /asks parked \([^)]*`corroborators`/, 'the SKILL.md phase-report handoff render must list `corroborators` on the asks row (#2138)')
+  const gate = skillMd.match(/^- \*\*Ask ruling gate — [^\n]*$/m)
+  assert.ok(gate, 'could not locate the SKILL.md `- **Ask ruling gate —` bullet — the construct rotted (non-vacuity floor)')
+  assert.match(gate[0], /strike list[^\n]*`corroborators`/, 'the SKILL.md Ask ruling gate strike list must render `corroborators` (#2138)')
+})
+
+// (End state 8, #2136, #2231, #2242, #2175) The stale schemas.md literals stay gone: the producer
+// count, the site-less ace label, the future-tense clauses and the A4 hedge.
+test('doc-truth-pins — schemas.md carries none of the stale producer, ace-label, tense or hedge literals', () => {
+  assert.ok(schemasMd.length > 100000, 'schemas.md did not read (non-vacuity floor)')
+  for (const [re, what] of [
+    [/Three producers/, 'the producer count (#2136)'],
+    [/ace:<task>:a<n>/, 'the site-less ace label (#2231)'],
+    [/absent until then/, 'the future-tense absence clause (#2242)'],
+    [/A4 latitude/, 'the A4 hedge (#2175)'],
+    [/produced once/, 'the future-tense producer clause (#2242)'],
+  ]) assert.doesNotMatch(schemasMd, re, `schemas.md still carries ${what}`)
 })
