@@ -225,7 +225,7 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 
 1. **Setup** — WAR confirms the repo/`gh` state, detects your **gate command** (`uv sync && ruff check && pytest`, your `package.json` lint/test scripts, or it asks once), and picks a **learnings target** for the servitor. No phase ever runs without a gate.
 2. **Decompose + approve** — it reads the plan, proposes a phase → task DAG as a GitHub-issues preview, and **waits for your approval.** Nothing spawns until you say go; all phase epics are filed up front, task sub-issues just-in-time per phase.
-3. **Per phase** — the Lead prefetches relevant prior lessons into the seat prompts → workers implement each task in isolated worktrees → read-only auditors review the pinned SHA (Critical/Major findings block; approval is unanimous) → a serial refinery rebases, re-runs the gate, and merges → a write-scoped servitor records durable learnings.
+3. **Per phase** — the Lead prefetches relevant prior lessons into the seat prompts → workers implement each task in isolated worktrees → read-only auditors review the pinned SHA (Critical/Major findings block; approval is unanimous; a seat conflict with no fix parks its ask and holds the phase on purpose, while a fixable blocker takes a fix round first) → a serial refinery rebases, re-runs the gate, and merges → a write-scoped servitor records durable learnings.
 4. **Checkpoint** — the phase lands on `--working` as one `--no-ff` commit and is pushed; WAR posts a phase report and **checks in with you** before the next phase (skipped under `--afk`; hard escalations halt regardless).
 5. **Finish** — after the last phase, it opens **one PR** from `--working` → `--landing` and reports the URL.
 
