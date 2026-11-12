@@ -109,7 +109,7 @@ a HARD hold via this trigger.
 - **Leaves [ADR 0005](0005-dead-phase-halts-the-dag.md) untouched** — (C) reuses the existing
   `gate-evidence` escalation reason for the verdict trigger; **no** new status,
   `HARD_ESCALATION_REASONS`, or `KNOWN_LAND_DECISIONS` member is added, so the hand-mirrored enum and its
-  drift guard are byte-unchanged. A one-line header note in `land-decision.mjs` records that
+  drift guard are byte-unchanged. A header note in `land-decision.mjs` records that
   `gate-evidence` HARD fires on a provably-unrun mapped test, an `escalate` verdict, or a
   Critical/Major with a blank `suggested_fix` (`gateHardOf`), so Lead adjudication never misreads the
   reason as provably-unrun-only.
