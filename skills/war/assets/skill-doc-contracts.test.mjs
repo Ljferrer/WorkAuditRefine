@@ -5051,7 +5051,7 @@ const DECISION_LOG_LINE =
   /^- \d{4}-\d{2}-\d{2} · (?!retired:|failed because:)[^·\n]+ · (?!retired:|failed because:)[^·\n]+(?: · failed because: [^·\n]+)?(?: · retired: docs\/adr\/[^\s·]+\.md @ [0-9a-f]{7,40})?$/
 test('living-adr-terms — the meta-ADR resolves by slug to one file, and its Decision binds the terms, citation forms and log-line form', () => {
   const adrDir = join(HERE, '..', '..', '..', 'docs', 'adr')
-  const matches = readdirSync(adrDir).filter((f) => /^\d{4}-living-adrs-git-is-the-archive\.md$/.test(f))
+  const matches = readdirSync(adrDir).filter((f) => /-living-adrs-git-is-the-archive\.md$/.test(f))
   assert.equal(matches.length, 1,
     `expected exactly one docs/adr/*-living-adrs-git-is-the-archive.md, found ${matches.length} — ` +
       'zero means the meta-ADR is missing; two means a renumber race left a duplicate')
