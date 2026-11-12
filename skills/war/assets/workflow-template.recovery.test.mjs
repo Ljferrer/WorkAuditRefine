@@ -589,7 +589,14 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   // (617 B) moved byte-identical under its own `##` heading; the card keeps a bare-path trigger pointer
   // (never a `](…)` link — the named markdown-trigger set above stays separate) and none of the moved body.
   const mtOnly = refinerRecoveryMd.match(/^\(`floor_diagnostic` is merge-task-only — .*riding `status: "error"`\)$/m)
-  assert.ok(mtOnly && Buffer.byteLength(mtOnly[0], 'utf8') === 617, 'refiner-recovery.md § MergeResult merge-task-only fields carries the 617 B evicted parenthetical byte-identical')
+  assert.ok(mtOnly && Buffer.byteLength(mtOnly[0], 'utf8') === 617, 'refiner-recovery.md § MergeResult merge-task-only fields carries the 617 B parenthetical: the evicted text plus the `gate_segment` clause, the post-eviction edit the header\'s Post-eviction edits list names beside the endstate-check step 4 `cmd[i] exit: <n>` lines, the reland land confirm and the rest of that list')
+  // D15 (PIN-15, #2178): the header discloses every sanctioned edit to a moved block, by block and
+  // clause, and keeps the at-eviction-time qualifier.
+  const recoveryHeader = refinerRecoveryMd.slice(0, refinerRecoveryMd.indexOf('\n## '))
+  const editText = (recoveryHeader.split('Post-eviction edits:')[1] || '').split('\n\n')[0]
+  assert.ok(editText.split('\n').filter(l => l.startsWith('- ')).length > 0, 'the refiner-recovery.md header carries a non-empty Post-eviction edits: list')
+  assert.ok(editText.includes('`gate_segment`') && editText.includes('cmd[i]'), 'the Post-eviction edits list names the gate_segment clause and the cmd[i] lines')
+  assert.match(recoveryHeader, /at\s+eviction\s+time/, 'the header keeps the at-eviction-time qualifier')
   assert.ok(refinerMd.includes('read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md § MergeResult merge-task-only fields'), 'the card keeps the bare-path trigger pointer to the evicted parenthetical')
   assert.ok(!refinerMd.includes('is merge-task-only — the exit-1 test floor'), 'the card no longer carries the evicted parenthetical body')
   assert.match(refinerRecoveryMd, /## Pin-transfer arms/, 'the evicted pin-transfer arms section landed at the destination')

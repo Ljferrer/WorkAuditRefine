@@ -1,11 +1,13 @@
 # `tighten` mode — the five-step projection-shrink procedure
 
 Verbatim eviction from `skills/lessons-learned/SKILL.md`'s ``## `tighten` mode`` section
-(prompt-surface simplification, spec §4.3; the five steps below are byte-identical to the
-pre-eviction SKILL.md text). `SKILL.md` owns dispatch (which mode runs when) and resolves `$MEM`
+(prompt-surface simplification, spec §4.3; the five steps below were byte-identical to the
+pre-eviction SKILL.md text at eviction time). `SKILL.md` owns dispatch (which mode runs when) and resolves `$MEM`
 and `$REPO_ROOT` before loading this file; this file does not repeat the dispatch rule.
 Positional references inside the moved steps ("the bare pass", "the Phase 1/5/6/7 subcommands",
 "the numbered phases") refer to `SKILL.md`'s housekeeping phases, their original surroundings.
+Post-eviction edits: step 4 gained its **Re-plan before the swap** bullet and step 5 reports the
+projected bytes beside the after bytes (#2714), so those two steps are no longer byte-identical.
 
 Trigger: the invocation arguments contain `tighten` (`/lessons-learned tighten`).
 
@@ -71,6 +73,10 @@ Five steps, strict order:
 
 4. **Execute**, in this order — a struck dupe only fully archives across both sub-steps below, so the
    order is load-bearing, not stylistic:
+   - **Re-plan before the swap.** Re-run the step-1 `tighten-plan` line (read-only). If its
+     `currentBytes` differs from the gated JSON's, lessons landed since the plan. Then recompute the
+     projection as the new `currentBytes` minus the approved rows' `bytesFreed`. Keep both figures for
+     the report. Keep the approved set as it is: there is no second gate.
    - **Merges extend the set first.** Each approved cluster adds its `merged` slugs to the approved set.
      A `target` with a repo copy counts as `[repo]`-marked, so the branch and the Repo commit below run
      for it. The Phase 3 hub downgrade does not apply to these slugs, and `archive`'s hub WARN is
@@ -113,7 +119,11 @@ Five steps, strict order:
 5. **Report.** Before/after `MEMORY.md` lines + bytes + % full on both axes, the actioned buckets (slugs
    struck: local-only / repo-only / dupe-both; merged: each target and its merged slugs), any editorial
    trims, the PR URL (or "no repo-side change" when nothing `[repo]`-marked was struck and no merge
-   target has a repo copy), and the local swap's backup + `.prev` paths. **When the
+   target has a repo copy), and the local swap's backup + `.prev` paths. Report the projection shown
+   at the Gate (the JSON's `projectedBytes`, or the step-3 recompute when the approved set differs
+   from the default set) beside the after bytes, or the step-4 figure if the corpus moved. If the after
+   bytes exceed it, name the gap and its cause: the step-4 `currentBytes` delta, or a refused archive
+   (the exit-1 arm). **When the
    approved subset still leaves the file at or above `target`** (fewer strikes than the default
    `cutIndex`, or the eligible list itself falls short) — **execute anyway, then report the shortfall
    loudly**: bytes still missing plus the next-best candidates (the same `eligible` array from `cutIndex`

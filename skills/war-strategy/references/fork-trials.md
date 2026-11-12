@@ -121,8 +121,8 @@ same Bash call that defines the cap, e.g. `cd <scratchpad>/trial-<n> && cap <s> 
 in the real checkout.
 
 **The per-command cap.** Each command runs under the per-command timeout from `## Bounds`.
-A host with `timeout` may use `timeout <s> <command>`. This host has none, so the portable
-form is a process-group kill: fork, `setpgrp` in the child, exec the command, and on the
+A host with `timeout` may use `timeout <s> <command>`. On a host without `timeout`, use the
+portable form, a process-group kill: fork, `setpgrp` in the child, exec the command, and on the
 alarm send TERM then KILL to the negative pgid and exit 124, the code `timeout` uses:
 
 ```

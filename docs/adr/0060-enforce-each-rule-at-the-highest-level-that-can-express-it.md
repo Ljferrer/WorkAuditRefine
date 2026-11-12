@@ -88,13 +88,12 @@ true, and a stale guard rule is cheaper to revise than a card is to maintain.
 
 ### Named exceptions
 
-Four seats rely on level 6 on the day this ADR is accepted. Three of them write to shared state.
+Three seats rely on level 6. All three write to shared state.
 
 | Seat | Prompt-only surface | Standing? |
 |---|---|---|
 | `war-refiner` | Every tool call. `validate-worktree-scope.sh` fails open for it (ADR 0002), with `refinery-surface.test.sh` as a level 5 backstop. | No. Issue #2787 tracks the design work. |
 | `war-worker` | Bash writes. `warn-bash-write-scope.sh` only warns. Write and Edit are hook-enforced. | No. Issue #2787 tracks the design work. |
-| The setup-scout | Every tool call. `agents/war-setup-scout.md` is not on the `agents` list in `plugin.json`, so `/war-room` runs it as a general agent and its `tools: Read, Grep, Glob` line does nothing. | No. The doc-truth plan (Task 3.7) registers the card. |
 | The Lead (the main session) | Every tool call. `skills/war/SKILL.md` is its only control inside WAR. | Yes. The operator supervises the Lead. |
 
 No new seat, dispatch kind or guard arm may add to this table without an operator ruling
@@ -126,3 +125,4 @@ recorded in the Decision log below.
 - 2026-11-09 · ADR authored in the living form; ranks the six enforcement levels, states the law, extends least start from context to tools and permission, and names four prompt-only exceptions · issues #2782, #2783, #2784
 - 2026-11-10 · the five Git relays now run on `war-helper` on their first attempt, under its own guard arm; ADR 0057's "Snapshot and confirm dispatches also stay there" sentence is rewritten in place · issue #2784 (plan 2026-11-08-model-routing-and-prompt-byte-budgets, Task 5.3)
 - 2026-11-11 · the ADR 0042 citation names its folded D5 reason in the dated form · #1850 (ADR 0063)
+- 2026-11-12 · the setup-scout leaves the named exceptions: `plugin.json` registers `agents/war-setup-scout.md`, so its `tools:` line binds, and `validate-worktree-scope.test.sh` binds every card to that list · issue #2879 (plan 2026-11-08-doc-truth-drift-and-adr-hygiene, Task 3.7) · retired: docs/adr/0060-enforce-each-rule-at-the-highest-level-that-can-express-it.md @ 3bcda3f2

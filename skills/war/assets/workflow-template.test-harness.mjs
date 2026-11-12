@@ -2561,7 +2561,12 @@ const quietGate = (base) => (prompt, opts) => {
 // Re-pinned (#2842 audit fix): the mappedTests bullet names the repository gate's per-file
 // `== gate(node): <path> ==` headers beside the bash ones, and keeps the titles-only rule for a
 // declared gate that runs `node --test` over a glob. Every other bullet stays byte-identical.
-const GATE_AUDIT_CHECKLIST_SHA256 = '97362ed74b5991e810359d8b3ede8c0213e59cd13c219ba5fa8a28097b62e559'
+// Re-pinned (plan 2026-11-08-doc-truth-drift-and-adr-hygiene T3.2, D17 and D31, #2176, #2255, #2681):
+// the gate-log bullet gains the partial, unstamped and tip-mismatched arms and the live
+// GATE_LOG_UNTHREADED text; the D8 bullet gains the intake_lint: and cmd_bytes_mismatch: record-only
+// states and the per-command reading rule the auditor card carries; the pin_status bullet says an
+// arm (d) STALE-MISMATCH is expected after a later same-phase merge. Every other bullet stays byte-identical.
+const GATE_AUDIT_CHECKLIST_SHA256 = '4431ca80ba1b9a0fb3dcc570feac9f485ae3dccfc905b678d2c281ac1c652e6d'
 
 // A citation-resolved finding: the seat matched the parked ask's NAMED trade-off to a threaded
 // standing adjudication row and returns disposition:'absorb' + citation (A2 — panel judgment),
@@ -2574,8 +2579,9 @@ const citationF = () => ({ severity: 'Minor', title: 'mirrored value rides docs/
   citation: { row: 'ADJ-7: doc facts point at the source, never mirror', rationale: 'the row rules the mirror-vs-point trade-off this ask names' },
   suggested_fix: 'replace the mirrored value with a source pointer' })
 // Args for the citation family: the row-existence floor admits only citations whose `row` matches
-// a THREADED adjudication row (exact, or the threaded row contains the cited text at ≥ 24 characters — D11), so these fixtures thread the
-// standing set (the row text carries the run's own 'wtprov' slug token for the provenance floor).
+// a THREADED adjudication row (exact, or the threaded row contains the cited text at
+// CITATION_MIN_LENGTH characters or more — D11), so these fixtures thread the standing set (the row
+// text carries the run's own 'wtprov' slug token for the provenance floor).
 const CITED_ADJ = ['ADJ-7: doc facts point at the source, never mirror — ruled at the wtprov decompose gate']
 const CITE_ARGS = (over = {}) => ACE_ARGS({ adjudications: CITED_ADJ, ...over })
 

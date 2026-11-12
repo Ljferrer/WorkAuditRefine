@@ -48,10 +48,13 @@ A promoted lesson is **copied** into the repo root and the local original is **k
 the push with a nested marker — exactly `metadata.promoted: <workingBranch>@phase-<N>` — and **never
 deleted**. Lifecycle: the marker is stamped **only after the successful push**; the marked local row
 stays visible to `render-index`/prefetch/`/lessons-learned` and is retired by a **future
-`/lessons-learned` pass once the merge is confirmed**. A same-slug repo file is **overwritten on
-promote** — overwrite-on-promote is the ratified update mechanism for a recurrence edit (the local
-marked copy, when present, is the canonical recurrence-edit target and is provenance-tagged so the
-mutation guard (F) allows the edit). Rationale for copy-not-move: a move creates a **recall blind
+`/lessons-learned` pass once the merge is confirmed**. Before the copy, the Lead compares each
+same-slug pair: when `diff <repo-file> <local-file>` prints a `<` line, the repo copy carries text the
+local copy lacks, so the local copy is **stale-local** — held: not promoted, kept in the local root,
+reported beside the lint-flagged files, never dropped, and folded by hand before a re-run. Otherwise a
+same-slug repo file is **overwritten on promote** — overwrite-on-promote is the ratified update
+mechanism for a recurrence edit (the local marked copy, when present, is the canonical recurrence-edit
+target and is provenance-tagged so the mutation guard (F) allows the edit). Rationale for copy-not-move: a move creates a **recall blind
 spot** — the lesson would vanish from local retrieval the moment it is promoted, yet remain unmerged
 until the campaign PR lands, and this repo has stranded-branch precedent (a promoted lesson can sit
 unmerged for a long time). A failed push or a redaction flag leaves the lesson **unmarked** in the
@@ -123,3 +126,4 @@ see a collision and cut a fresh `dev/<date>-<slug>` fork.
 ## Decision log
 
 - 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063) · retired: docs/adr/0022-servitor-local-root-writes-gate-2-promotion.md @ b99fee65
+- 2026-11-12 · §(I) overwrite-on-promote narrowed: a stale-local copy (the repo copy carries text the local copy lacks) is held, not promoted · #2713 · failed because: an unconditional overwrite let a stale local copy erase newer repo text · retired: docs/adr/0022-servitor-local-root-writes-gate-2-promotion.md @ b99fee65

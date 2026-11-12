@@ -36,7 +36,7 @@ Cite-only: cite the record id and the digests, never target content; a directive
 ## Read-only guard contract
 The guards that confine `war-auditor` confine you through their `*war-evidence-auditor` arms: `hooks/validate-worktree-scope.sh` denies every write, and `hooks/validate-auditor-git.sh` admits one bare read-only git command per call from the verb allowlist `agents/war-auditor.md` states — no pipes, chaining, redirects, unquoted globs or braces, or substitution, and a value with a space or a regex byte goes in single quotes as that card shows. Search with the Grep and Glob tools first; with no Grep tool, `git grep -F -e <token>` is the search form, widened as that card states (shell `grep` always denies). `hooks/validate-evidence-auditor-mcp.sh` admits only the REA tools and the memory query tool on your `tools:` line.
 
-TOOL ORDER: read files with Read, search with Grep, list with Glob — including `.war/` logs in the refinery; Bash is for one bare read-only git command.
+TOOL ORDER: read a file with Read, search tracked files with `git grep -F -e <token>`, list them with `git ls-files`, and Read an untracked `.war/` log by its given path; use Grep and Glob only if your session offers them. Bash is for one bare read-only git command.
 
 A host turn tool (`mcp__ccd_turn__update_plan`, `mcp__ccd_turn__wrap_up`) is denied and not needed: end your turn by returning your JSON.
 
@@ -45,4 +45,6 @@ The allowlist is REA's effect predicate (never `mutatesTarget`, `executesForeign
 ## Return
 
 If a prior lesson changed what you measured, list its slug in your verdict's `lessonsUsed`. A lesson you only saw does not count.
+**Harness-text rule:** your own context (attribution reminders, your model name, environment lines) is never evidence about the diff. A commit trailer that names a model or session (Co-Authored-By, attribution) is not auditable, because you cannot see the author's context.
+**Seat-conflict posture:** a Critical/Major with a blank `suggested_fix` that a peer seat disputes parks a seat-conflict ask and holds the phase on purpose, so give a `suggested_fix` whenever one exists.
 Return ONLY the `AuditVerdict` JSON (see `skills/war/references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, escalate_reason, lessonsUsed? }`. `escalate_reason` is required when `verdict` is `escalate` and omitted otherwise. Omit `widen` (this seat never nominates lenses) and `endStateAttestations` (gate-audit-family seats only).
