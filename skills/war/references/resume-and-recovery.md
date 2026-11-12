@@ -1,12 +1,13 @@
 # /war resume, held-outcome handling, and recovery
 
-Verbatim evictions from `skills/war/SKILL.md` — the `## Resume` body and the `## Checkpoint`
-`held:*` / routing / recovery arms (prompt-surface simplification, spec §4.3; each moved block was
-byte-identical to its pre-eviction SKILL.md text **at eviction time**, and its relative link targets
-have since been rewritten to resolve from this file — the link-truth pass, #1212). Positional words
+Verbatim evictions from `skills/war/SKILL.md`: the `## Resume` body and the `## Checkpoint`
+`held:*` / routing / recovery arms (prompt-surface simplification, spec §4.3). Each moved block was
+byte-identical to its pre-eviction SKILL.md text **at eviction time**. Its relative link targets
+have since been rewritten to resolve from this file (the link-truth pass, #1212). Positional words
 inside the moved blocks ("above", "below", "under `## Checkpoint`") refer to their original SKILL.md
-positions: the fail-closed phase classification, the Gate-2 post-servitor publication flow (its promotion steps and CLAUDE.md pointer duty now in [learnings-publication.md](learnings-publication.md)), and the
-per-phase launch step remain in `skills/war/SKILL.md`; the submodule router, the submodule
+positions. The fail-closed phase classification and the per-phase launch step remain in `skills/war/SKILL.md`.
+So does the Gate-2 post-servitor publication flow, with its promotion steps and CLAUDE.md pointer duty now in [learnings-publication.md](learnings-publication.md).
+The submodule router, the submodule
 reconciliation extension, and the `held:submodule-pr` sub-procedure live in
 [submodule-flows.md](submodule-flows.md).
 
@@ -109,22 +110,22 @@ A **`held:escalation` partial phase** — N−1 tasks already merged to the inte
 
 ## Phase-close polish reverts — never self-justifying
 
-Trigger: you are adjudicating — or about to accept — a phase-close revert whose commit body carries only git's auto-generated revert message.
+Trigger: you are adjudicating, or about to accept, a phase-close revert. Its commit body carries only git's auto-generated revert message.
 
-Provenance: added post-eviction by the link-truth pass (#1243) — **not a moved block**; the eviction provenance in this file's header does not cover this section.
+Provenance: added post-eviction by the link-truth pass (#1243), so this is **not a moved block**. The eviction provenance in this file's header does not cover this section.
 
-A phase-close polish revert carrying only an auto-generated body is **never self-justifying**: that message records *what* was reverted and never *why*, so nothing in it separates "the polish commit broke the gate" from "the polish commit was rolled back by mistake". Three duties before you accept one:
+A phase-close polish revert carrying only an auto-generated body is **never self-justifying**. That message records *what* was reverted and never *why*. So nothing in it separates "the polish commit broke the gate" from "the polish commit was rolled back by mistake". Three duties before you accept one:
 
-1. **Run the gate at the reverted commit itself.** A **green** target proves the revert had no gate justification — treat the revert as the defect, not the polish commit it undid.
-2. **Diff the revert against still-live text for green-by-deletion.** An assertion whose subject is still present in the guarded file is a **guard**, never obsolescence — dropping it greens the pin by removing the check, not by fixing the fact.
-3. **Re-land with a real rationale naming which findings are re-opened**, and **diff the reverted commit's fix-set against the redo pass's fix-set by finding title/file** before treating the absorb queue as drained. A redo pass re-derives its queue from the findings open *at redo time*, so every finding the reverted commit had already closed is silently orphaned — the recorded orphaning mechanism, not a hypothetical.
+1. **Run the gate at the reverted commit itself.** A **green** target proves the revert had no gate justification. Treat the revert as the defect, not the polish commit it undid.
+2. **Diff the revert against still-live text for green-by-deletion.** An assertion whose subject is still present in the guarded file is a **guard**, never obsolescence. Dropping it greens the pin by removing the check, not by fixing the fact.
+3. **Re-land with a real rationale naming which findings are re-opened.** Then **diff the reverted commit's fix-set against the redo pass's fix-set by finding title/file**. Do it before you treat the absorb queue as drained. A redo pass re-derives its queue from the findings open *at redo time*. So every finding the reverted commit had already closed is silently orphaned. That is the recorded orphaning mechanism, not a hypothetical.
 
 Recovery auto-skips require `task-integrated.sh` proof of integrated task-owned work, as specified
 in [refiner-recovery.md](refiner-recovery.md#recovery-task-provenance). The proof is the task's
-first-parent merge commit: a commit on the integration branch's first-parent history whose parsed
-`WAR-Task: <task branch>` trailer names the task and whose second parent is the task tip. A
+first-parent merge commit. It is a commit on the integration branch's first-parent history. Its parsed
+`WAR-Task: <task branch>` trailer names the task, and its second parent is the task tip. A
 positive shared-phase commit count cannot prove ownership, and a fast-forward-only branch has no
 merge commit, so it never proves. Task content must match at the merge commit across its own change
-set, and each later first-parent change to those paths must be another task's merge commit (#2571).
-Any other later change refuses, even when it restores the bytes. Cancelled owned work, fast-forward-only
-and untagged legacy branches run through work/audit again (#2196, #2485).
+set. Each later first-parent change to those paths must be another task's merge commit (#2571).
+Any other later change refuses, even when it restores the bytes. Cancelled owned work runs through
+work/audit again, and so do fast-forward-only and untagged legacy branches (#2196, #2485).
