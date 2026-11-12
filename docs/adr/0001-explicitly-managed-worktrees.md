@@ -32,3 +32,7 @@ when the harness offers one for free?" — this records why.
   base-agnostic, auto-cleaned worktree is exactly what's wanted — the **red-team throwaway
   sandboxes** and the **servitor**. Those keep using harness isolation; only the WAR worker path
   is explicitly managed.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

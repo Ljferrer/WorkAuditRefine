@@ -50,6 +50,11 @@ never a byte-level hash of the archive itself.**
 4. **The duplication is deliberate, and it is what the drift guard is for.** The manifest restates facts
    the tarball already contains; that restatement is what makes the blob reviewable without extraction,
    at the cost of a drift surface — `verify` is the mechanical guard that holds the two in equality.
+5. **The seed tier caps at 110 members.** `SEED_MAX_MEMBERS` in
+   `skills/lessons-learned/assets/seed-pack.mjs` holds the member cap. The byte cap (1,500,000 B) and
+   the archive-tier caps sit beside it. The cap stays dual-axis, and eviction stays operator-gated. The
+   cap sits above the corpus the `seed-candidate` ingest sweeps built (93 members after #2592 to
+   #2603), so a pack does not propose evicting current members that new lessons name.
 
 ## Considered options
 
@@ -84,21 +89,6 @@ never a byte-level hash of the archive itself.**
   replacement for it — [ADR 0015](0015-files-canonical-memory-with-derived-index.md) is untouched, and
   both per-repo memory roots stay loose Markdown files.
 
-## Amendment (2026-10-26): seed-tier member cap raised from 50 to 100
-
-The operator raised the seed-tier member cap from 50 to 100 (`SEED_MAX_MEMBERS` in
-`skills/lessons-learned/assets/seed-pack.mjs`). The first `seed-candidate` ingest sweep accepted
-28 lessons into a 41-member corpus. At 50, the pack proposed evicting 19 current members, among
-them a member that three new lessons name. The byte cap (1,500,000 B) and the archive-tier caps are
-unchanged. The cap stays dual-axis and eviction stays operator-gated.
-
-## Amendment (2026-11-10): seed-tier member cap raised from 100 to 110
-
-The operator raised the seed-tier member cap from 100 to 110 (`SEED_MAX_MEMBERS`). The second
-`seed-candidate` ingest sweep (#2592 to #2603) accepted 12 lessons into a 93-member corpus. At 100, the
-pack proposed evicting the 5 largest current members, among them
-`weak-test-assertion-passes-without-feature-being-exercised`. The byte cap and the archive-tier caps are unchanged.
-
 ## References
 
 - Design spec: [`docs/specs/2026-07-22-lessons-learned-seed-design.md`](../specs/2026-07-22-lessons-learned-seed-design.md)
@@ -106,15 +96,16 @@ pack proposed evicting the 5 largest current members, among them
   equality axis), §4 (`seed-pack.mjs` mechanics), §7 (this ADR), §10 criterion 1 (manifest equality).
 - Implementation plan: [`docs/plans/2026-07-22-lessons-learned-seed.md`](../plans/2026-07-22-lessons-learned-seed.md)
   — Task 1.1 (`seed-pack.mjs` pack/verify/evict), Task 1.2 (the committed corpus + `seed-set.test.mjs`
-  contract), Task 2.3 (this ADR + the CONTEXT.md terms).
+  contract), Task 2.3 (this ADR + the GLOSSARY.md terms).
 - [ADR 0015](0015-files-canonical-memory-with-derived-index.md) — files-canonical memory with a derived
   index; the convention this ADR deliberately departs from for the portable corpus, and stays untouched
   for both per-repo roots.
 - [ADR 0025](0025-drift-guard-discipline.md) — the mirror-registry doctrine (a canonical source and a
   mirror site, each guarded) that the manifest↔tarball equality check follows.
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-10-26 · seed-tier member cap raised from 50 to 100 · first `seed-candidate` ingest sweep (41-member corpus; at 50 the pack proposed evicting 19 members) · retired: docs/adr/0039-seed-set-capped-manifest-mirrored-tarball.md @ 693e33b4
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0039-seed-set-capped-manifest-mirrored-tarball.md @ b31d2203
+- 2026-11-10 · seed-tier member cap raised from 100 to 110 · #2592 to #2603 (93-member corpus; at 100 the pack proposed evicting the 5 largest members) · retired: docs/adr/0039-seed-set-capped-manifest-mirrored-tarball.md @ 389a33c6
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

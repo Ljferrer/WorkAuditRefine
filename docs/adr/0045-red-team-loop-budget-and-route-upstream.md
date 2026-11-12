@@ -155,3 +155,7 @@ verdict.**
   template), `skills/red-team/SKILL.md` Steps 1/3/5/6, `skills/war/assets/war-config.mjs`
   (`run.redteamRoundLimit`), `skills/war-campaign/SKILL.md` step 3 +
   `assets/campaign-ledger.mjs` (`redteamRounds`).
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

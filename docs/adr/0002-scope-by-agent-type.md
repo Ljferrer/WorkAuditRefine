@@ -47,22 +47,22 @@ structural guard instead and explicitly drop exact confinement.
 - The hook is rewritten as part of the worktree-provisioning design; the old `WAR_WORKTREE` guard
   is retired.
 
-## Addendum — 2026-07-12: confinement residual narrowing (#809, #810)
+## Confinement residual narrowing (#809, #810)
 
-Two consciously-ratified residuals of the `agent_type` guard family were narrowed **without changing
-the ratified posture**. Detection coverage and anchor precision moved; the fail-open refiner/main arm,
-the warn hook's always-`exit 0` contract, and the deferred per-run memory-root anchoring all stayed
+Two consciously-ratified residuals of the `agent_type` guard family are narrowed **without changing
+the ratified posture**. Detection coverage and anchor precision are tighter; the fail-open refiner/main
+arm, the warn hook's always-`exit 0` contract, and the deferred per-run memory-root anchoring stay
 exactly as ratified above.
 
 **Three narrowings.**
 
 1. **Worker Bash-write detection widened** (`warn-bash-write-scope.sh`, #809). The advisory warn hook
-   now resolves relative redirect targets (`> foo`, `a>b`) against the payload's `.cwd` instead of
+   resolves relative redirect targets (`> foo`, `a>b`) against the payload's `.cwd` instead of
    skipping them, and scans interpreter `-c`/`-e` payloads (`python`/`perl`/`ruby`/`node`) that carry a
    write-indicative token (`open(`, `write`, `writeFile`) for absolute-path tokens. Only the redirect
    extractor was widened to relative targets; every other extractor stays absolute-only (documented
    ceiling). Still **advisory only — always exits 0, never blocks** (re-ratification 1).
-2. **Servitor write glob `$HOME`-anchored** (`validate-worktree-scope.sh`, #810). The servitor arm now
+2. **Servitor write glob `$HOME`-anchored** (`validate-worktree-scope.sh`, #810). The servitor arm
    allows only a path under `$HOME/.claude/projects/<project>/memory/` (`${HOME:-}` spelled throughout,
    so a `set -u` run with `HOME` unset does not kill the hook before the fallback; a trailing slash is
    normalized off with `${home%/}` so the pattern never forms a `//`). When `$HOME` is unset or empty
@@ -90,7 +90,7 @@ exactly as ratified above.
   no-Bash capability allowlist (the **primary** confinement) and the provenance hook's existing-target
   mutation guard.
 
-**Suffix-anchoring capture consequence (spec §8).** Confinement is now **per known agent type**: a
+**Suffix-anchoring capture consequence (spec §8).** Confinement is **per known agent type**: a
 future `<ns>:war-servitor-v2` would fall through to the fail-open default arm (capability-first — a new
 role inherits no legacy confinement until its own arm is added). The inversion risk is real:
 under-capture on a *deny-side* arm (auditor / servitor) fail-opens a read-only agent — strictly worse
@@ -104,7 +104,7 @@ Lead's `memoryLocalRoot` derives from the *same* `~` expansion as `$HOME`, so th
 `/Users`) surfaces as the named servitor deny, whose message states both the anchored expectation and
 the fallback condition. **One-line rollback:** revert the servitor case pattern to the bare shape glob.
 
-## Amendment (2026-10-27): the memory query tool
+## The memory query tool
 
 Plan `docs/plans/2026-10-27-memory-query-mcp-tool.md` widens the MCP arm of the capability-first
 confinement (`hooks/validate-evidence-auditor-mcp.sh`) by one tool: the plugin's memory query tool
@@ -118,7 +118,8 @@ name on its `MEMORY_TOOL=` line; every other surface points at that literal and 
 - **No-seat-write rule.** The seat itself never writes. The server appends one query-log line only
   into an existing directory named by `local`, and never creates one. A query over `repo` only reads.
   The server applies the same `local` anchor before it appends, so a caller the hook does not route
-  (the main session) also cannot log outside a memory root.
+  (the main session) also cannot log outside a path of the anchor's shape, and a refused append never
+  fails the query (#2499).
 - **The `local` anchor.** When a call carries `local`, the hook denies it unless the value is an
   absolute path that itself matches `*/.claude/projects/*/memory` (one trailing `/` tolerated) with
   no `..` segment. An absent `local` passes,
@@ -130,7 +131,7 @@ name on its `MEMORY_TOOL=` line; every other surface points at that literal and 
 The posture is unchanged: the capability allowlist stays the primary confinement, and the hook is
 the MCP arm of the same `agent_type`-keyed, suffix-anchored structural guard.
 
-## Addendum (2026-11-08): Windows path form and clearer worker denials
+## Windows path form and clearer worker denials
 
 Plan `docs/plans/2026-11-08-auditor-and-worker-guard-habits.md` (Task 1.2) admits Windows-form
 spellings of already-allowed paths and adds `..` denials; it removes no deny. On a POSIX host a `\`
@@ -142,8 +143,8 @@ fence deny a raw value that holds a `\` and does not start with a drive `X:`.
   `/` and a leading drive `X:` into `/x` (lower case). It runs on the path and on `$HOME` before
   the `..` reject, before the servitor `$HOME` glob and its fallback, before the provenance
   classifier, and before the memory query `local` fence and the REA output-path `..` check
-  (PIN-13, PIN-20). A Windows-form servitor path now matches its memory root, and a backslash
-  `..` segment is now denied. Normalizing first can only add a `..` denial, never remove one. The
+  (PIN-13, PIN-20). A Windows-form servitor path matches its memory root, and a backslash
+  `..` segment is denied. Normalizing first can only add a `..` denial, never remove one. The
   unanchored memory glob still lives only in the two sanctioned places.
   `hooks/guard-conventions.test.sh` row `NP1` fails when the three copies differ.
 - **Worker scratch place.** The worker deny names `<worktree>/.war/` as the place for scratch
@@ -154,8 +155,15 @@ fence deny a raw value that holds a `\` and does not start with a drive `X:`.
   The `war-evidence-auditor` text is unchanged. In the four seat arms a host turn tool
   (`mcp__ccd_turn__*`) gets its own deny text: the tool is not needed, and a seat ends its turn
   by returning its JSON (PIN-23). The tool stays denied; the pass-through arm is unchanged.
-- **Bash write advisory.** `warn-bash-write-scope.sh` stays advisory (always exit 0). It no
-  longer reads `/dev/null` as a write target, and its warning names `WORKER_WRITE_TOOL_RULE`.
+- **Bash write advisory.** `warn-bash-write-scope.sh` stays advisory (always exit 0). It does not
+  read `/dev/null` as a write target, and its warning names `WORKER_WRITE_TOOL_RULE`.
 
 [ADR 0060](0060-enforce-each-rule-at-the-highest-level-that-can-express-it.md) ranks the enforcement
 levels, and names the refiner and worker Bash-write fail-open arms here as exceptions to close (#2787).
+
+## Decision log
+
+- 2026-07-12 · Addendum: confinement residual narrowing · #809, #810 · retired: docs/adr/0002-scope-by-agent-type.md @ 88bcaec1
+- 2026-10-27 · the memory query tool · plan `docs/plans/2026-10-27-memory-query-mcp-tool.md`, #2499 · retired: docs/adr/0002-scope-by-agent-type.md @ aed8f850
+- 2026-11-08 · Addendum: Windows path form and clearer worker denials · plan `docs/plans/2026-11-08-auditor-and-worker-guard-habits.md` Task 1.2 · retired: docs/adr/0002-scope-by-agent-type.md @ 8d125b81
+- 2026-11-11 · adopted under the living-ADR law; the server-side anchor is stated as a path-shape match (the `CHANGELOG.md` 0.21.20 entry) · #1850 (ADR 0063) · failed because: "outside a memory root" overclaimed a path-shape anchor · retired: docs/adr/0002-scope-by-agent-type.md @ cd91c74a

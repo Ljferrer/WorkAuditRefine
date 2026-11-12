@@ -66,3 +66,7 @@ This ADR amends four ADRs by reference. Their text stays as written, and each re
   launch.
 - Field proof is deferred to backstops: a live late-fix pass, a live pre-ace probe, and the first
   indent-stripped staged script, each named in the plan's backstops section.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

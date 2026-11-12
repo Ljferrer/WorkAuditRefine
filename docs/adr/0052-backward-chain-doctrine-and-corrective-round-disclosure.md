@@ -26,7 +26,7 @@ rewarded exit.
 
 **Every role chains backward from the cited End state and fixes the class at the earliest unmet
 link. The doctrine discloses by corrective round, the auditor classifies each re-block, and the
-whole chain rides existing fields.** Six parts follow.
+whole chain rides existing fields.** Seven parts follow.
 
 ### 1. Four roles, five reference files, one examples bank
 
@@ -48,8 +48,9 @@ block. Each block rides its dispatched prompt byte-equal, pinned by a fixture in
 two sites. The examples bank and every other section are read by pointer. The five skeletons
 (headings, rule lists, tables, seed entries) are the ones ratified at the interview (D14, PIN-1
 ‡): no rule dropped, none added. The fixer file composes with
-`fix-round-doctrine.md` by pointer: the chain first, then that file's ten rules over the diff. The
-ten rules are not restated.
+`fix-round-doctrine.md` by pointer: the chain first, then that file's eleven rules over the diff.
+Rule 11 says a byte-cap breach on a prompt surface is a signal to evict, never to reword. The
+rules are not restated.
 
 The reach is fixed (D5, PIN-6, D6): all seven fix-applying builds carry the fixer block (FIX_NEEDED,
 ace subset, ace re-entry, ace advisory polish, the floor family, the phase-close sweep, the
@@ -146,6 +147,26 @@ author's `Critical path` block is Part 1 placement latitude, never a new require
 phase under `## Build order`. `schemas.md` documents each convention by pointer to its reference
 file.
 
+### 7. The fix-round rules on six builds, and the sibling-site limit
+
+The operator's #2127 ruling puts the `fix-round-doctrine.md` rules on the batch ace ADVISORY
+POLISH, PHASE-CLOSE COHERENCE SWEEP and TERMINAL PASS builds. The FIX_NEEDED, ACE BISECTION SUBSET
+and ACE RE-ENTRY BATCH builds keep them. The floor family stays out of that block, and it keeps
+the backward chain.
+
+The operator ruled the limit on those three added builds in PR #2577. A worker fixes each sibling
+site of a listed finding's defect class, and lists any other defect under `Ignore for now:`.
+`FIX_ROUND_SCOPE_CLAUSE` carries that sentence. `fixRoundFenceClause` names each file that another
+task, plan or the release slot owns, and a sibling site there goes on the list. No floor reads the set,
+so the prompt is the guard. These workers cannot stop and ask, so the list is how they ask: the
+engine writes each list to the phase report's `notes`. ADVISORY POLISH runs beside its wave peers,
+so it fixes a sibling site only in its own files or a listed row's file. Its list of other siblings
+reaches the phase report for a ruling. A listed row in a fenced file goes to the sweep before dispatch. A cross-file claim
+rule for polish was ruled, then split into #2578, because it needs a change to how the
+merge step replays commits. The sweep stays one commit that one panel judges, so ADR 0012's
+discard guard holds. The terminal pass stays one commit that one seat judges, and that pass
+forward-reverts a regression.
+
 ## Consequences
 
 - Cards and dispatched prompts change in the same task (G8, the plan's Task 2.1): the worker and
@@ -158,9 +179,9 @@ file.
 - The template's prompt-literal share grew past its hard line. The raise was the operator's
   pre-`/war` re-baseline pass on that one surface, sized by ADR 0042's D5 formula and carrying the
   `Budget-Raise` trailer (ADR 0048). No worker edits a budget constant (G13).
-- `CONTEXT.md` defines the four terms under `### Backward-chain doctrine (ADR 0052)`: corrective
+- `GLOSSARY.md` defines the four terms under `### Backward-chain doctrine (ADR 0052)`: corrective
   round, relation tag, critical path block, history digest.
-- `fix-round-doctrine.md` is untouched and composes by pointer. The Lead threads nothing new by
+- `fix-round-doctrine.md` composes by pointer. The Lead threads nothing new by
   hand: the engine builds the digest.
 - The examples bank grows by reviewed PR, or by the Lead's Gate-2 commit when `commitLearnings`
   is on. The servitor never writes it. Every new entry gets a manual redaction check (D12, D16).
@@ -222,31 +243,5 @@ is a separate `war-followup` issue filed at the plan's land Checkpoint.
   disclosure by corrective round, the auditor as classifier, PIN-2 and PIN-3, the no-schema
   transport and the #2302 study trigger · plan 2026-09-11-backward-chain-doctrine, issues #2097,
   #2302
-
-## Amendment (2026-11-02, #2167, #2127): eleven rules on six builds
-
-`fix-round-doctrine.md` now holds eleven rules. Rule 11 says a byte-cap breach on a prompt surface is
-a signal to evict, never to reword. Read "ten rules" above as the count when this ADR landed, and
-"untouched" as true of that landing only. The operator's #2127 ruling also puts the rules on the
-batch ace ADVISORY POLISH, PHASE-CLOSE COHERENCE SWEEP and TERMINAL PASS builds. The FIX_NEEDED, ACE
-BISECTION SUBSET and ACE RE-ENTRY BATCH builds keep them. The floor family stays out of that block,
-and it keeps the backward chain.
-
-The operator ruled the limit on those three added builds in PR #2577. A worker fixes each sibling
-site of a listed finding's defect class, and lists any other defect under `Ignore for now:`.
-`FIX_ROUND_SCOPE_CLAUSE` carries that sentence. `fixRoundFenceClause` names each file that another
-task, plan or the release slot owns, and a sibling site there goes on the list. No floor reads the set,
-so the prompt is the guard. These workers cannot stop and ask, so the list is how they ask: the
-engine writes each list to the phase report's `notes`. ADVISORY POLISH runs beside its wave peers,
-so it fixes a sibling site only in its own files or a listed row's file. Its list of other siblings
-reaches the phase report for a ruling. A listed row in a fenced file goes to the sweep before dispatch. A cross-file claim
-rule for polish was ruled, then split into #2578, because it needs a change to how the
-merge step replays commits. The sweep stays one commit that one panel judges, so ADR 0012's
-discard guard holds. The terminal pass stays one commit that one seat judges, and that pass
-forward-reverts a regression.
-
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
-
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-11-02 · eleven rules on six builds · #2167, #2127 (limit ruled in PR #2577) · retired: docs/adr/0052-backward-chain-doctrine-and-corrective-round-disclosure.md @ 9b785b03
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0052-backward-chain-doctrine-and-corrective-round-disclosure.md @ b31d2203

@@ -1,9 +1,6 @@
 # WAR resolves a dedicated working branch when the desired one is checked out, and bootstraps it on origin at Setup
 
-**Status:** accepted (amended 2026-08-25 — the dedicated-branch derivation is conditional on a
-blocking leaf `dev`, Setup gains a hard refusal on a blocked `war/<slug>` namespace, reuse consults
-both candidate names, and the sanctioned-relaunch Provision barrier carries a second prompt delta;
-see the amendment row in the Decision section below)
+**Status:** accepted
 
 When the working branch `/war` wants to land onto is already checked out in the worktree the run is
 launched from (or any sibling worktree), WAR does **not** try to land onto it. At Setup it resolves a
@@ -38,8 +35,8 @@ ADR takes (b), at Setup, before any phase runs.
 - **No collision** — the desired branch is checked out nowhere → echo `<desired>` unchanged
   (byte-identical to today's default; the common case is untouched).
 - **Collision** — the desired branch is checked out in any worktree (`git worktree list --porcelain`) →
-  create a **dedicated working branch** `dev/<date>-<slug>` at the desired branch's tip, checked out
-  nowhere, and echo it. The name is run-owned via the ADR 0003 ledger seam: reuse-if-ours on resume,
+  create a **dedicated working branch** at the desired branch's tip, checked out nowhere, and echo
+  it. The name is `dev/<date>-<slug>`, or its fallback (see the derivation below). The name is run-owned via the ADR 0003 ledger seam: reuse-if-ours on resume,
   suffix-or-fail-loud on a foreign pre-existing name.
 
 Setup then calls `provision-worktrees.sh ensure-origin <resolved>` to **bootstrap the resolved branch on
@@ -59,12 +56,10 @@ push-first-CAS / never-force invariants of ADR 0004.
 `resolve-working-branch` and `ensure-origin` live in `provision-worktrees.sh` — the single tested owner
 of git-topology mutation — never as raw `git` in SKILL.md prose.
 
-### Amendment (2026-08-25): the derivation is conditional, and Setup refuses a blocked slug namespace
+### The derivation is conditional, and Setup refuses a blocked slug namespace
 
-The Decision above records the dedicated-branch derivation as unconditional (`dev/<date>-<slug>`, one
-name, one reuse arm). The landed `cmd_resolve_working_branch` (#1380, D12/D13/D14/A3) is narrower on
-one axis and wider on three. This amendment records the landed arms; the ratified text above is
-byte-untouched.
+`cmd_resolve_working_branch` (#1380, D12/D13/D14/A3) derives the dedicated name conditionally, refuses
+a blocked slug namespace, and reuses against both candidate names:
 
 - **Conditional name derivation (D12/D13).** `dev/<date>-<slug>` is cut only when no leaf branch `dev`
   exists. A leaf `dev` makes the nested cut die `cannot lock ref` mid-Setup, so the derivation falls
@@ -83,13 +78,12 @@ byte-untouched.
   `war-<date>-<slug>`: an owned branch from a prior attempt is reused as-is, so deleting the blocking
   leaf mid-run cannot make a resume re-derive a different name. Foreign judgment is unchanged — a
   present, unowned derived name still fails loud (exit 3).
-- **A second recovery-relaunch prompt delta.** The Provision-barrier prompt's recovery-gated deltas
-  are no longer the stale-remote arm alone. Under `args.recovery.sanctioned` the barrier prompt also
-  carries the **derive-then-cut `preMerged` clause** (a task branch already an ancestor of the frozen
+- **A second recovery-relaunch prompt delta.** The Provision-barrier prompt carries two
+  recovery-gated deltas: the stale-remote arm, and under `args.recovery.sanctioned` also the **derive-then-cut `preMerged` clause** (a task branch already an ancestor of the frozen
   integration tip is reported `preMerged` and its `ensure-worktree` skipped, recorded terminal
   `merged` with no worker dispatched) and the **pre-checkout ref-holder auto-free** (#1712 fix 3),
   whose own refusal arms never free a dirty holder or a foreign plan's holder. None of this changes
-  the working-branch resolution this ADR decides; it is recorded here because the same Setup/Provision
+  the working-branch resolution this ADR decides; it is stated here because the same Setup/Provision
   seam owns both.
 
 ## Considered options
@@ -126,3 +120,8 @@ byte-untouched.
 - The Setup origin bootstrap creates a remote branch **before any phase lands** — a slightly earlier
   outward-facing action than before (WAR pushes by design; noted in the phase-0 report).
 - With no collision, working-branch selection is unchanged (the desired branch stands).
+
+## Decision log
+
+- 2026-08-25 · the derivation is conditional, and Setup refuses a blocked slug namespace · #1380 (D12/D13/D14/A3) · failed because: a leaf `dev` makes the unconditional nested cut die `cannot lock ref` mid-Setup · retired: docs/adr/0018-war-working-branch-checkout-guard.md @ 7c1b028b
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

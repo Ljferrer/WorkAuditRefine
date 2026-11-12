@@ -79,6 +79,14 @@ patch-id, or an empty `already_upstream_commits` — and routes by patch-ids ins
 2026-09-06 engine-and-audit-verdict-integrity plan's D4 and PIN-8, #1973; the arm's record is
 [ADR 0051](0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md) section 2).
 
+One step precedes the rebase for a task that recorded a polish claim-clash: the net-zero clash
+range of [ADR 0061](0061-polish-claim-and-net-zero-clash-range.md). After its `FORWARD-REVERT`
+step the refiner checks that the range above the approved sha is exactly the clash commit and its
+revert, with `<tip>^{tree}` equal to `<approved>^{tree}`; when it is, the task branch moves back to
+the approved sha (a `checkout -B` on the task's own branch, no content change), so the rebase runs
+only through the approved sha and the net-zero pair never replays. That move is the one branch
+move at the merge slot, and it never force-pushes or resets a shared ref.
+
 The canonical arms and wire shape live in the `PIN_TRANSFER` schema and the merge-slot
 pin-transfer region of `workflow-template.js`; the ledger is `pinTransfers` there. The merge-floor
 retry loop is out of scope and stays in-lock and full-panel (this ADR's ratifying plan's D4).
@@ -112,7 +120,7 @@ run today (PIN-3).
   (PIN-6).
 - **Refusal preserves approval integrity.** Footprint excess and changed patches require a full
   audit; missing Git proof holds instead of transferring approval. Probe errors use the same
-  independent content check before fallback (PR finalization amendment).
+  independent content check before fallback (the PR #2297 finalization).
 
 Success evidence is mandatory: transferred requires a usable rebased tip, non-empty equal patch IDs and independently equal exact content identities; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. A separate read-only Git proof verifies the original approved content, actual refs and patch/cherry evidence. An error, missing or unknown status retains the ordinary fallback only for unchanged approved content or independently equal patch and exact content identities; changed content requires the full re-audit. See [refiner-recovery.md](../../skills/war/references/refiner-recovery.md#uncertain-merge-reconciliation) for the target preflight and proof procedure.
 
@@ -143,6 +151,8 @@ Success evidence is mandatory: transferred requires a usable rebased tip, non-em
 - [ADR 0051](0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md) — section 2
   records the `already_upstream` refusal arm this ADR's pin-transfer section restates; its D4 and
   PIN-8 belong to the 2026-09-06 plan, not to this ADR's ratifying plan.
+- [ADR 0061](0061-polish-claim-and-net-zero-clash-range.md) — the net-zero clash range step at the
+  merge slot, the one sanctioned branch move before this ADR's rebase pin transfer.
 
 ## Decision log
 
@@ -157,3 +167,5 @@ Success evidence is mandatory: transferred requires a usable rebased tip, non-em
 - 2026-11-05 · Amendment: a red ace gate whose failing ids are all red at the pre-ace tip (`ace-base-gate`, with a `head_sha` echo at the ace tip) counts as green for the revert decision, and the log names the proceed-over. A new id, a red with no ids, or a dead or unfinished base check still forward-reverts the ace range. On a regressed re-audit, a blocker the pre-ace probe answers `yes` no longer counts as a regression: it joins the late-fix pass, and the whole-range revert sees only blockers the probe did not clear (D11, PIN-11). This qualifies the 'No approval is ever accounted at a SHA the task gate did not pass' guardrail and the range-based forward-revert sentence in section 1 · plan `docs/plans/2026-11-04-late-defects-fixed-in-run.md` D10, D11, PIN-10, PIN-11, Task 5.1.
 
 - 2026-11-05 · Amendment: a third merge-slot exception to never-hold. A pin-transfer probe that finds uncommitted tracked edits in the task worktree returns `error` with `detail: "dirty task worktree: <paths>"` before any forward-revert or rebase, and the engine holds the task with reason `escalate` and the note `task worktree dirty at pin-transfer: <detail>` (auditLog `pin-transfer:dirty-worktree`), because a merge-task there would refuse its rebase or gate content that never merges, and the shared stash is never a workaround. A per-task merge-task that meets the same dirt holds the same way, with no Git reconciliation, and a polish or terminal sweep merge takes its fail-open discard (operator ruling 2026-11-05) · issue #2617.
+
+- 2026-11-11 · section 2 names the net-zero clash range step of ADR 0061 at the merge slot, the one branch move before the rebase · #2809

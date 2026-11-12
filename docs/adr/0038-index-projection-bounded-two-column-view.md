@@ -70,7 +70,7 @@ severed, because the safe-swap consumers key on them.
   — §3 resolved tree (row format, cell budget), §4 mechanics, §6 domain terms, §10 validation criteria.
 - Implementation plan: [`docs/plans/2026-07-21-lessons-learned-tighten.md`](../plans/2026-07-21-lessons-learned-tighten.md)
   — Task 1.1 (`buildProjection` two-column format + `SUMMARY_CELL_BYTES` + the `tighten-plan` verb),
-  Task 1.3 (this ADR, the CONTEXT.md terms, the CLAUDE.md pointer).
+  Task 1.3 (this ADR, the GLOSSARY.md terms, the CLAUDE.md pointer).
 - [ADR-0015](0015-files-canonical-memory-with-derived-index.md) — files-canonical memory with a derived,
   disposable index; temperature is location. This ADR adds the *cell budget* as the projection's second
   cap alongside 0015's *selection* and records the column drop; 0015's "never trim knowledge to meet a
@@ -79,8 +79,7 @@ severed, because the safe-swap consumers key on them.
   making `safe-swap verify` the sole authority on row/link adjudication; its extractors are the consumers
   the two-column format preserves.
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0038-index-projection-bounded-two-column-view.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

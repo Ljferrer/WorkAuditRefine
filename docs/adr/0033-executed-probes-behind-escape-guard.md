@@ -1,8 +1,6 @@
 # Executed red-team probes are trusted only behind a post-run sandbox-escape guard
 
-**Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below; corrected
-2026-08-20 — the `--baseline` ref-diff upgrade was built and Decision 2's snapshot under-describes the
-live guard; see the correction below)
+**Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below)
 
 `/red-team`'s executed probes run real Bash to *prove* a claim in a throwaway sandbox — but the Bash
 tool resets cwd between calls, so a probe that relied on a prior `cd` and then ran a bare `git push`
@@ -26,9 +24,16 @@ barrier.**
 
 2. **A post-run escape guard is the detection authority (Layer 3).** `assert-no-repo-escape.sh --repo
    <repo>` runs **between the Workflow return and the gate**, with the floor-family exit contract
-   (0 = clean, 1 = escape detected, 2 = git error — the 2-vs-1 distinction never collapses). It asserts
-   (a) `git -C <repo> status --porcelain` is empty and (b) no local ref and no `ls-remote origin` ref
-   matches the throwaway-sandbox junk pattern. A nonzero result routes the verdict through the existing
+   (0 = clean, 1 = escape detected, 2 = a NON-clean, NON-escape signal the caller must never collapse
+   into 1 or treat as a pass — git error, non-repo, usage or containment error, or an unreadable or
+   zero-byte baseline). Its unconditional floor asserts (a) `git -C <repo> status --porcelain` is
+   empty and (b1)/(b2) no local ref and no `ls-remote origin` ref matches the throwaway-sandbox junk
+   pattern. A `--snapshot`/`--baseline` mode pair adds **check (c)**: snapshot mode writes the full
+   local ref set before launch, and with `--baseline` the post-run check treats any ref ADDED, REMOVED,
+   or SHA-MOVED versus the snapshot as an escape — fully name-agnostic (no allowlist, no pattern),
+   scoped to `refs/heads/` and `refs/tags/` (#1266). The live guard header
+   (`skills/red-team/assets/assert-no-repo-escape.sh`) owns the exit set and the check enumeration;
+   the sets restated here follow it. A nonzero result routes the verdict through the existing
    **self-confound gate** (ADR 0020) — never `CLEARED` — until the state is clean.
 
 3. **The harness is a detection guard, not a jail.** This ratifies the previously-deferred execution
@@ -61,46 +66,15 @@ barrier.**
 
 ## Consequences
 
-- **The junk-ref pattern is a heuristic ceiling.** It matches the throwaway-sandbox naming the scaffold
-  uses; a probe inventing an unrelated ref name slips it. Acceptable — the `status --porcelain` half is
-  exact and the common escape (a bare push of the working branch) is caught. `ponytail:` a full ref-diff
-  snapshot is the named upgrade path, built only if a second escape slips the pattern (a declared
-  backstop, runner: the guard's own output each run + the lessons feed).
+- **The junk-ref pattern is a heuristic ceiling without `--baseline`.** It matches the throwaway-sandbox
+  naming the scaffold uses; a probe inventing an unrelated ref name slips it. With `--baseline` the ref
+  half is exact (check (c)), and three narrower detection ceilings remain, enumerated in the guard's own
+  `ponytail:` header block. The `status --porcelain` half is exact for tracked and
+  untracked-but-not-ignored paths only: porcelain does not report ignored ones, so a probe writing into
+  a gitignored path is invisible to check (a) (the recorded gitignored-leak-paths backstop, the third
+  ceiling in the guard's header).
 - **A clean run is byte-for-byte unchanged.** The guard runs, returns 0, and adds nothing to the verdict;
   it only ever quarantines, never clears.
-
-## Correction (2026-08-20, #1266, #1398): the ref-diff upgrade was built; Decision 2's exit set and check enumeration are dated snapshots the live guard header now owns
-
-Append-only, per this repo's ADR correction-note shape ([ADR 0037](0037-run-scoped-staged-phase-scripts.md)
-precedent): every pre-existing body byte above stays intact — including the ratified Consequences
-`ponytail:` bullet — and this note is the correction channel. All three corrections below restate the
-live guard's own header (`skills/red-team/assets/assert-no-repo-escape.sh`) as re-verified 2026-08-20
-at this note's dispatch base; that header is the truth source and owns every enumeration this note
-snapshots.
-
-1. **The named upgrade path *was built* (#1266).** The Consequences `ponytail:` bullet records "a full
-   ref-diff snapshot" as an upgrade "built only if a second escape slips the pattern" — a dated
-   snapshot at ratification. The guard has since gained a `--snapshot`/`--baseline` mode pair: snapshot
-   mode writes the full local ref set before launch, and with `--baseline` the post-run check adds
-   **check (c)** — the exact ref-diff: any ref ADDED, REMOVED, or SHA-MOVED versus the snapshot is an
-   escape, fully name-agnostic (no allowlist, no pattern), scoped to `refs/heads/` and `refs/tags/`.
-   With `--baseline` the ref half is exact, not a heuristic; three narrower detection ceilings remain
-   and are enumerated in the guard's own `ponytail:` header block.
-
-2. **The porcelain half is exact only for tracked and untracked-but-not-ignored paths (#1266).** The
-   Consequences bullet's "the `status --porcelain` half is exact" is under-qualified: per the guard's
-   own header, check (a) "is EXACT for tracked and untracked-but-not-ignored paths" — porcelain does
-   not report ignored ones, so a probe writing into a gitignored path is invisible to check (a) (the
-   recorded gitignored-leak-paths backstop, the third ceiling in the guard's header).
-
-3. **Decision 2's two under-descriptions (#1398).** The exit-contract parenthetical's "2 = git error"
-   is a drafting-base snapshot of a wider live set: per the guard's header exit contract, exit 2 is
-   "git error / non-repo / usage or containment error / unreadable or zero-byte baseline" — a
-   NON-clean, NON-escape signal the caller must never collapse into 1 or treat as a pass (the 2-vs-1
-   distinction itself is unchanged). And Decision 2's (a)/(b) enumeration is no longer the full check
-   set: with `--baseline`, check (c) above joins it, while (a)/(b1)/(b2) remain the unconditional
-   floor. Both enumerations are owned by the live guard header; the sets restated here are dated
-   snapshots of it.
 
 ## References
 
@@ -117,3 +91,8 @@ snapshots.
   follows.
 - [ADR 0032](0032-red-team-grades-by-artifact-kind.md) — the sibling grading-trust decision from the same spec.
 - Memory lesson (the originating escape): [[redteam-executed-probe-cwd-reset-hits-real-remote]].
+
+## Decision log
+
+- 2026-08-20 · the ref-diff upgrade was built; Decision 2's exit set and check enumeration are dated snapshots the live guard header now owns · #1266, #1398 · failed because: the exit set and the (a)/(b) check list under-described the live guard · retired: docs/adr/0033-executed-probes-behind-escape-guard.md @ 9a02e5ff
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

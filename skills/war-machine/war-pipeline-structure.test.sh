@@ -7,7 +7,7 @@
 # step 1. Also pins (2026-08-24, authoring-side verification) the cross-surface consumer
 # family: the war-machine verifier-charter pointer + drafter evidence instruction + the
 # #1510/#1605 re-scopes, the deps-edged lenses.md / survey-corps / war-review pins, and the
-# ADR 0044 amendment / ADR 0014 cross-ref decision-record pair (Task 3.1). Also pins
+# ADR 0044 authoring-side verification section / ADR 0014 cross-ref decision-record pair (Task 3.1). Also pins
 # (2026-08-25, ask-disposition Task 2.6) the two war-review telemetry rows — the asks tally
 # and the grind-measurement row. Also pins (2026-09-02, D13) the drafter evidence clause's
 # split degraded arms — absent section, unreachable issue. Also pins (2026-09-03, #1656) the
@@ -748,14 +748,18 @@ lacks_i "$WAR_REVIEW" 'every source is a per-task terminal read'
 
 printf '\n# Authoring-side verification (Task 3.1) — ADR decision-record pins (End state 10 decisive pair)\n'
 # Never a bare token grep (the plan's own rule for this pair). The 0044 half is
-# heading-anchored: it proves the DATED AMENDMENT HEADING itself carries the
+# heading-anchored: it proves the folded section HEADING itself carries the
 # `authoring-side verification` token — a body mention elsewhere in the ADR cannot
 # self-satisfy it ([[structure-test-check-f-locks-presence-anywhere-not-intended-location]]).
-# The 0014 half is the mid-sentence cross-ref literal, discriminating a real "see ADR 0044
-# Amendment (2026-08-24)" sentence from any bare "ADR 0044" mention. Both case-insensitive
+# Under the living-ADR law (ADR 0063) the section folded into the body with a date-free
+# heading, and the 2026-08-24 Decision-log line carries its date and title. The 0014 half is
+# the mid-sentence cross-ref literal in the dated citation form, discriminating a real "see
+# ADR 0044 (2026-08-24)" sentence from any bare "ADR 0044" mention. Both case-insensitive
 # (prose, sentence-case class).
-has_re_i "$ADR0044" '^#+ Amendment \(2026-08-24\).*authoring-side verification'
-has_i    "$ADR0014" 'see ADR 0044 Amendment (2026-08-24)'
+has_re_i "$ADR0044" '^## Authoring-side verification'
+has_re_i "$ADR0044" '^- 2026-08-24 · authoring-side verification'
+has_i    "$ADR0014" 'see ADR 0044 (2026-08-24)'
+lacks_i  "$ADR0014" 'see ADR 0044 Amendment (2026-08-24)'
 
 printf '\n== war-pipeline-structure: %s failure(s) ==\n' "$fails"
 exit $fails

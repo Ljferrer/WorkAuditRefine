@@ -1,8 +1,6 @@
 # Plans reference live artifacts, never stack-fragile literals; auditors calibrate the inert-slice patterns
 
-**Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below; amended
-2026-08-20 — the convention block's membership is owned by the live SKILL.md §2 block; see the
-amendment below)
+**Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below)
 
 A WAR plan is drafted against a base that keeps moving as earlier stacked tasks land into the integration
 tip (the stack-and-plow branch model, [ADR 0011](0011-campaign-stack-and-plow-branch-model.md)). Any
@@ -50,6 +48,14 @@ authoring forms, threaded into the `/war-strategy` plan template (§2) and locke
   mirrored constant/schema/prose-ref whose emitter is a later task.
 - The **grep-as-floor** note — "grep X, handle every match" requires a manual same-scope title/comment
   survey; stragglers are survey-derived corrections.
+- **Dated snapshots (D12 staleness rule)** — for the measured literal a plan cannot avoid (a count, a
+  pairing figure, a census), literals are dated snapshots at a stated base, re-measured at the task's
+  rebased base (added by plan `2026-08-04-interview-and-authoring-contract`, Task 1).
+
+**Membership of the convention block is owned by the live `skills/war-strategy/SKILL.md` §2 block**
+(verbatim-locked by `war-strategy-structure.test.sh`). The list above names each form so a
+name-grep lands on this ADR as well as the operative surface, but it is never the current
+membership: recount at the live surface (D2).
 
 These conventions are backed by an **advisory `plan-literal-lint.mjs`** (regex, modeled on
 `war-memory.mjs`'s `LINT_PATTERNS`/`lint()` shape) that flags the four cheap literals — line ranges,
@@ -95,11 +101,13 @@ this spec dropped its duplicate `version-consistency.test.mjs` to avoid two test
 - **Reuses [ADR 0013](0013-commanders-intent-and-disposition-routing.md)'s disposition routing** — the
   four calibration rules grade via the existing severity/`disposition` mechanism (Nit/`note`), adding no
   new routing axis; they are floors with a locked confirmation qualifier, the floor-not-ceiling shape
-  already in CONTEXT.md.
+  already in GLOSSARY.md.
 - **Rides [ADR 0006](0006-deterministic-test-floor.md)'s self-discovery gate** — the "reference
   `resolveGate` by name, never a suite literal" convention routes authors *to* the existing deterministic
   gate; it changes neither `resolveGate` nor the gate mechanism.
-- Historical ADRs are superseded, never edited; this ADR extends their surfaces without contradicting them.
+- Prior ADRs are rewritten in place under the living-ADR law
+  ([ADR 0063](0063-living-adrs-git-is-the-archive.md)); this ADR extends their surfaces without
+  contradicting them.
 
 ## Considered options
 
@@ -117,40 +125,21 @@ this spec dropped its duplicate `version-consistency.test.mjs` to avoid two test
 
 ## Consequences
 
-- `skills/war-strategy/SKILL.md` §2 gains the "reference the live artifact" convention block (six rules +
-  the defined-but-not-yet-emitted annotation), verbatim-locked by `war-strategy-structure.test.sh`.
+- `skills/war-strategy/SKILL.md` §2 carries the "reference the live artifact" convention block,
+  verbatim-locked by `war-strategy-structure.test.sh`; the live block owns its membership and count.
 - A new `skills/war-strategy/assets/plan-literal-lint.mjs` (+ test) flags the four cheap literals,
   advisory and fail-open, run at conversion and in the red-team spine.
 - `agents/war-auditor.md` and `auditPrompt()` gain the four calibration rules under a both-surfaces drift
   test anchored on casing/position-stable mid-sentence phrases (never a quote-bearing byte literal).
 - `/war-machine` emits a next-free-patch release directive; `/survey-corps` and `/war-strategy` carry the
   grep-as-floor note so the discipline exists from the first authoring surface.
-- `CONTEXT.md` gains a `### Live artifacts over stack-fragile literals` subsection defining five terms —
+- `GLOSSARY.md` gains a `### Live artifacts over stack-fragile literals` subsection defining five terms —
   **Construct locator**, **Stack-fragile literal**, **Defined-but-not-yet-emitted slice**,
   **Grep as floor**, **Stale-looking-but-correct calibration**.
 - Named residuals (deferred backstops): live calibration obedience, lint false-positive precision,
   matrix row-count completeness, and grep-sweep sibling survival — each with a named runner (a `/war` run,
   `/war-strategy` conversion reports, `/red-team`, the auditor's `test-fidelity` lens), never waived in
   prose ([ADR 0017](0017-packaging-floor-docker-gate-ratified-backstops.md)).
-
-## Amendment (2026-08-20, #1363): the convention block gained the Dated-snapshots form; membership is owned by the live SKILL.md §2 block
-
-Append-only, per this repo's ADR correction-note shape ([ADR 0037](0037-run-scoped-staged-phase-scripts.md)
-precedent): every pre-existing body byte above stays intact and this note is the correction channel.
-
-Plan `2026-08-04-interview-and-authoring-contract` (Task 1) added a new member to the
-`skills/war-strategy/SKILL.md` §2 "Reference the live artifact, never a stack-fragile literal"
-convention block this ADR introduced: the **Dated snapshots (D12 staleness rule)** form — for the
-measured literal a plan cannot avoid (a count, a pairing figure, a census), literals are dated
-snapshots at a stated base, re-measured at the task's rebased base. It is enumerated here by name so
-a name-grep for the form lands on this ADR as well as the operative surface.
-
-The Decision section's bullet list above and the Consequences bullet's "six rules" figure are
-themselves **dated snapshots at this ADR's ratification base (2026-07-08)** — exactly the class the
-D12 form names. Membership of the convention block is **owned by the live `skills/war-strategy/SKILL.md`
-§2 block** (verbatim-locked by `war-strategy-structure.test.sh`), and the list and count recorded in
-this ADR must never be read as current (D2). Re-measured 2026-08-20 at this note's dispatch base `067b7b5`:
-the live block carries **eight** bullets — itself a dated snapshot; recount at the live surface.
 
 ## References
 
@@ -168,8 +157,8 @@ the live block carries **eight** bullets — itself a dated snapshot; recount at
 - [ADR 0025](0025-drift-guard-discipline.md) — owns `version-slots.test.mjs`, the enforced cross-slot
   version guard this ADR records as doctrine.
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-08-20 · the convention block gained the Dated-snapshots form; membership is owned by the live SKILL.md §2 block · #1363 · retired: docs/adr/0030-live-artifacts-over-stack-fragile-literals.md @ 9a02e5ff
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0030-live-artifacts-over-stack-fragile-literals.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063) · retired: docs/adr/0030-live-artifacts-over-stack-fragile-literals.md @ a9bead4d
