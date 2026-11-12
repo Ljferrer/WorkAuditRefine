@@ -1,9 +1,6 @@
 # Every duplicated or asserted fact carries a mechanical drift-guard to its canonical source
 
-**Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below; amended
-2026-08-02 — a file-disjoint guard/mirror split takes a `deps` edge, not shared-wave placement — and
-2026-08-19 — the touched-doc scope widening; corrected 2026-08-20 — the glossary term count is owned
-by the live subsection; see the amendments and the correction below)
+**Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below)
 
 WAR is riddled with facts stated in one surface that live canonically in another and rot silently
 against ground truth because **nothing binds the copy to its source**. The failure is uniform: a green
@@ -60,6 +57,59 @@ This supersedes the byte-identity-by-convention posture of the pointer-line and 
 recorded in `CLAUDE.md` / `## Commands`: those conventions are now mechanically enforced (a cross-surface
 byte-identity test; a four-slot lock-step test), not honored by hand.
 
+### A file-disjoint guard/mirror split resolves via a `deps` edge, not shared-wave placement
+
+When the guard file is already owned by a different task in the same phase — file-disjointness forbids
+the mirror-authoring task from touching it — the one-task rule resolves as a **`deps` edge from the
+guard task onto the mirror-authoring task**, not "same phase, same wave, so they land together." Same
+phase and same wave are insufficient by themselves: every task worktree in a phase is cut from **one
+frozen phase base** at the Provision barrier, and waves order only *when* workers run, never *what base
+they see* (this repo's `CLAUDE.md`, "Execution architecture"). A guard task that merely shares a wave
+with — but carries no `deps` edge onto — the task authoring the fact it guards implements and is
+audited against a base that does not yet contain that fact: its own new guard row is red by
+construction, through no fault of the guard's diff.
+
+This is not a new escape hatch from the one-task rule: the guard task and the mirror-authoring task
+remain genuinely file-disjoint, so the `deps` edge encodes a **content** dependency the downstream
+task's worker discharges by rebasing onto the integration tip as its first act. It is explicitly
+*not* the forbidden "use `deps`/waves to dodge a same-file collision" this repo's decomposition
+rules warn against.
+
+Three forcing functions carry the rule onto every plan-authoring path: (1) the `/red-team`
+universal spine probe `guard-split-deps-edge` (`skills/red-team/SKILL.md` and
+`references/lenses.md` §Drift-guard spine probes) flags an unedged split as a plan defect
+(`needsDecision`) at every conversion and every red-team; (2) the `/war-machine`
+**Guard-split deps-edge directive** (`skills/war-machine/SKILL.md`) makes the drafter add the edge
+before red-team ever sees the plan; (3) `/war-strategy` §3's Drift-guard coverage subsection
+carries the same rule as its authoring rule 7 (`skills/war-strategy/SKILL.md`), so a plan authored
+or converted outside `/war-machine` gets the same forcing function. See
+[[guard-task-split-from-mirror-task-needs-deps-edge-same-wave-insufficient]] for the full
+recurrence record.
+
+### The touched-doc scope — every touched-doc fact takes guard, de-mirror, or an explicit defer
+
+The authoring duty covers **every doc a plan task rewrites**: a task whose slice rewrites a doc owns
+the factual accuracy of what it renders authoritative. For every fact in that doc derivable from a
+**machine-readable in-repo source** (a config default, a manifest field, an enum member, a version slot
+— never prose claims generally), the plan picks exactly one of three — **guard** (a drift test binding
+the doc value to its source by extraction + equality; exemplars: `version-slots.test.mjs`,
+`war-config.test.mjs`'s frontmatter guard), **de-mirror** (the doc points at the canonical source
+instead of restating its value), or **explicitly defer** (a legitimacy-complete
+`## Deferred validations (backstops)` row naming the runner and the timing — ADR 0017's vehicle) —
+never silence. Restating such a fact with none of the three is a plan defect, never a follow-up.
+
+This is the **fourth authoring duty** in `/war-strategy` §3's Drift-guard coverage subsection
+(authoring rule 8, `skills/war-strategy/SKILL.md`), joining the unguarded-mirror, default-flip
+OLD-absent, and guard-split deps-edge rules. Its forcing functions mirror theirs: (1) the `/red-team`
+drift-guard spine probe `touched-doc-fact-coverage` (Lead-run prose like its three siblings, never a
+`SPINE` array member) flags a silent restatement as a plan defect (`needsDecision`) at every conversion
+and every red-team; (2) `/war-machine`'s drafter consumes rule 8 by reference; (3) `/war`'s decompose
+step carries an ADR 0042-shaped pointer to `skills/war/references/touched-doc-accuracy.md` (the
+trichotomy's reference text) as the execution-time backstop; (4) `GLOSSARY.md`'s Drift-guard discipline
+glossary carries the **Touched-doc accuracy duty** term. The scope boundary is deliberate: only facts a
+machine-readable in-repo source can re-derive are in scope — general prose claims stay governed by the
+evidence-tag discipline (D4) and the escape rules above, not by this duty.
+
 ## Relationship to prior ADRs
 
 - **Operates within [ADR 0017](0017-packaging-floor-docker-gate-ratified-backstops.md) — a drift-guard
@@ -76,7 +126,7 @@ byte-identity test; a four-slot lock-step test), not honored by hand.
   [ADR 0013](0013-commanders-intent-and-disposition-routing.md) untouched** — new drift-guards ride the
   existing deterministic gate (0006); the auditor-lens duties route by the existing `disposition`
   mechanism (0013), adding no new routing axis.
-- Historical ADRs are superseded, never edited.
+- Prior ADRs are rewritten in place under the living-ADR law ([ADR 0063](0063-living-adrs-git-is-the-archive.md)).
 
 ## Considered options
 
@@ -100,83 +150,17 @@ byte-identity test; a four-slot lock-step test), not honored by hand.
 - The four release slots (`plugin.json#version`, `marketplace.json#metadata.version`,
   `marketplace.json#plugins[0].version`, `README.md ## Status`) gain a fail-closed lock-step test; a
   partial bump now turns the gate red instead of shipping a silently inconsistent release.
-- `CONTEXT.md` gains a `### Drift-guard discipline` subsection defining five terms — **Drift-guard**,
-  **Canonical source vs mirror site**, **Mirror registry**, **Both-surfaces directive registry**,
-  **Mechanism-style narrative**.
+- `GLOSSARY.md` carries a `### Drift-guard discipline` subsection that defines the discipline's
+  terms — among them **Drift-guard**, **Canonical source vs mirror site**, **Mirror registry**,
+  **Both-surfaces directive registry**, **Mechanism-style narrative**, **Guard-split deps edge** and
+  **Touched-doc accuracy duty**. The term count and membership are **owned by the live subsection**;
+  recount there, never here.
+- A correction to this ADR is a rewrite in place with one Decision-log line, per the living-ADR law
+  ([ADR 0063](0063-living-adrs-git-is-the-archive.md)); git keeps the retired text.
 - The doctrine ships to marketplace-pinned users via a version bump of the four release slots.
 - Named residual: mechanical detection of a *missing* registry row is out of scope (the rejected AST
   scanner) — the doctrine's forcing functions are the plan-authoring rule and the red-team probe,
   exercised from this plan onward.
-
-## Amendment (2026-08-02): a file-disjoint guard/mirror split resolves via a `deps` edge, not shared-wave placement
-
-The Decision above requires a mirror and its registry row to land as **one task**. When the guard
-file is already owned by a different task in the same phase — file-disjointness forbids the
-mirror-authoring task from touching it — the resolution is a **`deps` edge from the guard task onto
-the mirror-authoring task**, not "same phase, same wave, so they land together." Same phase and
-same wave are insufficient by themselves: every task worktree in a phase is cut from **one frozen
-phase base** at the Provision barrier, and waves order only *when* workers run, never *what base
-they see* (this repo's `CLAUDE.md`, "Execution architecture"). A guard task that merely shares a
-wave with — but carries no `deps` edge onto — the task authoring the fact it guards implements and
-is audited against a base that does not yet contain that fact: its own new guard row is red by
-construction, through no fault of the guard's diff.
-
-This is not a new escape hatch from the one-task rule: the guard task and the mirror-authoring task
-remain genuinely file-disjoint, so the `deps` edge encodes a **content** dependency the downstream
-task's worker discharges by rebasing onto the integration tip as its first act. It is explicitly
-*not* the forbidden "use `deps`/waves to dodge a same-file collision" this repo's decomposition
-rules warn against.
-
-Three forcing functions now carry the rule onto every plan-authoring path: (1) the `/red-team`
-universal spine probe `guard-split-deps-edge` (`skills/red-team/SKILL.md` and
-`references/lenses.md` §Drift-guard spine probes) flags an unedged split as a plan defect
-(`needsDecision`) at every conversion and every red-team; (2) the `/war-machine`
-**Guard-split deps-edge directive** (`skills/war-machine/SKILL.md`) makes the drafter add the edge
-before red-team ever sees the plan; (3) `/war-strategy` §3's Drift-guard coverage subsection
-carries the same rule as its authoring rule 7 (`skills/war-strategy/SKILL.md`), so a plan authored
-or converted outside `/war-machine` gets the same forcing function. See
-[[guard-task-split-from-mirror-task-needs-deps-edge-same-wave-insufficient]] for the full
-recurrence record this amendment closes.
-
-## Amendment (2026-08-19): the touched-doc scope widening — every touched-doc fact takes guard, de-mirror, or an explicit defer
-
-The Decision above binds facts WAR *duplicates across surfaces* or *asserts in prose about a canonical
-code construct*. This amendment widens the authoring duty to **every doc a plan task rewrites**: a task
-whose slice rewrites a doc owns the factual accuracy of what it renders authoritative. For every fact in
-that doc derivable from a **machine-readable in-repo source** (a config default, a manifest field, an
-enum member, a version slot — never prose claims generally), the plan picks exactly one of three —
-**guard** (a drift test binding the doc value to its source by extraction + equality; exemplars:
-`version-slots.test.mjs`, `war-config.test.mjs`'s frontmatter guard), **de-mirror** (the doc points at
-the canonical source instead of restating its value), or **explicitly defer** (a legitimacy-complete
-`## Deferred validations (backstops)` row naming the runner and the timing — ADR 0017's vehicle) —
-never silence. Restating such a fact with none of the three is a plan defect, never a follow-up.
-
-This is the **fourth authoring duty** in `/war-strategy` §3's Drift-guard coverage subsection
-(authoring rule 8, `skills/war-strategy/SKILL.md`), joining the unguarded-mirror, default-flip
-OLD-absent, and guard-split deps-edge rules ratified above. Its forcing functions mirror theirs:
-(1) the `/red-team` drift-guard spine probe `touched-doc-fact-coverage` (Lead-run prose like its three
-siblings, never a `SPINE` array member) flags a silent restatement as a plan defect (`needsDecision`)
-at every conversion and every red-team; (2) `/war-machine`'s drafter consumes rule 8 by reference;
-(3) `/war`'s decompose step carries an ADR 0042-shaped pointer to
-`skills/war/references/touched-doc-accuracy.md` (the trichotomy's reference text) as the execution-time
-backstop; (4) `CONTEXT.md`'s Drift-guard discipline glossary gains the **Touched-doc accuracy duty**
-term. The scope boundary is deliberate: only facts a machine-readable in-repo source can re-derive are
-in scope — general prose claims stay governed by the evidence-tag discipline (D4) and the existing
-escape rules above, not by this duty.
-
-## Correction (2026-08-20, #1266): the glossary term count is owned by the live CONTEXT.md subsection
-
-Append-only, per this repo's ADR correction-note shape ([ADR 0037](0037-run-scoped-staged-phase-scripts.md)
-precedent): every pre-existing body byte above stays intact — including the ratified Consequences
-bullet "defining five terms" — and this note is the correction channel.
-
-The Consequences bullet's "defining five terms" figure is a dated snapshot at this ADR's ratification
-base (2026-07-08). The `CONTEXT.md` `### Drift-guard discipline` subsection now defines **seven**
-terms (re-measured 2026-08-20 at the red-team base `26b40d7`): the sixth, **Guard-split deps edge**,
-was forced by this ADR's own Amendment (2026-08-02); the seventh, **Touched-doc accuracy duty**, by
-its Amendment (2026-08-19). The term count and membership are **owned by the live subsection** in
-`CONTEXT.md` — the count restated here is itself a dated snapshot and must never be read as current;
-recount at the live surface.
 
 ## References
 
@@ -199,8 +183,10 @@ recount at the live surface.
   [[held-workflow-error-infra-death-prose-mismatch]], [[uniform-shell-out-idiom-mislabels-export-only-function-as-cli-subcommand]],
   [[tour-narrative-can-assert-a-false-code-fact-that-survives-until-a-doc-sweep-catches-it]].
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-08-02 · a file-disjoint guard/mirror split resolves via a `deps` edge, not shared-wave placement · guard-split recurrence lesson · retired: docs/adr/0025-drift-guard-discipline.md @ 30cb7678
+- 2026-08-19 · the touched-doc scope widening — every touched-doc fact takes guard, de-mirror, or an explicit defer · touched-doc accuracy duty (rule 8) · retired: docs/adr/0025-drift-guard-discipline.md @ 6bd781da
+- 2026-08-20 · the glossary term count is owned by the live CONTEXT.md subsection · #1266 · failed because: the "defining five terms" figure was a dated snapshot that two later terms made stale · retired: docs/adr/0025-drift-guard-discipline.md @ 9a02e5ff
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0025-drift-guard-discipline.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law; the append-only correction-note shape is retired · #1850 (ADR 0063) · failed because: a reader had to replay each correction note to learn the current law · retired: docs/adr/0025-drift-guard-discipline.md @ 9a02e5ff

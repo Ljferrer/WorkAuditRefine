@@ -1,6 +1,6 @@
 # Compaction survival: write-ahead checkpoint + post-compact re-injection (self-compaction rejected)
 
-**Status:** accepted (design ratified 2026-07-03; implementation tracked by the spec below; amended 2026-07-15 — campaign state anchors at the **main checkout**, not the Lead's cwd; amended 2026-07-19 — the 2026-07-15 amendment's fail-open parenthetical corrected: a bare/exotic layout is a probe **success**, not a probe-failure case; see the amendments below)
+**Status:** accepted (design ratified 2026-07-03; implementation tracked by the spec below)
 
 An overnight `/war-campaign` run outlives many context windows. When compaction fires — at a moment
 nobody controls — the Lead's working context is replaced by a summary, and the campaign thread can be
@@ -33,6 +33,30 @@ is always fresh before the wait, and it is deterministically restored after the 
    half is a prompt directive; **this hook is the code-enforced half of survival** — deterministic, not
    dependent on the Lead remembering to do anything at re-entry.
 
+3. **Campaign state anchors at the main checkout.** The campaign Lead normally runs from a **session
+   git worktree**, which carries its own `.claude/` and is **disposable** (`/aftermath` reaps it). A
+   cwd-anchored campaign dir would strand the queue where it cannot outlive the session. So the
+   `SessionStart` hook resolves its scan root at the **main checkout**, not the invoking worktree: from
+   any linked worktree it reads `git rev-parse --path-format=absolute --git-common-dir` (the main
+   `.git`'s parent) and scans `<main>/.claude/campaigns/*/ledger.json`. A bare/exotic layout is a probe
+   **success**: the probe exits 0 inside a bare repo and prints the bare repo's own git dir, resolving
+   **upward** to it from a subdirectory (live probe 2026-07-16, git 2.50.1), so the anchor re-roots the
+   scan to `dirname(bare-git-dir)`. That directory carries no `.claude/campaigns`, so the scan finds
+   nothing and the hook stays **fail-open one level down**. The genuine fail-open cases are only **git
+   absent** and **not a repo** (exit 128, empty output), where the scan root is left exactly as
+   resolved from `$CLAUDE_PROJECT_DIR`/cwd, so a non-git session is unchanged. The no-campaign path
+   **warns** when an *active* ledger is found stranded under
+   `<main>/.claude/worktrees/*/.claude/campaigns/*/`: a bounded `additionalContext` payload naming the
+   stranded path and stating that campaign state outside the main checkout's `.claude/campaigns` will
+   not survive worktree reaping. It deliberately does **not** inject the stranded body (injecting would
+   legitimize the wrong placement and reintroduce a latest-by-mtime race between duplicated ledgers); an
+   all-`landed` stranded ledger stays silent. The ledger CLI's `resolveCampaignDir` anchors its relative
+   `--campaign` with the same probe (there a bare layout resolves to an anchored absolute path, harmless
+   for the same marker-absence reason), and the `/war-campaign` placement prose states the rule —
+   locked by the `skills/war-machine/war-pipeline-structure.test.sh` drift guard. The durable form of
+   the probe's fail-open facts lives in `docs/learnings/git-common-dir-anchor-idiom-fail-open-gotchas.md`
+   §1, which binds every future copy of the idiom.
+
 ## Considered options
 
 - **Agent-triggered `/compact` before a long wait (rejected).** There is no agent-side trigger for
@@ -64,6 +88,13 @@ is always fresh before the wait, and it is deterministically restored after the 
   that merely contain a campaign directory. It is fail-open silent (exit 0, empty stdout) on no campaign or
   any internal error, so the blast radius of a false match is the one bounded injection above, never a
   wedged session start.
+- **Campaign state lives under the main checkout's `.claude/campaigns`** — the one durable place —
+  because session worktrees are disposable and campaign state must outlive any one session. The spec's
+  *"campaigns live under the session's project dir"*
+  ([`2026-07-03-campaign-compaction-survival.md`](../specs/2026-07-03-campaign-compaction-survival.md) §8,
+  "Worktree vs main-checkout cwd") is superseded; the spec is left untouched as a point-in-time record.
+  Per-worktree symlinks or copies of the campaign dir are not needed; any that exist are stranded
+  duplicates to clean up.
 
 ## References
 
@@ -76,51 +107,8 @@ is always fresh before the wait, and it is deterministically restored after the 
   overnight duration makes compaction survival load-bearing.
 - The 2026-07-03 compaction failure (operator-supplied) — the originating defect.
 
-## Amendment (2026-07-15): campaign state anchors at the main checkout
+## Decision log
 
-The 2026-07-03 design assumed the campaign Lead's cwd *is* the campaign's home — the `SessionStart` hook
-scanned `<cwd>/.claude/campaigns/*/ledger.json` and the ledger CLI resolved a relative `--campaign`
-against cwd. But in the normal case the Lead runs from a **session git worktree**, which carries its own
-`.claude/` and is **disposable** (`/aftermath` reaps it). A cwd-anchored campaign dir therefore strands the
-queue where it cannot outlive the session — the exact failure this ADR exists to prevent.
-
-**Decision — hook half, amended.** The `SessionStart` hook resolves its scan root at the **main checkout**,
-not the invoking worktree: from any linked worktree it reads `git rev-parse --path-format=absolute
---git-common-dir` (the main `.git`'s parent) and scans `<main>/.claude/campaigns/*/ledger.json`. Every git
-probe **fails open** to today's cwd-relative behavior (git absent, not a repo, bare → the scan root is left
-untouched), so a non-git session is unchanged. The formerly-silent no-campaign path now **warns** when an
-*active* ledger is found stranded under `<main>/.claude/worktrees/*/.claude/campaigns/*/`: a bounded
-`additionalContext` payload naming the stranded path and stating that campaign state outside the main
-checkout's `.claude/campaigns` will not survive worktree reaping. It deliberately does **not** inject the
-stranded body (injecting would legitimize the wrong placement and reintroduce a latest-by-mtime race between
-duplicated ledgers); an all-`landed` stranded ledger stays silent. The ledger CLI anchors its relative
-`--campaign` the same way, and the `/war-campaign` placement prose states the rule — locked by the
-`skills/war-machine/war-pipeline-structure.test.sh` drift guard.
-
-**Consequences — amended.** The spec's *"campaigns live under the session's project dir"*
-([`2026-07-03-campaign-compaction-survival.md`](../specs/2026-07-03-campaign-compaction-survival.md) §8,
-"Worktree vs main-checkout cwd") is **superseded**: campaign state lives under the **main checkout's**
-`.claude/campaigns` — the one durable place — because session worktrees are disposable (`/aftermath` reaps
-them) and campaign state must outlive any one session. Per-worktree symlinks or copies of the campaign dir
-are no longer needed; any that exist become stranded duplicates to clean up. The spec is left untouched as a
-point-in-time record; this amendment carries the supersession.
-
-## Amendment (2026-07-19): a bare layout is a probe success, not a fail-open case
-
-The Decision half of the 2026-07-15 amendment above is corrected here for the **bare** case: a bare/exotic
-layout is a probe **SUCCESS**, not one of the probe-failure cases that leave the scan root untouched. A live
-probe (2026-07-16, git 2.50.1) confirms `git rev-parse --path-format=absolute --git-common-dir` exits 0
-inside a bare repo and prints the bare repo's own git dir — resolving **upward** to it from a subdirectory —
-so the anchor's success arm runs and re-roots the scan to `dirname(bare-git-dir)`. Nothing falls through. The
-genuine fail-open cases are only **git absent** and **not a repo** (exit 128, empty output), where the scan
-root is left exactly as resolved from `$CLAUDE_PROJECT_DIR`/cwd.
-
-The behavior is unchanged and still correct in practice — `dirname(bare-git-dir)` carries no
-`.claude/campaigns`, so the scan finds nothing there and the hook stays **fail-open one level down** (why this
-was graded a nit, not a defect). This amendment changes only the *description* of which cases engage
-fail-open; no decision and no code change. The ledger CLI's `resolveCampaignDir` shares the same probe and
-correction (there a bare layout resolves to an anchored absolute path rather than the returned relative one —
-harmless for the same marker-absence reason). The durable form of this fact lives in
-`docs/learnings/git-common-dir-anchor-idiom-fail-open-gotchas.md` §1, which binds every future copy of the
-idiom. The 2026-07-15 amendment's prose is left **byte-unchanged** as a point-in-time record; this amendment
-carries the correction.
+- 2026-07-15 · campaign state anchors at the main checkout · the stranded-queue failure in a disposable session worktree · failed because: a cwd-anchored campaign dir strands the queue where it cannot outlive the session · retired: docs/adr/0016-campaign-compaction-survival.md @ cd915c08
+- 2026-07-19 · a bare layout is a probe success, not a fail-open case · live probe 2026-07-16, git 2.50.1 · failed because: the fail-open list named the bare layout, which the probe resolves · retired: docs/adr/0016-campaign-compaction-survival.md @ 71e7666e
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

@@ -106,7 +106,7 @@ see a collision and cut a fresh `dev/<date>-<slug>` fork.
   `land-decision.mjs`, or `SERVITOR_RESULT` schema change.
 - **Leaves [ADR 0008](0008-git-is-the-resume-source-of-truth.md) untouched** — resume precedence is
   unchanged.
-- Historical ADRs are superseded, never edited.
+- Prior ADRs are rewritten in place under the living-ADR law ([ADR 0063](0063-living-adrs-git-is-the-archive.md)).
 
 ## Considered options
 
@@ -119,3 +119,7 @@ see a collision and cut a fresh `dev/<date>-<slug>` fork.
 - **Servitor commits the promotion versus the Lead (chosen: Lead).** The servitor has no Bash and no
   working-branch checkout; the Lead already owns Gate-2 render/lint, so it owns the promotion commit and
   the transient publication worktree too.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

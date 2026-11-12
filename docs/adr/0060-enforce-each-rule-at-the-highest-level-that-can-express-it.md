@@ -118,10 +118,11 @@ recorded in the Decision log below.
   "Snapshot and confirm dispatches also stay there" sentence is superseded when that change lands.
 - A hook arm for a tool that a `tools:` line no longer names is unreachable. Such an arm stays as
   a level 3 backstop, and the docs say that it is one.
-- A byte spent on a `tools:` line is paid back in tokens on every dispatch. ADR 0042's
-  2026-11-09 amendment makes that a valid reason to raise a card budget.
+- A byte spent on a `tools:` line is paid back in tokens on every dispatch. ADR 0042
+  (2026-11-09) makes that a valid reason to raise a card budget (its D5 net-context-saving reason).
 
 ## Decision log
 
 - 2026-11-09 · ADR authored in the living form; ranks the six enforcement levels, states the law, extends least start from context to tools and permission, and names four prompt-only exceptions · issues #2782, #2783, #2784
 - 2026-11-10 · the five Git relays now run on `war-helper` on their first attempt, under its own guard arm; ADR 0057's "Snapshot and confirm dispatches also stay there" sentence is rewritten in place · issue #2784 (plan 2026-11-08-model-routing-and-prompt-byte-budgets, Task 5.3)
+- 2026-11-11 · the ADR 0042 citation names its folded D5 reason in the dated form · #1850 (ADR 0063)

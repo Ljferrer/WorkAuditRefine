@@ -17,13 +17,13 @@ body is about 1 KB. It carries no refiner doctrine.
 role, and every preset inherits it. A config without the key spawns haiku through `ROLE_MODEL`.
 
 **The auditor git guard also confines the helper.** `validate-auditor-git.sh` allows one read-only
-git command with no shell syntax beyond quoted values at admitted token positions (ADR 0029 Amendment 2026-10-30), and its helper arm also admits one pipe between two git commands (Decision log 2026-11-10). The dispatched prompts therefore spell their commands in forms
+git command with no shell syntax beyond quoted values at admitted token positions (ADR 0029 (2026-10-30), its Decision 5), and its helper arm also admits one pipe between two git commands (Decision log 2026-11-10). The dispatched prompts therefore spell their commands in forms
 the guard admits: `<rev>^0` in place of `<rev>^{commit}`, and `<base>...<tip>` in place of a
 `$(git merge-base ...)` substitution. Each new spelling resolves the same object or range.
 
 **A word the guard cannot pass bare routes that one dispatch to the refiner.** A worktree path with
 a space needs quotes, and the helper card's no-shell-syntax rule denies them (the guard itself admits a
-quoted value since ADR 0029 Amendment 2026-10-30). `helperOpts` checks the words before dispatch,
+quoted value since ADR 0029 (2026-10-30), its Decision 5). `helperOpts` checks the words before dispatch,
 and the prompt quotes them on that arm through `shq`, so these repos run at the old cost. The repeat `audit-pin` lookup stays on the recovery
 refiner tier.
 
@@ -48,3 +48,4 @@ levels this card relies on, and plans the move of the snapshot, confirm, pin and
 ## Decision log
 
 - 2026-11-10 · the five Git relays move to the helper on their first attempt; each moved prompt spells only commands the helper arm admits and inlines the Exact Git diff identity command without its `set -o pipefail` line; a null for a 40-hex request value is a malformed reply in the relays and in `audit-pin`, so a 40-hex value that names no commit now costs one re-dispatch and then takes the dropped-seat arm · issues #2784, #2497 (plan 2026-11-08-model-routing-and-prompt-byte-budgets, Task 5.3)
+- 2026-11-11 · the ADR 0029 citations name its folded Decision 5 in the dated form · #1850 (ADR 0063)

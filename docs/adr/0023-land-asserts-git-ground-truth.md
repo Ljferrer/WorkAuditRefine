@@ -48,8 +48,8 @@ reading. It then branches:
   interrupted prior attempt pushed `<merge-sha>` but died before the follower CAS): skip the no-op
   push, reconcile the follower to `<merge-sha>`, **exit 0**.
 - **`<merge-sha>` != pre-push origin tip** — the normal path: push, `[rejected]` classification,
-  post-push readback, follower CAS. The 0/2/3 exit contract is unchanged (exit 6 and the widened
-  exit-3 triggers arrive with the wrong-HEAD amendment below).
+  post-push readback, follower CAS. The exit contract is 0/2/3, plus exit 6 and the widened exit-3
+  triggers of the wrong-HEAD precheck (G).
 
 The anchor is the **origin tip, never the local follower** `refs/heads/<working>`, which lags — the
 follower is fast-forwarded toward origin *outside* `land-advance`, in the next phase's
@@ -71,14 +71,14 @@ transient retry (D).
 interrupted land pushed `<merge-sha>`, then `cmd_ensure_integration`'s behind-case fast-forwarded the
 follower to it before this land ran. Both collapse to phantom because the follower is advanced
 *outside* `land-advance` there. This is deliberate: escalating a benign already-landed is **safe** (the
-work is on origin; the now-`land-advance`-routed escalation-completion path resolves it), **rare**
+work is on origin; the refiner's land confirm resolves it, below), **rare**
 (needs a cross-invocation resume of an interrupted land), and matches the original guard's behavior.
 Auto-reconciling it would require phase-base context that breaks the stable 2-arg contract (A) — not
 worth it. The load-bearing exit-0 branch remains correct for the in-loop transient recovery (D), where
 `cmd_ensure_integration` has not yet run and the follower genuinely lags.
 
-**Amendment (2026-11-09, #2657 D1):** the refiner now resolves this residual, not the
-escalation-completion path. On an exit 3 the refiner's land confirm (`landConfirmArm`) reads
+The refiner resolves this residual (#2657 D1), not the escalation-completion path. On an exit 3 the
+refiner's land confirm (`landConfirmArm`) reads
 `git ls-remote origin refs/heads/<working>` and the follower. If both equal `<merge-sha>`, it returns
 `landed`. The Workflow still confirms that land in Git (`confirmMerge`), and `land-advance`'s exit
 contract is unchanged.
@@ -104,7 +104,7 @@ mode, never grown to satisfy a fix). The land-phase-reachable subset
 (`escalate`/`audit-blocked`/`conflict`/`land_stale`/`dep-failed`/`gate-evidence`/`unrunnable-deps`) is
 pinned by a **drift-guarded test** against the exported constant and the emitted land-phase prompts;
 the test fails if `no-test`/`unpackaged` (merge-task-only) becomes reachable from any land prompt.
-**Amendment to the spec's original framing (grill Q7):** the hand-written unreachability comment at the
+Departing from the spec's original framing (grill Q7), the hand-written unreachability comment at the
 `.includes(landResult.status)` site is **retained as narration** — the test enforces the invariant
 mechanically, the comment keeps it human-readable. The phase-level `landDecision` vs. task-level status
 enum separation is likewise pinned by a doc-contract test sourcing both enums fresh from `schemas.md`.
@@ -124,6 +124,88 @@ Both manual land paths route through `land-advance` on a green gate, retiring th
   `held-escalation-lead-manual-completion` is updated to match, so the recorded procedure no longer
   contradicts this ADR.
 
+### (G) The push's own precondition is part of land truth
+
+The land's *effect* is provable against git — origin advanced to `<merge-sha>` — and so is the push's
+**precondition**. `cmd_land_advance` pushes `HEAD:refs/heads/<working>`, and `HEAD` resolves from the
+invocation cwd, so the `<merge-sha>` argument the caller passes must match the commit about to be
+pushed. Without that check a manual land run from the main checkout attempted that checkout's
+`master` HEAD, took a non-ff `[rejected]`, and exited **2** — the CAS-reject code. Nothing was forced
+and no ref moved, so the guard's safety held; what broke was the *diagnostic*. Exit 2 read "CAS
+contention — reland" when the truth was "wrong worktree", and the operator spent a loop chasing a
+contender that did not exist. The wrong-cwd trap is a published lesson, and being prose did not stop
+it recurring — hence the fix belongs in the script.
+
+`cmd_land_advance` asserts `HEAD == <merge-sha>` immediately before the push
+and dies loudly on mismatch, naming both SHAs and the expected cwd. Three properties make this an
+extension of (B) rather than a new mechanism:
+
+- **It is land truth, not a new check.** A land is only provable if the thing pushed is the thing the
+  caller vouched for. The pre-push origin-tip capture proves *where the ref is going*; the precheck
+  proves *what is going there*. Together they close the assertion.
+- **It sits after the guard's early-return arms** (first-land fall-through, phantom die, already-landed
+  reconciliation), immediately before the push — the exact code path that can emit the misleading exit
+  2. The already-landed arm reconciles the follower **without** pushing and is correct from any cwd;
+  it must stay idempotent (ADR 0008 repair-toward-git), so the precheck must not gate it.
+- **It adds no constant and no new exit class.** The die reuses the catalogued `EX_WRONG_BRANCH` (6),
+  whose family is exactly "the worktree is not in the state the operation requires; fix the topology
+  and re-run"; the catalogue comment gains the new site. A dedicated `EX_WRONG_HEAD` was rejected —
+  the catalogue's own rule blesses overloading where halt-semantics are identical, and 6 is already
+  distinct from 0/2/3.
+
+**Consequence — the point of the precheck.** Exit 2 means *only* a real concurrent advance. The
+push form and the `[rejected]` exit-2 classification are unchanged — the semantics of exit 2 are
+unambiguous. Exit 3 remains the escalate class and carries the unresolvable-`HEAD`/`<new-sha>`
+triggers; exit 6 is the wrong-HEAD die. Pushing an explicit
+`<merge-sha>:refs/heads/<working>` refspec instead was rejected — it would reverse the
+red-team-verified named-source-`HEAD:` push finding.
+
+No in-workflow prompt changes: the refiner lands from `_refinery` detached at the merge sha, so the
+precheck cannot fire in-flow, and a non-0/non-2 exit already routes the refiner's `status: 'error'`
+arm. Only the SKILL.md **manual**-land recipes — the paths that historically ran from the wrong cwd —
+carry the explanatory sentence.
+
+**The spec stays a record.** The originating spec prose
+([`2026-06-25-concurrent-run-land-isolation-design.md`](../specs/2026-06-25-concurrent-run-land-isolation-design.md)
+§5.3, guarded by the D15 doc-contract row) states the push-first CAS contract as of its own ratification
+and is not edited — specs record what was decided then; this ADR is the live authority on the land
+primitive's assertions. The D15 row's subject (the `cmd_land_advance` pointer, the `[rejected]`
+classification, the 0/2/3 exits) is untouched by the precheck.
+
+Full mechanics: [the design spec](../specs/2026-07-22-merge-land-resilience-design.md) §3 decisions
+6–9 and §4.4, and [the plan](../plans/2026-07-22-merge-land-resilience.md) Task 1.2. The sibling
+change landed in the same plan — one bounded in-workflow retry for environment-class gate failures —
+is [ADR 0040](0040-environment-class-gate-failures-earn-one-retry.md).
+
+### (H) One bounded re-read, and a resolved `<merge-sha>`
+
+Issue #1837 recorded a land that reached origin and still exited 3 with no message. The call passed a
+short SHA, and a short value never equals the full SHA from `ls-remote`. A lag can give the same
+exit, so both shapes are covered.
+
+`cmd_land_advance` resolves `<merge-sha>` to its full SHA before the land-truth
+guard, so each compare reads two full SHAs. A value that does not resolve stays as given and keeps
+its die. A post-push read that fails or differs waits 2 s and reads origin once more. A second miss
+dies with exit 3, names both SHAs and the `sync-follower` hint, and leaves the follower unmoved. The
+pre-push read gets no retry, because a failed read there stops before any push. Exit codes do not
+change, and a land still reports success only after origin proves the advance.
+
+### (I) A server-side `[remote rejected]` push is retried
+
+Issue #2626 recorded three pushes that GitHub refused with `[remote rejected] ... (fatal error in
+commit_refs_rules)` while origin did not move. That line does not carry the `[rejected]` token, and a
+second push is safe.
+
+After a non-zero push whose output carries `[remote rejected]`,
+`cmd_land_advance` reads origin with a fresh `ls-remote`. If origin still reads the pre-push tip, it
+runs the same push again, at most 3 times, after 10, 20 and 40 s. The read runs before each wait. If
+origin moves during the wait, the non-force retry cannot overwrite it: git refuses a non-fast-forward
+(`[rejected]`, exit 2), and any other outcome ends through the readback or the exit 3 die. A retry that lands ends through
+the existing post-push readback and follower CAS. A moved origin, a failed read or spent retries die
+with exit 3 and leave the follower unmoved. `[rejected]` still exits 2 with no retry, and no push uses
+`--force`. The 0/1/2/3/6 exit codes do not change. A permanent decline (a pre-receive hook) also
+prints `[remote rejected]`, so it waits 70 s before the same exit 3.
+
 ## Relationship to prior ADRs
 
 - **Extends [ADR 0008](0008-git-is-the-resume-source-of-truth.md)** onto the land path — git is the
@@ -139,7 +221,7 @@ Both manual land paths route through `land-advance` on a green gate, retiring th
   `HARD_ESCALATION_REASONS`, or `KNOWN_LAND_DECISIONS` member is added; (E) records that per-mode
   reachability is now a drift-guarded test rather than a comment alone, the shared constant staying
   single-source-of-truth.
-- Historical ADRs are superseded, never edited.
+- Prior ADRs are rewritten in place under the living-ADR law ([ADR 0063](0063-living-adrs-git-is-the-archive.md)).
 
 ## Considered options
 
@@ -158,86 +240,15 @@ Both manual land paths route through `land-advance` on a green gate, retiring th
 - **Split `HARD_ESCALATION_REASONS` per mode vs. a drift-guarded test (chosen: test).** Splitting breaks
   the mirror and the existing drift-guard (ADR 0005); the test pins per-mode reachability without
   touching the shared constant.
+- **A dedicated `EX_WRONG_HEAD` exit for the wrong-HEAD die (rejected, (G)).** The exit catalogue's own
+  rule blesses overloading where halt-semantics are identical, and 6 is already distinct from 0/2/3.
+- **Push an explicit `<merge-sha>:refs/heads/<working>` refspec instead of the precheck (rejected,
+  (G)).** It would reverse the red-team-verified named-source-`HEAD:` push finding.
 
-## Amendment (2026-07-22): the push's own precondition is part of land truth
+## Decision log
 
-The original Decision made the land's *effect* provable against git — origin advanced to
-`<merge-sha>` — but left the push's **precondition** unasserted. `cmd_land_advance` pushes
-`HEAD:refs/heads/<working>`, and `HEAD` resolves from the invocation cwd; the `<merge-sha>` argument
-the caller passes is never compared against the commit that is actually about to be pushed. A phase-3
-manual land ran the primitive from the main checkout: the push attempted that checkout's `master`
-HEAD, took a non-ff `[rejected]`, and exited **2** — the CAS-reject code. Nothing was forced and no
-ref moved, so the guard's safety held; what broke was the *diagnostic*. Exit 2 read "CAS contention —
-reland" when the truth was "wrong worktree", and the operator spent a loop chasing a contender that
-did not exist. The wrong-cwd trap is already a published lesson, and being prose did not stop it
-recurring — hence the fix belongs in the script.
-
-**Decision, extended.** `cmd_land_advance` asserts `HEAD == <merge-sha>` immediately before the push
-and dies loudly on mismatch, naming both SHAs and the expected cwd. Three properties make this an
-extension of (B) rather than a new mechanism:
-
-- **It is land truth, not a new check.** A land is only provable if the thing pushed is the thing the
-  caller vouched for. The pre-push origin-tip capture proves *where the ref is going*; the precheck
-  proves *what is going there*. Together they close the assertion.
-- **It sits after the guard's early-return arms** (first-land fall-through, phantom die, already-landed
-  reconciliation), immediately before the push — the exact code path that can emit the misleading exit
-  2. The already-landed arm reconciles the follower **without** pushing and is correct from any cwd;
-  it must stay idempotent (ADR 0008 repair-toward-git), so the precheck must not gate it.
-- **It adds no constant and no new exit class.** The die reuses the catalogued `EX_WRONG_BRANCH` (6),
-  whose family is exactly "the worktree is not in the state the operation requires; fix the topology
-  and re-run"; the catalogue comment gains the new site. A dedicated `EX_WRONG_HEAD` was rejected —
-  the catalogue's own rule blesses overloading where halt-semantics are identical, and 6 is already
-  distinct from 0/2/3.
-
-**Consequence — the point of the change.** Exit 2 now means *only* a real concurrent advance. The
-push form and the `[rejected]` exit-2 classification are byte-unchanged — the semantics of exit 2 did
-not change, they became unambiguous. Exit 3 remains the escalate class and gains the
-unresolvable-`HEAD`/`<new-sha>` triggers; exit 6 is new. Pushing an explicit
-`<merge-sha>:refs/heads/<working>` refspec instead was rejected — it would reverse the
-red-team-verified named-source-`HEAD:` push finding.
-
-No in-workflow prompt changes: the refiner lands from `_refinery` detached at the merge sha, so the
-precheck cannot fire in-flow, and a non-0/non-2 exit already routes the refiner's `status: 'error'`
-arm. Only the SKILL.md **manual**-land recipes — the paths that historically ran from the wrong cwd —
-gain the explanatory sentence.
-
-**Uncorrected by convention.** The originating spec prose
-([`2026-06-25-concurrent-run-land-isolation-design.md`](../specs/2026-06-25-concurrent-run-land-isolation-design.md)
-§5.3, guarded by the D15 doc-contract row) states the push-first CAS contract as of its own ratification
-and is not edited here — historical specs record what was decided then; this ADR is the live authority
-on the land primitive's assertions. The D15 row's subject (the `cmd_land_advance` pointer, the
-`[rejected]` classification, the 0/2/3 exits) is untouched by this amendment.
-
-Full mechanics: [the design spec](../specs/2026-07-22-merge-land-resilience-design.md) §3 decisions
-6–9 and §4.4, and [the plan](../plans/2026-07-22-merge-land-resilience.md) Task 1.2. The sibling
-change landed in the same plan — one bounded in-workflow retry for environment-class gate failures —
-is [ADR 0040](0040-environment-class-gate-failures-earn-one-retry.md).
-
-## Amendment (2026-11-01): one bounded re-read, and a resolved `<merge-sha>`
-
-Issue #1837 recorded a land that reached origin and still exited 3 with no message. The call passed a
-short SHA, and a short value never equals the full SHA from `ls-remote`. A lag can give the same
-exit, so both shapes get a fix.
-
-**Decision, extended.** `cmd_land_advance` resolves `<merge-sha>` to its full SHA before the land-truth
-guard, so each compare reads two full SHAs. A value that does not resolve stays as given and keeps
-its die. A post-push read that fails or differs waits 2 s and reads origin once more. A second miss
-dies with exit 3, names both SHAs and the `sync-follower` hint, and leaves the follower unmoved. The
-pre-push read gets no retry, because a failed read there stops before any push. Exit codes do not
-change, and a land still reports success only after origin proves the advance.
-
-## Amendment (2026-11-05): a server-side `[remote rejected]` push is retried
-
-Issue #2626 recorded three pushes that GitHub refused with `[remote rejected] ... (fatal error in
-commit_refs_rules)` while origin did not move. That line does not carry the `[rejected]` token, so
-`cmd_land_advance` died with exit 3 and never retried, although a second push was safe.
-
-**Decision, extended.** After a non-zero push whose output carries `[remote rejected]`,
-`cmd_land_advance` reads origin with a fresh `ls-remote`. If origin still reads the pre-push tip, it
-runs the same push again, at most 3 times, after 10, 20 and 40 s. The read runs before each wait. If
-origin moves during the wait, the non-force retry cannot overwrite it: git refuses a non-fast-forward
-(`[rejected]`, exit 2), and any other outcome ends through the readback or the exit 3 die. A retry that lands ends through
-the existing post-push readback and follower CAS. A moved origin, a failed read or spent retries die
-with exit 3 and leave the follower unmoved. `[rejected]` still exits 2 with no retry, and no push uses
-`--force`. The 0/1/2/3/6 exit codes do not change. A permanent decline (a pre-receive hook) also
-prints `[remote rejected]`, so it now waits 70 s before the same exit 3.
+- 2026-07-22 · the push's own precondition is part of land truth · merge-land resilience plan Task 1.2 · retired: docs/adr/0023-land-asserts-git-ground-truth.md @ 9ab45d0f
+- 2026-11-01 · one bounded re-read, and a resolved `<merge-sha>` · #1837 · retired: docs/adr/0023-land-asserts-git-ground-truth.md @ 88663af7
+- 2026-11-05 · a server-side `[remote rejected]` push is retried · #2626 · retired: docs/adr/0023-land-asserts-git-ground-truth.md @ 227f742e
+- 2026-11-09 · the refiner's land confirm resolves the cross-resume already-landed residual · #2657 D1 · retired: docs/adr/0023-land-asserts-git-ground-truth.md @ bace48a7
+- 2026-11-11 · adopted under the living-ADR law; the grill Q7 run-in reads as body text · #1850 (ADR 0063) · retired: docs/adr/0023-land-asserts-git-ground-truth.md @ f08a23c9

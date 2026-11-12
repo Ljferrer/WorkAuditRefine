@@ -37,8 +37,14 @@ judgment — which hub to keep, which lesson to compress — stays human.** Conc
    (`--apply`) or an explicit slug list (`archive <slug>…`, unchanged). The render `refuse`/`warn`
    messages that mention `--candidates` say it *lists*, not that it archives the set.
 2. **`archive` emits an inbound-hub count and WARNs on a concept hub.** For each slug about to be archived,
-   a hot inbound count ≥2 writes `WARN: archiving concept hub '<slug>' (<n> inbound refs) — its index row
-   disappears; consider keep-compress stub` to stderr. The WARN is **advisory and non-blocking (exit 0)**:
+   a hot inbound count ≥2 writes `WARN: archiving concept hub '<slug>' (<n> inbound citers) — its index row
+   disappears; consider keep-compress stub` to stderr. The count is slug-deduped: `cmdArchive` counts
+   `new Set(hotInbound.map((r) => r.slug)).size` for both the ≥2 predicate and the printed number, so a
+   slug hot in *both* roots is one citer, matching the `inbound` verb and `tightenPlan`'s cross-root
+   Floor 2 (#1154). Every hub count is a hot count: `tightenPlan` Floor 2 and the Phase 3 check count
+   hot citers too, because a cold citer cannot pin a row
+   ([ADR 0055](0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md));
+   `inbound --hot` gives that count. The WARN is **advisory and non-blocking (exit 0)**:
    archive is link-safe (cold links resolve), so blocking on inbound count would be a false gate; the WARN
    surfaces the lost hot index row and the decision stays human.
 3. **A new `war-memory inbound <slug> [--repo <root>]` subcommand** counts hot inbound `[[slug]]` refs
@@ -52,6 +58,22 @@ judgment — which hub to keep, which lesson to compress — stays human.** Conc
 5. **Concept hubs are downgraded-to-stub, never dropped.** A hub whose bug-warning value is resolved but
    whose vocabulary-anchor value persists is compressed to a `RESOLVED — kept as concept anchor` stub that
    retains its hot index row, never removed.
+6. **The archive mover fails closed on an occupied `archive/` destination (#1924).** `fs.renameSync`
+   replaces its destination, and the repo arm's `git mv` (no `-f`) refuses an occupied destination and
+   falls through to that same rename, so an unguarded move of a slug already present in `archive/`
+   destroys the archived copy and still prints the ordinary `archived <slug> → <dst>` success line
+   (observed once in a live `/lessons-learned tighten` pass on 2026-08-29). Both archiving verbs route
+   through one mover, `archiveRecord`, which tests the destination **before** appending the archive
+   note, so a refused record keeps its hot file byte-intact. This is `archive`'s **non-zero exit
+   route**: a refused slug is skipped, both paths are named on stderr, the rest of the batch still
+   moves, the projection is still re-rendered, and the verb then exits **1** with a count.
+   `migrate --apply` carries the identical contract (ADR 0031 — the guard covers the equivalence
+   class, not the instance that bit us), and appends the same archive note its sibling does. The hub
+   WARN is untouched: advisory, non-blocking, exit 0. The collision is **same-root** by construction —
+   `archiveRecord` scopes the destination to the record's own root, so the cross-root
+   `supersedes_repo_copy` shape (hot in one root, cold in the other) never collides. Callers:
+   `skills/lessons-learned/SKILL.md` Phase 5 and `references/tighten.md` Execute step 4 document the
+   refusal route.
 
 ## Relationship to prior ADRs
 
@@ -66,7 +88,7 @@ judgment — which hub to keep, which lesson to compress — stays human.** Conc
 - **Leaves [ADR 0002](0002-scope-by-agent-type.md) / [ADR 0022](0022-servitor-local-root-writes-gate-2-promotion.md)
   untouched** — no new servitor capability, no Bash; the `inbound` count is a read-only `war-memory` call
   the Lead/operator runs, not a servitor mutation.
-- Historical ADRs are superseded, never edited.
+- Prior ADRs are rewritten in place under the living-ADR law ([ADR 0063](0063-living-adrs-git-is-the-archive.md)).
 
 ## Considered options
 
@@ -75,13 +97,15 @@ judgment — which hub to keep, which lesson to compress — stays human.** Conc
   belongs only on a true `rm`, which the pipeline does not do.
 - **Add an `rm`-blocker or delete verb to `war-memory` (rejected — nothing to guard).** The pipeline
   archives, never deletes; `safe-swap verify`'s archive-aware dangling check already catches a true orphan.
+  The conclusion stands — no delete verb exists — but the "nothing to guard" premise was false in the
+  code: the **move** needed guarding, not an `rm` (Decision item 6, #1924).
 - **A central classification service for the fan-out verifier (rejected — over-built).** The fix is the
   prompt trichotomy plus routing removal decisions through the existing `safe-swap verify`, not a new
   service.
 
 ## Consequences
 
-- `CONTEXT.md` gains three of the five new terms in this cluster — **Concept hub**, **Link trichotomy
+- `GLOSSARY.md` gains three of the five new terms in this cluster — **Concept hub**, **Link trichotomy
   (HOT/COLD/MISSING)**, **Non-destructive default (`--candidates`)** (the other two land with
   [ADR 0029](0029-capture-grounds-on-committed-tip.md)).
 - Any script or doc invoking `archive --candidates` expecting mutation breaks (intended); the call-site
@@ -90,40 +114,6 @@ judgment — which hub to keep, which lesson to compress — stays human.** Conc
 - Named residual: a *future* doc re-introducing a mutating `--candidates` example is out of this change's
   reach — the sweep greps the current tree; the drift-guard/`/lessons-learned` posture is the standing
   backstop.
-
-## Amendments
-
-- **2026-10-30 — every hub count is a hot count.** The `archive` WARN already counted hot citers, but `tightenPlan` Floor 2 and the Phase 3 check counted cold citers too. [ADR 0055](0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md) aligns them: a cold citer cannot pin a row. `inbound --hot` gives that count.
-- **2026-07-27 — the hub WARN counts slug-deduped `inbound citers`.** Decision item 2 above quotes the
-  WARN as first shipped: an undeduped record count with the noun `inbound refs`. A slug hot in *both*
-  roots is two records but one citer, so that count read `2` where the `inbound` verb (and `tightenPlan`'s
-  cross-root Floor 2) read `1`. As of
-  [`docs/plans/2026-07-26-war-memory-cli-correctness.md`](../plans/2026-07-26-war-memory-cli-correctness.md)
-  Task 1.1 (#1154), `cmdArchive` counts `new Set(hotInbound.map((r) => r.slug)).size` for both the ≥2
-  predicate and the printed number, and the noun reads **`inbound citers`** — the deduped count counts
-  slugs, so the old noun would be false. Advisory, non-blocking, exit 0: unchanged. The quote in item 2
-  stands as the historical record (superseded, never rewritten).
-
-- **2026-08-29 — the archive mover fails closed on an occupied `archive/` destination (#1924).** The
-  rejected option below ("Add an `rm`-blocker or delete verb to `war-memory` — nothing to guard")
-  rested on a premise that was false in the code: the pipeline *did* delete. `fs.renameSync` replaces
-  its destination, and the repo arm's `git mv` (no `-f`) refuses an occupied destination and falls
-  through to that same rename, so archiving a slug already present in `archive/` destroyed the
-  archived copy and still printed the ordinary `archived <slug> → <dst>` success line. Observed once
-  in a live `/lessons-learned tighten` pass on 2026-08-29, caught only by hand-reconciling file
-  counts. The rejected option's *conclusion* stands — no delete verb was added — but its rationale is
-  superseded: what needed guarding was the **move**, not an `rm`. As of #1924 both archiving verbs
-  route through one mover, `archiveRecord`, which tests the destination **before** appending the
-  archive note, so a refused record keeps its hot file byte-intact. This gives `archive` its **first
-  non-zero exit route**: a refused slug is skipped, both paths are named on stderr, the rest of the
-  batch still moves, the projection is still re-rendered, and the verb then exits **1** with a count.
-  `migrate --apply` carries the identical contract (ADR 0031 — the guard covers the equivalence
-  class, not the instance that bit us), and additionally now appends the same archive note its
-  sibling always did. The hub WARN is untouched: advisory, non-blocking, exit 0. The collision is
-  **same-root** by construction — `archiveRecord` scopes the destination to the record's own root, so
-  the cross-root `supersedes_repo_copy` shape (hot in one root, cold in the other) never collides.
-  Callers: `skills/lessons-learned/SKILL.md` Phase 5 and `references/tighten.md` Execute step 4 now
-  document the refusal route.
 
 ## References
 
@@ -142,8 +132,10 @@ judgment — which hub to keep, which lesson to compress — stays human.** Conc
   [[retiring-a-resolved-memory-must-check-inbound-links-hubs-stay]],
   [[dangling-link-verdict-must-check-archive-before-removal]], [[lessons-learned-tooling-traps]].
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-07-27 · the hub WARN counts slug-deduped `inbound citers` · #1154 (plan `2026-07-26-war-memory-cli-correctness` Task 1.1) · failed because: an undeduped record count read `2` for a slug hot in both roots, where the `inbound` verb read `1` · retired: docs/adr/0028-memory-store-integrity-tool-enforced.md @ 36e04d04
+- 2026-08-29 · the archive mover fails closed on an occupied `archive/` destination · #1924 · failed because: `fs.renameSync` replaced an occupied destination, so archiving destroyed the archived copy · retired: docs/adr/0028-memory-store-integrity-tool-enforced.md @ 769f651c
+- 2026-10-30 · every hub count is a hot count · ADR 0055 · failed because: a cold citer cannot pin a row · retired: docs/adr/0028-memory-store-integrity-tool-enforced.md @ 6d3bb739
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0028-memory-store-integrity-tool-enforced.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

@@ -1,6 +1,6 @@
 # Engine ingest guards return named clean errors; the provision exit-code catalogue is the single source of non-zero meanings
 
-**Status:** accepted (design ratified 2026-07-08; the undefined-render guard revised to the `pt` tagged-prompt form 2026-07-10 after this plan's first `/war` audit; implemented by the spec and plan below)
+**Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below)
 
 WAR's engine seams converted imperfect input and half-run state into raw crashes and dangerous manual
 recovery. `war-config.mjs` `validate()` had no guard on `overrides`, so a hand-edited `overrides: null`
@@ -115,3 +115,8 @@ Provision barrier heals only its own provably-safe orphans, never destroying wor
   failure routes to.
 - [ADR-0021 — run-lifecycle provision contract](0021-run-lifecycle-provision-contract.md) — the
   owned-file-continuity relaunch the empty-orphan reclaim is distinct from.
+
+## Decision log
+
+- 2026-07-10 · the undefined-render guard revised to the `pt` tagged-prompt form after this plan's first `/war` audit (Status currency clause) · the plan's first `/war` audit · retired: docs/adr/0034-engine-ingest-guards-and-provision-exit-codes.md @ cb07f484
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

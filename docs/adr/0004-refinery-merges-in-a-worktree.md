@@ -96,3 +96,7 @@ hook is a separate, stronger guarantee deferred to a future change.
 - `teardown-phase` gains a path-based `_refinery` reap before the integration-branch delete, and
   the delete is now verified (non-zero exit propagated, not swallowed).
 - `land_stale` joins the hard-escalation set in `land-decision.mjs` and `workflow-template.js`.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

@@ -71,7 +71,7 @@ cited artifact (backstop B2), each recorded in the plan's backstops section.
 | `war-worker` | the allowlist only |
 
 The same hook also admits the plugin's memory query tool for the auditor, servitor, evidence
-auditor and worker, recorded in the ADR 0002 amendment (2026-10-27).
+auditor and worker, recorded in ADR 0002 (2026-10-27), § The memory query tool.
 
 The allowlist holds the tools that pass the effect predicate: never `mutatesTarget`,
 `executesForeignCode`, `mutatesDevice` or `destructive`, derived at the REA version measured at
@@ -96,9 +96,9 @@ plan than this record.
   both copies. Every doc surface states the widen refusal by export name, never as a closed pair
   (D19, PIN-16): a nomination is valid when it is never a `RESERVED_LENSES` or
   `WIDEN_BARRED_LENSES` member. `agents/war-auditor.md` lags by backstop B4. `README.md` and the
-  `CONTEXT.md` lens-catalog note describe `RESERVED_LENSES` itself and stay untouched.
-- The seat measures for itself. Under [ADR 0041](0041-audit-evidence-precedence.md)'s amendment
-  row, the REA-reported subject sha256 matched against each cited artifact's digest manifest
+  `GLOSSARY.md` lens-catalog note describe `RESERVED_LENSES` itself and stay untouched.
+- The seat measures for itself. Under [ADR 0041](0041-audit-evidence-precedence.md)'s 2026-10-20
+  Decision-log row, the REA-reported subject sha256 matched against each cited artifact's digest manifest
   committed at `audit_sha` is rung 1. The seat HOLDs only on a mismatch against any cited
   artifact's manifest. Every other REA finding is SOFT, and REA unreachable is `cannot-confirm`.
   A regular seat never re-measures a `rea:` claim and never holds on one: `agents/war-auditor.md`
@@ -130,8 +130,8 @@ plan than this record.
 - [ADR 0025](0025-drift-guard-discipline.md) — every restated machine fact is guarded by extraction
   plus equality (the doc-token guard, the card-vs-hook set equality, the F07 mirror rows) or
   de-mirrored to the export name.
-- [ADR 0041](0041-audit-evidence-precedence.md) — the evidence seat's rung lives there as an
-  amendment row.
+- [ADR 0041](0041-audit-evidence-precedence.md) — the evidence seat's rung lives there as its
+  2026-10-20 Decision-log row.
 - [ADR 0042](0042-prompt-surface-budgets.md) — `artifact-evidence.md` is the one cold home; the
   cards and SKILLs carry pointers, and every budgeted surface stays under its hard line.
 - [ADR 0044](0044-authoring-contract-and-merged-artifact.md) — the Target artifacts block is
@@ -141,7 +141,7 @@ plan than this record.
 
 - A plan can rest on what a shipped artifact does, and the claim rides the same tag a repo claim
   rides.
-- Four glossary terms join `CONTEXT.md` `### Audit`: Artifact evidence, Target artifacts block,
+- Four glossary terms join `GLOSSARY.md` `### Audit`: Artifact evidence, Target artifacts block,
   Evidence seat and Digest manifest. Each points at its home or its export and restates nothing.
 - A run with the knob off is byte-identical to a run before this ADR. A run with the knob on spends
   one roster slot on the evidence seat.
@@ -167,9 +167,5 @@ plan than this record.
   gains `<sha12>`, the first 12 hex of the declared sha256; `MANIFEST_KEYS` unchanged) and D24
   (recon lane runs digest first; `<plan-slug>` is the plan basename without `.md`, defined in
   `artifact-evidence.md`) · plan 2026-10-20-rea-artifact-evidence task 5.1
-
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
-
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0053-rea-artifact-evidence-source.md @ b31d2203
+- 2026-11-11 · the ADR 0002 and ADR 0041 amendment citations read in the dated form · #1850 (ADR 0063)

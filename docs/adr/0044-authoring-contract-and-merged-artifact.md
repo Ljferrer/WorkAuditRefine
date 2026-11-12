@@ -1,9 +1,6 @@
 # The authoring contract and the merged plan artifact — one interview, one artifact
 
-**Status:** accepted (design ratified 2026-08-04; implemented by the spec and plan below;
-amended 2026-08-24 — authoring-side verification: the interviewer gains its adversarial
-counterweight; amended 2026-10-26 — fork trials and the pair beat: the interviewer runs the
-experiment; see the amendments below)
+**Status:** accepted (design ratified 2026-08-04; implemented by the spec and plan below)
 
 The WAR pipeline's front door was its only stage with no ratified discipline. The README named
 Grill Me a "Required Auxiliary Plugin" and attributed to `/grill-with-docs` a design-tree walk
@@ -59,7 +56,9 @@ doctrine in-repo.**
    one-line rendering either over-widens the footprint, yields an `unparseable footprint`, or
    silently replaces the footprint with slice paths. `/war` decompose, intent extraction (both
    ADR 0014 headings), backstop surfacing, and `extractFiles` run unmodified; the `/war` engine —
-   `workflow-template.js`, hooks, floors, schemas, intake — is untouched by this contract.
+   `workflow-template.js`, hooks, floors, schemas, intake — is untouched by this contract, except
+   the one surface the evidence duty adds: the clustered filing prompt's `## Evidence artifacts`
+   emission (PIN-14; see § Evidence-duty home).
 4. **The authoring output contract (D4–D5, D18–D19).**
    - *Evidence tags (D4; source forms D11).* Every claim of fact in Part 1 carries one of
      `(user)` · `(verified: <source> at <base>)` · `[assumed: <default> — if wrong:
@@ -151,10 +150,11 @@ doctrine in-repo.**
 - The artifact shape ripples through every downstream consumer — `/war-strategy`'s templates and
   gap review, `/war-machine`'s conversion and grill charter (the training-memory question-tree
   wording is retired), `/red-team`'s source-of-truth arm and coverage lens, `/survey-corps`'
-  claim tagging, and the README / CLAUDE.md / war-help / CONTEXT.md gospel — which is exactly why
+  claim tagging, and the README / CLAUDE.md / war-help / GLOSSARY.md gospel — which is exactly why
   this passes the ADR triad: hard to reverse, surprising without context (it reverses both the
   README stance and the spec-is-not-a-plan gospel), a genuine trade-off.
-- Zero engine change: extraction, hooks, floors, and schemas are untouched. Engine consumption of
+- One engine change only, the clustered filing prompt's `## Evidence artifacts` emission (PIN-14):
+  extraction, hooks, floors, schemas, and intake are untouched. Engine consumption of
   the new slots (`Done when:` parsing, gate-log verification) is explicitly deferred to the
   precision-chain spec; round telemetry for the D7 adoption bet ("authoring weight is borne on
   both paths") rides `/war-review` rows, to be ratified in the loop-breaker spec.
@@ -170,19 +170,19 @@ doctrine in-repo.**
   into the template as ratified law — the separate-bullet task fields extraction-proven by the
   executed `extractFiles` probe, the two-H2 tail operator-ratified (2026-08-05, Q2).
 
-## Amendment (2026-08-24): authoring-side verification — the interviewer gains its adversarial counterweight
+## Authoring-side verification — the interviewer gains its adversarial counterweight
 
-**Status:** accepted (2026-08-24 — ratified in the authoring-side-verification interview; plan:
+Ratified 2026-08-24 in the authoring-side-verification interview; plan:
 [`docs/plans/2026-08-24-authoring-side-verification.md`](../plans/2026-08-24-authoring-side-verification.md);
-incident record: issue #1548).
+incident record: issue #1548.
 
-The #1547 interview exposed the gap this contract left open: the `/war-strategy` interviewer was
-the one seat in the pipeline with no adversarial counterweight. An external reviewer session
+The #1547 interview exposed the gap the authoring contract left open: the `/war-strategy`
+interviewer was the one seat in the pipeline with no adversarial counterweight. An external reviewer session
 falsified subtle-but-load-bearing errors in six consecutive `Recommended:` beats, the interview's
 two recon subagents made zero reads outside the plugin worktree, and three operator-ratified pins
 leaked between beats of the single interview — the bare-assent rule this contract ratified makes
 the operator's cheapest action "accept," so an unverified recommendation ships by default. This
-amendment records the ratified counterweight contract. It is doctrinal: the amendment records the
+section records the ratified counterweight contract. It is doctrinal: the ADR records the
 decision; the operative duties live on the skill surfaces both authoring paths consume —
 interactive (`plan-interview.md`) and AFK (the `/war-machine` grill charter).
 
@@ -226,15 +226,15 @@ is not accepted: it is closed by the artifact-borne mechanisms (2 and 4).
 
 ### Evidence-duty home
 
-The amendment records the decision; the skill surfaces carry the duty — issue authors and
+The ADR records the decision; the skill surfaces carry the duty — issue authors and
 interviewers do not read ADRs. The evidence duties (the recon lane, the pin-ledger law, the
 Evidence-consumed block, verifier arming, the `## Evidence artifacts` section on filed issues)
 are normative where their authors actually work: `plan-interview.md`, `strategy-verifier.md`,
 the `/war-machine` grill charter, `/survey-corps` Step 0.3's issue template, and the
 war-followup filing dispatch. An ADR-only duty would be invisible to every producer it binds.
-This narrows Decision 3's engine-untouched clause and the Consequences' zero-engine-change
-bullet by exactly one surface: the clustered filing prompt's `## Evidence artifacts` emission
-(PIN-14) — extraction, hooks, floors, schemas, and intake stay untouched.
+Decision 3's engine-untouched clause and the Consequences' engine bullet carry exactly one
+exception: the clustered filing prompt's `## Evidence artifacts` emission (PIN-14) — extraction,
+hooks, floors, schemas, and intake stay untouched.
 
 ### Relationship to ADR 0014
 
@@ -264,21 +264,22 @@ runs armed-by-rule, unwaived — the counterweight is not an interactive-only pr
   `skills/red-team/SKILL.md` Step 1 (the merged arm).
 - Originating task issue: #1314.
 
-## Amendment (2026-10-26): fork trials and the pair beat — the interviewer runs the experiment
+## Fork trials and the pair beat — the interviewer runs the experiment
 
-**Status:** accepted (2026-10-26 — ratified in the fork-trials interview, Q1–Q15; plan:
+Ratified 2026-10-26 in the fork-trials interview, Q1–Q15; plan:
 [`docs/plans/2026-10-26-interview-fork-trials-and-pair-beats.md`](../plans/2026-10-26-interview-fork-trials-and-pair-beats.md);
 red-team record:
 [`docs/red-team/2026-10-26-interview-fork-trials-and-pair-beats.md`](../red-team/2026-10-26-interview-fork-trials-and-pair-beats.md),
 ADJUDICATED per [ADR 0043](0043-adjudicated-clear-distinct-terminal-verdict.md); token-use
-tracking: issue #2436).
+tracking: issue #2436.
 
-The 2026-08-24 amendment gave the interviewer a refuter. The refuter reads and reasons. It runs
-nothing. The first time a plan claim is executed is `/red-team`, after the operator has ratified
-the design. This amendment moves the experiment forward: the interviewer settles a fact fork by
-running a bounded throwaway trial, settles a consequential interface by comparing two
-structurally different designs, and records both in the plan before the operator ratifies
-either. Plan prose is never evidence that a design works. The amendment records the decision;
+Authoring-side verification (above) gives the interviewer a refuter. The refuter reads and
+reasons. It runs nothing, so without a trial the first time a plan claim is executed is
+`/red-team`, after the operator has ratified the design. Fork trials move the experiment forward:
+the interviewer settles a fact fork by running a bounded throwaway trial, settles a consequential
+interface by comparing two structurally different designs, and records both in the plan before
+the operator ratifies either. Plan prose is never evidence that a design works. The ADR records
+the decision;
 the operative duties live in one cold references file,
 [`skills/war-strategy/references/fork-trials.md`](../../skills/war-strategy/references/fork-trials.md),
 reached by `when <trigger>, read` pointers from `plan-interview.md` Stage 1b and Stage 2, from
@@ -414,14 +415,15 @@ recorded on the pair row with the grafts each contributed.
   behind the same escape guard and its exit contract. The guard is fail-closed on the row; exit
   codes and triage are read from the guard header, never restated.
 - [ADR 0042](0042-prompt-surface-budgets.md): the doctrine lands cold in one references file;
-  the pointers carry triggers; both glossary evictions are byte-identical and the `CONTEXT.md`
-  hard line is never raised.
+  the pointers carry triggers; both glossary evictions are byte-identical and the glossary's
+  hard line (then on `CONTEXT.md`, now on `GLOSSARY.md`) is never raised.
 - [ADR 0052](0052-backward-chain-doctrine-and-corrective-round-disclosure.md): reachability step
   3 is untouched, and the sweep row is its record. The trial bounds are a safety precaution in
   the §4 sense, not a cost budget.
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-08-24 · authoring-side verification — the interviewer gains its adversarial counterweight · #1548 (plan `docs/plans/2026-08-24-authoring-side-verification.md`) · retired: docs/adr/0044-authoring-contract-and-merged-artifact.md @ 8399ac62
+- 2026-10-26 · fork trials and the pair beat — the interviewer runs the experiment · #2436 (plan `docs/plans/2026-10-26-interview-fork-trials-and-pair-beats.md`) · retired: docs/adr/0044-authoring-contract-and-merged-artifact.md @ 2b1ac17d
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0044-authoring-contract-and-merged-artifact.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

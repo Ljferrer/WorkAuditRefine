@@ -25,6 +25,32 @@ Three complementary mechanisms, one per failure surface:
    (bounded fix-worker + **full** re-audit on the shared budget; exhaustion escalates hard, wired
    into both `HARD_ESCALATION_REASONS` mirrors + drift guard). Coarse and heuristic **by design**:
    it proves enumerated packaging kept up with the diff, not that the image builds.
+
+   **The floor is Added/Renamed/Copied-only by design.** It inspects only Added/Renamed/Copied
+   (`A*`/`R*|C*`) diff paths; a purely-Modified or Deleted packaging artifact never flags, and the
+   floor exits 0. This is **intended scope, not a silent no-op**
+   ([[packaging-floor-is-a-noop-without-a-dockerfile-and-ignores-modified-paths]]). The floor catches
+   **enumerated-COPY drift** — a *new* file landing beside individually-COPY'd siblings that the
+   Dockerfile's COPY list never picked up. Modifying or deleting an already-packaged artifact in a way
+   that breaks the *image* is a different failure surface: it belongs to the opt-in **docker-build
+   gate** (§2) when the operator accepts it at Setup, or to CI's build, both of which exercise the
+   deployable artifact and fail loud on a broken image. Widening the floor to Modified/Deleted paths
+   would re-introduce exactly the language-specific, import-aware parsing this ADR rejects (Considered
+   options: *An import-aware floor*), in a shell guard, for a failure the build already catches
+   definitively. The diff-collection arm (`A*` / `R*|C*` / `continue`) is ratified as written, and the
+   scope is recorded both where it executes (the `assert-packaging-in-diff.sh` header) and here.
+
+   **An explicit declaration gets a vacuity advisory (scope unchanged).** A plan author who
+   **explicitly** declares `requiresPackaging: true` expects the floor to prove something, yet a run
+   with no Dockerfile at all, or a non-empty diff carrying zero Added/Renamed/Copied paths, proves
+   nothing (#819). `assert-packaging-in-diff.sh` accepts an opt-in `--advise-vacuous` flag that prints
+   **one informational advisory line on stderr per ratified vacuous shape**, citing this scope
+   paragraph; stdout and every exit code are byte-identical to a run without the flag. The Workflow
+   threads the flag into all three dispatched refiner packaging-floor invocations (initial merge,
+   floor-retry, baseline-proceed) **only** when the plan explicitly declares `requiresPackaging: true`
+   — a defaulted task runs the floor silently, preserving the anti-noise property (the advisory would
+   otherwise fire on every defaulted task in every non-docker repo). The advisory is stderr-only and
+   informational: exit 0 still means proceed, and the refiner never treats it as an error or a finding.
 2. **An opt-in docker-build gate**: `/war` Setup's existing ask-once gate detection additionally
    discovers Dockerfiles and probes `docker info`. Daemon reachable → offer appending
    `docker build -f <each>` to the declared base gate (operator confirms/trims; stored in
@@ -86,43 +112,8 @@ Three complementary mechanisms, one per failure surface:
 - [ADR-0013](0013-commanders-intent-and-disposition-routing.md) — the verbatim-extraction and
   surfaced-disposition precedents `args.backstops` follows.
 
-## Addendum (2026-07-08): the packaging floor is Added/Renamed/Copied-only by design
+## Decision log
 
-`assert-packaging-in-diff.sh` inspects only Added/Renamed/Copied (`A*`/`R*|C*`) diff paths; a
-purely-Modified or Deleted packaging artifact never flags, and the floor exits 0. This is **intended
-scope, not a silent no-op** ([[packaging-floor-is-a-noop-without-a-dockerfile-and-ignores-modified-paths]]).
-
-The floor exists to catch **enumerated-COPY drift** — a *new* file landing beside individually-COPY'd
-siblings of a Dockerfile that the Dockerfile's COPY list never picked up (the originating field incident,
-2026-07-06). Modifying or deleting an already-packaged artifact in a way that breaks the *image* is a
-different failure surface: it belongs to the opt-in **docker-build gate** (Decision §2 above) when the
-operator accepts it at Setup, or to CI's build, both of which exercise the deployable artifact and fail
-loud on a broken image. Widening the floor to Modified/Deleted paths would re-introduce exactly the
-language-specific, import-aware parsing this ADR rejected (Considered options: *An import-aware floor*),
-in a shell guard, for a failure the build already catches definitively.
-
-The diff-collection arm (`A*` / `R*|C*` / `continue`) is therefore ratified byte-unchanged. The
-decision is recorded both where it executes (the `assert-packaging-in-diff.sh` header) and here, so a
-future reader who finds a Modified packaging break slipping the floor sees a recorded scope boundary
-rather than an unrecorded gap. This addendum leaves the ratified body above unchanged.
-
-## Addendum (2026-07-12): an explicit-declaration `--advise-vacuous` advisory surface (scope unchanged)
-
-The ratified no-op shapes above stand. What was missing was any *signal* to a plan author who
-**explicitly** declared `requiresPackaging: true` that the floor run was structurally vacuous — no
-Dockerfile at all, or a non-empty diff carrying zero Added/Renamed/Copied paths ([[packaging-floor-is-a-noop-without-a-dockerfile-and-ignores-modified-paths]]).
-The declaration reads as "I expect this floor to prove something," yet under the ratified scope it can
-prove nothing, silently (#819).
-
-`assert-packaging-in-diff.sh` now accepts an opt-in `--advise-vacuous` flag that prints **one
-informational advisory line on stderr per ratified vacuous shape**, citing the 2026-07-08 addendum
-above; stdout and every exit code are byte-identical to a run without the flag. The Workflow threads
-the flag into all three dispatched refiner packaging-floor invocations (initial merge, floor-retry,
-baseline-proceed) **only** when the plan explicitly declares `requiresPackaging: true` — a defaulted
-task runs the floor exactly as before and stays silent, preserving the anti-noise property (the
-advisory would otherwise fire on every defaulted task in every non-docker repo). The advisory is
-stderr-only and informational: exit 0 still means proceed, and the refiner never treats it as an error
-or a finding.
-
-This is a surfacing addition only. The A*/R*|C*-only diff scope, the fail-closed `requiresPackaging`
-default, and the no-op-without-a-Dockerfile shapes are all unchanged.
+- 2026-07-08 · the packaging floor is Added/Renamed/Copied-only by design · packaging-floor no-op lesson · retired: docs/adr/0017-packaging-floor-docker-gate-ratified-backstops.md @ 7dfbc0ba
+- 2026-07-12 · an explicit-declaration `--advise-vacuous` advisory surface (scope unchanged) · #819 · retired: docs/adr/0017-packaging-floor-docker-gate-ratified-backstops.md @ a38520a6
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

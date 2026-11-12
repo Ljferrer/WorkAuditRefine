@@ -217,8 +217,8 @@ test('lesson stamp — the retired per-site lesson carries its dated RESOLVED no
 // both halves on that surface's own region:
 //
 //   * OLD-absent — the premise text that surface used to state. This is the half that catches a
-//     stale surface. A surface that only ever ADDED text (an amendment line, a new file, a dated
-//     lesson note) carries the premise statements themselves (PREMISE_TOKENS) as its OLD half.
+//     stale surface. A surface that only ever ADDED text (an ADR Decision-log line, a new file, a
+//     dated lesson note) carries the premise statements themselves (PREMISE_TOKENS) as its OLD half.
 //   * NEW-present — the merge-commit text. For the merge FORM the token is the engine's exact
 //     substring, read from the engine's merge-step prompt literal at test time (ENGINE_MERGE_FORM),
 //     never a paraphrase.
@@ -431,15 +431,15 @@ const ES18_SURFACES = [
     extract: whole,
     old: ['nonempty task commit carrying `WAR-Task: <task branch>` in the phase history'],
     new: ['first-parent merge commit in the phase history whose parsed `WAR-Task: <task branch>` trailer names the task'] },
-  { name: '2485/ES18 ADR 0021 amendment', file: 'docs/adr/0021-run-lifecycle-provision-contract.md',
+  { name: '2485/ES18 ADR 0021 decision-log line', file: 'docs/adr/0021-run-lifecycle-provision-contract.md',
     extract: whole,
     old: [...PREMISE_TOKENS],
     new: ['a merge-time provision re-run is a fourth place the refiner runs provision steps', '`provision_tree` marker'] },
-  { name: '2485/ES18 ADR 0013 residual amendment line', file: 'docs/adr/0013-commanders-intent-and-disposition-routing.md',
+  { name: '2485/ES18 ADR 0013 residual decision-log line', file: 'docs/adr/0013-commanders-intent-and-disposition-routing.md',
     extract: (r) => lineStarting(r, '- 2026-10-30 · Amendment: the ace path never holds'),
     old: [...PREMISE_TOKENS],
     new: ['Two residuals are the only exceptions to never-hold', 'branch tip carries content committed after approval', '`env-died`'] },
-  { name: '2485/ES18 ADR 0049 residual amendment line', file: 'docs/adr/0049-pin-transfer-and-proportional-re-audit.md',
+  { name: '2485/ES18 ADR 0049 residual decision-log line', file: 'docs/adr/0049-pin-transfer-and-proportional-re-audit.md',
     extract: whole,
     old: ['forward-reverts the ace commit, the task merges', 'findings demote per their dispositions'],
     new: ['Two residuals are the only exceptions to never-hold', 'branch tip carries content committed after approval', 'Every forward-revert is range-based'] },
@@ -614,16 +614,18 @@ const SEED_AND_RED_ROWS = [
     old: ['a malformed value ⇒ `absorbRounds` 0'],
     new: ['read once more by one `charge-probe` dispatch', 'only a task still unseeded after that reply',
       'the keys each map carried and the shape of each return that carried no map'] },
-  { name: 'ADR 0013 relaunch seed amendment', file: 'docs/adr/0013-commanders-intent-and-disposition-routing.md',
+  { name: 'ADR 0013 relaunch seed decision-log line', file: 'docs/adr/0013-commanders-intent-and-disposition-routing.md',
     extract: (r) => lineStarting(r, '- 2026-11-09 · Amendment: the relaunch seed has a third source'),
-    old: [],
-    new: ['read once more by one `charge-probe` dispatch', 'the keys each map carried and the shape of each return that had no map'] },
-  // The 2026-09-03 policy bullet itself: it must stop teaching the retired 0-on-absence seed.
+    // #2801: the twin phrase matches schemas.md's `carried no map`; the old `had no map` is gone.
+    old: ['return that had no map'],
+    new: ['read once more by one `charge-probe` dispatch', 'the keys each map carried and the shape of each return that carried no map'] },
+  // The absorb-budget policy bullet itself (folded into ADR 0013's `### The absorb budget` section):
+  // it must stop teaching the retired 0-on-absence seed.
   { name: 'ADR 0013 relaunch seed policy bullet', file: 'docs/adr/0013-commanders-intent-and-disposition-routing.md',
     extract: (r) => between(r, '- **The trailer and the relaunch seed.**', '- **Exhaustion routes to the sweep'),
-    old: ['0 with a loud log on error or absence', 'each return\'s shape'],
+    old: ['0 with a loud log on error or absence', 'each return\'s shape', 'return that had no map'],
     new: ['read once more by one `charge-probe` dispatch (D40, #2676)', 'only a task still unseeded seeds 0 with a loud log',
-      'the map keys and the shape of each return that had no map'] },
+      'the map keys and the shape of each return that carried no map'] },
   // The card sentence and the barrier prompt sentence are twins: both rows pin the same phrase.
   { name: 'refiner card barrier item, failing read', file: REFINER_CARD,
     extract: (r) => lineStarting(r, '1. **Phase git-topology barrier'),

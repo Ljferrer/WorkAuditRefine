@@ -43,3 +43,7 @@ decision 4 location unchanged.
 - The host guard can still refuse a git command aimed at a worktree other than the session's own.
   The first linked-worktree launch after land checks for that. If it happens, the fallback is to
   launch from the main checkout.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

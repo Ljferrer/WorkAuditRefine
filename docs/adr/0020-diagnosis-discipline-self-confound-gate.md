@@ -134,7 +134,7 @@ enforcement.
 - Six surfaces gain a `self-confound` clause; `skills/red-team/diagnosis-preflight.test.sh` presence-locks
   each part and each surface. The red-team frontmatter `description:` is byte-untouched;
   `workflow-scaffold.test.mjs` and `red-team-gate.test.mjs` stay green (string-literal-only scaffold edit).
-- `CONTEXT.md` gains a `### Diagnosis discipline` subsection defining **self-confound gate** and
+- `GLOSSARY.md` gains a `### Diagnosis discipline` subsection defining **self-confound gate** and
   **hypothesis promotion**; this file's ADR range in the repo `CLAUDE.md` is extended to include it.
 - The doctrine ships to marketplace-pinned users via a version bump of the four release slots.
 - Deliberate residuals, named: `/war-campaign` and `/aftermath` Leads also diagnose and can promote, but
@@ -160,8 +160,7 @@ enforcement.
   — a sandbox probe's cwd reset hit the real remote), `verbatim-mirror-directive-context-mismatch-at-destination`,
   `gate-can-assert-mirrored-clause-presence-without-asserting-byte-identity`.
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0020-diagnosis-discipline-self-confound-gate.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

@@ -786,7 +786,8 @@ test('(p) stripFullLineComments blanks only full-line code comments, keeps every
 // twice the path length): 4 KiB holds a path of well over 1,500 bytes, so a template growth that eats
 // the margin reds here before a launch dies at dispatch. History: the reserve held the ~104.5 KB
 // over-size args class at 117 KiB, lowered from 119 KiB (#2617 part 2) and from 118 KiB (#2622); the
-// D38 ruling dropped it to this prelude reserve, and ADR 0037's 2026-11-09 amendment records why.
+// D38 ruling dropped it to this prelude reserve, and ADR 0037 decision 2 (its 2026-11-09
+// Decision-log line) records why.
 const ARGS_HEADROOM_BYTES = 4096
 // Oracles (1) and (2), shared by the shipped-template arm and the synthetic negative below. Returns
 // { blanked, spans, insideExpr } so each caller can add its own non-vacuity bounds.
@@ -1497,13 +1498,14 @@ test("staged-script doc: names the stager's override flag and sidecar suffix", (
   const doc = read('skills/war/references/staged-script.md')
   const adr = read('docs/adr/0037-run-scoped-staged-phase-scripts.md')
   const decision3 = between(adr, '\n3. **', '\n4. **', 'ADR 0037 decision 3')
-  const amendment = decision3.split('\n\n').find((p) => p.trimStart().startsWith('**Amendment (2026-11-08'))
-  assert.ok(amendment, 'ADR 0037 decision 3 carries no 2026-11-08 amendment paragraph')
+  // The 2026-11-08 amendment folded into decision 3 as its digest-sidecar paragraph (ADR 0063).
+  const amendment = decision3.split('\n\n').find((p) => p.trimStart().startsWith('**The digest sidecar (#2345'))
+  assert.ok(amendment, 'ADR 0037 decision 3 carries no digest-sidecar paragraph (the folded 2026-11-08 amendment)')
   const glossary = read('GLOSSARY.md')
   const stagedEntry = between(glossary, '**Staged phase script**:', '**Staged-script sidecar**:', 'GLOSSARY staged-copy entry')
   const sidecarEntry = between(glossary, '**Staged-script sidecar**:', '**Provenance stamp**:', 'GLOSSARY sidecar entry')
   const stampEntry = between(glossary, '**Provenance stamp**:', '\n### ', 'GLOSSARY Provenance stamp entry')
-  const surfaces = { 'staged-script.md': doc, 'ADR 0037 decision 3 amendment': amendment, 'GLOSSARY staged-copy entry': stagedEntry, 'GLOSSARY sidecar entry': sidecarEntry }
+  const surfaces = { 'staged-script.md': doc, 'ADR 0037 decision 3 digest-sidecar paragraph': amendment, 'GLOSSARY staged-copy entry': stagedEntry, 'GLOSSARY sidecar entry': sidecarEntry }
   for (const [label, text] of Object.entries(surfaces)) {
     const flags = [...norm(text).matchAll(/override flag `(--[a-z-]+)`/g)].map((m) => m[1])
     const suffixes = [...norm(text).matchAll(/`<staged>(\.[a-z0-9]+)`/g)].map((m) => m[1])

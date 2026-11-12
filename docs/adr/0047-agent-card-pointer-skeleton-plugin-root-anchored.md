@@ -28,9 +28,10 @@ stands.**
 1. **Supersession scope: agent cards only.** The anchor supersession applies to dispatched-seat
    surfaces (`agents/*.md`). `skills/*/SKILL.md`'s own owner-relative `references/<file>`
    pointer skeleton is untouched — skill surfaces are read in-plugin — and
-   [ADR 0042](0042-prompt-surface-budgets.md)'s pointer doctrine (the
-   `when <trigger>, read references/<file>` shape; a pointer without a trigger is a defect) is
-   unchanged by this ADR. Backticked non-link citations and the refiner card's `../docs/adr/`
+   the **trigger-grammar half** of [ADR 0042](0042-prompt-surface-budgets.md)'s pointer doctrine
+   (the `when <trigger>, read references/<file>` shape; a pointer without a trigger is a defect)
+   is unchanged by this ADR. Its **path half** on agent cards is the anchored form above, as for
+   O(2)/O(3). Backticked non-link citations and the refiner card's `../docs/adr/`
    link are outside the family (the plan's D2 scope).
 
 2. **Seat-capability matrix.** Resolution of the anchored form is per-seat:
@@ -42,19 +43,21 @@ stands.**
      refiner seat's shell on every landed Provision barrier (assumption A1 in the plan's
      ledger).
    - **The auditor seat** cannot expand it — its fail-closed read-only git guard
-     (`hooks/validate-auditor-git.sh`) denies `$`/`{`/`}` outright. Its resolution is
-     **fallback-first**: the D3 resolution line each card carries (placeholder arrived
-     unexpanded AND the repo under review is the plugin itself ⇒ strip the
-     `${CLAUDE_PLUGIN_ROOT}/` prefix and resolve repo-relative). Harness substitution of the
-     placeholder in card body text is recorded **unverified-by-construction** — no
-     card-injection probe path exists (agent dispatch is by registry type name only; cards come
-     from the installed plugin), per the /red-team 2026-08-18 discharge of probe A2. On a
-     foreign repo an auditor that resolves nothing is never worse off than under the prior
-     unresolvable owner-relative form — the decisive rules stay inline (O(1)).
+     (`hooks/validate-auditor-git.sh`) denies `$`/`{`/`}` outright. The D3 resolution line
+     each card carries (placeholder arrived unexpanded AND the repo under review is the plugin
+     itself ⇒ strip the `${CLAUDE_PLUGIN_ROOT}/` prefix and resolve repo-relative) is a
+     **plugin-repo-only** path: it fires only when the repo under review is the plugin itself.
+     On a foreign target repo the auditor seat has no D3 resolution at all: resolution rests on
+     harness substitution of the placeholder in card body text, recorded
+     **unverified-by-construction** — no card-injection probe path exists (agent dispatch is by
+     registry type name only; cards come from the installed plugin), per the /red-team
+     2026-08-18 discharge of probe A2 — and O(1)'s inline decisive rules are the operative
+     carrier. On a foreign repo an auditor that resolves nothing is never worse off than under
+     the prior unresolvable owner-relative form — the decisive rules stay inline (O(1)).
    - **Seats with no shell at all** (the servitor's confinement denies Bash entirely —
      [ADR 0002](0002-scope-by-agent-type.md); the setup-scout's card declares
-     `tools: Read, Grep, Glob`) share the auditor's fallback path: the D3 resolution line, then
-     O(1)'s inline decisive rules.
+     `tools: Read, Grep, Glob`) reach the D3 resolution line only on the plugin repo. On a
+     foreign target repo they fall straight through to O(1)'s inline decisive rules.
 
    The D3 line is the ratified default (assumption A3). Had /red-team vetoed it, the accepted
    residual would be recorded explicitly in the plan's backstops — never waived in prose
@@ -78,31 +81,20 @@ stands.**
 
 ## Consequences
 
-- The glossary term **Plugin-root-anchored pointer** (CONTEXT.md, beside **Trigger pointer**)
+- The glossary term **Plugin-root-anchored pointer** (GLOSSARY.md, beside **Trigger pointer**)
   names the new family shape; future pointer work on agent cards uses the anchored skeleton and
   re-pins the per-card counts in the same diff as any legitimate addition.
-- `worker-servitor-edges.md`'s header no longer claims "no path form resolves this file" on a
-  foreign repo — resolution is established for Bash-capable seats and recorded as a residual for
-  the auditor seat, per the matrix above.
+- `worker-servitor-edges.md`'s header does not claim "no path form resolves this file" on a
+  foreign repo, and it does not present the D3 line as a foreign-repo resolution path.
+  Resolution is established for Bash-capable seats ("expand the placeholder in their own shell …
+  even on a foreign target repo") and recorded as a residual for the auditor seat, per the matrix
+  above.
 - A future plan reverting to a repo-relative or owner-relative card skeleton must supersede this
   ADR explicitly and flip the OLD/NEW assert families in the same diff — the same discipline
   this ADR records.
 
-## Amendment (2026-09-03) — D3 scope, and the scope of item 1's "unchanged"
+## Decision log
 
-Appended by plan `2026-08-25-doc-truth-and-drift-guard-debt` Phase 1 Task 1.3 (#1981, #1537,
-#1545, #1678). Every ratified sentence above stays as written; these rows are the corrected
-record.
-
-| # | Amends | Correction |
-|---|---|---|
-| A1 | Item 1, "[ADR 0042](0042-prompt-surface-budgets.md)'s pointer doctrine … is unchanged by this ADR" | Scope qualification. This phase anchored the **path half** of the agent-card pointer, so "unchanged" holds only for the **trigger-grammar half** of ADR 0042's pointer shape — the `when <trigger>, read …` grammar, and the rule that a pointer without a trigger is a defect. ADR 0042's path form on agent cards is superseded by the Decision above, exactly as item 1 already says for O(2)/O(3). |
-| A2 | Item 2, the auditor row's "**fallback-first**" framing | The D3 resolution line is a **plugin-repo-only** path, not a foreign-repo one. It fires only when the repo under review is the plugin itself, as the line's own text says. On a foreign target repo the auditor seat has no D3 resolution at all: resolution rests on harness substitution (recorded unverified-by-construction), and O(1)'s inline decisive rules are the operative carrier. The row's closing sentence — an auditor that resolves nothing on a foreign repo is never worse off than under the prior owner-relative form — is unaffected. |
-| A3 | Item 2, the no-shell seats row ("share the auditor's fallback path: the D3 resolution line, then O(1)'s inline decisive rules") | Same scope correction as A2. The servitor and setup-scout seats reach the D3 line only on the plugin repo; on a foreign target repo they fall straight through to O(1)'s inline decisive rules. |
-| A4 | Consequences, the `worker-servitor-edges.md` bullet | That header was requalified in this pass. It no longer presents the D3 line as a foreign-repo resolution path. Its Bash-capable-seats clause ("expand the placeholder in their own shell … even on a foreign target repo") is true and stays. |
-
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
-
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-09-03 · D3 scope, and the scope of item 1's "unchanged" · #1981, #1537, #1545, #1678 (plan `2026-08-25-doc-truth-and-drift-guard-debt` Task 1.3) · failed because: the "fallback-first" framing presented the plugin-repo-only D3 line as a foreign-repo resolution path · retired: docs/adr/0047-agent-card-pointer-skeleton-plugin-root-anchored.md @ 4ddce544
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0047-agent-card-pointer-skeleton-plugin-root-anchored.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

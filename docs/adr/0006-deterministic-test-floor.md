@@ -39,3 +39,7 @@ Add a **deterministic test-floor**: a task that *requires* a test must change at
 - Design spec: [`docs/specs/2026-06-29-worker-test-floor-design.md`](../specs/2026-06-29-worker-test-floor-design.md) — full mechanics, surface changes, validation criteria.
 - Audit finding **M2** (2026-06-29 agent-architecture audit) — the originating defect.
 - [ADR-0002](0002-scope-by-agent-type.md) — the fail-closed posture precedent.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

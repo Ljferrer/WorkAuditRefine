@@ -62,7 +62,7 @@ that **always halts the DAG**; the Lead never advances on an unrecognized result
 - A dead phase **preserves its git state and skips teardown** (worktrees, integration branch,
   `_refinery`) — required for resume and matching the env-blocked "keep for inspection" contract.
 - The `landDecision` vocabulary grows from four to six values; `SKILL.md`, `references/schemas.md`,
-  and `CONTEXT.md` carry the two new terms.
+  and `GLOSSARY.md` carry the two new terms.
 - Killed-Lead (process death) resume is unchanged and out of scope — that remains the ledger +
   open-issues replay (`design.md §6`). `resumeFromRunId` is same-session only, so a dead *Lead*
   degrades to a terminal halt, never a silent advance.
@@ -74,8 +74,7 @@ that **always halts the DAG**; the Lead never advances on an unrecognized result
 - Audit finding **M1** (2026-06-29 agent-architecture audit) — the originating defect.
 - [ADR-0002](0002-scope-by-agent-type.md) — the fail-closed posture precedent (auditor git guard).
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0005-dead-phase-halts-the-dag.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

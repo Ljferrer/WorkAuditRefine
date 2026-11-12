@@ -44,7 +44,11 @@ launch's own plugin root and version.** Five parts follow.
   undefined range, so it ends in the one merge-slot hold with the note "branch tip carries content
   committed after approval" and the `detail` payload. A revert-bearing pin-transfer probe that itself dies
   ends in the existing soft `env-died` merge death, as today. No branch is reset or force-moved to escape
-  either residual.
+  either residual. The one branch move at the merge slot is
+  [ADR 0061](0061-polish-claim-and-net-zero-clash-range.md)'s net-zero clash range: a task whose range
+  above the approved sha is exactly a polish clash commit and its revert, with an equal tree, moves its
+  own branch back to the approved sha by `checkout -B` (no content change), so that pair never replays;
+  every other range runs the whole-range revert as written.
 - The `verifyPinTransfer` tree clause is never relaxed or bypassed (PIN-25). It is the only guard against
   merging a commit no panel judged. A well-formed proof that fails only that clause makes one attempt and
   escalates with reason `escalate` and a distinct `auditLog` verdict. `HARD_ESCALATION_REASONS` and
@@ -142,4 +146,11 @@ the engine owns, so nothing the engine controls could carry the trailer. The mer
 - **Leaves [ADR 0005](0005-dead-phase-halts-the-dag.md) untouched**: no enum or status change.
 - [ADR 0042](0042-prompt-surface-budgets.md): the new card doctrine lands in
   `skills/war/references/merge-provenance.md` behind a trigger pointer.
+- [ADR 0061](0061-polish-claim-and-net-zero-clash-range.md) qualifies the whole-range revert at the
+  merge slot with the net-zero clash range.
+
+## Decision log
+
 - 2026-11-05 · Amendment: a third exception to never-hold. A pin-transfer probe or a per-task merge-task that finds uncommitted tracked edits in the task worktree stops before any forward-revert or rebase and the engine holds the task with reason `escalate` (#2617, operator ruling 2026-11-05). See the matching rows in ADR 0049 and ADR 0013.
+- 2026-11-11 · "No branch is reset or force-moved" names ADR 0061's net-zero clash range as the one branch move at the merge slot · #2809
+- 2026-11-11 · adopted under the living-ADR law: this ADR's existing log line now sits under a `## Decision log` heading · #1850 (ADR 0063)

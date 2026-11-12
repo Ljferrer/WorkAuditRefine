@@ -53,3 +53,7 @@ re-baseline pass and machine-enforced by the Budget-Raise floor.**
 - [ADR 0042](0042-prompt-surface-budgets.md) — the budget design this ADR assigns authority
   over; its D5 ratchet-down/justification semantics are unchanged, now machine-enforced on the
   raise side.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
