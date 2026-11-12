@@ -21226,6 +21226,7 @@ test('tip-probe — an approved tree that disagrees with the same-commit pre tre
   assert.equal(m.approved_tree, PT, 'the approved_tree that differs from tip_tree is kept')
   assert.equal(mir.api.tipClass(m), 'moved', 'the mirror misread classes the moved ace tip moved')
   assert.ok(mir.logs.some(l => l.includes(label) && l.includes('approved_tree ' + PT + ' is kept')), 'the winning tree is logged')
+  assert.ok(mir.logs.some(l => l.includes('because pre_tree equals tip_tree')), 'the reason is logged')
   // Both trees differ from tip_tree: pre_tree, read from PRE itself, wins.
   const OT = sha('0babe000')
   const both = load(code, { ...reply, approved_tree: OT })
