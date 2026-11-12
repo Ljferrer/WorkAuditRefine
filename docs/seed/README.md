@@ -1,9 +1,9 @@
 # Portable lesson seed corpus (`docs/seed/`)
 
-This directory ships the **portable-lesson seed corpus** — a curated set of durable, repo-agnostic
-engineering lessons (git/`gh`/shell gotchas, test-authoring wisdom, language footguns, CI/build
-and filesystem/path/regex edge cases) that any repo can warm-seed into its memory with one
-command: `/lessons-learned seed`. It is a first-class, versioned WAR asset — shipped inside the
+This directory ships the **portable-lesson seed corpus**, a curated set of durable, repo-agnostic
+engineering lessons. It covers git/`gh`/shell gotchas, test-authoring wisdom, language footguns,
+and CI/build and filesystem/path/regex edge cases. Any repo can warm-seed it into its memory with
+one command: `/lessons-learned seed`. It is a first-class, versioned WAR asset — shipped inside the
 plugin cache, not fetched from GitHub at seed time.
 
 ## Contents
@@ -17,13 +17,13 @@ plugin cache, not fetched from GitHub at seed time.
 The tarball is a binary blob on purpose (constraint: don't lug the corpus around as an open
 directory of markdown). Reviewability is restored by the manifest, never by unpacking into the
 tree. Equality is always **contents-level** (member set + per-member bytes + sha256), never
-gz-byte-level — gzip is nondeterministic and BSD/GNU `tar` diverge, so no tool ever hashes the
+gz-byte-level. Gzip is nondeterministic and BSD/GNU `tar` diverge, so no tool ever hashes the
 tarball blob. `skills/lessons-learned/assets/seed-pack.mjs` packs / verifies / evicts the corpus;
 `skills/lessons-learned/seed-set.test.mjs` is the standing contract that `verify` stays green
 against the committed pair.
 
 Always re-pack through `seed-pack.mjs`, never a bare `tar`. On macOS, Apple's `tar` archives a
-`._<name>` AppleDouble sidecar beside every member unless `COPYFILE_DISABLE=1` is set, and its
+`._<name>` AppleDouble sidecar beside every member unless `COPYFILE_DISABLE=1` is set. Its
 own extract hides them again, so a hand-packed corpus verifies green on the Mac that packed it
 and red on every other platform. `seed-pack` sets that opt-out on every `tar` call and refuses
 an archive that still carries a sidecar. `verify` reads member names from the gzip stream
@@ -34,7 +34,7 @@ itself, so it reports a sidecar on every platform.
 Overflow on **either** axis; nothing is ever auto-deleted.
 
 - **Seed tier:** ≤ 110 members **and** ≤ 1,500,000 B uncompressed. Overflow refuses the pack with a
-  ranked eviction proposal (near-dupe → largest bytes → oldest date); the operator gates the
+  ranked eviction proposal (near-dupe → largest bytes → oldest date). The operator gates the
   strike list, then `evict` moves members to the archive tier.
 - **Archive tier:** ≤ 500 members **and** ≤ 100,000,000 B (100 MB). Archive overflow refuses the
   add **loudly** — the operator prunes by hand.
@@ -50,8 +50,8 @@ Any WAR user can grow the corpus without push access:
   behind one operator gate, re-packs them directly into this corpus.
 - **From any other repo:** the bare pass files a `seed-candidate` issue on
   `Ljferrer/WorkAuditRefine` carrying the full lesson body and a fixed, greppable
-  `Seed-candidate: <slug>` marker line (redaction-lint-gated before filing; slug-deduped against
-  both manifest tiers and existing open/closed `seed-candidate` issues). The WAR-repo bare pass
+  `Seed-candidate: <slug>` marker line. Filing is redaction-lint-gated and slug-deduped against
+  both manifest tiers and existing open/closed `seed-candidate` issues. The WAR-repo bare pass
   sweeps those issues, gates ingestion, and — on acceptance — re-packs the member and closes the
   issue citing the commit.
 
@@ -63,9 +63,9 @@ Imported once (read-only) from **`Ljferrer/war-game`** `docs/learnings/` at comm
 manual scrub) that produced the portable set: **29 lessons, redaction-lint-clean, zero
 `[[wikilinks]]`**, matching the design spec's verified fingerprint (29 scrubbed lessons, ~80 KB
 content, largest member 7.4 KB — `docs/specs/2026-07-22-lessons-learned-seed-design.md` §Source
-corpus). The spec cited `@ master`; that fingerprint pins this scrub commit specifically —
-war-game `master` has since accumulated its own per-run phase lessons (unrelated to the curated
-portable set), so the pinned commit, not the moving `master` tip, is the corpus of record. The
+corpus). The spec cited `@ master`, but that fingerprint pins this scrub commit specifically.
+War-game `master` has since accumulated its own per-run phase lessons, unrelated to the curated
+portable set. The pinned commit, not the moving `master` tip, is therefore the corpus of record. The
 corpus is thereafter canonical here; war-game is never read again.
 
 ### Description backfills at import

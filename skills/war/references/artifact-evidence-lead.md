@@ -31,14 +31,14 @@ If `rea doctor --json` carries no adb row, a plan with an adb row resolves prese
 path (item 1) only; `"$REA_ADB_PATH" version` confirms the install, never presence.
 
 `run.evidence` must be `true` in the resolved config as well. Both must hold; the engine never
-probes. If `rea --version` differs from the version the evidence-auditor MCP hook's header records
-(`Derived at rea-agents: `), print one loud line: re-derive the allowlist before relying on the
-evidence seat.
+probes. The evidence-auditor MCP hook's header records a version (`Derived at rea-agents: `).
+If `rea --version` differs from it, print one loud line: re-derive the allowlist before relying
+on the evidence seat.
 
 When rows exist and both hold, run
 `bash ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh ensure-exclude $MAIN`
-(`$MAIN` the main checkout) before launch, so a bundle REA exports during the run lands under the
-excluded `$MAIN/.claude/war/evidence/<plan-slug>/` and never in a diff (G2).
+(`$MAIN` the main checkout) before launch. A bundle REA exports during the run then lands under
+the excluded `$MAIN/.claude/war/evidence/<plan-slug>/` and never in a diff (G2).
 
 ## Thread the args and the evidence seat rows
 
@@ -48,12 +48,12 @@ Thread into every per-phase Workflow (the args contract is in [schemas.md](schem
   it absent (absent is off; `null` is refused at entry).
 - `args.targetArtifacts`: the parser's `rows`, verbatim, whenever the block exists, on or off.
   With `args.evidence` off the engine logs its own loud line and proceeds (G3).
-- the evidence seat rows, in two moves. First strip the pool: `/war-room` never writes an
+- the evidence seat rows, in two moves. First strip the pool. `/war-room` never writes an
   evidence-type row (its `agentType` the evidence member of `SEAT_AGENT_TYPES`) into the config
-  `audit.roster`, because `run.evidence` is the opt-in record, so any such row is hand-written and
+  `audit.roster`, because `run.evidence` is the opt-in record. So any such row is hand-written and
   never a seat. Remove every such row from the pool before `rosterPolicy` seeds the
-  per-task rosters (`all`, `solo` and `auto` all read the stripped pool), and thread the stripped
-  pool as the `audit.roster` of the args, because the engine convenes that default roster for a
+  per-task rosters (`all`, `solo` and `auto` all read the stripped pool). Thread the stripped
+  pool as the `audit.roster` of the args. The engine convenes that default roster for a
   lone seat's widen fallback and for the phase-close sweep panel. The strip holds on every arm,
   the skip arm included. Then, for each task id in `citingTasks`, and only those, and only when
   both preconditions hold, add one roster seat
@@ -70,14 +70,14 @@ clause and the seat prompt; thread nothing for it.
 ## Skip with one loud line
 
 When either precondition fails (`run.evidence` off, or presence unresolved) and the parser
-returned rows, skip the seat add, still strip every evidence-type row from the pool and from every
-seeded task roster, and log exactly one line at the Decompose gate that names the failed
+returned rows, skip the seat add. Then still strip every evidence-type row from the pool and from
+every seeded task roster. Log exactly one line at the Decompose gate that names the failed
 precondition:
 
 `REA ARTIFACT EVIDENCE: evidence seat skipped — <run.evidence off | REA absent>; <n> declared target artifact(s) go unmeasured this run.`
 
 Then still thread `args.targetArtifacts`, leave `args.evidence` absent, and launch. The run
 proceeds, and every prompt is byte-identical to an evidence-less run (G3). With no rows there is
-nothing to skip and nothing to log. The engine drops any stray evidence-type row at entry as a
-backstop and counts the drops on its own loud line (ruling #2404), so this strip is the first
-line, not the only one.
+nothing to skip and nothing to log. As a backstop, the engine drops any stray evidence-type row at
+entry and counts the drops on its own loud line (ruling #2404). So this strip is the first line,
+not the only one.

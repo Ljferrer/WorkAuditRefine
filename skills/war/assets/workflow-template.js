@@ -3133,12 +3133,15 @@ const tipProbe = async ({ probeId, probeSite, probeWorktree, probeBranch, probeP
   if (deathOf(p)) return null
   if (!usableTipProbe(p)) { log(label + ': the tip probe returned no usable Git read (PIN-5).'); return null }
   // Operator ruling 2026-11-12 (phase 2 hold): PRE and APPROVED naming one commit have one tree. A
-  // reply whose approved_tree differs from pre_tree misread one of them (at phase 2 it returned the
-  // tip tree, so a moved tip classed unchanged), so pre_tree, read from PRE itself, wins.
+  // reply whose approved_tree differs from pre_tree misread one of them. Operator ruling 2026-11-12
+  // (phase 3 Checkpoint): fail toward moved. The tree that differs from tip_tree wins, since a misread
+  // that copies the tip tree classes a moved tip unchanged. If both differ, pre_tree (read from PRE) wins.
   const sameCommit = isSha(probeApproved) && (p.pre_sha.startsWith(probeApproved) || probeApproved.startsWith(p.pre_sha))
   if (sameCommit && isSha(p.pre_tree) && p.approved_tree !== p.pre_tree) {
-    log(label + ': APPROVED and PRE name one commit ' + p.pre_sha + ', but approved_tree ' + p.approved_tree + ' differs from pre_tree ' + p.pre_tree + ' — a misread; approved_tree is set to pre_tree.')
-    p = { ...p, approved_tree: p.pre_tree }
+    const keepApproved = p.pre_tree === p.tip_tree
+    const won = keepApproved ? p.approved_tree : p.pre_tree
+    log(label + ': APPROVED and PRE name one commit ' + p.pre_sha + ', but approved_tree ' + p.approved_tree + ' differs from pre_tree ' + p.pre_tree + ' — a misread; ' + (keepApproved ? 'approved_tree ' + won + ' is kept, because pre_tree equals tip_tree' : 'approved_tree is set to pre_tree ' + won + (p.approved_tree === p.tip_tree ? ', because approved_tree equals tip_tree' : ', because both differ from tip_tree')) + ' (fail toward moved).')
+    p = { ...p, approved_tree: won }
   }
   return p
 }

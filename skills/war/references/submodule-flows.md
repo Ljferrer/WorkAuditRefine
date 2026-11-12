@@ -2,7 +2,7 @@
 
 Verbatim evictions from `skills/war/SKILL.md` (prompt-surface simplification, spec §4.3; each moved
 block was byte-identical to its pre-eviction SKILL.md text **at eviction time**). Positional words
-inside the moved blocks ("above", "below") refer to their original SKILL.md positions; the
+inside the moved blocks ("above", "below") refer to their original SKILL.md positions. The
 Checkpoint's `held:submodule-pr` outcome bullet lives with the other `held:*` arms in
 [resume-and-recovery.md](resume-and-recovery.md).
 

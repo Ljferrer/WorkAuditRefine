@@ -21181,7 +21181,8 @@ test('ace-subset-trailer-is-not-a-footprint', () => {
 
 // Operator ruling 2026-11-12 (phase 2 hold): a probe whose PRE and APPROVED name one commit cannot have
 // two trees. At phase 2 a probe skipped the approved_tree command and returned the tip tree, so a
-// moved ace tip classed unchanged. tipProbe corrects approved_tree to pre_tree and logs it.
+// moved ace tip classed unchanged. Operator ruling 2026-11-12 (phase 3 Checkpoint): fail toward moved.
+// tipProbe keeps whichever tree differs from tip_tree (pre_tree when both do) and logs the winner.
 test('tip-probe — an approved tree that disagrees with the same-commit pre tree is corrected', async () => {
   const code = sliceSrc('const TIP_PROBE = {', '// trailerGapLog (D24 c)')
   const cls = (src.match(/^const tipClass = .*$/m) || [])[0]
@@ -21217,6 +21218,19 @@ test('tip-probe — an approved tree that disagrees with the same-commit pre tre
   const e = await eq.api.tipProbe(args)
   assert.equal(e.approved_tree, PT, 'an agreeing same-commit approved_tree is unchanged')
   assert.equal(eq.logs.length, 0, 'and no misread is logged')
+  // Mirror row (operator ruling 2026-11-12, phase 3 Checkpoint: fail toward moved): the probe misread
+  // pre_tree as the tip tree and read approved_tree right. The tree that differs from tip_tree wins.
+  const mir = load(code, { ...reply, pre_tree: TT, approved_tree: PT })
+  const m = await mir.api.tipProbe(args)
+  assert.equal(m.approved_tree, PT, 'the approved_tree that differs from tip_tree is kept')
+  assert.equal(mir.api.tipClass(m), 'moved', 'the mirror misread classes the moved ace tip moved')
+  assert.ok(mir.logs.some(l => l.includes(label) && l.includes('approved_tree ' + PT + ' is kept')), 'the winning tree is logged')
+  // Both trees differ from tip_tree: pre_tree, read from PRE itself, wins.
+  const OT = sha('0babe000')
+  const both = load(code, { ...reply, approved_tree: OT })
+  const b = await both.api.tipProbe(args)
+  assert.equal(b.approved_tree, PT, 'when both differ from tip_tree, pre_tree is kept')
+  assert.equal(both.api.tipClass(b), 'moved', 'and the tip classes moved')
 })
 
 // D38 (PIN-38): every git command the tool-order sentence spells passes the auditor Bash guard, and

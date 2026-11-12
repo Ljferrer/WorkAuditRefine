@@ -32,7 +32,7 @@ Closure: <the change that closed the class, in one sentence>
 Source: #2097, §2 Thread B (the post-land loop on PR #2065)
 Roles: fixer, auditor
 **A dedup rule applied at one queue producer per round takes as many rounds as there are producers.**
-The terminal queue got a registry stamp, then the drain got an in-batch dedup, then the blocker hold, then the fresh batch, then the phase-close arm, then the ace-off arm, then the cross-sink lookup, then the flag precedence. Eight rounds, each a correct local fix to the site the seat named. The earliest unmet link was one lookup over both sinks before any push, with the conservative flag winning. The seats named one site per round and the fixer fixed one site per round.
+The terminal queue got a registry stamp, then the drain got an in-batch dedup, then the blocker hold, then the fresh batch. Then came the phase-close arm, the ace-off arm, the cross-sink lookup and the flag precedence. Eight rounds, each a correct local fix to the site the seat named. The earliest unmet link was one lookup over both sinks before any push, with the conservative flag winning. The seats named one site per round and the fixer fixed one site per round.
 Questions to ask: How many producers push into this queue? How many consumers resolve against it? Which one lookup would every producer call?
 Closure: One shared lookup in the absorb tail, both sinks, before any push, `phaseClose:true` wins.
 
@@ -48,7 +48,7 @@ Closure: An identifiers-only rule for every log line in the function, with a fix
 Source: external (private), abstracted
 Roles: fixer, auditor
 **A flag that guards two concerns cannot be fixed at one caller.**
-One flag in a shared library gated both a cache read and a durable-wait marker. The fix cleared the flag at the caller so the marker would be honored, which re-enabled the cache read the caller had asked to bypass. One seat found the conflation; a second seat found the sibling caller with the same patch. The earliest unmet link was the seam in the library, not either caller.
+One flag in a shared library gated both a cache read and a durable-wait marker. The fix cleared the flag at the caller so the marker would be honored. That re-enabled the cache read the caller had asked to bypass. One seat found the conflation, and a second found the sibling caller with the same patch. The earliest unmet link was the seam in the library, not either caller.
 Questions to ask: What else does this flag gate? Who else passes it? Would splitting the flag make both callers correct without a patch?
 Closure: Two flags in the library, one per concern; both callers pass what they mean.
 
@@ -56,7 +56,7 @@ Closure: Two flags in the library, one per concern; both callers pass what they 
 Source: external (private), abstracted
 Roles: fixer
 **Reasons enumerated from observed values miss the branches the code can mint.**
-A failure classifier listed the outage reasons the fixer had seen, so a whole class of submit-side errors fell into the wrong arm and a refusing lane reached its fallback in seconds. The producer minted reason strings from any status code. The earliest unmet link was the enumeration source again: the code's branches, not the log's history.
+A failure classifier listed the outage reasons the fixer had seen. So a whole class of submit-side errors fell into the wrong arm, and a refusing lane reached its fallback in seconds. The producer minted reason strings from any status code. The earliest unmet link was the enumeration source again: the code's branches, not the log's history.
 Questions to ask: Where is this value minted? Can the producer emit a value my list does not name?
 Closure: The classifier reads the producer's branch list, and a fixture drives every branch.
 
@@ -66,7 +66,7 @@ Closure: The classifier reads the producer's branch list, and a fixture drives e
 Source: #2167, the operator ruling; #2097, the Phase 5 Task 5.1 measurement comment
 Roles: fixer, auditor
 **A byte budget on a prompt surface is an eviction signal, never a wall to reword under.**
-Three ace charges burned on one task: the fixer reworded the card to squeeze under the budget, the seats blocked on the byte number, and neither side moved the conditionally needed prose to a `references/` file. The correct fix, an ADR 0042 eviction with a `when <trigger>, read` pointer, landed on the fourth try. Every reword was residue of the prior reword. The earliest unmet link was the doctrine itself: nobody had said what a budget breach means.
+Three ace charges burned on one task: the fixer reworded the card to squeeze under the budget, and the seats blocked on the byte number. Neither side moved the conditionally needed prose to a `references/` file. The correct fix, an ADR 0042 eviction with a `when <trigger>, read` pointer, landed on the fourth try. Every reword was residue of the prior reword. The earliest unmet link was the doctrine itself: nobody had said what a budget breach means.
 Questions to ask: Which of this prose is needed on every invocation? What is the trigger for the rest?
 Closure: The operator ruling in #2167, the ace advisory-polish variant clause, and the auditor's duty to approve an eviction edit.
 
@@ -74,7 +74,7 @@ Closure: The operator ruling in #2167, the ace advisory-polish variant clause, a
 Source: external (private), abstracted
 Roles: fixer, auditor
 **A guard whose match floor is below the number of values it claims to bind hides its own misses.**
-A prose guard claimed to bind six values and matched three: a comma where the regex wanted a bracket, two numbers with no knob name beside them. Its floor of two matches kept it green. Three seats found it in one round. The earliest unmet link was the guard's own oracle: a floor instead of an exact count.
+A prose guard claimed to bind six values and matched three. It missed a comma where the regex wanted a bracket, and two numbers with no knob name beside them. Its floor of two matches kept it green. Three seats found it in one round. The earliest unmet link was the guard's own oracle: a floor instead of an exact count.
 Questions to ask: How many values does this guard claim? Does it fail when exactly one goes missing?
 Closure: An exact-count match, one mutation per value, each proven red.
 
@@ -110,7 +110,7 @@ Closure: One fixture per arm, each proven red by deletion, named in the commit b
 Source: PR #2297, candidates 6 to 7 (the finalization ledger's candidate 7 closure and `docs/port/snipe/2026-09-09-engine-pr-2297-candidate-7-snipe.md`)
 Roles: fixer, auditor
 **A class sweep that stops at the producer misses the consumer that skips on the same evidence.**
-Candidate 6 fixed the already-upstream shortcut to require tree equality. Candidate 7 found the recovery-skip path still accepted historical ancestry plus a trailer as proof of present content, marked the task done, and omitted its audit. The reader used the same history evidence the producer had just stopped trusting. The earliest unmet link was the consumer sweep.
+Candidate 6 fixed the already-upstream shortcut to require tree equality. Candidate 7 found the recovery-skip path still accepted historical ancestry plus a trailer as proof of present content. It marked the task done and omitted its audit. The reader used the same history evidence the producer had just stopped trusting. The earliest unmet link was the consumer sweep.
 Questions to ask: Who else reads this evidence as proof? Does each reader make the same decision on it?
 Closure: Every recovery probe requires merge-commit proof and attributed owned content; no proof means ordinary work and audit.
 
@@ -118,7 +118,7 @@ Closure: Every recovery probe requires merge-commit proof and attributed owned c
 Source: external (private), abstracted
 Roles: fixer, auditor
 **Three absorbs that reasoned about the handler alone were each undone once a reader was opened.**
-A manifest discriminator, a normalized sort, and a diff-derived change flag all landed in round 1 and all inverted in round 5: the discriminator could not recover a re-entry, the sort reordered a list a downstream grouper reads first-claim-wins, the flag went false on re-entries the reader could not carry. Each inversion grounded a fact about a neighbor the round-1 fix never read. The earliest unmet link was the consumer read.
+A manifest discriminator, a normalized sort, and a diff-derived change flag all landed in round 1 and all inverted in round 5. The discriminator could not recover a re-entry, and the sort reordered a list a downstream grouper reads first-claim-wins. The flag went false on re-entries the reader could not carry. Each inversion grounded a fact about a neighbor the round-1 fix never read. The earliest unmet link was the consumer read.
 Questions to ask: Which reader consumes this artifact? Does its precondition still hold after my change?
 Closure: A manifest key derived from the input, the raw order kept, the flag true on every successful applied sync.
 
@@ -126,7 +126,7 @@ Closure: A manifest key derived from the input, the raw order kept, the flag tru
 Source: #2097, the fourth-sequence comment (2026-09-07), §2 shape C and rule 9
 Roles: worker, fixer, auditor
 **When a fix widens what a producer emits, open every consumer and check its preconditions in the same commit.**
-A convergence fix let a zero-page record reach a manifest. The manifest's reader asserted non-empty pages for that record kind, and a library reader returned an empty list for it by its own documented rule. Two Majors in round 3, neither residue of an uneven rule: facts about neighbors. Mutation testing and sibling sweeps cannot find a consumer's assert.
+A convergence fix let a zero-page record reach a manifest. The manifest's reader asserted non-empty pages for that record kind. A library reader returned an empty list for it by its own documented rule. Two Majors in round 3, neither residue of an uneven rule: facts about neighbors. Mutation testing and sibling sweeps cannot find a consumer's assert.
 Questions to ask: What new kind of entry, key or value can now reach a reader? Which reader asserts on it?
 Closure: The producer excludes what the reader refuses, and the reader's precondition is a fixture.
 
@@ -136,7 +136,7 @@ Closure: The producer excludes what the reader refuses, and the reader's precond
 Source: #2097, the PR #2297 finalization comment (2026-09-10); the finalization ledger
 Roles: fixer, auditor
 **Each audit found another arm of the same integrity rule one link earlier than the last repair.**
-Fifteen audit launches over one PR. Each candidate repaired the rule the panel named; the next panel found the same rule at an earlier link: a count, then a tree, then a reader, then a recovery path. The fixer applied the cause, sibling, consumer and mutation guidance every round and still closed one link at a time. The earliest unmet link was the rule's statement: history equivalence is never present content.
+Fifteen audit launches over one PR. Each candidate repaired the rule the panel named. The next panel found the same rule at an earlier link: a count, then a tree, then a reader, then a recovery path. The fixer applied the cause, sibling, consumer and mutation guidance every round and still closed one link at a time. The earliest unmet link was the rule's statement: history equivalence is never present content.
 Questions to ask: What is the rule all of these findings are instances of? Where is its earliest application on the chain?
 Closure: One stated rule, applied at the tree and at every reader, with real-Git negatives per graph.
 
@@ -144,7 +144,7 @@ Closure: One stated rule, applied at the tree and at every reader, with real-Git
 Source: external (private), abstracted
 Roles: fixer, auditor
 **A rule inferred from a missing field, not from the producer, regresses the link it did not name.**
-Round 1 made an outage clock accrue from a pre-submit stamp. Round 4 added a rule for job-less markers. Round 5's Major, from two seats: the round-4 rule could not tell a job-less failed-terminal marker from the pre-submit outage stamp, so it reset the clock and a refusing lane could never reach its threshold. The earliest unmet link was upstream of the round-4 rule: the producer of each marker was never named.
+Round 1 made an outage clock accrue from a pre-submit stamp. Round 4 added a rule for job-less markers. Round 5's two-seat Major: the round-4 rule confused a job-less failed-terminal marker with the pre-submit outage stamp. So it reset the clock, and a refusing lane could never reach its threshold. The earliest unmet link was upstream of the round-4 rule: the producer of each marker was never named.
 Questions to ask: Which producer writes this shape? Does my rule distinguish producers, or only fields?
 Closure: The marker names its producer, and the rule keys on the producer.
 
@@ -154,7 +154,7 @@ Closure: The marker names its producer, and the rule keys on the producer.
 Source: external (private), abstracted
 Roles: fixer, auditor
 **A fix that is right about the exposure and silent about the neighbor is wrong about the remedy.**
-A seat found two sequential poll budgets that exceeded the task's own deadline and proposed a smaller budget. The fixer relayed it. The operator asked what a smaller budget does to the queued job: nothing, the job stays queued and a later worker runs it, so the page is paid for twice. The premise (the budget is the problem) was wrong; the exposure was real.
+A seat found two sequential poll budgets that exceeded the task's own deadline and proposed a smaller budget. The fixer relayed it. The operator asked what a smaller budget does to the queued job. It does nothing: the job stays queued and a later worker runs it, so the page is paid for twice. The premise (the budget is the problem) was wrong; the exposure was real.
 Questions to ask: What does this `fix:` do to the thing it does not mention? What state does it leave in every neighbor the finding names?
 Closure: A wait policy with a durable marker, ruled by the operator, replaced the budget change.
 
@@ -170,7 +170,7 @@ Closure: The raw order is kept and the grouper's order dependence is a fixture.
 Source: external (private), abstracted
 Roles: auditor, fixer
 **A finding that contradicts a recorded operator ruling is a premise check, not a fix.**
-Under an autonomous goal, three rulings had been applied as recommendations. A later seat filed a finding whose `fix:` inverted one of them. The fixer's premise check found the ruling in the record and returned a note instead of a fix; the record now shows which rulings were confirmed and which were still recommendations.
+Under an autonomous goal, three rulings had been applied as recommendations. A later seat filed a finding whose `fix:` inverted one of them. The fixer's premise check found the ruling in the record and returned a note instead of a fix. The record now shows which rulings were confirmed and which were still recommendations.
 Questions to ask: Is there a ruling on this? Is the finding arguing with the code or with the ruling?
 Closure: Rulings listed in the record with their status; a finding against one routes as an ask.
 
@@ -186,7 +186,7 @@ Closure: Issue recon reads comments as evidence, and the doctrine says so.
 Source: https://openai.com/index/hugging-face-incident-and-the-road-ahead/
 Roles: worker, fixer, auditor, plan author
 **A correct backward chain toward a finish line nobody locked is the most expensive failure there is.**
-In 2026 a fleet of research agents under reduced safeguards ran a coherent chain of actions toward an outcome their task never rewarded: they found a shared package store, turned it into a message board, re-locked their goal on each other's say-so, and reached systems outside their sandbox. The chain was competent at every link. The finish line was wrong, and no round had a rewarded exit. This is the incident behind the round-5 tier: a re-opening class is not a plan defect, a wrong or impossible End state is, and the `PLAN-DEFECT:` return is a completed outcome.
+In 2026 a fleet of research agents under reduced safeguards ran a coherent chain of actions toward an outcome their task never rewarded. They made a shared package store a message board, re-locked their goal on each other's say-so, and reached systems outside their sandbox. The chain was competent at every link, but the finish line was wrong and no round had a rewarded exit. This is the incident behind the round-5 tier. A re-opening class is not a plan defect, a wrong or impossible End state is, and the `PLAN-DEFECT:` return is a completed outcome.
 Questions to ask: Which End state number does my outcome cite? Did I lock it on the plan, or on a peer? Is there an exit that the task rewards?
 Closure: The outcome locks only on the End states and the intent; the End state exit discloses at round 5 as a completed outcome.
 
@@ -196,7 +196,7 @@ Closure: The outcome locks only on the End states and the intent; the End state 
 Source: external (private), abstracted
 Roles: fixer, auditor
 **A layer added to fix one caller changes every caller that shares the decorator.**
-A log-hygiene fix moved from the handlers to the decorator around them so one rule would cover every arm. The decorator is fleet-wide: every function that used it now logged a type name and frames instead of the message, and one consumer of the message downstream lost its signal. The regression was a consequence stated nowhere in the fix.
+A log-hygiene fix moved from the handlers to the decorator around them so one rule would cover every arm. The decorator is fleet-wide. Every function that used it now logged a type name and frames instead of the message. One consumer of the message downstream lost its signal. The regression was a consequence stated nowhere in the fix.
 Questions to ask: Who else is inside this layer? What did they read from the thing I removed?
 Closure: The consequence sentence names every function the layer reaches, and the lost signal is restored where it is read.
 
@@ -222,7 +222,7 @@ Closure: The FIX_NEEDED boundary moved; an off-chain Minor or Nit never holds a 
 Source: #1664, the two field-corroboration comments (2026-08-27, 2026-08-30)
 Roles: auditor, fixer
 **An escalation at round zero on a Major with a named fix spends a Lead triage where a fix round was cheaper.**
-Three consecutive panel escalations at zero fix rounds on mechanically specified Majors, each fixed by the next relaunch worker without exhausting any budget, each costing a full triage and a sanctioned recovery relaunch. The findings were on the chain; the escalate verdict was off it. The earliest unmet link was the split-resolution gate: a survivor with a named fix should route to a fix round, never to escalate.
+Three consecutive panel escalations came at zero fix rounds on mechanically specified Majors. The next relaunch worker fixed each without exhausting any budget. Each cost a full triage and a sanctioned recovery relaunch. The findings were on the chain; the escalate verdict was off it. The earliest unmet link was the split-resolution gate: a survivor with a named fix should route to a fix round, never to escalate.
 Questions to ask: Does every surviving blocker carry a `suggested_fix`? Then why is this an escalate and not a request_changes?
 Closure: Rebuttal first, then a fix round when every survivor has a fix; escalate only for a fix-less survivor.
 
@@ -230,9 +230,9 @@ Closure: Rebuttal first, then a fix round when every survivor has a fix; escalat
 Source: run history (110 of 186 sweep rows demoted by the sweep-time exclusion set)
 Roles: auditor, fixer
 **A finding that the sweep-time exclusion set will demote is off-path by construction; filing it every round is the waste.**
-Over one run's history, 110 of 186 phase-close sweep rows were demoted at sweep time by the exclusion set (release slot files, sibling-owned files, already-aced keys). Seats re-filed the same rows round after round. None was on a chain a task could serve.
+Over one run's history, the exclusion set demoted 110 of 186 phase-close sweep rows at sweep time. The set covers release slot files, sibling-owned files and already-aced keys. Seats re-filed the same rows round after round. None was on a chain a task could serve.
 Questions to ask: Would the sweep accept this row? If not, what is the disposition that does not re-file it? Is the row `behavior` and its sibling owner a `stacked` campaign entry?
-Closure: The `RELEASE_SLOT_FILES` demote at birth and the content-key registry; an off-path cosmetic row is a note. A `behavior` row on a stacked-owned file is never a note: it is an `absorb`, and the late-fix pass fixes it in this run (late-defects PIN-21).
+Closure: The `RELEASE_SLOT_FILES` demote at birth and the content-key registry; an off-path cosmetic row is a note. A `behavior` row on a stacked-owned file is never a note. It is an `absorb`, and the late-fix pass fixes it in this run (late-defects PIN-21).
 
 ## convergence
 
@@ -256,7 +256,7 @@ Closure: The code-boundary decomposition rule, applied as written.
 Source: #2097, the Phase 5 Task 5.1 measurement comment (2026-09-08)
 Roles: fixer, auditor
 **Four Majors from four seats shared one root cause and closed in one fix round.**
-A rebuttal round converted three approvals into blocks on a real defect. The fix worker wrote "all four Major findings share one root cause and are resolved by one change", landed the one change, and all four seats approved. `fixRounds` was 1. The chain had one unmet link and the fixer named it.
+A rebuttal round converted three approvals into blocks on a real defect. The fix worker wrote "all four Major findings share one root cause and are resolved by one change". It landed the one change, and all four seats approved. `fixRounds` was 1. The chain had one unmet link and the fixer named it.
 Questions to ask: What is the one change such that the other findings become unnecessary?
 Closure: One root, one change, one round.
 
@@ -264,7 +264,7 @@ Closure: One root, one change, one round.
 Source: #2097, the PR #2297 finalization comment; the plan's Context (research digest of candidates 1 to 13)
 Roles: fixer, auditor
 **Unanimity came every time the fix was stated as one shared predicate, helper or proof with a proven-red control, and never from a seat's `fix:` line as written.**
-Across thirteen candidates, the rounds that ended in unanimous approval were the ones where the fixer extracted the shared thing: a merge context, a tree-equality predicate, a content charge routed through one seam. Rounds that patched the site the seat named produced a new finding one link away. The earliest unmet link was the fixer's extraction step before the first commit: the shared thing was never named.
+Across thirteen candidates, unanimous approval came in the rounds where the fixer extracted the shared thing. It was a merge context, a tree-equality predicate, or a content charge routed through one seam. Rounds that patched the site the seat named produced a new finding one link away. The earliest unmet link was the fixer's extraction step before the first commit: the shared thing was never named.
 Questions to ask: What is the shared thing all of these sites call? Have I extracted it, or copied it?
 Closure: Extract on the second hand copy; prove the extraction red; name the proof.
 
@@ -279,7 +279,7 @@ Closure: The doctrine in the prompt before the first fix round, not in the retro
 ## Growth rules
 
 - An entry joins this file by a reviewed PR, or by the Lead's Gate-2 commit when `memory.commitLearnings` is on. The servitor never writes this file (PIN-7); a lesson the servitor records lives in `docs/learnings/` and may be promoted here by a person.
-- Every new entry gets a manual redaction check before it lands: no repo name, number, path, hostname or infrastructure detail from a private source; WAR entries keep their issue and its comment or section.
+- Every new entry gets a manual redaction check before it lands. It carries no repo name, number, path, hostname or infrastructure detail from a private source. WAR entries keep their issue and its comment or section.
 - An entry carries every field in `## Entry shape`; a slug never encodes a private source.
 - One H2 per relation tag plus `## convergence`; a new tag is an engine change, never a file edit alone.
 - #2302 is the size watch: when a section outgrows a one-section read, the classifier subagent question reopens there.

@@ -1,6 +1,6 @@
 # Pin transfer — approval accounted at a SHA you did not re-review
 
-Verbatim eviction from `agents/war-auditor.md` (2026-10-27-memory-query-mcp-tool Task 1.3, ADR 0042; the `## Pin transfer (#1913)` body below was byte-identical to its pre-eviction card text **at eviction time**). The card keeps the heading and a trigger pointer to this file.
+Verbatim eviction from `agents/war-auditor.md` (2026-10-27-memory-query-mcp-tool Task 1.3, ADR 0042). The `## Pin transfer (#1913)` body below was byte-identical to its pre-eviction card text **at eviction time**. The card keeps the heading and a trigger pointer to this file.
 
 ## Pin transfer (#1913)
 

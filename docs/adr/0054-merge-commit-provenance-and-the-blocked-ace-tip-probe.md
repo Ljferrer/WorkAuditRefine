@@ -37,8 +37,9 @@ launch's own plugin root and version.** Five parts follow.
   or an unchanged tip, takes the failed-absorb arm: no charge, no aced record. A descendant tip with a net
   change is an implemented ace: charge, `chainRecordFix`, re-audit at the probed tip. The full panel runs
   only when the commit count exceeds one. When APPROVED and PRE name the same commit, the engine treats a
-  returned `approved_tree` that differs from `pre_tree` as a misread: it sets `approved_tree` to
-  `pre_tree` and logs it before it classifies.
+  returned `approved_tree` that differs from `pre_tree` as a misread and fails toward moved: it sets
+  `approved_tree` to whichever of the two trees differs from `tip_tree` (`pre_tree` when both differ),
+  and logs which tree won and why before it classifies.
 - **A red gate or a regression on a multi-commit move forward-reverts the whole range** and routes the
   rows to the sweep. No bisection runs on it (D4).
 - **A dead or unusable probe forward-reverts `approved..HEAD` to the last approved tree and lands. It
@@ -158,3 +159,5 @@ the engine owns, so nothing the engine controls could carry the trailer. The mer
 - 2026-11-11 · "No branch is reset or force-moved" names ADR 0061's net-zero clash range as the one branch move at the merge slot · #2809
 - 2026-11-11 · adopted under the living-ADR law: this ADR's existing log line now sits under a `## Decision log` heading · #1850 (ADR 0063)
 - 2026-11-12 · tip probe: when APPROVED and PRE name the same commit, an `approved_tree` that differs from `pre_tree` is a misread, set to `pre_tree` and logged · operator ruling 2026-11-12, phase 2 hold
+- 2026-11-12 · §1's probe return list names `pre_tree` and `approved_tree` (landed in phase 3 without a log line) · carried phase-close Nit, ADR 0063 Decision 2
+- 2026-11-12 · tip probe fails toward moved: of `pre_tree` and `approved_tree`, the tree that differs from `tip_tree` wins, `pre_tree` when both differ · operator ruling 2026-11-12, phase 3 Checkpoint
