@@ -5039,3 +5039,65 @@ test('PIN-9 — SKILL.md names `routing` (when set) in Setup step 1 and in the p
       `${name} must not restate a routing sub-key or value — references/model-routing.md is the one home`)
   }
 })
+
+// (PIN-2, PIN-27, PIN-37; plan 2026-11-08-doc-truth-drift-and-adr-hygiene Task 1.1, #2872) The
+// living-ADR meta-ADR is found by slug, never by number: the number is assigned at land time, so
+// two meta-ADRs after a renumber race must red here. Its `## Decision` section binds the three
+// glossary terms, the three citation forms and the `retired:` form by extraction, and the cold
+// glossary must define each term. The Decision-log line form is a regex: a line with the optional
+// `failed because:` field and a line without it both pass, and a line that puts the field after
+// `retired:` reds. The meta-ADR's own Decision log must use that form.
+const DECISION_LOG_LINE =
+  /^- \d{4}-\d{2}-\d{2} · (?!retired:|failed because:)[^·\n]+ · (?!retired:|failed because:)[^·\n]+(?: · failed because: [^·\n]+)?(?: · retired: docs\/adr\/[^\s·]+\.md @ [0-9a-f]{7,40})?$/
+test('living-adr-terms — the meta-ADR resolves by slug to one file, and its Decision binds the terms, citation forms and log-line form', () => {
+  const adrDir = join(HERE, '..', '..', '..', 'docs', 'adr')
+  const matches = readdirSync(adrDir).filter((f) => /^\d{4}-living-adrs-git-is-the-archive\.md$/.test(f))
+  assert.equal(matches.length, 1,
+    `expected exactly one docs/adr/*-living-adrs-git-is-the-archive.md, found ${matches.length} — ` +
+      'zero means the meta-ADR is missing; two means a renumber race left a duplicate')
+  const adr = readFileSync(join(adrDir, matches[0]), 'utf8')
+  const decision = adr.match(/^## Decision\n([\s\S]*?)(?=\n## |(?![\s\S]))/m)
+  assert.ok(decision, 'the meta-ADR has no `## Decision` section — the extraction construct rotted')
+  const body = norm(decision[1])
+  assert.ok(body.trim().length > 0, 'the meta-ADR `## Decision` section is empty')
+  const terms = ['Living ADR', 'Decision log', 'Sha-pinned citation']
+  for (const key of [
+    ...terms,
+    'retired: docs/adr/<file> @ <sha>',
+    'failed because: <one clause>',
+    '## Considered options',
+  ]) {
+    assert.ok(body.includes(key), `the meta-ADR \`## Decision\` must name ${JSON.stringify(key)}`)
+  }
+  for (const form of ['bare', 'dated', 'sha-pinned']) {
+    assert.match(body, new RegExp(`\\b${form} citation`, 'i'),
+      `the meta-ADR \`## Decision\` must name the ${form} citation form`)
+  }
+  for (const word of ['introduced', 'record']) {
+    assert.match(body, new RegExp(`\\b${word}\\b`), `the meta-ADR \`## Decision\` must carry the word "${word}"`)
+  }
+  const glossaryColdMd = readFileSync(join(HERE, '..', 'references', 'glossary-cold.md'), 'utf8')
+  for (const term of terms) {
+    assert.ok(glossaryColdMd.includes(`\n## ${term}\n`),
+      `glossary-cold.md must carry a \`## ${term}\` heading for the living-ADR term`)
+  }
+  assert.match(glossaryMd, /\nwhen you edit or cite an ADR, read skills\/war\/references\/glossary-cold\.md\n/,
+    'GLOSSARY.md must carry the living-ADR pointer row')
+
+  // The log-line form: both shapes pass, the misordered field reds.
+  const ok = '- 2026-11-11 · a rule flipped · issue #1850'
+  assert.match(ok, DECISION_LOG_LINE, 'a line without the optional fields must pass')
+  assert.match(`${ok} · failed because: it raced the merge`, DECISION_LOG_LINE,
+    'a line with `failed because:` must pass')
+  assert.match(`${ok} · failed because: it raced the merge · retired: docs/adr/0013-x.md @ abc1234`,
+    DECISION_LOG_LINE, 'a line with `failed because:` before `retired:` must pass')
+  assert.match(`${ok} · retired: docs/adr/0013-x.md @ abc1234`, DECISION_LOG_LINE,
+    'a line with `retired:` alone must pass')
+  assert.doesNotMatch(`${ok} · retired: docs/adr/0013-x.md @ abc1234 · failed because: it raced the merge`,
+    DECISION_LOG_LINE, 'a line that puts `failed because:` after `retired:` must red')
+  const log = adr.match(/^## Decision log\n([\s\S]*?)(?=\n## |(?![\s\S]))/m)
+  assert.ok(log, 'the meta-ADR must carry its own `## Decision log`')
+  const lines = log[1].split('\n').filter((l) => l.startsWith('- '))
+  assert.ok(lines.length > 0, 'the meta-ADR Decision log has no lines')
+  for (const line of lines) assert.match(line, DECISION_LOG_LINE, `meta-ADR Decision-log line breaks the form: ${line}`)
+})
