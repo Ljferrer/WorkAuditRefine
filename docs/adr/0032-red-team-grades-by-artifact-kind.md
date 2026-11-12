@@ -87,3 +87,7 @@ mechanically — not by preamble prose.**
 - [ADR 0033](0033-executed-probes-behind-escape-guard.md) — the sibling execution-trust decision from
   the same spec.
 - Memory lesson (the originating misfire): [[redteam-claims-vs-reality-misfires-on-impl-plans]].
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

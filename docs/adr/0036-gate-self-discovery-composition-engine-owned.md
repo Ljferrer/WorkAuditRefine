@@ -50,7 +50,7 @@ belt; it is no longer the enforcement.**
 5. **Drift-guarded by the existing mirror-registry doctrine, not a new mechanism.** The inline mirror
    is bound to the canonical `resolveGate` by a new behavioral row in the existing D2 mirror registry
    (`workflow-template.test.mjs`) — the established **Mirror registry** / **Canonical source vs mirror
-   site** doctrine (CONTEXT.md), not a bespoke drift check invented for this decision.
+   site** doctrine (GLOSSARY.md), not a bespoke drift check invented for this decision.
 
 6. **Amends the F12 self-discovering-gate decision's enforcement path, not its gate semantics.** [F12](../specs/2026-06-25-F12-multi-runner-gate-design.md)
    (implemented by the verification-layer-integrity plan) decided that the gate enumerates every
@@ -93,7 +93,7 @@ belt; it is no longer the enforcement.**
 - **A prose-truth debt is opened, not closed, by this ADR.** Prose across `docs/specs/`, `SKILL.md`,
   and `agents/war-refiner.md` describing the old prose-only enforcement now needs re-verification
   against engine composition; that sweep is this ADR's own spec's Phase 2 (tracked by the new
-  **Spec-truth guard** CONTEXT.md term) and is not this ADR's concern.
+  **Spec-truth guard** GLOSSARY.md term) and is not this ADR's concern.
 - **No enum, escalation-surface, or `land-decision.mjs` change.** This is a composition-site relocation
   inside `workflow-template.js` plus an idempotence property on an existing pure function — it adds no
   new task/phase status and touches none of `HARD_ESCALATION_REASONS`, `KNOWN_LAND_DECISIONS`, or
@@ -117,8 +117,7 @@ belt; it is no longer the enforcement.**
 - [ADR-0005 — a dead phase halts the DAG](0005-dead-phase-halts-the-dag.md) — the enum sets this ADR
   leaves untouched (Decision 4, Consequences).
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0036-gate-self-discovery-composition-engine-owned.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

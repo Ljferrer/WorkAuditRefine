@@ -1,6 +1,6 @@
 # Backward-chain doctrine — the worker
 
-The worker's chain for the first pass on a task. The task's finish line is a check WAR runs; the worker names it first, chains backward from it to the tip, and works the earliest unmet link. The `## The rules` section rides byte-equal in the WORK dispatched prompt built by `skills/war/assets/workflow-template.js`, pinned by the `workflow-template.engine-1.test.mjs` fixture `backward-chain: worker rules byte-equal on the work build only`. No fix-applying build carries it; those carry the fixer's block ([backward-chain-fix.md](backward-chain-fix.md)).
+The worker's chain for the first pass on a task. The task's finish line is a check WAR runs. The worker names it first, chains backward from it to the tip, and works the earliest unmet link. The `## The rules` section rides byte-equal in the WORK dispatched prompt built by `skills/war/assets/workflow-template.js`. The `workflow-template.engine-1.test.mjs` fixture `backward-chain: worker rules byte-equal on the work build only` pins it. No fix-applying build carries it; those carry the fixer's block ([backward-chain-fix.md](backward-chain-fix.md)).
 
 ## The rules
 
@@ -26,7 +26,7 @@ Critical path:
 Ignore for now: <neighbor or finding> - <reason>; ...
 ```
 
-Order the chunks by distance from the finish line, nearest first. Mark exactly one bottleneck. A chunk with no done test is a guess, not a link: split it or drop it. When a chunk's done test is the gate, say which suite and which title the gate prints; the whole gate is the last link, never a middle one.
+Order the chunks by distance from the finish line, nearest first. Mark exactly one bottleneck. A chunk with no done test is a guess, not a link: split it or drop it. When a chunk's done test is the gate, say which suite and which title the gate prints. The whole gate is the last link, never a middle one.
 
 ## Off-path discipline
 

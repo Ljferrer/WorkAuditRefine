@@ -62,3 +62,7 @@ model tier it buys, never an effort ordering.
   hand-copied literal.
 - [ADR 0045](0045-red-team-loop-budget-and-route-upstream.md) — `redteamRoundLimit` stays 3 by
   default and 2 on `economy`; this ADR changes no red-team budget.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

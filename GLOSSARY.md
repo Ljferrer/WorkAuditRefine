@@ -583,7 +583,8 @@ seat's Minor/Nit at the same locus and either rationale concerns the task mandat
 adjudication. The fix-now / follow-up-and-merge fork parks through `parkAsk` in `asks[]` (#1914), for the Checkpoint strike-list gate; it never grants
 approval. Rebuttal precedes fixing; ALL surviving blockers need concrete fixes. ANY fix-less
 blocker, unchanged survivor or finding-less blocking seat holds. A ruling and re-audit must
-precede approval in both interactive and unattended runs (#2279/#2280).
+precede approval in both interactive and unattended runs (#2279/#2280). A seat conflict with no
+fix parks its ask and still holds the phase on purpose; a fixable blocker takes a fix round first (#2557).
 _Avoid_: treating ordinary lexical scope as a task mandate; erasing dissent when parking a question.
 
 **Gate-audit pass**:
@@ -864,14 +865,17 @@ _Avoid_: plan literalism as a virtue; latitude as unbounded scope.
 
 **Disposition** (`absorb` | `follow-up` | `note` | `ask`):
 The auditor-owned routing of a Minor/Nit finding, orthogonal to severity: fix it this phase (`absorb` —
-the per-task ace, or the phase-close sweep when `phaseClose:true`/release-slot-adjacent), file it as an
+the per-task ace, or the phase-close sweep when `phaseClose:true`), file it as an
 affirmative issue (`follow-up` — must state why it is not absorbable), record it without filing
 (`note` — phase report + servitor feed; a `behavior` note never stays a note, see **Finding class**), or park it as a question (`ask` — see **Ask disposition**).
 A fully specified Minor/Nit defaults to `absorb` (in the task diff) or `absorb` + `phaseClose:true`
 (outside it); `follow-up` needs a tag from the **Barrier list**. Omitted → Minor becomes follow-up,
 Nit becomes note; `ask` is never a default. A failed route **steps toward durability** — the
 phase-close sweep, then the carried queue on a non-final phase, then `follow-up`; an ineligible
-route (release-slot, exclusion-set, fileless) demotes straight to its default rung. Every step is
+route (release-slot, exclusion-set, fileless) demotes straight to its default rung. Release-slot
+eligibility is by literal (D20, see **Version-literal guard**): only the `RELEASE_SLOT_FILES`
+basenames refuse by filename, and a README or CHANGELOG absorb rides the per-task ace when its fix
+moves no version literal. Every step is
 logged — per subset under the ace bisection ladder — never dropped silently, while
 `demote()` refuses an ask (log + re-route onto `asks[]`); zero unrouted findings on every exit path.
 _Avoid_: autoFixable (deprecated legacy alias for absorb); severity as the routing signal.
@@ -885,13 +889,17 @@ _Avoid_: restating their values here.
 The fourth, Minor/Nit-only disposition member (#1550; ADR 0013 amendment 2026-08-25): a decision-shaped
 finding only the operator can rule, carrying a mandatory question + fork (the decision needed and its
 two branches). Minor/Nit-only holds by construction — `dispositionOf` sits behind the severity filter;
-Critical/Major findings route via `blockingOf` and never carry a disposition.
+Critical/Major findings route via `blockingOf` and never carry a disposition. A second producer
+is engine-made: the **Seat-conflict ask** (`conflictAsk`), whose source findings are a blocking
+Critical/Major paired with an approving seat's Minor/Nit, parks on the same channel.
 _Avoid_: treating an ask as an escalation (it never blocks); machinery defaulting a finding to ask.
 
 **asks[] channel**:
 The parked-ask artifact path: the top-level return's `asks[]` beside `minorsFiled` (full finding rows,
 exactly-once by finding identity) plus the lossy ninth `handoff.asks` key (question + fork +
-task/seat/sha). `demote()` refuses an ask loudly — log() + re-route onto `asks[]`, never
+task/seat/sha). Its producers are a seat's `ask`-dispositioned Minor/Nit, and the
+engine-made **Seat-conflict ask**, whose source findings are blocking (a Critical/Major paired with an
+approving seat's Minor/Nit). `demote()` refuses an ask loudly — log() + re-route onto `asks[]`, never
 `minorsFiled`/`notes`, never a throw.
 _Avoid_: filing from this channel; hardening the refusal to a throw (`held:workflow-error` omits the
 handoff — the throw would destroy the parked records the refusal protects).
@@ -963,8 +971,9 @@ ace-style batch on the same machinery (canonical: `aceReentry` in
 is their SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters, and
 neither do the merge-slot floor-fix re-audit and the late-fix pass re-audit: their absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), except a late-fix re-audit `behavior` absorb (**Late defect**, PIN-21), never
 budget-gated. Budget spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
-sweep-discard ⇒ carried on `carriedPhaseClose` (non-final phase) or `follow-up` (final); a
-forward-reverted finding never re-enters (the oscillation bound); every demotion is logged.
+sweep-discard ⇒ carried on `carriedPhaseClose` (non-final phase) or `follow-up` (final), except on
+the approve trail (`sweepApproved`: an approved, unmerged polish queue), which demotes to `follow-up`
+on any phase; a forward-reverted finding never re-enters (the oscillation bound); every demotion is logged.
 Re-entry rounds inherit the **Ace-Subset trailer** discipline and the
 tip-preflight idempotency verbatim
 ([ADR 0013](docs/adr/0013-commanders-intent-and-disposition-routing.md) amendment 2026-08-27).
@@ -1054,14 +1063,22 @@ rationale; minting a standing row under `--afk`.
 **Ace-Subset trailer**:
 The deterministic commit trailer (`Ace-Subset:` key) every bisection-subset commit carries; each subset
 dispatch preflights the **bisection range** (never the tip alone) for it and returns the existing sha
-without committing on a hit — the resume-idempotency contract.
-_Avoid_: tip-only preflight; pinning the value shape (latitude — the key is the contract).
+without committing on a hit — the resume-idempotency contract. Its value is the subset findings'
+file set, a resume key, never the commit's footprint: read the footprint from `ace_diff_files` or
+`git diff --name-only <sha>^ <sha>`.
+_Avoid_: tip-only preflight; pinning the value shape (latitude — the key is the contract); deriving
+a commit's file scope from the trailer value.
+
+**No-fix sentinel** · **Reconciled follow-up** · **Polish claim** · **Net-zero clash range**:
+when a fix-less finding, a reconciled row or a polish clash is in play, read skills/war/references/glossary-cold.md
 
 **Phase-close coherence sweep**:
 The fail-open polish pass at a would-land phase's **integrated tip**: one worker in a `p<N>-polish` worktree
 fixes ONLY the queued `phaseClose` absorb findings and each sibling site of their defect class, a full default-roster panel re-audits the polish SHA,
 and the refiner merges it at the serial queue's tail — or **discards** it (branch + worktree left in
-place; queue carries on `carriedPhaseClose` (non-final phase) or demotes to follow-up (final))
+place; queue carries on `carriedPhaseClose` (non-final phase) or demotes to follow-up (final);
+on the approve trail, a panel-approved sweep whose merge never landed (`sweepApproved`), the queue
+demotes to follow-up on any phase)
 and the pre-polish tip lands exactly as it would have. It may only improve the tip; a discarded
 sweep recomputes nothing.
 _Avoid_: cleanup phase; ad-hoc seam hunting; treating a discard as a failure that holds the land.
@@ -1090,6 +1107,8 @@ non-final discarded sweep's absorbs, a non-final terminal pass's rows — emitte
 `carriedPhaseClose` on the
 phase return (always present, `[]` when nothing was carried, so absence is never ambiguous) and
 threaded back by the Lead as `args.seededPhaseClose`, where they drain into the relaunch's sweep queue.
+The approve trail never carries: a discarded sweep whose panel approved but whose merge never landed
+(`sweepApproved`) demotes its queue to follow-up on any phase, naming the unmerged polish branch.
 _Avoid_: reading absence as empty; demoting a held phase's queue; a carry inside the handoff block.
 
 **truncated gate log**:
@@ -1239,6 +1258,12 @@ points at the source), or **explicitly defer** (a legitimacy-complete backstop r
 timing), never silence. Reference text: `skills/war/references/touched-doc-accuracy.md`.
 _Avoid_: treating a silent restatement as a follow-up (it is a plan defect), and never stretch the duty
 to general prose claims — those stay governed by the evidence-tag discipline (D4).
+
+**Living ADR** · **Decision log** · **Sha-pinned citation**:
+when you edit or cite an ADR, read skills/war/references/glossary-cold.md
+
+**Enforcement ladder** · **Least start**:
+when you choose where a rule is enforced or what a seat starts with, read skills/war/references/glossary-cold.md
 
 ### Red-team plan-vs-state grading (ADR 0032 / ADR 0033)
 

@@ -62,7 +62,7 @@ sub-area of the superproject worktree.** Five sub-decisions:
 
 ## Consequences
 
-- **`Git-topology owner` now spans the phase's target repo.** The CONTEXT.md term is evolved: the refiner owns shared
+- **`Git-topology owner` now spans the phase's target repo.** The GLOSSARY.md term is evolved: the refiner owns shared
   git state in *whatever repo the phase targets*, including a submodule repo's integration branch and its land. The
   Container/Contents boundary is preserved — the bump is a *worker* commit (contents), not a refiner-authored one.
 - **The feature stacks on the in-flight audit-remediation stack.** It extends M1's `KNOWN_LAND_DECISIONS` (the new
@@ -88,8 +88,7 @@ sub-area of the superproject worktree.** Five sub-decisions:
 - [ADR-0005](0005-dead-phase-halts-the-dag.md) / [ADR-0008](0008-git-is-the-resume-source-of-truth.md) — the
   landDecision and resume-precedence machinery this feature extends.
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0009-first-class-submodule-support.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

@@ -451,7 +451,8 @@ const FOLLOWUP_FILING_RESULT = { type: 'object', properties: {
   // clusters[] manifest (Task 2.1, #1566): the agent's own clustering record — ordinals are the
   // 1-based POST-COLLAPSE row numbers it grouped into one filed issue. Advisory like `filed`: the
   // engine asserts partition (every ordinal in exactly one cluster — clustering only merges the
-  // engine's collapsed rows, never splits one), and distinct issues filed ≤ post-collapse rows;
+  // engine's collapsed rows, never splits one — except a verified_fixed ordinal with no filed issue,
+  // which needs no cluster, D33), and distinct issues filed ≤ post-collapse rows;
   // violations get ONE log() line (fail-open, the non-conforming-return arm's sibling), never a hold.
   clusters: { type: 'array', items: { type: 'object', properties: {
     ordinals: { type: 'array', items: { type: 'number' } }, issue: {} } } } } }
@@ -469,7 +470,7 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // The provision-BARRIER return (dispatchKind 'provision-barrier') additionally carries three OPTIONAL
 // arrays: preMerged — task ids whose local branch is an ancestor of the frozen integration tip AND
 // was merged by a first-parent merge commit whose WAR-Task trailer names it and whose second parent
-// is its tip (already-integrated, #2485 D14; a zero-commit ancestor has no merge commit and is never
+// is its tip (proved integrated by task-integrated.sh, #2485 D14; a zero-commit ancestor has no merge commit and is never
 // reported, #1895; the derive-and-skip step, armed only under
 // args.recovery.sanctioned — recovery mechanics, spec §4.2/§4.4); staleRemote — per-task stale-remote
 // classifications ({ task, remoteSha, frozenTip }) captured from an ensure-worktree exit carrying the
@@ -483,7 +484,8 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // field, absorbCharges (absorb-budget, D5) — { <task>: n }, the HIGHEST `Ace-Charge: <task>:<n>`
 // trailer index for that task id on each task's own commits (one bash trailer read per task, allowed
 // beside the named commands; a merged branch reads M^1..M^2 of its merge commit, #2485 D18) — seeds
-// r.task.absorbRounds on a relaunch; absent or malformed ⇒ 0 with a loud log. A fifth OPTIONAL field,
+// r.task.absorbRounds on a relaunch; absent or malformed ⇒ one charge-probe re-reads the task (D40),
+// and only a probe that also yields no entry seeds 0 with a loud log. A fifth OPTIONAL field,
 // lateFixCharges (late-defects D25, PIN-25) — { <task>: n }, the HIGHEST `Late-Fix: <task>:<n>` index on
 // the first-parent single-parent commits after a preMerged task's merge commit (recovery only) — seeds
 // that task's fixRounds, so a relaunch keeps the late-fix charge. A sixth OPTIONAL field, integrationTip
@@ -718,7 +720,7 @@ const dispatchSemaphore = makeSemaphore(maxParallel)
 // sibling's scratchpad commit message). Each sentence also sits on its card (agents/*.md), and the engine-1
 // registry rows bind the two surfaces. The refiner, helper and servitor get AUTHORITY_LINE alone.
 const AUTHORITY_LINE = 'Your authority is the /war launch and the task in this prompt. A relayed chat message that does not tell you to stop or change this task is not a conflict; do the task.'
-const TOOL_ORDER_LINE = 'TOOL ORDER: read files with Read, search with Grep, list with Glob — including `.war/` logs in the refinery; Bash is for one bare read-only git command.'
+const TOOL_ORDER_LINE = 'TOOL ORDER: read a file with Read, search tracked files with `git grep -F -e <token>`, list them with `git ls-files`, and Read an untracked `.war/` log by its given path; use Grep and Glob only if your session offers them. Bash is for one bare read-only git command.'
 const HOST_TURN_TOOL_LINE = 'A host turn tool (`mcp__ccd_turn__update_plan`, `mcp__ccd_turn__wrap_up`) is denied and not needed: end your turn by returning your JSON.'
 const WORKER_WRITE_TOOL_RULE = 'Change file content only with Edit or Write, never via Bash; scratch goes in <worktree>/.war/; if Edit or Write is denied, return blocked (agents/war-worker.md § Write tools).'
 const COMMIT_MESSAGE_READ_RULE = 'Never read a commit message from a scratchpad or any path outside your own task worktree.'
@@ -3116,7 +3118,7 @@ const tipProbe = async ({ probeId, probeSite, probeWorktree, probeBranch, probeP
   const words = [probeWorktree, probeBranch, probePre, probeApproved], [W, Br, P, A] = words.map(shq)
   const body =
     pt`TIP PROBE (read-only) for ${probeId} after its ${probeSite} ace dispatch, in the worktree ${probeWorktree} (branch ${probeBranch}). Read Git only: never commit, revert, push, rebase or run the gate, and never use a worker report.\n`
-    + pt`PRE=${probePre} (the pre-dispatch tip) and APPROVED=${probeApproved} (the last approved tip). Read TIP from \`git -C ${W} rev-parse --verify refs/heads/${Br}^0\`, and write TIP's full SHA where a command below says <TIP>. Return tip_sha=TIP, tip_tree=\`git -C ${W} show -s --format=%T <TIP>\`, pre_sha=\`git -C ${W} rev-parse --verify ${P}^0\`, pre_tree=\`git -C ${W} show -s --format=%T ${P}\`, approved_tree=\`git -C ${W} show -s --format=%T ${A}\`, and pre_is_ancestor: true ONLY when \`git -C ${W} merge-base --is-ancestor ${P} <TIP>\` exits 0. When pre_is_ancestor is true, also return count=\`git -C ${W} rev-list --count ${P}..<TIP>\` and files=\`git -C ${W} diff --no-renames --name-only ${P} <TIP>\` (one repo-relative path per entry); otherwise count 0 and files []. Also return tip_trailers: { aceSubset, aceCharge }, each the trimmed \`git -C ${W} show -s --format='%(trailers:key=Ace-Subset,valueonly)' <TIP>\` (Ace-Charge for aceCharge), '' when absent. Every SHA is a full 40-hex Git object name. Any Git error: return {} — never an invented value.`
+    + pt`PRE=${probePre} (the pre-dispatch tip) and APPROVED=${probeApproved} (the last approved tip). Read TIP from \`git -C ${W} rev-parse --verify refs/heads/${Br}^0\`, and write TIP's full SHA where a command below says <TIP>. Return tip_sha=TIP, tip_tree=\`git -C ${W} show -s --format=%T <TIP>\`, pre_sha=\`git -C ${W} rev-parse --verify ${P}^0\`, pre_tree=\`git -C ${W} show -s --format=%T ${P}\`, approved_tree=\`git -C ${W} show -s --format=%T ${A}\`, and pre_is_ancestor: true ONLY when \`git -C ${W} merge-base --is-ancestor ${P} <TIP>\` exits 0. When pre_is_ancestor is true, also return count=\`git -C ${W} rev-list --count ${P}..<TIP>\` and files=\`git -C ${W} diff --no-renames --name-only ${P} <TIP>\` (one repo-relative path per entry); otherwise count 0 and files []. Also return tip_trailers: { aceSubset, aceCharge }, each the trimmed \`git -C ${W} show -s --format='%(trailers:key=Ace-Subset,valueonly)' <TIP>\` (Ace-Charge for aceCharge), '' when absent. When APPROVED and PRE name the same commit, approved_tree equals pre_tree. Every SHA is a full 40-hex Git object name. Any Git error: return {} — never an invented value.`
   const opts = { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'tip-probe', label, schema: TIP_PROBE, ...spawn('refiner') }
   let p = await dispatchSite(body, { ...opts, ...helperOpts(...words) })
   // D36: a reply whose shas are usable and that misses only a tree field is re-asked ONCE, naming the
@@ -3130,6 +3132,17 @@ const tipProbe = async ({ probeId, probeSite, probeWorktree, probeBranch, probeP
   // dispatchDied already logged the site-named death
   if (deathOf(p)) return null
   if (!usableTipProbe(p)) { log(label + ': the tip probe returned no usable Git read (PIN-5).'); return null }
+  // Operator ruling 2026-11-12 (phase 2 hold): PRE and APPROVED naming one commit have one tree. A
+  // reply whose approved_tree differs from pre_tree misread one of them. Operator ruling 2026-11-12
+  // (phase 3 Checkpoint): fail toward moved. The tree that differs from tip_tree wins, since a misread
+  // that copies the tip tree classes a moved tip unchanged. If both differ, pre_tree (read from PRE) wins.
+  const sameCommit = isSha(probeApproved) && (p.pre_sha.startsWith(probeApproved) || probeApproved.startsWith(p.pre_sha))
+  if (sameCommit && isSha(p.pre_tree) && p.approved_tree !== p.pre_tree) {
+    const keepApproved = p.pre_tree === p.tip_tree
+    const won = keepApproved ? p.approved_tree : p.pre_tree
+    log(label + ': APPROVED and PRE name one commit ' + p.pre_sha + ', but approved_tree ' + p.approved_tree + ' differs from pre_tree ' + p.pre_tree + ' — a misread; ' + (keepApproved ? 'approved_tree ' + won + ' is kept, because pre_tree equals tip_tree' : 'approved_tree is set to pre_tree ' + won + (p.approved_tree === p.tip_tree ? ', because approved_tree equals tip_tree' : ', because both differ from tip_tree')) + ' (fail toward moved).')
+    p = { ...p, approved_tree: won }
+  }
   return p
 }
 // trailerGapLog (D24 c): a moved ace tip whose tip_trailers lacks a trailer its prompt asked for is
@@ -4024,7 +4037,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // same arbiter: the D6 grep-flag test reads the hook's grep deny string (the optional -n -i -l -w -c
     // list, the selector clause and the context-count clause). The SEARCH-TOOLING RULE line that followed
     // this one folded into it (plan 2026-11-08-auditor-and-worker-guard-habits T1.6): TOOL_ORDER_LINE,
-    // which dispatch() prefixes, names the Grep tool first, and this line keeps the zero-hit
+    // which dispatch() prefixes, names git grep -F -e <token> as the search (D38), and this line keeps the zero-hit
     // `metacharacter` token the D3 escalate-boundary registry row anchors.
     + pt`READ-ONLY GIT GUARD CONTRACT: run one bare git command per Bash call from the read-verb allowlist (diff, log, show, merge-base, rev-parse, status, ls-files, ls-tree, cat-file, blame, branch) — no pipes, chaining, redirects, unquoted globs or braces, or substitution: compose nothing. Use git -C <path> in place of cd <path> &&, and -n <count> on log or show in place of | head. Quote a value that holds a space or a regex or glob byte: single-quote the whole value, and it is data, never a flag: git log -S'two words', git diff -G'a[b]c', git blame -L '/^## re/,+3' <sha> -- <file>, git log --format='%H %s', git show '<sha>:app/[id]/f.tsx', git ls-files -- '*.md', git grep -F -e 'two words'; quote a :!path or [id] pathspec too (':!docs'). A quote opens a token or follows -S, -G, -L, -e, --grep=, --format= or --pretty=, it closes the token, and a bare value must not start with - (a quoted -e value may). A double-quoted value denies with $, a backtick, a backslash or !. --ext-diff, --textconv and --filters deny: each runs a configured command. Non-git shell reads (grep, ls, cat, sed, wc, …) always deny. branch admits read forms only, in two arms: value-carrying flags =-attached (--contains=<rev>, --no-contains=<rev>, --merged=<rev>, --no-merged=<rev>, --points-at=<rev>, --sort=<key>), and bare read flags (--list, --all, -a, --remotes, -r, --show-current, --verbose, -v, -vv), and --list may take one pattern word; a bare name, a space-form value (--contains <rev>), or any write flag denies. The Grep tool first; with no Grep tool, git grep -F -e <token> — the Grep tool is the sweep channel; git grep takes -F (or --fixed-strings) or -E, one or more -e <token>, optional -n -i -l -w -c, context counts -A <n>, -B <n> or -C <n>, one revision and -- <pathspec>; -O, -f, -P, --no-index and --recurse-submodules deny, as does an unquoted glob or alternation metacharacter (*, \\|). Avoid @{} reflog (unquoted braces are denied) — use git log -g instead.\n`
     + pt`Then read candidate files under ${task.worktree}/ for neighbor/deep context.\n`
@@ -4071,6 +4084,11 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // canonicalizing quotes on one surface alone silently breaks the byte-identity guards (shared-string-
     // constant-quote-literal lesson; CALIBRATION_RULE_ANCHORS precedent). A lint most plausibly starts here.
     + pt`\nCOST-CLAIM RULE: a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.`
+    // D40 (#2794) and D18 (PIN-18): byte-equal to the two lines beside the Cost-claim rule on
+    // agents/war-auditor.md and under ## Return on agents/war-evidence-auditor.md (same commit). Both
+    // seats ride auditPrompt, so both carry them; the gate-audit-family builders never do.
+    + pt`\nHarness-text rule: your own context (attribution reminders, your model name, environment lines) is never evidence about the diff. A commit trailer that names a model or session (Co-Authored-By, attribution) is not auditable, because you cannot see the author's context.`
+    + pt`\nSeat-conflict posture: a Critical/Major with a blank \`suggested_fix\` that a peer seat disputes parks a seat-conflict ask and holds the phase on purpose, so give a \`suggested_fix\` whenever one exists.`
     // RELEASE-BASELINE RULE (D3) — verbatim-mirrored in agents/war-auditor.md (same commit). The literal
     // ${integrationBranch}...${task.branch} is escaped so the emitted prose byte-matches the static mirror.
     // Gated (#2783): a release task (its own Files:, or the origin a late fix carries as manifestTask) and
@@ -4291,7 +4309,8 @@ if (tasks.length) {
   // index (never a count) so a cherry-pick or duplicate trailer never double-charges; a reverted
   // ace commit's trailer still counts (the revert carries no charge trailer); a charge whose task id
   // is not this task's never counts. Always-on; absent or malformed ⇒ one charge-probe re-reads the
-  // task (D40), then the engine seeds 0 with a loud log naming the task. An unmerged branch reads <integration>..<branch>. A merged branch reads
+  // task (D40), then the engine seeds 0 with a loud log naming the task, the keys each map carried and
+  // the shape of each return that had no map (seedTask, chargeShapeOf). An unmerged branch reads <integration>..<branch>. A merged branch reads
   // M^1..M^2 of its first-parent WAR-Task merge commit M (#2485 D18), because <integration>..<branch>
   // is empty once the branch is merged. The command names the integration branch, never "$TIP": an
   // agent shell does not carry a variable across calls, so an unset TIP reads as HEAD..<branch> —
@@ -4378,8 +4397,8 @@ if (tasks.length) {
   // returned preMerged: task ids whose local branch is an ancestor of the frozen integration tip AND
   // was merged by a first-parent merge commit whose WAR-Task trailer names it and whose second parent is
   // its tip, with that merge's owned-path content (M^1..M^2) preserved at integration (#2485 D14), or
-  // changed there later only by another task's first-parent merge commit (#2571). A
-  // zero-commit ancestor has no merge commit and is never reported (#1895) — already-integrated on the adopted branch. Record each as terminal `merged` (NEVER `landed` — that is
+  // changed there later only by another task's first-parent merge commit (#2571); each is proved integrated by
+  // task-integrated.sh, so skipped. A zero-commit ancestor has no merge commit and is never reported (#1895). Record each as terminal `merged` (NEVER `landed` — that is
   // phase-level) with the recovered note; enter done + succeeded (so a dep-block pre-check on the
   // re-dispatched task passes — no spurious dep-failed) and the bare-id landed list; one auditLog entry;
   // NO worker dispatch. Deliberately NOT pushed to mergedTasksForGateAudit — no gate ran for it this run —
@@ -4581,7 +4600,8 @@ const citationOf = f => {
   // stamp an arbitrary row onto the aced record, the prompt rows and the --afk splice. Exact matches
   // are preferred over containment; more than one hit is refused (ambiguity is NO-match, PIN-15),
   // mirroring recordAced's exactly-one-key-hit rule before a splice. DEDUPE (ace re-entry a6):
-  // `adjudications` is assembled Lead-side from three producers (the red-team `## Adjudications`
+  // `adjudications` is assembled Lead-side from more than one producer (named, never counted, as the
+  // adjudicationClause header comment does: the red-team `## Adjudications`
   // block, Lead scope adjudications, Checkpoint ask rulings), so one row text can reach the set
   // twice — the Set keeps DISTINCT row texts, so identical duplicates collapse to one hit while
   // genuinely distinct containing rows still refuse. An exact member is the single hit outright
@@ -4838,8 +4858,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // ACE BASE GATE (late-defects D4/D10, PIN-4/PIN-10): a red with failing ids runs the gate ONCE at the
   // pre-ace tip (r.preAceSha, cached per sha in aceBaseGates, so subsets and re-entry reuse it). Ids
   // that are all red there too count as green for the revert decision, logged as a proceed-over, when
-  // the red echoes head_sha at the ace tip. A new id, a red with no ids or no matching echo, or a dead
-  // or unusable base check keeps the red arm (its D35 second run, then the revert). The base check backgrounds a long gate like the ace gate
+  // the red echoes head_sha at the ace tip. A new id, an echo that names another commit, a red that
+  // echoes head_sha but names no ids (D35 re-asks it once for them), or a dead or unusable base check
+  // keeps the red arm (its D35 second run, then the revert). A red with no ids and no usable head_sha
+  // is unjudged: a segment (D11), never a red. The base check backgrounds a long gate like the ace gate
   // (aceSegments), and a segment reply, even a spent one, names no base ids. A backgrounded base check
   // names its throwaway worktree in segment_note. The shared continuation threads that note, and the
   // base check's own body tells a continuation to reuse and remove that worktree, so the read-only ace
@@ -7146,7 +7168,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + pt`PIN STATUS: ${pinStatusLine}. A stamped CONFIRMED or BENIGN-ADVANCE token IS the pin proof — the refiner's evidence dispatch already computed it (gate-pin-status.sh) against the observed _refinery tip ${observedHead || gateHeadSha}. Consume the stamped token; do NOT reconstruct the proof — you MAY spot-verify with a SINGLE read-only \`git -C ${refineryPath} cat-file -t <sha>\` or \`git -C ${refineryPath} rev-parse HEAD\` only if you doubt it${expectedTip ? ' (the CONFIRMED TIP literal below stays the tip you judge End-state check artifacts against; the gate log stays judged against gate-HEAD)' : ''}.\n`
       + confirmedTipLine
       + pt`CONFIRMED (observed tip == gate-HEAD) or BENIGN-ADVANCE (observed tip descends gate-HEAD and NONE of this task's own files changed in the intervening range) ⇒ the tree you judge corresponds to the current integration tip; a mapped acceptance-criteria test provably unrun AT that confirmed tip stays HARD.\n`
-      + pt`STALE-MISMATCH / ERROR / an absent pin-status token ⇒ you CANNOT confirm the executed gate output corresponds to the current integration tip: record a SOFT note, never a HARD finding (the stale-tip defusing rule). The SOFT note MUST state: the observed HEAD sha (or "rev-parse failed"), the expected gate-HEAD sha ${gateHeadSha}, and the reason — "gate-audit worktree not at the integration tip — ${STALE_TIP_PHRASE}, downgraded to SOFT, not a land-halt". Return it as \`disposition: note\`, \`file: null\`, no \`suggested_fix\` — it describes your environment, not the code.\n`
+      + pt`STALE-MISMATCH / ERROR / an absent pin-status token ⇒ you CANNOT confirm the executed gate output corresponds to the current integration tip: record a SOFT note, never a HARD finding (the stale-tip defusing rule). The SOFT note MUST state: the observed HEAD sha (or "rev-parse failed"), the expected gate-HEAD sha ${gateHeadSha}, and the reason — "gate-audit worktree not at the integration tip — ${STALE_TIP_PHRASE}, downgraded to SOFT, not a land-halt". Return it as \`disposition: note\`, \`file: null\`, no \`suggested_fix\` — it describes your environment, not the code. A STALE-MISMATCH reading \`mapped file(s) changed since the gate ran\` is expected after a later same-phase merge: the SOFT note, no finding.\n`
       + pt`In ANY cannot-confirm / STALE-MISMATCH / ERROR case KEEP verdict at 'approve' or 'request_changes' WITH the SOFT note — NEVER 'escalate' (escalate is reserved for a plan that is wrong or underspecified; a finding-less escalate is treated as a HARD hold, so it must never be used to signal a stale/unconfirmable tip).\n`
       + pt`${artifactLine} — this captured file, NOT the inline gate output below, is the AUTHORITATIVE execution evidence for a HARD provably-unrun determination. A MISSING artifact (the file cannot be read) ⇒ SOFT cannot-confirm for the HARD path (never a HARD finding); the inline gate output stays readable as NON-AUTHORITATIVE context. ${GATE_LOG_READ_RULE}\n`
       + gateScopeLine
@@ -9006,7 +9028,8 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
     // sibling: any violation gets ONE log() line; stamping above is already honored row-by-row,
     // landDecision untouched, never a hold. Asserted: (1) every post-collapse ordinal appears in
     // exactly one cluster (partition — the agent may only MERGE the engine's collapsed rows; an
-    // ordinal in two clusters IS a split, an uncovered ordinal a drop); (2) distinct issue numbers
+    // ordinal in two clusters IS a split, an uncovered ordinal a drop), except a verified_fixed
+    // ordinal with no filed issue, which needs no cluster (D33); (2) distinct issue numbers
     // filed ≤ post-collapse rows (clustering can only shrink the issue count).
     const problems = []
     const clusters = Array.isArray(filingOut.clusters) ? filingOut.clusters : null

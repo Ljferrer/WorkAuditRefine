@@ -2573,12 +2573,14 @@ test('doc-contract: env-blocked bullet carries the evidence-gate token (C)', () 
   )
 })
 
-test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename to p<N>-polish; ADR 0012 excluded)', () => {
+test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename to p<N>-polish; ADR 0012 included)', () => {
   // Enumerated file list — search is anchored to these files, never a repo-root scan
   // (learnings `enumerated-file-list-absence-guard-for-rename-with-legitimate-history`,
-  //  `absence-guard-search-root-must-anchor-to-subtree`). docs/adr/0012-* keeps its historical
-  //  `_polish` mention and is deliberately NOT in this list.
+  //  `absence-guard-search-root-must-anchor-to-subtree`). Under the living-ADR law (ADR 0063) ADR
+  //  0012 names the `p<N>-polish` path in place, so it joins the list; ADR 0021 (D) still records
+  //  the rename itself and legitimately names the old literal, so it stays out.
   const sweptSurfaces = [
+    'docs/adr/0012-intra-phase-visibility-and-phase-close-sweep.md',
     'skills/war/SKILL.md',
     'skills/war/references/design.md',
     'GLOSSARY.md',

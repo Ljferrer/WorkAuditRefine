@@ -122,8 +122,8 @@ the design, not catching an omission.
   way the primary merge prompt does, so a retried merge keeps its evidence chain into the post-merge
   gate-audit; the re-land mirrors the primary land prompt, which threads no capture clause.
 - **Supersedes one row of [ADR 0019](0019-target-derived-execution-values.md)** — the class-routes
-  doctrine's `environment` → 0-fix-round `env-blocked` route. 0019 carries the matching dated
-  amendment; every other 0019 route (`introduced`, `baseline`, the target-derived execution values)
+  doctrine's `environment` → 0-fix-round `env-blocked` route. 0019's class-routes paragraph states
+  this ADR's route in place (its 2026-07-24 Decision-log line); every other 0019 route (`introduced`, `baseline`, the target-derived execution values)
   stands.
 
 ## Considered options
@@ -151,15 +151,14 @@ report carries the marker line uncurated in `gate_output` for operator inspectio
   — §3 decisions 1–5, §4.1 (merge site), §4.2 (land site), §6 (the **environment-proceed** term),
   §10 validation criteria 1–4.
 - Implementation plan: [`docs/plans/2026-07-22-merge-land-resilience.md`](../plans/2026-07-22-merge-land-resilience.md)
-  — Task 1.1 (both gate-site arms + the refiner card), Task 1.4 (this ADR, the `CONTEXT.md` term, the
-  ADR 0023 amendment).
+  — Task 1.1 (both gate-site arms + the refiner card), Task 1.4 (this ADR, the `GLOSSARY.md` term, the
+  ADR 0023 (2026-07-22) precondition, now ADR 0023 §(G)).
 - Red-team report: [`docs/red-team/2026-07-22-merge-land-resilience.md`](../red-team/2026-07-22-merge-land-resilience.md)
   — CLEARED-WITH-NOTES over 3 rounds; adjudication 8 governs this ADR's number ("next free above the
   live set", resolved at implementation time).
-- `CONTEXT.md` — **environment-proceed**, **gate-failure class**, **baseline gate debt**.
+- `GLOSSARY.md` — **environment-proceed**, **gate-failure class**, **baseline gate debt**.
 
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
+## Decision log
 
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0040-environment-class-gate-failures-earn-one-retry.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

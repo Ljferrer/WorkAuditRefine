@@ -150,7 +150,14 @@ const FILE_BUDGETS = {
 // re-derived per ADR 0042 D5 from the measured share at 6cb1e4a5 (137,169 B, 510 blocks; the
 // hotfix adds 113 B): hard ×1.25 ceil-KB = 172,032; advisory ×1.10 ceil-KB = 151,552.
 // Trailer: Budget-Raise: ADR-0042 skills/war/assets/workflow-template.js +34816
-const WORKFLOW_LITERAL_BUDGET = { hard: 172032, advisory: 151552 };
+// RAISED +1,024 B (172,032 → 173,056) under plan 2026-11-08-doc-truth-drift-and-adr-hygiene Constraint 4's
+// Task 3.2 exception (operator ruling 2026-11-09: a cap forces a cited reason, never forbids a raise).
+// The share measured 171,862 B at the task base b8ac9716 (170 B of room). Task 3.2 adds tier-1 dispatched
+// seat doctrine the sandbox cannot read from references/: the Harness-text rule and the seat-conflict
+// posture on every roster seat (both byte-equal to the auditor cards), the arm (d) STALE-MISMATCH clause
+// on the gate-audit seat, and the tip-probe same-commit tree rule. The share then measures 172,559 B.
+// Trailer: Budget-Raise: ADR-0042 skills/war/assets/workflow-template.js +1024
+const WORKFLOW_LITERAL_BUDGET = { hard: 173056, advisory: 151552 };
 
 const WORKFLOW_TEMPLATE = 'skills/war/assets/workflow-template.js';
 // #1952: 0 — every top-level template literal counts. The old 200 floor is the recorded blind

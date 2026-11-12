@@ -60,5 +60,11 @@ violation ADR 0013 rejected by name). Full mechanics:
   §4.2 (authoring + predecessor check), §4.4 (recognition surfaces), §7.
 - [ADR-0013 — Commander's intent and disposition routing](0013-commanders-intent-and-disposition-routing.md)
   — the doctrine this amends (Decision 2's never-invents rule gains its single exception).
-- Authoring-side verification extends to the AFK drafter+grill path; see ADR 0044 Amendment (2026-08-24)
-  in [0044-authoring-contract-and-merged-artifact.md](0044-authoring-contract-and-merged-artifact.md).
+- Authoring-side verification extends to the AFK drafter+grill path; see ADR 0044 (2026-08-24),
+  § Authoring-side verification in
+  [0044-authoring-contract-and-merged-artifact.md](0044-authoring-contract-and-merged-artifact.md)
+  (as ratified: `docs/adr/0044-authoring-contract-and-merged-artifact.md @ 8399ac62`).
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law; the ADR 0044 citation reads in the dated and sha-pinned forms · #1850 (ADR 0063)

@@ -82,3 +82,7 @@ feature branch. 2B's wait-for-merge is the default *production* policy; reachabl
   model extended to make the submodule remote a co-source-of-truth.
 - [ADR-0005 — Dead-phase halts the DAG](0005-dead-phase-halts-the-dag.md) — the `landDecision` / `KNOWN_LAND_DECISIONS`
   machinery `held:submodule-pr` must join.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

@@ -33,7 +33,7 @@ synthesized without a repo signal naming it:
 - both, in that order, if both apply; `[]` otherwise.
 
 Read that module to know the floor's exact output; reproduce its strings **verbatim** when you reuse
-them (e.g. the submodule-init line). Do not extend it in your head — an unknown lockfile yields
+them (such as the submodule-init line). Do not extend it in your head — an unknown lockfile yields
 nothing, by design. Extending the floor with ecosystem detection is an explicit anti-goal and
 requires a spec change to the module, not a decision by you.
 
@@ -44,7 +44,7 @@ If a pointer's ${CLAUDE_PLUGIN_ROOT} placeholder arrives unexpanded and the repo
 - optionally the operator's **explicit `run.provision`** (if it was already set)
 
 ## Submodule phase — scout the submodule dir, not the superproject (Increment 2)
-When the Workflow invokes you for a **submodule phase**, the **target repo directory** you receive is the **initialized submodule checkout** (e.g. `<worktreeRoot>/<runId>/<submodule-path>`), **not** the superproject root. Treat it exactly like any other repo: run the full algorithm (§1–§5) against that directory. The submodule's own `.war-provision.json`, `.github/workflows/`, and structural floor signals are **independent of the superproject's** — the two repos produce separate `ScoutResult` objects with no coupling. Do not look above the directory you were given; do not merge or compare results with the superproject's provision list.
+For a **submodule phase**, the **target repo directory** you receive is the **initialized submodule checkout** (such as `<worktreeRoot>/<runId>/<submodule-path>`), **not** the superproject root. Treat it exactly like any other repo: run the full algorithm (§1–§5) against that directory. The submodule's own `.war-provision.json`, `.github/workflows/`, and structural floor signals are **independent of the superproject's** — the two repos produce separate `ScoutResult` objects with no coupling. Do not look above the directory you were given; do not merge or compare results with the superproject's provision list.
 
 ## Algorithm — descending authority (stop at the first tier that yields a list)
 Resolve `source` to the **highest** tier that produces signal. Higher tiers win outright.
@@ -75,7 +75,7 @@ order a fresh checkout needs them**:
 - **Submodules:** if any `actions/checkout` step sets `submodules: recursive` (or `true`), the
   worktree must init submodules first. Emit the **structural floor's** submodule-init line
   (`git submodule update --init --recursive`) as the first step. Cross-check `.gitmodules`.
-- **Install:** the workflow's dependency-install step(s) — e.g. a `run:` line like
+- **Install:** the workflow's dependency-install step(s), such as a `run:` line like
   `pnpm install --frozen-lockfile`, `npm ci`, `bundle install`, `uv sync`, `make deps`. Copy the
   command **verbatim from the workflow**. (You are not inferring it from the ecosystem; you are
   reading the line the repo itself runs.) Skip pure-CI noise (caching actions, `actions/setup-*`

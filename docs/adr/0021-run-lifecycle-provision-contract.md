@@ -27,23 +27,20 @@ improvisation.**
 
 `agents/war-refiner.md` gains a `provision` mode alongside `merge-task` and `land-phase`, in the same
 commit as any dispatched-prompt change (the both-surfaces rule — the standing card and the string-built
-prompts in `skills/war/assets/workflow-template.js` drift silently otherwise). The mode covers all three
+prompts in `skills/war/assets/workflow-template.js` drift silently otherwise). The mode covers four
 dispatch flavors — the phase git-topology barrier (`provision:phase-<id>`), the per-task provision-run
-(`provision-run:<taskId>`), and the phase-close polish worktree (`polish-worktree:phase-<id>`) — states
-that provisioning **is** a refiner duty ([ADR 0001](0001-explicitly-managed-worktrees.md)), and instructs:
-**a provision dispatch is never out-of-mode — do not decline it.** All three return the **env-outcome**
+(`provision-run:<taskId>`), the phase-close polish worktree (`polish-worktree:phase-<id>`), and the
+late-fix worktree (`dispatchKind: late-fix-worktree`, labelled `late-fix-worktree:p<phase>-latefix-<k>`)
+— states that provisioning **is** a refiner duty ([ADR 0001](0001-explicitly-managed-worktrees.md)), and
+instructs: **a provision dispatch is never out-of-mode — do not decline it.** The late-fix worktree runs
+the polish worktree's steps for one late defect. If it fails, that late defect stops, and the defect
+then carries to the next phase or holds the phase
+([late-fix-pass.md](../../skills/war/references/late-fix-pass.md)). All four return the **env-outcome**
 shape (`{ ok, taskId?, failedCommand?, exitCode?, stderrTail?, provisionSource? }`), never a MergeResult;
 the barrier and polish dispatches switch their `schema:` from `MERGE_RESULT` to `ENV_OUTCOME` and **bind**
 their results (both were discarded). Rejected: rerouting provisioning to another agent type (contradicts
 ADR 0001 and the refiner-owned-worktree doctrine); a bare "you may also receive…" note that leaves the
 return shape unspecified — the half that caused the refusal.
-
-**Amendment (2026-11-05, plan `2026-11-04-late-defects-fixed-in-run` Task 3.1):** append-only. The
-mode gains a fourth dispatch flavor, the late-fix worktree (`dispatchKind: late-fix-worktree`,
-labelled `late-fix-worktree:p<phase>-latefix-<k>`). It runs the polish worktree's steps for one late
-defect and also returns the **env-outcome** shape. If it fails, that late defect stops, and the defect
-then carries to the next phase or holds the phase
-([late-fix-pass.md](../../skills/war/references/late-fix-pass.md)).
 
 ### (C) `env-blocked` is evidence-gated; everything else is a workflow error
 
@@ -113,9 +110,8 @@ this establishes, the sentence future worktree additions read:
 
 `_refinery` stays run-scoped **by design** — `ensure-refinery-worktree` has clean-tree re-attach heals for
 crossing phases; task and polish worktrees have no such heal, hence they are phase-scoped so a cross-phase
-relaunch never collides. **[ADR 0012](0012-intra-phase-visibility-and-phase-close-sweep.md) is not edited**
-— it is historical (it records the sweep's design at authoring time); historical ADRs are superseded, never
-rewritten, and this ADR records the rename.
+relaunch never collides. [ADR 0012](0012-intra-phase-visibility-and-phase-close-sweep.md) names the
+polish worktree by its `p<N>-polish` path too.
 
 ### (H) Launch-args entry validation
 
@@ -135,8 +131,8 @@ widening is operator-ratified beyond #586's trio-only ask.
   git-first reuse; merged-ness is verified against git, records are never trusted over the branch.
 - **Leaves [ADR 0005](0005-dead-phase-halts-the-dag.md) untouched** — no enum, status, or
   `land-decision.mjs` change; `env-blocked` reuses the existing soft-escalation reason.
-- **[ADR 0012](0012-intra-phase-visibility-and-phase-close-sweep.md) is historical, not edited** — the
-  `_polish` → `p<N>-polish` rename is recorded here, not back-patched into 0012.
+- **Renames [ADR 0012](0012-intra-phase-visibility-and-phase-close-sweep.md)'s polish worktree** — the
+  polish worktree directory is `p<N>-polish`, and ADR 0012's body names that path.
 
 ## Considered options
 
@@ -155,3 +151,5 @@ widening is operator-ratified beyond #586's trio-only ask.
 
 - 2026-11-01 · Amendment (#2493): the "as-is" checkout in the recovery relaunch paragraph narrows. After the add, an existing task branch fast-forwards to the integration tip if the tip contains it, so a relaunch gates a current tree. A merged task's branch stays at its tip, because task-integrated.sh and the Ace-Charge read match that tip. Any other branch stays as it was. No commit leaves a branch, and the `no reset, no --force` rule stands. At the barrier, a move or a failure becomes a `worktreeHygiene` row. On the polish dispatch the marker stays on stderr.
 - 2026-10-30 · Amendment: a merge-time provision re-run is a fourth place the refiner runs provision steps, beside the phase topology barrier, the per-task provision-run and the polish worktree. Before any gate the refiner runs, and before a dep-wave worker's gate, `run.provision` re-runs when `HEAD^{tree}` differs from the `provision_tree` marker in the worktree's `.war/` directory; `_refinery` is provisioned once per phase after the topology barrier. A failed re-run rides `MergeResult.provision` through `provisionStep`'s evidence gate to the soft env-blocked escalation (C above), so no enum or status widens · plan `docs/plans/2026-10-28-blocked-ace-and-merge-provenance.md` D15, D19 · [ADR 0054](0054-merge-commit-provenance-and-the-blocked-ace-tip-probe.md).
+- 2026-11-05 · the provision mode gains a fourth dispatch flavor, the late-fix worktree · plan `2026-11-04-late-defects-fixed-in-run` Task 3.1 · retired: docs/adr/0021-run-lifecycle-provision-contract.md @ a7c8581b
+- 2026-11-11 · ADR 0012 names the `p<N>-polish` path in place; this ADR no longer records the rename as a non-edit of a historical ADR · #1850 (ADR 0063) · failed because: the append-only law it rested on is retired · retired: docs/adr/0021-run-lifecycle-provision-contract.md @ 9af99f0e

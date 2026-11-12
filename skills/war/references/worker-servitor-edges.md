@@ -1,22 +1,22 @@
 # Worker + servitor edges — submodule/gitlink-bump task mechanics, floor/tooling config mismatch, comment hygiene, harness note, servitor confinement rationale, archived lessons
 
 Verbatim evictions from `agents/war-worker.md` and `agents/war-servitor.md` (prompt-surface
-simplification, Task 5.1; each moved block was byte-identical to its pre-eviction card text
-at eviction time and until this pass, apart from the §Servitor confinement ADR link — re-rooted
-at eviction, then restored verbatim by the Task 5.1 polish, and re-rooted again here so it
-resolves from this file, this pass). Positional words inside the moved blocks ("below", "above")
-refer to their original card positions. The dispatched worker prompt in
+simplification, Task 5.1). Each moved block was byte-identical to its pre-eviction card text
+at eviction time and until this pass. The one exception is the §Servitor confinement ADR link.
+It was re-rooted at eviction, then restored verbatim by the Task 5.1 polish. This pass re-rooted
+it again so it resolves from this file. Positional words inside the moved blocks ("below",
+"above") refer to their original card positions. The dispatched worker prompt in
 `skills/war/assets/workflow-template.js` threads the runtime submodule/gitlink-bump context
-(`TARGET REPO` / `GITLINK-BUMP` clauses) at the dispatch site — this file is the standing
-step-by-step those clauses assume. The cards' plugin-root-anchored pointer (the
-`${CLAUDE_PLUGIN_ROOT}/skills/…` target form; ADR 0047's seat-capability matrix) resolves this
-file even on a foreign target repo for Bash-capable seats, which expand the placeholder in
-their own shell. Seats that cannot expand it (the auditor's read-only git guard denies the
-expansion) depend on harness substitution first. The cards' D3 fallback line is not a
-foreign-repo resolution path: it resolves the pointer only when the repo under review is the
-plugin itself, so on a foreign target repo resolution rests on harness substitution alone.
-There, the standing cards' decisive-rules-inline digests plus those dispatched clauses are the
-operative carriers — this file is best-effort enrichment (adjudication O(1), still standing).
+(`TARGET REPO` / `GITLINK-BUMP` clauses) at the dispatch site. This file is the standing
+step-by-step those clauses assume. The cards' pointer is plugin-root-anchored (the
+`${CLAUDE_PLUGIN_ROOT}/skills/…` target form; ADR 0047's seat-capability matrix). It resolves
+this file even on a foreign target repo for Bash-capable seats. Those seats expand the
+placeholder in their own shell. Seats that cannot expand it (the auditor's read-only git guard
+denies the expansion) depend on harness substitution first. The cards' D3 fallback line is not
+a foreign-repo resolution path. It resolves the pointer only when the repo under review is the
+plugin itself. So on a foreign target repo, resolution rests on harness substitution alone.
+There, the standing cards' decisive-rules-inline digests and those dispatched clauses are the
+operative carriers. This file is best-effort enrichment (adjudication O(1), still standing).
 
 ## Submodule task mechanics
 
@@ -47,13 +47,13 @@ For a **declared gitlink-bump task** the task's entire diff is advancing a submo
 
 ## Floor/tooling config mismatch
 
-Trigger: the observed failure is a floor/tooling config mismatch (the card's `## Stop and escalate instead of guessing` config-mismatch paragraph, evicted 2026-11-08 by plan 2026-11-08-auditor-and-worker-guard-habits T1.6, an ADR 0042 headroom eviction).
+Trigger: the observed failure is a floor/tooling config mismatch. This section holds the card's `## Stop and escalate instead of guessing` config-mismatch paragraph. Plan 2026-11-08-auditor-and-worker-guard-habits T1.6 evicted it on 2026-11-08 (an ADR 0042 headroom eviction).
 
 When the observed failure is a floor/tooling **config mismatch** — e.g. a threaded `floor_diagnostic` naming the active test-pattern set and suggesting `--pattern` / `overrides.testPattern` — the root cause is run configuration, not the plan: return `status: "blocked"` quoting the diagnostic verbatim in `blocked_reason`, **without** the `PLAN-DEFECT:` prefix. Only that literal prefix sets `defectClass: 'plan'`, and only that tag auto-routes the escalation to a `/red-team` plan amendment at the Lead's adjudication step; leaving the prefix off keeps the escalation out of the automatic plan-amendment route — the Lead adjudicates it as a config question in ordinary Lead adjudication, where the quoted diagnostic points the fix at run config.
 
 ## Comment hygiene
 
-Trigger: you are about to commit (the card's `## Comment hygiene (before commit)` rule, evicted 2026-11-09 by plan 2026-11-08-engine-recovery-relaunch-and-land T3.1, an ADR 0042 headroom eviction; the dispatched worker prompt still carries the rule).
+Trigger: you are about to commit. This section holds the card's `## Comment hygiene (before commit)` rule. Plan 2026-11-08-engine-recovery-relaunch-and-land T3.1 evicted it on 2026-11-09 (an ADR 0042 headroom eviction). The dispatched worker prompt still carries the rule.
 
 Before you commit, grep your touched files for the OLD behavior's concrete terms — retired values, old approach names, stale counts — and update any lagging comment/JSDoc so no comment still describes the pre-change behavior. (Mirrored in the dispatched worker prompt; the auditor's cascading-impact lens holds the standing review duty. ADR 0025.)
 
@@ -65,7 +65,7 @@ If a `[Fact-Forcing Gate]` (GateGuard) blocks a command or edit, present the fac
 
 ## Servitor confinement
 
-Trigger: you need the rationale for the servitor's write confinement — e.g. a scope-hook denial cites it, or you are reasoning about why the memory phase cannot touch your branches.
+Trigger: you need the rationale for the servitor's write confinement. For example, a scope-hook denial cites it. Or you are reasoning about why the memory phase cannot touch your branches.
 
 The WAR servitor runs after each phase lands with a restricted capability allowlist (Read, Grep, Glob, Write, Edit plus the read-only memory query tool — no Bash). This allowlist is the **primary confinement**: without Bash the servitor cannot touch branches, issues, or arbitrary paths. The `agent_type` PreToolUse hook and the `..`-traversal guard are **defense-in-depth** layered on top — they catch any residual Write/Edit attempt that escapes the allowlist check (e.g. a path that pattern-matches the learnings target but contains a `..` traversal). See [ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md).
 

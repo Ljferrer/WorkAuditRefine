@@ -49,11 +49,25 @@ what WAR does. Four instances:
 
 **Class routes the recovery, status does not.** The gate-failure verdict is carried in a new
 *orthogonal* `MergeResult.gate_failure_class` field, not a new status: `introduced` (absent/default) →
-today's bounded fix-worker loop, byte-identical; `environment` → soft-escalate reusing the `env-blocked`
-reason with **zero** fix rounds (a broken environment is never fixed by a fix-worker); `baseline` → the
-merge/land proceeds and the debt is recorded as a deduped `source: 'auto'` backstop entry, surfaced at
-every land and in the final PR (ADR 0017: an un-run validation becomes a ratified-backstop record, never
-prose). This mirrors the finding-`disposition` precedent (ADR 0013): the routing signal is an orthogonal
+today's bounded fix-worker loop, byte-identical; `environment` → no fix round (a broken environment
+is never fixed by a fix-worker) but exactly one bounded `environment-proceed` re-run per gate site
+([ADR 0040](0040-environment-class-gate-failures-earn-one-retry.md)), and that re-run must come back
+**fully green** — a clean re-run, never a proceed-over (ADR 0040 §C) — never a second, and never chained
+with another recovery dispatch (ADR 0040 §B): a `baseline-proceed` re-dispatch that then fails
+`environment` keeps its pre-retry routing at that site — soft `env-blocked` at the merge site,
+`held:land-failed` at the land site. Exhaustion routes by site: exhaustion at the **merge site**
+HARD-escalates via the existing reason `'escalate'`; exhaustion at the **land site** falls back to
+`held:land-failed` (reason `env-blocked`), with the retry provably spent. The `environment` route makes
+no late-defect row. `baseline` → the merge/land proceeds and the debt is recorded as a deduped
+`source: 'auto'` backstop entry, surfaced at every land and in the final PR (ADR 0017: an un-run
+validation becomes a ratified-backstop record, never prose). A baseline red is also a late defect
+(late-defects PIN-12): a per-task baseline-proceed merge also queues ONE `behavior` late defect per run
+that names every recorded failing id. The late-fix pass fixes it before land on the origin task's
+`fixRounds`. A spent one rides `carriedTasks[]` on a non-final phase and holds the final phase as
+`held:escalation` with reason `late-defect`. A `baseline` red first recorded at the land gate runs after
+the late-fix pass: the baseline-proceed re-land still runs, and the red carries on a non-final phase or
+files on the final phase, both with the reason "found at the land gate after the late-fix pass"
+(procedure: [late-fix-pass.md](../../skills/war/references/late-fix-pass.md)). This mirrors the finding-`disposition` precedent (ADR 0013): the routing signal is an orthogonal
 field, so the `MergeResult` status enum, `HARD_ESCALATION_REASONS`, and `KNOWN_LAND_DECISIONS` are
 **deliberately untouched** (ADR 0005 enum discipline — a widened shared status enum silently widens the
 land path, the #236 lesson).
@@ -65,7 +79,7 @@ pattern and the gate are pinned as one Setup decision) and [ADR 0008](0008-git-i
 only**, the container-packaging spec's §8 "mid-run daemon death" residual — a docker daemon dying between
 provision and a merge/land gate reading `gate_failed`, which that spec explicitly left as a future
 refinement: such a post-provision docker *environment* failure now classifies `gate_failure_class:
-'environment'` and routes as `env-blocked`, not a code verdict. Per that spec's decision-record status it
+'environment'` and takes the `environment` route above, not a code verdict. Per that spec's decision-record status it
 is **not retro-edited** — this ADR records the supersession.
 
 **Reversal path.** The **absent-class ⇒ `'introduced'` fallback is a permanent fail-safe** — it is never
@@ -113,7 +127,7 @@ behavioral revert never erases them.
   `held:land-failed` line, war-refiner.md's Gate contract + Never-list) gain the narrow baseline
   carve-out — proceed only over the *same* failures proven pre-existing at the classification base, debt
   always recorded; an `introduced` red never proceeds.
-- `CONTEXT.md` gains four terms (test-floor pattern, gate-failure class, baseline gate debt, provision
+- `GLOSSARY.md` gains four terms (test-floor pattern, gate-failure class, baseline gate debt, provision
   base divergence); the repo `CLAUDE.md`'s ADR range is corrected.
 - Everywhere, the fallback path is byte-identical to today — an absent or unresolvable target value is a
   no-op, never a behavior change.
@@ -139,50 +153,9 @@ behavioral revert never erases them.
 - Container-packaging design spec: [`docs/specs/2026-07-06-container-packaging-blind-spot-design.md`](../specs/2026-07-06-container-packaging-blind-spot-design.md)
   — its §8 "mid-run daemon death" residual is superseded for the environment class (not retro-edited).
 
-## Amendment (2026-07-24): the environment class-route is superseded by ADR 0040
+## Decision log
 
-**Superseded.** Two passages under this ADR's `## Decision` heading — the only heading either lives
-under; this ADR has no separate `## Scope` heading — described the `environment` gate-failure class
-as a zero-retry soft escalation: the class-routes-doctrine row, "`environment` → soft-escalate
-reusing the `env-blocked` reason with **zero** fix rounds (a broken environment is never fixed by a
-fix-worker)," and the `**Scope.**` paragraph's restatement of the same route for the docker
-daemon-death instance, "such a post-provision docker *environment* failure now classifies
-`gate_failure_class: 'environment'` and routes as `env-blocked`, not a code verdict." Both are
-superseded by [ADR 0040](0040-environment-class-gate-failures-earn-one-retry.md).
-
-**Live routing.** An `environment`-classified gate failure now earns exactly one bounded
-`environment-proceed` re-run per gate site, and that re-run must come back **fully green** — a clean
-re-run, never a proceed-over (ADR 0040 §C) — never a second, and never chained with another
-recovery dispatch (ADR 0040 §B): a `baseline-proceed` re-dispatch that then fails `environment`
-keeps its pre-retry routing at that site — soft `env-blocked` at the merge site, `held:land-failed`
-at the land site. Exhaustion routes by site: exhaustion at the
-**merge site** HARD-escalates via the existing reason `'escalate'`; exhaustion at the **land site** falls
-back to today's `held:land-failed` (reason `env-blocked`), with the retry provably spent. Full
-mechanics: [ADR 0040](0040-environment-class-gate-failures-earn-one-retry.md).
-
-The original Decision text above is not retro-edited — this amendment records the supersession, the
-same convention this ADR already applies to the container-packaging spec's §8 residual above. The
-`introduced` and `baseline` routes, and the target-derived execution values (the test-floor pattern,
-docker-gate composition, and the provision base), stand unchanged; only the `environment`
-class-route moved.
-
-## Amendment (2026-11-05): a baseline red is also a late defect
-
-**Amended.** The class-routes-doctrine row's `baseline` route, "the merge/land proceeds and the debt is
-recorded as a deduped `source: 'auto'` backstop entry," still holds at the merge: a per-task
-baseline-proceed merge proceeds, and the backstop entry is still recorded. Since late-defects PIN-12,
-that merge also queues ONE `behavior` late defect per run that names every recorded failing id. The
-late-fix pass fixes it before land on the origin task's `fixRounds`. A spent one rides
-`carriedTasks[]` on a non-final phase and holds the final phase as `held:escalation` with reason
-`late-defect`. A `baseline` red first recorded at the land gate runs after the late-fix pass: the
-baseline-proceed re-land still runs, and the red carries on a non-final phase or files on the final
-phase, both with the reason "found at the land gate after the late-fix pass". The previous amendment's "the `introduced` and
-`baseline` routes ... stand unchanged" is narrowed the same way. The `environment` route keeps its
-ADR 0040 route and makes no row. Plan `docs/plans/2026-11-04-late-defects-fixed-in-run.md` D12, PIN-12,
-Task 5.1. Procedure: [late-fix-pass.md](../../skills/war/references/late-fix-pass.md).
-
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
-
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-07-24 · the environment class-route is superseded by ADR 0040 · merge-land resilience (ADR 0040) · failed because: a zero-retry soft escalation gave a transient environment failure no bounded re-run · retired: docs/adr/0019-target-derived-execution-values.md @ 1a4bf576
+- 2026-11-05 · a baseline red is also a late defect · plan `docs/plans/2026-11-04-late-defects-fixed-in-run.md` D12, PIN-12, Task 5.1 · retired: docs/adr/0019-target-derived-execution-values.md @ 1b9f2b99
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0019-target-derived-execution-values.md @ b31d2203
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

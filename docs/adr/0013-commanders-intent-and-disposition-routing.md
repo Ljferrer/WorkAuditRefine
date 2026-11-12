@@ -1,37 +1,8 @@
 # Commander's intent and disposition routing — licensed judgment over plan literalism; issues become affirmative acts
 
-**Status:** accepted (2026-07-02 — design ratified in the clean-handoff review; implemented in `skills/war/assets/workflow-template.js` + the worker/auditor standing files by the clean-handoff plan's Phase 1; amended per the two-homes ruling, Decision 2; amended by [ADR-0014 — AI-Commander's Intent](0014-ai-commanders-intent.md) — Decision 2's never-invents rule gains its single sanctioned exception, the `## AI-Commander's Intent` block `/war-machine --afk` authors; coupled — not amended — by
+**Status:** accepted (2026-07-02 — design ratified in the clean-handoff review; implemented in `skills/war/assets/workflow-template.js` + the worker/auditor standing files by the clean-handoff plan's Phase 1; refined by [ADR-0014 — AI-Commander's Intent](0014-ai-commanders-intent.md) — Decision 2's never-invents rule gains its single sanctioned exception, the `## AI-Commander's Intent` block `/war-machine --afk` authors; coupled — not amended — by
 [ADR-0032](0032-red-team-grades-by-artifact-kind.md) + friction D7 refine the finding-severity model (Decision 4) and
-friction D8 adds the auditor-prompt adjudicationClause (Decision 3), noted inline below; amended
-2026-08-05 — artifact-first verification and the `unverified` status supersede Decision 6's
-judgment-path description for gate-audit End-state checks; see the amendment below; amended
-2026-08-17 — the latitude-clause reading clarifies Decision 3: an explicit `Mechanism latitude:`
-clause licenses in-band mechanism substitution bounded by the `Binding guardrails:` list; see the
-amendment below; amended 2026-08-20 — ace bisection on regression, source-derivable absorb
-eligibility, and the roundLimit 3→6 default flip; see the amendment below; amended 2026-08-25 —
-the `ask` disposition: a fourth Minor/Nit-only member, the Checkpoint strike-list ruling gate, and
-the third adjudication producer; see the amendment below; amended 2026-08-26 — N:1 clustered
-filing and dedup-as-corroboration-comment supersede Decision 4's per-finding "files the issue"
-description; see the amendment below; amended 2026-08-27 — budget-bounded ace re-entry (the
-floor-retry reserve is the ladder's sole stop condition, superseding the 2026-08-20 amendment's
-budget-exhaustion narration), three disposition widenings, the absorb-by-citation arm, and
-in-run execution of a ruled ask (superseding the 2026-08-25 amendment's Lead-side filing
-trigger — filing parity itself untouched); see the amendment below; amended 2026-08-31 — the
-merge-slot pin-transfer mismatch re-audit is a fourth re-audit source that never re-enters; see
-the amendment below; amended 2026-09-03 — the per-task absorb budget (`absorbRounds <
-run.absorbRounds`) supersedes the floor-retry reserve as the ace ladder's stop condition; see the
-amendment below; amended 2026-09-04 — a fully specified in-diff Minor/Nit defaults to `absorb`
-and `follow-up` needs a `BARRIER_TOKENS` tag, superseding Decision 4's "`absorb` is never a
-default" for that case; see the amendment below; amended 2026-09-04 (Phase 4) — with `run.ace` off a
-defaulted `absorb` routes `phaseClose:true` to the phase-close sweep, and every engine `follow-up`
-demotion carries a `DEMOTE_REASONS` prefix; see the amendment below; amended 2026-09-04
-(Phase 4, note reroute) — an in-diff `note` that names a fix reroutes to `absorb`, and
-gate-audit-family rows route like any seat's, so Decision 4's "never an issue" for `note` is bounded;
-see the amendment below; edited in place 2026-09-08 (the living-ADR ruling) — Decision 4 carries the
-two-sided blocking boundary: rebuttal first, then fix round when a `suggested_fix` survives, a fix-less
-survivor escalates, a seat conflict preserves an `ask` while held; see the Decision log; edited in place 2026-09-08 —
-Decision 5 states release-slot eligibility by literal: `README.md`/`CHANGELOG.md` absorbs ride the
-per-task ace when no version literal moves, `version-slots.test.mjs` is the merge guard; see the Decision log)
+friction D8 adds the auditor-prompt adjudicationClause (Decision 3), noted inline below; the Decision log records every later change)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -56,11 +27,11 @@ findings route once judgment is licensed. Full mechanics:
    The authoring skill (`/war-strategy`'s interview beat) may draft from operator answers and may propose a
    full block — it must echo it back and obtain explicit confirmation (provenance `user-confirmed`) before
    the plan is complete. It never silently invents intent; a `--afk` run with no intent section degrades to
-   today's literal behavior rather than running on Lead-invented purpose. *(Amended — the two-homes ruling,
-   2026-07-02: the interview beat lives in BOTH `/war-strategy` homes. On a bare invoke it ships as a
-   handoff **directive** the downstream authoring skill executes — draft only from operator answers, echo
-   the block back, obtain explicit confirmation; in with-artifact convert mode `/war-strategy` authors the
-   war-shaped plan itself and runs the intent echo-back **inline**.)*
+   today's literal behavior rather than running on Lead-invented purpose. The interview beat lives in BOTH
+   `/war-strategy` homes (the two-homes ruling, 2026-07-02): on a bare invoke it ships as a handoff
+   **directive** the downstream authoring skill executes — draft only from operator answers, echo the block
+   back, obtain explicit confirmation; in with-artifact convert mode `/war-strategy` authors the
+   war-shaped plan itself and runs the intent echo-back **inline**.
 3. **The plan slice is the floor; the intent is the ceiling.** Threaded as `args.intent` into worker,
    auditor, ace/sweep, gate-audit, and servitor prompts. For auditors: work beyond the literal slice that
    serves the intent is APPROVE (judged on its own correctness), never a plan-faithfulness violation; only
@@ -69,12 +40,18 @@ findings route once judgment is licensed. Full mechanics:
    [ADR-0033](0033-executed-probes-behind-escape-guard.md)'s sibling: `auditPrompt()` gains an
    `adjudicationClause` appended alongside this `intentClause` construct — a guarded-invariant addition, no
    new ADR — so auditor version-scoring keys on task instruction > red-team adjudication > plan body literal;
-   mirrored VERBATIM into `agents/war-auditor.md` under the same both-surfaces duty as this decision.)*
-4. **Findings route by auditor-owned `disposition`, orthogonal to severity.** `absorb` (mechanical,
-   intent-consistent → ace or phase-close sweep; `phaseClose:true` when the fix needs the integrated tip or
-   a shared file), `follow-up` (substantive work beyond the phase — must state why it is not absorbable;
-   files the issue), `note` (report + servitor feed, never an issue). Defaults when omitted: Minor →
-   follow-up, Nit → note; `absorb` is never a default. Critical/Major blocking is untouched. Its
+   mirrored VERBATIM into `agents/war-auditor.md` under the same both-surfaces duty as this decision.)* The
+   ceiling's shape is the latitude-clause reading below.
+4. **Findings route by auditor-owned `disposition`, orthogonal to severity.** The disposition set is
+   `absorb` · `follow-up` · `note` · `ask`. `absorb` (mechanical, intent-consistent → ace or phase-close
+   sweep; `phaseClose:true` when the fix needs the integrated tip or a shared file), `follow-up`
+   (substantive work beyond the phase — must state why it is not absorbable, and on a fully specified
+   finding must cite a `barrier` tag; becomes issue-tracked through N:1 clustered filing), `note` (report +
+   servitor feed, never an issue *as a note* — a note that names a fix reroutes to `absorb`), `ask` (a
+   decision-shaped Minor/Nit parked for an operator ruling). Defaults when omitted: a fully specified
+   Minor/Nit (a non-empty `suggested_fix`) defaults to `absorb` (`phaseClose:true` when its file is outside
+   the task diff); otherwise Minor → follow-up, Nit → note. `ask` is never a default. Critical/Major
+   blocking is untouched. Its
    boundary is two-sided: on a split the one rebuttal round runs first; a panel whose surviving
    blockers ALL carry a concrete in-file `suggested_fix` dispatches a fix round plus a full-roster
    re-audit at the new SHA (bounded by `run.roundLimit`, approval unanimous on the post-fix
@@ -84,105 +61,66 @@ findings route once judgment is licensed. Full mechanics:
    one locus with mandate-shaped or adjudication-match rationale; its operator `ask` preserves
    the fix-now / follow-up-and-merge fork while held. It never erases blockers or grants approval;
    a ruling and re-audit precede approval in interactive and unattended runs (#2279/#2280).
+   A seat conflict with no fix parks its ask and still holds the phase on purpose; a fixable
+   blocker takes a fix round first (#2557).
    Explicit escalation and budget exhaustion still hold. *(Coupled —
    [ADR-0032](0032-red-team-grades-by-artifact-kind.md) refines *what counts as a finding at all* when
    `/red-team` grades a plan against a not-yet-mutated repo: a `deliverableAbsence`-flagged finding is a
    non-defect the red-team gate never blocks on. The red-team spec's friction D7 pins that gate's pass-only
    demotion set with a drift-guard — a guarded-invariant addition to the finding-severity model here, no new
-   ADR. This routing/severity model is otherwise unchanged.)*
+   ADR.)* The sections below hold each routing rule's detail.
 5. **The ace string backstop narrows to the two pure version-slot JSONs** (`plugin.json`,
    `marketplace.json` — canonical as `RELEASE_SLOT_FILES` in `skills/war/assets/land-decision.mjs`) —
    the only files where a filename alone is sufficient evidence
    for a sandbox that cannot read code. Release-slot eligibility is otherwise by literal, not by file
-   (edited in place 2026-09-08, D20 of the 2026-09-06 verdict-integrity plan; #2000): a `README.md` or
+   (D20 of the 2026-09-06 verdict-integrity plan; #2000): a `README.md` or
    `CHANGELOG.md` absorb that moves no version literal, CHANGELOG head heading or README `## Status` version
    token rides the per-task ace like any other absorb, and a fix that moves one is a release change, never a
    Minor. The merge guard is `version-slots.test.mjs` in the gate (a slot moved out of lock-step reds there;
    no engine literal detector), beside the prompt prohibition (`never move a version literal`) + mandatory
    re-audit + forward-revert/discard on every polish path.
-6. **End state is verified before land.** The existing post-merge gate-audit pass additionally checks this
-   phase's claimed End-state conditions at the confirmed tip: provably unmet → HARD (holds the land);
-   anything short of provable → SOFT note. `/red-team` gains an `intent-vs-plan` spine lens grading
-   checkability, phase mapping, and sufficiency before any run consumes the intent.
+6. **End state is verified before land, by executed artifact and positive attestation.** The post-merge
+   gate-audit pass checks this phase's claimed End-state conditions at the confirmed tip: provably unmet →
+   HARD (holds the land); a condition no seat attests — or whose artifact is missing, unreadable, or stale
+   — lands the typed `unverified` status, never `met` by silence (see artifact-first verification below).
+   `/red-team` gains an `intent-vs-plan` spine lens grading checkability, phase mapping, and sufficiency
+   before any run consumes the intent.
 
-## Considered options
+### The deliberately-unwired marker is an audit-lens finding-class exemption
 
-- **A standalone `/commanders-intent` skill (deferred).** The artifact is three blocks of plan prose;
-  authorship, storage, and consumption are covered by a template section + an interview beat + two gate
-  reads. A dedicated PME-style interview skill remains cheap to add later if the beat proves too thin.
-- **Verbatim-only operator authorship (rejected — operator decision).** Correct for combat accountability;
-  needless friction here. Approval-as-gate keeps the accountability property that matters (the operator has
-  read and owns the intent) without demanding their keystrokes.
-- **Severity-only routing, status quo (rejected).** Severity says how bad, not who owns it next; it
-  structurally cannot express "fix this now, in-phase" or "record, don't file," which is why 9 observations
-  became 9 issues.
-- **Dropping the orchestrator's ace backstop entirely, auditor-consent-only (rejected).** One hallucinated
-  `absorb` on `plugin.json` could ace a version slot; a deterministic string check the sandbox CAN do stays
-  on the two files where filename = proof.
-- **Lead-synthesized intent when the section is missing (rejected).** The Lead inventing purpose inverts the
-  command relationship; degradation to literal behavior is fail-conservative.
+Findings route by auditor-owned `disposition` (Decision 4), and one narrow finding-class exemption sits on
+the auditor's side: a construct whose adjacent `ponytail:` / `deliberately-unwired:` comment names *why*
+it is intentionally uncalled (an invariant it documents, a deliberate ceiling) is **not** a dead-code
+finding — re-flagging it is out of scope. Absent such a comment, dead-code findings proceed as usual.
 
-## Consequences
-
-- **Intent quality is load-bearing.** A vague Purpose or uncheckable End state makes every downstream gate
-  mushier. Mitigations: the checkability rule at authoring, the red-team lens before any run, Method bounds
-  on latitude, and null-intent degrading to current behavior.
-- **Issues become affirmative acts.** A `war-followup` issue now exists only because an auditor argued it
-  should; nit-litter dies by default-routing, while genuine debt (the CLI-wrapper class) still files.
-- **Auditor scope creep risk shifts to the worker.** The latitude rule could license over-building;
-  bounded by Method constraints, the audit's correctness lenses (extra work is still judged), and
-  plan-slice drift surfacing as notes.
-- **One release of dual-reading:** `autoFixable:true` honored as `disposition:'absorb'`, then retired.
-- Both standing (.md) and dispatched (template) auditor surfaces change **in the same commit** — the known
-  coverage-split trap (memory `standing-instruction-vs-dispatched-prompt-coverage-split`).
-
-## References
-
-- Design spec: [`docs/specs/2026-07-02-war-clean-handoff-design.md`](../specs/2026-07-02-war-clean-handoff-design.md)
-  §3 (design tree), §4.1–4.3, §4.6–4.7, §10 criteria 1–3, 7–11.
-- [ADR-0012 — Intra-phase visibility and the phase-close sweep](0012-intra-phase-visibility-and-phase-close-sweep.md)
-  — the mechanism that consumes `phaseClose`-routed absorb findings.
-- MCDP 1 *Warfighting* / MCWP 5-1 *Marine Corps Planning Process* — purpose-method-end-state framing
-  (operator-supplied, 2026-07-01 design review).
-- Reference run: epics #416/#417, follow-up litter #422 — the 9-finding replay yardstick (spec §10.12).
-
-## Addendum (2026-07-10): the deliberately-unwired marker is an audit-lens finding-class exemption
-
-Decision 4 makes findings route by auditor-owned `disposition`. This addendum records one narrow
-finding-class exemption on the auditor's side: a construct whose adjacent `ponytail:` /
-`deliberately-unwired:` comment names *why* it is intentionally uncalled (an invariant it documents, a
-deliberate ceiling) is **not** a dead-code finding — re-flagging it is out of scope. Absent such a
-comment, dead-code findings proceed as usual.
-
-The engine-hardening spec's §7 offered a fork — amend ADR 0002 (scope by `agent_type`) *or* ADR 0013 —
-and the operator ratified 0013: the marker is a **lens-calibration** rule (which findings the auditor
-raises at all), the disposition model's home, not a capability-confinement rule (ADR 0002's domain). The
-convention lives in `agents/war-auditor.md`'s standing card only — a pure lens-calibration clause reaches
-every seat including the inline gate-audit passes through the standing surface, so no `auditPrompt()`
-mirror is needed (the same standing-surface-only precedent as this ADR's own D7 checklist). See
+The engine-hardening spec's §7 offered a fork — ADR 0002 (scope by `agent_type`) *or* ADR 0013 — and the
+operator ratified 0013: the marker is a **lens-calibration** rule (which findings the auditor raises at
+all), the disposition model's home, not a capability-confinement rule (ADR 0002's domain). The convention
+lives in `agents/war-auditor.md`'s standing card only — a pure lens-calibration clause reaches every seat
+including the inline gate-audit passes through the standing surface, so no `auditPrompt()` mirror is
+needed (the same standing-surface-only precedent as this ADR's own D7 checklist). See
 [ADR-0034 — engine ingest guards & provision exit-code contract](0034-engine-ingest-guards-and-provision-exit-codes.md)
-§Decision, whose plan lands this clause. This addendum leaves the ratified body above unchanged.
+§Decision, whose plan lands this clause.
 
-## Addendum (2026-07-22): a second adjudication producer, and an adjudication-match confirmation-note rule
+### Three adjudication producers, and the adjudication-match confirmation-note rule
 
-Decision 3 introduced `adjudicationClause` with one producer: the red-team report's `## Adjudications`
-block. This addendum records a second, coequal producer — the Lead's own scope rulings, assembled at
-the decompose gate and at held-escalation adjudications and threaded as `args.adjudications` rows per
-`skills/war/SKILL.md` — so a ruling the Lead has already made reaches every audit seat instead of being
-re-litigated on a later relaunch. The clause also gains a producer-agnostic ADJUDICATION-MATCH sentence:
-a finding whose substance matches an adjudicated row is a confirmation note, never an escalation; a
-candidate deviating from both the plan and the row is still judged normally. Both are guarded-invariant
-widenings of the existing channel — no new ADR — emitted at the roster-seat `auditPrompt()` and, newly,
-at the three gate-audit-family prompt sites, and mirrored VERBATIM into `agents/war-auditor.md` under the
-same both-surfaces duty as Decision 3. This addendum leaves the ratified body above — including Decision
-3's byte-identical version-precedence sentence — unchanged. See
+Decision 3's `adjudicationClause` has three coequal producers, all threaded as `args.adjudications` rows:
+the red-team report's `## Adjudications` block; the Lead's own scope rulings, assembled at the decompose
+gate and at held-escalation adjudications per `skills/war/SKILL.md`, so a ruling the Lead has already made
+reaches every audit seat instead of being re-litigated on a later relaunch; and the Checkpoint ask rulings
+(the `ask` disposition below), so a ruling made at the strike-list gate reaches every later audit seat
+instead of being re-asked. The clause carries a producer-agnostic ADJUDICATION-MATCH sentence: a finding
+whose substance matches an adjudicated row is a confirmation note, never an escalation; a candidate
+deviating from both the plan and the row is still judged normally. Both are guarded-invariant widenings
+of the existing channel — no new ADR — emitted at the roster-seat `auditPrompt()` and at the three
+gate-audit-family prompt sites, and mirrored VERBATIM into `agents/war-auditor.md` under the same
+both-surfaces duty as Decision 3. Decision 3's byte-identical version-precedence sentence holds. See
 [the design spec](../specs/2026-07-22-audit-adjudication-threading-design.md) §4, §6–§7, §10 criteria 5–8.
 
-## Amendment (2026-08-05): artifact-first End-state verification and the `unverified` status
+### Artifact-first End-state verification and the `unverified` status
 
-Decision 6 described the gate-audit End-state check as a judgment pass at the confirmed tip —
-"provably unmet → HARD (holds the land); anything short of provable → SOFT note." The precision-chain
-plan supersedes that judgment-path description for gate-audit End-state checks:
+Gate-audit End-state verification is by executed artifact and positive attestation, never a judgment
+pass that reads silence as `met`:
 
 - **Execution is refiner-side, artifact-first.** A claimed `check:`-tagged End-state condition is
   executed by the land-barrier endstate-check dispatch — once per phase at the integrated tip,
@@ -195,42 +133,32 @@ plan supersedes that judgment-path description for gate-audit End-state checks:
   `met` | `unmet` | `unverified`, and the evidence the seat actually read: a `check:`-tagged
   condition from its teed artifact, a `gate:`-tagged condition from the gate evidence as actually
   captured, a judged (untagged) condition from named observables at the confirmed tip.
-- **Silence is `unverified`, never `met`.** The handoff End-state status set gains `unverified`: a
+- **Silence is `unverified`, never `met`.** The handoff End-state status set carries `unverified`: a
   condition no seat attests — or whose artifact is missing, unreadable, or stale (its stamped tip
   SHA mismatching the confirmed tip) — lands `unverified`. Whole-pass absence stays all-`deferred`,
   and findings stay defect-only (attestation rides the rows, never a finding).
+- **The vacuous-phase carve-out to all-`deferred`.** A phase that DECLARED tasks but landed zero is
+  vacuous: the tip carries no work from the phase, so a `check:` executed at that unchanged tip proves
+  nothing about work never done. On such a phase every claimed condition lands **`unverified`** with
+  the zero-tasks-ran note, not `deferred` — clamped ahead of both derivation channels, so an
+  end-state-only seat's `met` attestation on a vacuous tip can never land green. Everywhere else a
+  non-vacuous phase whose gate-audit did not run is still all-`deferred`. Two shapes are deliberately
+  NOT vacuous — a ratified zero-task claims-bearing launch (no tasks declared), and a fully pre-merged
+  recovery phase (the barrier-recovered `preMerged` ids count as landed).
 
-Decision 6's severity mapping is unchanged — a provably unmet condition is still HARD and holds the
-land — and its second sentence (the `/red-team` `intent-vs-plan` lens) is untouched. What this
-amendment retires is the judgment path as the *verification* mechanism for gate-audit End-state
-checks: verification is by executed artifact and positive attestation, and a condition NO seat
-attests — including one whose artifact is missing, unreadable, or stale — lands the typed
-`unverified` status instead of being read as `met` by silence. The defect-only findings channel
-keeps its three cases unchanged, including the SOFT cannot-verify note — attestation and findings
-are two channels, and the seat records both. Ratified by
+Decision 6's severity mapping holds — a provably unmet condition is HARD and holds the land — and its
+`/red-team` `intent-vs-plan` lens is unaffected. The defect-only findings channel keeps its three cases,
+including the SOFT cannot-verify note — attestation and findings are two channels, and the seat records
+both. Ratified by
 [the precision-chain & loop-breaker plan](../plans/2026-08-05-precision-chain-and-loop-breaker.md)
-(D2/D8, Tasks 1.2/3.1/3.2; red-team F5/F7, operator-ratified 2026-08-05). This amendment leaves the
-ratified body above — beyond the Status currency line — byte-unchanged.
+(D2/D8, Tasks 1.2/3.1/3.2; red-team F5/F7, operator-ratified 2026-08-05).
 
-**Qualification (2026-08-25): the vacuous-phase carve-out to all-`deferred`.** The bullet above states
-"Whole-pass absence stays all-`deferred`" as an absolute. It now carries one carve-out, landed with the
-engine's vacuous-phase clamp. A phase that DECLARED tasks but landed zero is vacuous: the tip carries
-no work from the phase, so a `check:` executed at that unchanged tip proves nothing about work never
-done. On such a phase every claimed condition lands **`unverified`** with the zero-tasks-ran note, not
-`deferred` — clamped ahead of both derivation channels, so an end-state-only seat's `met` attestation
-on a vacuous tip can never land green. The absolute stands everywhere else: a non-vacuous phase whose
-gate-audit did not run is still all-`deferred`. Two shapes are deliberately NOT vacuous — a ratified
-zero-task claims-bearing launch (no tasks declared), and a fully pre-merged recovery phase (the
-barrier-recovered `preMerged` ids count as landed). This note is appended, not a retro-edit: the
-ratified bullet above stays byte-unchanged.
+### The latitude-clause reading
 
-## Amendment (2026-08-17): the latitude-clause reading
-
-Decision 3 made the plan slice the floor and the intent the ceiling, but left the ceiling's shape
-implicit: every mechanism a plan slice named read as pinned, so a forced mechanism substitution —
-the named idiom cannot work as specced while an equivalent one can — routed as a deviation to
-adjudicate or a follow-up issue even when the operator never cared which idiom won. This amendment
-records the latitude-clause reading (#1431):
+Decision 3 makes the plan slice the floor and the intent the ceiling. Without an explicit shape for the
+ceiling, every mechanism a plan slice named read as pinned, so a forced mechanism substitution — the
+named idiom cannot work as specced while an equivalent one can — routed as a deviation to adjudicate or
+a follow-up issue even when the operator never cared which idiom won. The latitude-clause reading (#1431):
 
 - **Authored intent may enumerate implementer's-choice mechanisms.** The intent block's optional
   `Mechanism latitude:` sub-bullet names the mechanisms that are reference realizations, and its
@@ -251,59 +179,43 @@ records the latitude-clause reading (#1431):
 - **The clause never waives a check, gate, or backstop**
   ([ADR-0017](0017-packaging-floor-docker-gate-ratified-backstops.md)). End states pin outcomes and
   each stays checkable as written; a clause-less intent produces the same adjudication outcome as
-  before this amendment, and an intent-absent run still dispatches byte-identical worker prompts.
+  before, and an intent-absent run still dispatches byte-identical worker prompts.
 
-This amendment leaves the ratified body above — beyond the Status currency line — byte-unchanged.
+### Ace bisection on regression, source-derivable absorb eligibility, and the roundLimit default
 
-## Amendment (2026-08-20): ace bisection on regression, source-derivable absorb eligibility, and the roundLimit 3→6 flip
+The realized-absorb-rate campaign (#1547 items 1–4) shapes how this routing plays out at the per-task
+ace path and on the auditor's eligibility home:
 
-The realized-absorb-rate campaign (#1547 items 1–4) changed how the routing this ADR records plays
-out at the per-task ace path and on the standing auditor card. This amendment ratifies three
-already-landed mechanisms:
-
-- **Bisection on regression.** An ace batch that regresses the re-audit no longer discards
+- **Bisection on regression.** An ace batch that regresses the re-audit does not discard
   wholesale: the engine's bounded `aceBisect` ladder (`workflow-template.js`) excises named
   culprits first and re-applies the remainder as ONE subset, reserving blind halving for ambiguous
   attribution — applied serially at the tip, depth ≤ 2, same-file findings never split across
-  subsets. Only finally-failing subsets demote to `follow-up` (the remainder demotes on budget
-  exhaustion), every demotion logged per subset. The ace path still never turns a mergeable task
-  into a hold or escalation, and Critical/Major blocking is untouched.
-- **Source-derivable absorb eligibility (lens calibration).** The standing auditor card's
-  `disposition:'absorb'` block now clarifies: a doc fact deterministically re-derivable from a
-  machine-readable in-repo source is **mechanical regardless of value count**, and "single-file"
-  reads on the fix's **write footprint** (the doc being corrected), not the source it reads from —
-  only the accompanying policy question (mirror the value vs point at the source) routes as an
-  issue. This is a calibration of the auditor's judgment card only; the mirrored DISPOSITION RULE
-  sentences and `auditPrompt()` are unchanged.
-- **roundLimit 3→6.** The operator ratified flipping the fix-round budget default
-  `DEFAULTS.run.roundLimit` from 3 to 6 (`war-config.mjs`, with `workflow-template.js`'s fallback
-  literal drift-guarded to it) — the bisection ladder consumes slots from the same budget
-  (batch = 1 slot, +1 per subset commit, revert uncharged), so the old default starved recovery.
+  subsets. Only a subset that failed its own re-audit demotes to `follow-up`, every demotion logged
+  per subset; a spent absorb budget sends the still-queued subsets to the sweep as absorbs (the
+  absorb budget below). The ace path still never turns a mergeable task into a hold or escalation,
+  and Critical/Major blocking is untouched.
+- **Source-derivable absorb eligibility (lens calibration).** The `disposition:'absorb'` eligibility
+  block clarifies: a doc fact deterministically re-derivable from a machine-readable in-repo source is
+  **mechanical regardless of value count**, and "single-file" reads on the fix's **write footprint**
+  (the doc being corrected), not the source it reads from — only the accompanying policy question
+  (mirror the value vs point at the source) routes as an issue. The block's normative home is
+  [`skills/war/references/disposition-eligibility.md`](../../skills/war/references/disposition-eligibility.md)
+  (moved byte-identically off the standing auditor card by the 0.20.0 ADR-0042 eviction);
+  `agents/war-auditor.md` retains only the trigger pointer into that file. This is a calibration of the
+  auditor's judgment only; the mirrored DISPOSITION RULE sentences and `auditPrompt()` are unchanged by
+  it.
+- **The roundLimit default is 6.** `DEFAULTS.run.roundLimit` in `war-config.mjs` is 6, with
+  `workflow-template.js`'s fallback literal drift-guarded to it (operator-ratified). The ace ladder runs
+  on its own absorb budget (below), never on the fix-round slots.
 
-This amendment leaves all pre-existing body text above — beyond the Status currency line —
-byte-unchanged.
+### The `ask` disposition — park the finding, rule at the Checkpoint
 
-**Correction (2026-08-25): the absorb-eligibility block's home.** The
-source-derivable-absorb-eligibility row above attributes the clarified `disposition:'absorb'` block to
-"the standing auditor card". That attribution was true when ratified and is stale now: the 0.20.0
-ADR-0042 eviction moved the eligibility block byte-identically to
-[`skills/war/references/disposition-eligibility.md`](../../skills/war/references/disposition-eligibility.md),
-which is its normative home. `agents/war-auditor.md` retains only the trigger pointer into that file.
-The calibration itself is unchanged — mechanical-regardless-of-value-count, "single-file" read on the
-fix's write footprint — and the mirrored DISPOSITION RULE sentences and `auditPrompt()` are still
-untouched. Read the row's "standing auditor card" as naming the reference file today. This note is
-appended, not a retro-edit: the ratified row above stays byte-unchanged.
-
-## Amendment (2026-08-25): the `ask` disposition — park the finding, rule at the Checkpoint
-
-The ask-disposition plan (#1550; `docs/plans/2026-08-25-ask-disposition.md`) widens the routing
-Decision 4 records by one member and adds a Checkpoint ruling gate. Decision-shaped Minor/Nit
-findings previously had no lawful channel — a policy question filed as a `follow-up` issue is a
-decision made by whoever closes the backlog, not by the operator while the context is live. This
-amendment records the contract:
+The ask-disposition plan (#1550; `docs/plans/2026-08-25-ask-disposition.md`) gives decision-shaped
+Minor/Nit findings a lawful channel — a policy question filed as a `follow-up` issue is a decision made
+by whoever closes the backlog, not by the operator while the context is live:
 
 - **A fourth disposition member: `ask` — Minor/Nit-only, in plain sight.** The disposition set is
-  now `absorb` · `follow-up` · `note` · `ask`. An `ask` carries a mandatory question + fork (the
+  `absorb` · `follow-up` · `note` · `ask`. An `ask` carries a mandatory question + fork (the
   decision needed and its two branches) and delivers a decision-shaped Minor/Nit finding to the
   operator with its fork intact. The Minor/Nit-only scope holds **by construction**:
   `dispositionOf` is reachable only through the severity filter — Critical/Major findings route
@@ -317,29 +229,23 @@ amendment records the contract:
   an unruled ask. The floor binds interactively; under `--afk` a standing-adjudication match
   resolves by citation, a no-match demotes to follow-up with the question preserved (visibly not
   loss-free), and a suppression row is minted only from an operator ruling, provenance-marked.
-  Ruled asks then file Lead-side with filing parity (Evidence-artifacts duty + dedup against
-  engine-filed rows).
-- **The adjudication producer set widens two → three.** Checkpoint ask rulings join the two
-  producers the 2026-07-22 addendum records — the red-team report's `## Adjudications` block and
-  the Lead's own scope rulings — as `args.adjudications` rows, so a ruling made at the
-  strike-list gate reaches every later audit seat instead of being re-asked.
-- **Channel 2 — the blocking-class round-grinding valve — is deferred to #1664, not enacted
-  here.** The premise that framed the 2026-08-20 amendment's `roundLimit` 3→6 flip as a
-  stuck-decision valve was falsified in mechanical form: `escalate` already exits the fix loop at
-  round 1, and the rounds that grind are `request_changes` rounds by construction. The boundary
-  move waits on the measured grind backstop, so the `roundLimit`=6 ceiling's justification is
-  **backstop-dependent** until #1664's measurement lands.
+  A ruled ask executes in-run (the re-entry section below); one that cannot execute files
+  Lead-side with filing parity (Evidence-artifacts duty + dedup against engine-filed rows).
+- **The adjudication producer set widens two → three.** Checkpoint ask rulings join the red-team
+  report's `## Adjudications` block and the Lead's own scope rulings as `args.adjudications` rows
+  (the three producers above).
+- **Channel 2 — the blocking-class round-grinding valve — is enacted in Decision 4 (#1664).** The
+  premise that framed the `roundLimit` 3→6 flip as a stuck-decision valve was falsified in mechanical
+  form: `escalate` already exits the fix loop at round 1, and the rounds that grind are
+  `request_changes` rounds by construction. Decision 4's two-sided boundary is the valve: a
+  decision-forked blocker escalates with an `escalate_reason` naming the missing decision, and a
+  mechanical blocker whose fix survives takes a bounded fix round, so the `roundLimit`=6 ceiling bounds
+  only fixable rounds.
 
-This amendment leaves all pre-existing body text above — beyond the Status currency line —
-byte-unchanged.
+### N:1 clustered filing and dedup-as-corroboration-comment
 
-## Amendment (2026-08-26): N:1 clustered filing and dedup-as-corroboration-comment
-
-Decision 4 describes the `follow-up` disposition per-finding — "`follow-up` (substantive work
-beyond the phase — must state why it is not absorbable; files the issue)" — a 1:1 finding→issue
-reading. The landed filing shape is N:1 (drift recorded as issue #1577; ratified by the
-engine-reliability-and-filing-fidelity plan, Phase 5 Task 4). This amendment supersedes the
-per-finding "files the issue" description with the filing shape as it actually runs:
+Decision 4's `follow-up` disposition becomes issue-tracked in the N:1 filing shape (issue #1577;
+ratified by the engine-reliability-and-filing-fidelity plan, Phase 5 Task 4):
 
 - **Engine-side consolidation precedes filing.** Before the filing dispatch sees anything, the
   engine collapses `follow-up` rows keyed on same file + line within a bounded window
@@ -360,56 +266,51 @@ per-finding "files the issue" description with the filing shape as it actually r
   corroborations, and the `## Evidence artifacts` section (values copied verbatim; `unrecorded`
   stays `unrecorded`). Members share one issue number.
 
-Decision 4's routing semantics are otherwise untouched: `follow-up` still means substantive work
-beyond the phase, still must state why it is not absorbable, and still becomes issue-tracked —
-what this amendment changes is the recorded issue *cardinality* (N findings : 1 issue) and the
-dedup arm's comment channel, not who owns a finding or how it routes. The Consequences bullet
-"Issues become affirmative acts" holds a fortiori: clustering and dedup further suppress
-issue-litter without dropping any finding's record. This amendment is about **filing shape
-only** — the 2026-08-25 ask amendment above (the fourth `disposition` member and its Checkpoint
-ruling gate) is left byte-untouched, and ruled-ask Lead-side filing keeps parity with this shape
-per `skills/war/references/file-followups.md`.
+The filing shape changes the recorded issue *cardinality* (N findings : 1 issue) and gives the dedup arm
+its comment channel; it does not change who owns a finding or how it routes. The Consequences bullet
+"Issues become affirmative acts" holds a fortiori: clustering and dedup further suppress issue-litter
+without dropping any finding's record. Ruled-ask Lead-side filing keeps parity with this shape per
+`skills/war/references/file-followups.md`.
 
-This amendment leaves all pre-existing body text above — beyond the Status currency line —
-byte-unchanged.
+### Budget-bounded ace re-entry, the disposition widenings, absorb-by-citation, and in-run ruled-ask execution
 
-## Amendment (2026-08-27): budget-bounded ace re-entry, three disposition widenings, absorb-by-citation, and in-run ruled-ask execution
-
-The in-run-finding-resolution plan (`docs/plans/2026-08-27-in-run-finding-resolution.md`) widens
-the in-run vehicles this ADR's routing can reach. The measured pathology was issue litter: a
-mechanical, fully-specified finding *born at a re-audit* had no in-run vehicle at all — the ace
-ladder never re-opened for it — so it demoted to `follow-up` and outlived the run as a filed issue.
-The operator's ruling is the standing one: **fix what is broken when it is identified.** This
-amendment records the widened contract.
+The in-run-finding-resolution plan (`docs/plans/2026-08-27-in-run-finding-resolution.md`) widens the
+in-run vehicles this routing can reach. The measured pathology was issue litter: a mechanical,
+fully-specified finding *born at a re-audit* had no in-run vehicle at all, so it demoted to `follow-up`
+and outlived the run as a filed issue. The operator's ruling is the standing one: **fix what is broken
+when it is identified.**
 
 - **Budget-bounded re-entry — the ladder re-opens for fresh absorbs.** A fresh
-  `absorb`-dispositioned finding born at ANY re-audit (a plain approve-branch re-audit, a bisection
-  subset's re-audit, or a re-entry batch's own re-audit) dispatches **another ace-style batch on the
-  same machinery** — same eligibility, the same `Ace-Subset` trailer discipline carrying the
+  `absorb`-dispositioned finding born at a wave-side re-audit (a plain approve-branch re-audit, a
+  bisection subset's re-audit, or a re-entry batch's own re-audit) dispatches **another ace-style batch
+  on the same machinery** — same eligibility, the same `Ace-Subset` trailer discipline carrying the
   existing round index, the same tip-preflight idempotency, the same forward-revert posture. It is
   **not a new round type and not a new status member** (canonical: `aceReentry` in
   `skills/war/assets/workflow-template.js`). Shape ratified by the operator on issue #1731's
-  comments, superseding that issue body's one-echo sketch.
-- **The floor-retry reserve is the SOLE bound.** Re-entry batches dispatch only while
-  `fixRounds < roundLimit − 2` — the two slots #1562 reserved for the merge-floor retry loop. No
-  echo cap, no shrinking rule, no second budget: the reserve converges arithmetically, and a
-  forward-reverted finding demotes and never re-enters (the oscillation bound). The batch-ace path
-  deliberately keeps its own separate `< roundLimit` gate; re-entry adds a new gate rather than
-  moving that one.
-- **The fallback ladder, in order.** Re-enter while `fixRounds < roundLimit − 2` ⇒ reserve-blocked
-  or spent routes the finding `phaseClose: true` (the phase-close sweep is its vehicle) ⇒
-  sweep-discard demotes to `follow-up`. Every demotion is logged; nothing is silent. This is the
-  terminal-disposition ladder Decision 4 records, with a rung added at the top — not a new ladder.
-- **Three disposition widenings** (dispatched `auditPrompt` DISPOSITION block **and** the standing
-  home `skills/war/references/disposition-eligibility.md`, in lock-step): (1) a mechanical,
-  fully-specified finding **born at a re-audit** defaults to `absorb` — it re-enters while budget
-  remains and takes `phaseClose: true` when the fix wants the integrated tip; `follow-up` stays
-  correct for unspecified, decision-shaped, or sweep-excluded (release-slot / cross-task) findings.
-  (2) a fully-specified **new-test (or test-harness) addition in a task-owned test file** is a
-  legitimate absorb — "needs a new test" is not by itself a why-not-absorbable reason. The
-  never-delete-or-weaken-tests law is untouched: this widening is *adding only*. (3) a finding whose
-  fix is fully specified but entails a behavior change with a **nameable trade-off** routes `ask`
-  (the trade-off IS the fork), not `follow-up`.
+  comments, superseding that issue body's one-echo sketch. Re-entry dispatches only while the absorb
+  budget holds (`absorbRounds < run.absorbRounds`, below); a forward-reverted finding demotes and never
+  re-enters (the oscillation bound).
+- **A fourth re-audit source never re-enters.** ADR 0049's merge-slot pin-transfer **mismatch**
+  re-audit takes a different route: its absorb-eligible findings route straight to the phase-close
+  sweep via `routeReauditMinors`' `noReentry` opt, unconditional on budget headroom (the merge slot sits
+  inside the integration lock, and a re-entry there would re-open the ladder the wave side already
+  closed). The absorb budget therefore bounds the three wave-side sources only. The living-doc homes
+  (`skills/war/SKILL.md`'s `--ace` bullet, GLOSSARY.md's **Re-entry** row, `design.md` §18, and
+  `schemas.md`'s `aced` comment) carry the scoped wording.
+- **The fallback ladder, in order.** Re-enter while the absorb budget holds ⇒ a spent budget routes the
+  finding `phaseClose: true` (the phase-close sweep is its vehicle) ⇒ sweep-discard demotes to
+  `follow-up`. Every demotion is logged; nothing is silent. This is the terminal-disposition ladder
+  Decision 4 records, with a rung added at the top — not a new ladder.
+- **The disposition widenings** (dispatched `auditPrompt` DISPOSITION block **and** the standing home
+  `skills/war/references/disposition-eligibility.md`, in lock-step): (1) a mechanical, fully-specified
+  finding **born at a re-audit** defaults to `absorb` — it re-enters while budget remains and takes
+  `phaseClose: true` when the fix wants the integrated tip; `follow-up` stays correct for unspecified,
+  decision-shaped, or sweep-excluded (release-slot / cross-task) findings. (2) a fully-specified
+  **new-test (or test-harness) addition in a task-owned test file** is a legitimate absorb — "needs a
+  new test" is not by itself a why-not-absorbable reason. The never-delete-or-weaken-tests law is
+  untouched: this widening is *adding only*. (3) a finding whose fix is fully specified but entails a
+  behavior change with a **nameable trade-off** routes `ask` (the trade-off IS the fork), not
+  `follow-up`.
 - **Absorb-by-citation — a parked ask whose ruling is a quoted standing row.** **Under `--afk`**, a
   parked `ask` matching a threaded standing operator-ratified adjudication row may resolve to an
   **actionable absorb**, executed through the re-entry vehicle. **Match strictness:** the row must cover the
@@ -426,55 +327,22 @@ amendment records the widened contract.
 - **Citation telemetry.** Citation-resolutions ride `/war-review` — which standing rows fire and how
   often. Counting is free (the `aced` record already carries the citation), and an over-broad row
   firing constantly is the measured signal to narrow it.
-- **A ruled ask executes in-run; filing becomes filing-on-non-execution.** The 2026-08-25
-  amendment's "ruled asks then file Lead-side with filing parity" is superseded on the *filing
-  trigger*, not on parity: an interactively-ruled ask whose fix is fully specified **executes in
-  this run** — injected into the next phase's decompose as a small first-class task carrying the
-  ruling, or, in the final phase, run as one bounded polish-style post-land dispatch. An issue is
-  filed **only** on cannot-execute (no vehicle, cross-task, budget) or execution-failure (regression
-  ⇒ revert), with the ruling recorded in the filed issue either way — never silently, never as
-  default litter. Ruled-ask adjudication rows are written in standing-row format, so today's
-  interactive ruling becomes tomorrow's `--afk` citation source.
-- **Supersession of the 2026-08-20 boundary narration (append-only law).** The 2026-08-20 amendment
-  above narrates bisection demotion as "the remainder demotes on budget exhaustion". That clause is
-  ratified text and stays byte-untouched; this note supersedes its *currency*:
-  **As of 2026-08-27: the ladder's stop condition is the floor-retry reserve
-  (`fixRounds < roundLimit − 2`) with budget-bounded re-entry; the 2026-08-20 clause above describes
-  the pre-#1562 boundary and is historical.** The three living-doc homes of that boundary
-  (`skills/war/SKILL.md`'s `--ace` bullet, CONTEXT.md's **Ace bisection** row, `design.md` §18) are
-  re-authored to the new semantics and guard-bound; this ADR home is deliberately exempt from that
-  guard because the historical clause survives by design.
+- **A ruled ask executes in-run; filing is filing-on-non-execution.** An interactively-ruled ask whose
+  fix is fully specified **executes in this run** — injected into the next phase's decompose as a small
+  first-class task carrying the ruling, or, in the final phase, run as one bounded polish-style post-land
+  dispatch. An issue is filed **only** on cannot-execute (no vehicle, cross-task, budget) or
+  execution-failure (regression ⇒ revert), with the ruling recorded in the filed issue either way —
+  never silently, never as default litter — and with the filing parity above. Ruled-ask adjudication
+  rows are written in standing-row format, so today's interactive ruling becomes tomorrow's `--afk`
+  citation source.
 
-Decision 4's routing semantics are otherwise untouched: the disposition set is still
-`absorb` · `follow-up` · `note` · `ask`, `absorb` and `ask` are still never defaulted, and the
-Consequences bullet "Issues become affirmative acts" holds a fortiori — every widening here moves
+The Consequences bullet "Issues become affirmative acts" holds a fortiori — every widening here moves
 work *out* of the issue backlog and into the run that found it.
 
-This amendment leaves all pre-existing body text above — beyond the Status currency line —
-byte-unchanged.
+### The absorb budget
 
-## Amendment (2026-08-31) — a fourth re-audit source that never re-enters
-
-The 2026-08-27 amendment above enumerates three re-audit sources (a plain approve-branch
-re-audit, a bisection subset's, a re-entry batch's own) and names the floor-retry reserve their
-sole bound. ADR 0049's merge-slot pin-transfer **mismatch** re-audit is a **fourth source**, and
-it takes a different route: its absorb-eligible findings never re-enter — they route straight to
-the phase-close sweep via `routeReauditMinors`' `noReentry` opt, unconditional on budget headroom
-(the merge slot sits inside the integration lock, and a re-entry there would re-open the ladder
-the wave side already closed). The reserve therefore bounds the three wave-side sources only.
-The four living-doc homes (`skills/war/SKILL.md`'s `--ace` bullet, CONTEXT.md's **Re-entry**
-row, `design.md` §18, and `schemas.md`'s `aced` comment) carry the scoped wording; this
-amendment records it as law.
-
-This amendment leaves all pre-existing body text above — beyond the Status currency line —
-byte-unchanged.
-
-## Amendment (2026-09-03) — the absorb budget supersedes the floor-retry reserve
-
-The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 2 —
-D5, PIN-7) gives the ace ladder its own round budget. The 2026-08-27 amendment above bound
-re-entry and bisection subsets by the `roundLimit − 2` **floor-retry reserve**: two `fixRounds`
-slots held back for the merge-floor retry loop. That arithmetic is **superseded**:
+The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 2 — D5, PIN-7)
+gives the ace ladder its own round budget:
 
 - **The absorb budget is the SOLE bound.** The knob `run.absorbRounds` (integer ≥ 1, default 6,
   validated exactly like `run.roundLimit`; `war-config.mjs`) bounds a per-task counter
@@ -484,14 +352,15 @@ slots held back for the merge-floor retry loop. That arithmetic is **superseded*
 - **Charge sites.** The counter is charged once per ace-side COMMIT — the batch ace, a re-entry
   batch, a bisection subset commit, and (Phase 5) the terminal pass. Reverts, re-audit panels, and
   fix rounds never charge it. `fixRounds` counts blocking fix rounds and floor retries only; no
-  ace-side commit charges it any more.
+  ace-side commit charges it.
 - **The trailer and the relaunch seed.** Every ace-side commit carries `Ace-Charge: <task>:<n>`
   (n = the counter after the charge; reverts carry none). The phase-start git-topology barrier
   returns `absorbCharges: { <task>: n }`, the HIGHEST trailer index on the task branch, and the
   engine seeds `r.task.absorbRounds` from it. A running task that the Lead override and the
   barrier map both leave unseeded is read once more by one `charge-probe` dispatch (D40, #2676),
   and only a task still unseeded seeds 0 with a loud log naming the map keys and the shape of
-  each return that had no map *(edited in place 2026-11-09; see the 2026-11-09 relaunch-seed amendment line below)*.
+  each return that carried no map. A barrier map with one entry per running task dispatches no probe.
+  Never a hold.
 - **Exhaustion routes to the sweep, never to `follow-up`.** At all three gates a spent budget
   routes the finding `phaseClose: true` to the phase-close sweep with a log naming the counter;
   the still-queued (never re-audited) bisection subsets ride there too, staying absorbs. Only a
@@ -499,98 +368,69 @@ slots held back for the merge-floor retry loop. That arithmetic is **superseded*
   with no open blockers ⇒ the sweep; open Critical/Major blockers ⇒ the aceable rows hold on the
   task for the next approve, and a task that ends escalated, audit-blocked, or never merged demotes
   its held rows.
-- **Supersession of the 2026-08-27 currency clause (append-only law).** The 2026-08-27 amendment's
-  clause "As of 2026-08-27: the ladder's stop condition is the floor-retry reserve
-  (`fixRounds < roundLimit − 2`) with budget-bounded re-entry" is ratified text and stays
-  byte-untouched; this note supersedes its *currency*: **as of 2026-09-03 the stop condition is the
-  absorb budget (`absorbRounds < run.absorbRounds`), and the 2026-08-27 clause describes the
-  pre-absorb-budget boundary and is historical.** The living-doc homes of that boundary
-  (`skills/war/SKILL.md`'s `--ace` bullet, CONTEXT.md's **Ace bisection**, **Re-entry**, and
-  **Absorb budget** rows, `design.md` §18, `disposition-eligibility.md` widening 1, and
-  `schemas.md`'s `aced` rows) carry the new arithmetic and are guard-bound; this ADR home stays
-  exempt from the OLD-absent guard because both historical clauses survive by design. The
-  2026-08-31 amendment's reserve sentences ("names the floor-retry reserve their sole bound" and
-  "The reserve therefore bounds the three wave-side sources only") are historical on the same
-  terms: ratified, byte-untouched, and describing the pre-absorb-budget boundary.
+- **Living-doc homes.** `skills/war/SKILL.md`'s `--ace` bullet, GLOSSARY.md's **Ace bisection**,
+  **Re-entry**, and **Absorb budget** rows, `design.md` §18, `disposition-eligibility.md` widening 1,
+  and `schemas.md`'s `aced` rows carry the arithmetic and are guard-bound, this ADR included.
 
-Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
-body text above — beyond the Status currency line — byte-unchanged.
+### The in-diff `absorb` default and the barrier list
 
-## Amendment (2026-09-04) — the in-diff `absorb` default and the barrier list
-
-The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 3 —
-D1, D2, PIN-1, PIN-2) flips the seat-side default for one case. Decision 4's ratified clause
-"Defaults when omitted: Minor → follow-up, Nit → note; `absorb` is never a default" stays
-byte-untouched; this note supersedes its *currency* for the fully specified case only:
+The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 3 — D1, D2,
+PIN-1, PIN-2) sets the default for the fully specified case:
 
 - **The in-diff default is `absorb`.** A `Minor`/`Nit` with a non-empty `suggested_fix` whose
   file is in the task diff defaults to `absorb`; one whose file is outside the task diff defaults
   to `absorb` + `phaseClose:true` (the phase-close sweep, under the exclusion set). The seat reads
   the diff and sets that disposition itself (the standing card and the dispatched DISPOSITION RULE
-  carry the sentence, byte-mirrored). `dispositionOf`'s omitted-disposition engine default stays
-  the severity default (Minor → `follow-up`, Nit → `note`) through Phase 3; Phase 4's git-derived
-  diff probe makes the engine apply the same default deterministically. `ask` is never a default.
+  carry the sentence, byte-mirrored), and the git-derived diff probe makes the engine apply the same
+  default deterministically when a disposition is omitted. `ask` is never a default.
 - **The barrier list.** On such a finding `follow-up` is legal only with a barrier cited in the
   structured `barrier` field of the finding (AUDIT_VERDICT, optional enum), never as prose. The
   list is exactly `BARRIER_TOKENS`, canonical in `skills/war/assets/land-decision.mjs` and
-  hand-mirrored in `workflow-template.js` with a mirror-registry row: `barrier:release-slot`,
-  `barrier:underspecified`, `barrier:rationale-comment` (three follow-up barriers) and
+  hand-mirrored in `workflow-template.js` with a mirror-registry row: `barrier:release-slot`, `barrier:underspecified`, `barrier:rationale-comment` (three follow-up barriers) and
   `barrier:trade-off` (an `ask` route — the trade-off is the fork). A scope argument is never a
   barrier; the why-not-absorbable prose stays free text beside the tag. Body:
   `skills/war/references/disposition-eligibility.md` § Barrier list.
-- **Living-doc homes.** `CLAUDE.md`'s Known-traps bullet, CONTEXT.md's **Disposition** and
+- **Living-doc homes.** `CLAUDE.md`'s Known-traps bullet, GLOSSARY.md's **Disposition** and
   **Barrier list** rows, `skills/war/SKILL.md`'s Audits bullet, `design.md` §18,
-  `gastown-design-params.md`, `schemas.md`'s AuditVerdict row, `agents/war-auditor.md`, and the
-  dispatched rule carry the new default; the three retired `absorb`-is-never-a-default wordings
-  are guard-bound absent there (`old-default-absent`). This ADR home stays exempt from
-  that guard because Decision 4's clause survives by design (append-only law).
+  `gastown-design-params.md`, `schemas.md`'s AuditVerdict row, `agents/war-auditor.md`, the
+  dispatched rule, and this ADR's Decision 4 carry the default; the retired `absorb`-is-never-a-default
+  wordings are guard-bound absent there (`old-default-absent`).
 
-Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
-body text above — beyond the Status currency line — byte-unchanged.
+### Ace-off routing to the sweep and the demote-reason prefix
 
-## Amendment (2026-09-04) — ace-off routing to the sweep and the demote-reason prefix
-
-The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 4 —
-D13, D14, PIN-15, PIN-16) changes two things on the terminal-disposition ladder. Decision 4's ratified
-text and every amendment above stay byte-untouched; this note supersedes their *currency* on two
-points:
+The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 4 — D13, D14,
+PIN-15, PIN-16) sets two rules on the terminal-disposition ladder:
 
 - **Ace-off routing goes to the sweep.** `run.ace` gates the per-task ace ladder only (batch ace,
   re-entry, bisection); the phase-close sweep and the terminal pass run regardless. With `run.ace`
   off, a defaulted `absorb` (in-diff or out-of-diff, seat-set or floor-rerouted) routes
   `phaseClose:true` to the phase-close sweep under the exclusion set and never demotes on the
-  ace-off path. The two "absorb requires --ace" demote arms in `workflow-template.js` are retired;
-  the `--ace` bullet's retired "with `--ace` off every absorb demotes this way" Residual-rule
-  wording describes the pre-Phase-4 ladder and is historical. Every preset resolves
-  `run.ace === true`; a user config may still set it false.
+  ace-off path. The two "absorb requires --ace" demote arms in `workflow-template.js` are retired.
+  Every preset resolves `run.ace === true`; a user config may still set it false.
 - **Every engine `follow-up` demotion carries a `DEMOTE_REASONS` prefix.** The closed prefix enum
   is canonical in `skills/war/assets/land-decision.mjs` and hand-mirrored in
   `workflow-template.js` with a mirror-registry row and an `F07` registration. Thirteen members:
   `demote:absorb-regressed`, `demote:absorb-blocked`, `demote:fileless`, `demote:task-unapproved`,
   `demote:sweep-skipped`, `demote:sweep-discarded`, `demote:terminal-pass`, `demote:exclusion-set`,
   `demote:release-slot`, `demote:floor-skipped`, `demote:ask-unruled-afk`, `demote:unclassified`,
-  `demote:land-gate` (added 2026-11-06, see the decision log).
+  `demote:land-gate`.
   `demote()` validates every `follow-up` reason against the enum at runtime; on a miss it prepends
-  `demote:unclassified` (itself a member) and logs the site loudly, never a throw. Three
-  failed-attempt sites (an untouched file, a dead ace worker, a red gate at the ace tip) stop
-  filing and route the row to the sweep as an absorb; a fix that broke something still files with
+  `demote:unclassified` (itself a member) and logs the site loudly, never a throw. A failed
+  attempt (an untouched file, a non-moved tip after a polish, subset or re-entry dispatch, a red
+  gate at the ace tip, a regressed multi-commit range, #2485 D2/D4) stops filing and routes the
+  row to the sweep as an absorb; a fix that broke something still files with
   `demote:absorb-regressed`. Each engine-filed issue body carries the prefix on its first
   `Demote-Reason:` line; the Checkpoint's `--afk` no-match ask lane files Lead-side with
   `demote:ask-unruled-afk`.
-- **Living-doc homes.** CONTEXT.md's **Demote reason prefix** row, `skills/war/SKILL.md`'s `--ace`
-  bullet (the rewritten Residual rule), `schemas.md`'s `barrier` provenance row, and
-  `file-followups.md` carry the new facts; the retired Residual-rule wording is guard-bound absent
-  on `skills/war/SKILL.md` (`ace-off-route`). This ADR home stays exempt from that guard because
-  the superseded clauses survive by design (append-only law).
+- **Living-doc homes.** GLOSSARY.md's **Demote reason prefix** row, `skills/war/SKILL.md`'s `--ace`
+  bullet (the Residual rule), `schemas.md`'s `barrier` provenance row, and `file-followups.md` carry
+  these facts; the retired every-absorb-demotes Residual-rule wording is guard-bound absent on
+  `skills/war/SKILL.md` and on this ADR's Decision text (`ace-off-route`).
 
-Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
-body text above — beyond the Status currency line — byte-unchanged.
+### A note that names a fix reroutes to absorb; gate-audit-family rows route like any seat's
 
-## Amendment (2026-09-04) — a note that names a fix reroutes to absorb; gate-audit-family rows route like any seat's
-
-The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 4 —
-D4, D15, PIN-17) bounds Decision 4's `note` clause on two points. Decision 4's ratified text and
-every amendment above stay byte-untouched; this note supersedes their *currency* (#2056):
+The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 4 — D4, D15,
+PIN-17) bounds Decision 4's `note` clause on two points (#2056):
 
 - **A note that names a fix reroutes to absorb.** The intake floor (`intakeFloor` in
   `skills/war/assets/workflow-template.js`) turns an in-diff `note` carrying a `suggested_fix` into
@@ -598,23 +438,80 @@ every amendment above stay byte-untouched; this note supersedes their *currency*
   walks the absorb ladder like any absorb, so its terminal rungs can file: `demote:absorb-regressed`
   at an ace re-audit regression, `demote:sweep-discarded` at a discarded sweep on the final phase,
   or on ANY phase when the polish panel approved the branch and its merge never landed (the
-  approve trail, #2087).
-  Decision 4's "`note` (report + servitor feed, never an issue)" therefore reads: never an issue
-  *as a note* — a note the floor rerouted is an absorb from that point on, and every such reroute is
-  logged.
+  approve trail, #2087). A `note` is therefore never an issue *as a note* — a note the floor
+  rerouted is an absorb from that point on, and every such reroute is logged.
 - **Gate-audit-family rows route like any seat's.** The per-task `execution-evidence`,
   integrated-tip, and end-state seats' Minor/Nit findings route by disposition exactly as a wave
   seat's do: a fully specified one goes `absorb` + `phaseClose:true` into the phase-close queue,
-  stamped with its seat label; `follow-up` needs a `barrier` tag; `ask` parks. The retired
-  `auditLog`-only sink no longer exists.
-- **Living-doc homes.** CONTEXT.md's **Disposition** and **Terminal pass** rows, `schemas.md`'s
-  disposition bullet, and `references/disposition-eligibility.md` carry the new facts.
+  stamped with its seat label; `follow-up` needs a `barrier` tag; `ask` parks. There is no
+  `auditLog`-only sink.
+- **Living-doc homes.** GLOSSARY.md's **Disposition** and **Terminal pass** rows, `schemas.md`'s
+  disposition bullet, and `references/disposition-eligibility.md` carry these facts.
 
-Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
-body text above — beyond the Status currency line — byte-unchanged.
+## Considered options
+
+- **A standalone `/commanders-intent` skill (deferred).** The artifact is three blocks of plan prose;
+  authorship, storage, and consumption are covered by a template section + an interview beat + two gate
+  reads. A dedicated PME-style interview skill remains cheap to add later if the beat proves too thin.
+- **Verbatim-only operator authorship (rejected — operator decision).** Correct for combat accountability;
+  needless friction here. Approval-as-gate keeps the accountability property that matters (the operator has
+  read and owns the intent) without demanding their keystrokes.
+- **Severity-only routing, status quo (rejected).** Severity says how bad, not who owns it next; it
+  structurally cannot express "fix this now, in-phase" or "record, don't file," which is why 9 observations
+  became 9 issues.
+- **Dropping the orchestrator's ace backstop entirely, auditor-consent-only (rejected).** One hallucinated
+  `absorb` on `plugin.json` could ace a version slot; a deterministic string check the sandbox CAN do stays
+  on the two files where filename = proof.
+- **Lead-synthesized intent when the section is missing (rejected).** The Lead inventing purpose inverts the
+  command relationship; degradation to literal behavior is fail-conservative.
+- **Bound the ace ladder by the fix-round budget (retired).** Re-entry and bisection subsets once shared
+  `fixRounds` with blocking fix rounds and the merge-floor retry loop, so the ace side starved recovery
+  and the merge floor at once. The absorb budget gives the ace ladder its own counter.
+- **`absorb` is never a default (retired).** It filed every fully specified Minor/Nit as an issue the
+  run could have fixed; the in-diff default replaced it.
+
+## Consequences
+
+- **Intent quality is load-bearing.** A vague Purpose or uncheckable End state makes every downstream gate
+  mushier. Mitigations: the checkability rule at authoring, the red-team lens before any run, Method bounds
+  on latitude, and null-intent degrading to current behavior.
+- **Issues become affirmative acts.** A `war-followup` issue exists only because an auditor argued it
+  should; nit-litter dies by default-routing, while genuine debt (the CLI-wrapper class) still files.
+- **Auditor scope creep risk shifts to the worker.** The latitude rule could license over-building;
+  bounded by Method constraints, the audit's correctness lenses (extra work is still judged), and
+  plan-slice drift surfacing as notes.
+- **One release of dual-reading:** `autoFixable:true` honored as `disposition:'absorb'`, then retired.
+- Both standing (.md) and dispatched (template) auditor surfaces change **in the same commit** — the known
+  coverage-split trap (memory `standing-instruction-vs-dispatched-prompt-coverage-split`).
+
+## References
+
+- Design spec: [`docs/specs/2026-07-02-war-clean-handoff-design.md`](../specs/2026-07-02-war-clean-handoff-design.md)
+  §3 (design tree), §4.1–4.3, §4.6–4.7, §10 criteria 1–3, 7–11.
+- [ADR-0012 — Intra-phase visibility and the phase-close sweep](0012-intra-phase-visibility-and-phase-close-sweep.md)
+  — the mechanism that consumes `phaseClose`-routed absorb findings.
+- MCDP 1 *Warfighting* / MCWP 5-1 *Marine Corps Planning Process* — purpose-method-end-state framing
+  (operator-supplied, 2026-07-01 design review).
+- Reference run: epics #416/#417, follow-up litter #422 — the 9-finding replay yardstick (spec §10.12).
 
 ## Decision log
 
+- 2026-07-02 · the two-homes ruling: the interview beat lives in both /war-strategy homes · clean-handoff review · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 6aa692bc
+- 2026-07-10 · Addendum: the deliberately-unwired marker is an audit-lens finding-class exemption · engine-hardening spec §7 (ADR 0034) · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ cb07f484
+- 2026-07-22 · Addendum: a second adjudication producer, and an adjudication-match confirmation-note rule · audit-adjudication-threading spec · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 06cb6980
+- 2026-08-05 · artifact-first End-state verification and the `unverified` status · precision-chain plan D2/D8 · failed because: a judgment pass read a condition no seat attested as `met` by silence · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 981b3ba6
+- 2026-08-17 · the latitude-clause reading · #1431 · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 7d4c6727
+- 2026-08-20 · ace bisection on regression, source-derivable absorb eligibility, and the roundLimit 3→6 flip · #1547 items 1–4 · failed because: the old default of 3 starved recovery once the bisection ladder drew on the same budget · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 44bbe6e1
+- 2026-08-25 · Qualification: the vacuous-phase carve-out to all-`deferred` · vacuous-phase clamp · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 7c1b028b
+- 2026-08-25 · Correction: the absorb-eligibility block's home is `disposition-eligibility.md` · 0.20.0 ADR-0042 eviction · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 7c1b028b
+- 2026-08-25 · the `ask` disposition — park the finding, rule at the Checkpoint · #1550 · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 10df1eef
+- 2026-08-26 · N:1 clustered filing and dedup-as-corroboration-comment · #1577 · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 40bb45d3
+- 2026-08-27 · budget-bounded ace re-entry, three disposition widenings, absorb-by-citation, and in-run ruled-ask execution · #1731 · failed because: a fully-specified finding born at a re-audit had no in-run vehicle and outlived the run as a filed issue · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 46349f50
+- 2026-08-31 · a fourth re-audit source that never re-enters · ADR 0049 pin-transfer mismatch re-audit · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 3b919f0f
+- 2026-09-03 · the absorb budget supersedes the floor-retry reserve · plan 2026-09-03-in-band-absorb-default D5, PIN-7 · failed because: the `roundLimit − 2` reserve shared fix-round slots between the ace ladder and the merge-floor retry loop · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 57582943
+- 2026-09-04 · the in-diff `absorb` default and the barrier list · plan 2026-09-03-in-band-absorb-default D1, D2 · failed because: with `absorb` never a default, every fully specified Minor/Nit filed as an issue · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 3a657bb9
+- 2026-09-04 · ace-off routing to the sweep and the demote-reason prefix · plan 2026-09-03-in-band-absorb-default D13, D14 · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 49afcb1d
+- 2026-09-04 · a note that names a fix reroutes to absorb; gate-audit-family rows route like any seat's · #2056 · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ d4d39ee1
 - 2026-09-08 · Decision 4 edited in place under the 2026-09-06 living-ADR ruling (no dated amendment): the blocking boundary is two-sided — on a split the one rebuttal round runs first, a blocking finding that survives it with a `suggested_fix` dispatches a fix round plus a full-roster re-audit instead of escalating (#1989), a fix-less decision-forked survivor escalates with `escalate_reason` read into `escalated[]` while a mechanical blocking finding with budget never escalates (#1664), and a seat conflict on one locus parks an operator `ask` (#1914) · plan `docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md` D17/D18/D19, Phase 11 Task 11.2 · the amendments' "pre-existing body text above byte-unchanged" closings hold as of their own dates.
 - 2026-09-08 · Decision 5 edited in place under the 2026-09-06 living-ADR ruling (no dated amendment): release-slot eligibility is by literal, not by file — only the `RELEASE_SLOT_FILES` basenames (`plugin.json`/`marketplace.json`) refuse by filename, a `README.md`/`CHANGELOG.md` absorb that moves no version literal, CHANGELOG head heading or README `## Status` version token rides the per-task ace, a fix that moves one is a release change and never a Minor, and `version-slots.test.mjs` in the merge gate is the guard (no engine literal detector; #2000) · plan `docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md` D20, Phase 12 Task 12.2 · the amendments' "pre-existing body text above byte-unchanged" closings hold as of their own dates.
 
@@ -622,12 +519,11 @@ body text above — beyond the Status currency line — byte-unchanged.
 - 2026-10-30 · Amendment: the ace path never holds an approved task because an ace worker committed after approval, and a blocked ace result is read from git, not taken as "no commit". Two residuals are the only exceptions to never-hold: a tip that does not descend from the pre-dispatch tip holds at the merge slot with the note "branch tip carries content committed after approval", and a revert-bearing pin-transfer probe that itself dies reads `env-died`. No `HARD_ESCALATION_REASONS` or `KNOWN_LAND_DECISIONS` member changes · plan `docs/plans/2026-10-28-blocked-ace-and-merge-provenance.md` D2 to D5, Task 5.2 · [ADR 0054](0054-merge-commit-provenance-and-the-blocked-ace-tip-probe.md).
 - 2026-11-05 · Amendment: a third merge-slot exception to never-hold. A pin-transfer probe that finds uncommitted tracked edits in the task worktree returns `error` with `detail: "dirty task worktree: <paths>"` before any forward-revert or rebase, and the engine holds the task with reason `escalate` and the note `task worktree dirty at pin-transfer: <detail>` (auditLog `pin-transfer:dirty-worktree`), because a merge-task there would refuse its rebase or gate content that never merges, and the shared stash is never a workaround. A per-task merge-task that meets the same dirt holds the same way, with no Git reconciliation, and a polish or terminal sweep merge takes its fail-open discard (operator ruling 2026-11-05) · issue #2617.
 - 2026-11-05 · Amendment: a fix-applying dispatch (fix round, floor retry, ace subset, ace re-entry, ace polish, phase-close sweep, terminal pass) runs only the tests it touched and any `Done when:` command, then commits. The engine's own gate at the new tip is the only full gate, and a red there fails the attempt. `FIX_GATE_RULE` in `workflow-template.js` carries the rule, and `agents/war-worker.md` carries it verbatim (operator ruling 2026-11-05) · issue #2617.
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ b31d2203
 - 2026-11-06 · Amendment: `demote:land-gate` joins `DEMOTE_REASONS` as its thirteenth member, edited in place into the 2026-09-04 Phase 4 amendment's member list. A `baseline` red first found at the final phase's land gate, after the late-fix pass, now files through `demote()` with the reason `demote:land-gate — found at the land gate after the late-fix pass`. The row is `engineFiled`, so the filed issue's first line reads `Demote-Reason: demote:land-gate`, not `seat-filed (barrier: none)`. A non-final phase still carries the row. No `HARD_ESCALATION_REASONS` or `KNOWN_LAND_DECISIONS` member changes (operator ruling 2026-11-06) · issue #2630.
-- 2026-11-09 · Amendment: the relaunch seed has a third source. This supersedes the currency of the 2026-09-03 amendment's "0 with a loud log on error or absence". A task that the Lead map and the barrier map both leave unseeded is read once more by one `charge-probe` dispatch (schema `CHARGE_PROBE`). If it is still unseeded, `absorbRounds` is 0, and a loud log names the task, the keys each map carried and the shape of each return that had no map. A barrier map with one entry per running task dispatches no probe. Never a hold. No `HARD_ESCALATION_REASONS` or `KNOWN_LAND_DECISIONS` member changes · plan `docs/plans/2026-11-08-engine-findings-ace-and-late-fix.md` D12/D40, Task 3.1 · issue #2676.
+- 2026-11-09 · Amendment: the relaunch seed has a third source. This supersedes the currency of the 2026-09-03 amendment's "0 with a loud log on error or absence". A task that the Lead map and the barrier map both leave unseeded is read once more by one `charge-probe` dispatch (schema `CHARGE_PROBE`). If it is still unseeded, `absorbRounds` is 0, and a loud log names the task, the keys each map carried and the shape of each return that carried no map. A barrier map with one entry per running task dispatches no probe. Never a hold. No `HARD_ESCALATION_REASONS` or `KNOWN_LAND_DECISIONS` member changes · plan `docs/plans/2026-11-08-engine-findings-ace-and-late-fix.md` D12/D40, Task 3.1 · issue #2676.
 - 2026-11-10 · Amendment: single-layer choice (#2633, D6, PIN-6): `FIX_GATE_RULE` in `workflow-template.js` is the one copy of the rule; `agents/war-worker.md` step 4 carries only the trigger sentence "skip the full gate and follow the gate rule your prompt states", pinned by `prompt truth (D6, #2617)`.
-
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
-
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-11-11 · adopted under the living-ADR law: every dated section folds into the body as current law, and Channel 2 reads as enacted in Decision 4 · #1850 (ADR 0063), #2269 · failed because: the deferral to #1664 stayed in the text after Decision 4 enacted the two-sided boundary · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 10df1eef
+- 2026-11-11 · the relaunch-seed twin phrase reads `carried no map`, matching `schemas.md` · #2801 · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 06660104
+- 2026-11-12 · Decision 4 states the seat-conflict posture in place: a seat conflict with no fix parks its ask and holds the phase on purpose, and a fixable blocker takes a fix round first · #2557
+- 2026-11-12 · the `DEMOTE_REASONS` failed-attempt list matches GLOSSARY.md's **Demote reason prefix** entry: a dead ace worker leaves it, and a non-moved tip and a regressed multi-commit range join it · #2485 D2/D4 (plan 2026-11-08-doc-truth-drift-and-adr-hygiene D42) · failed because: a dead ace worker with a moved tip is re-audited, so it is no longer a failed attempt · retired: docs/adr/0013-commanders-intent-and-disposition-routing.md @ 49afcb1d

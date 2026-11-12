@@ -39,7 +39,7 @@ The resolved design tree:
 Shape names are deliberately distinct from lens names — the `execution` shape classifies a claim;
 the `execution-evidence` reserved lens judges gate output through it. Conflating the `execution`
 shape with the `execution-evidence` lens is the recorded near-collision risk (spec §8); the
-CONTEXT.md `_Avoid_` line is the ratified mitigation.
+GLOSSARY.md `_Avoid_` line is the ratified mitigation.
 
 **`content-at-pin`** — "is X present / absent / worded-thus at the judged state."
 1. Pinned blob: `git show <audit_sha>:<path>` (or the pinned three-dot diff, recomputed per round).
@@ -194,9 +194,4 @@ the surface that shape's ladder forbids as a verdict basis.
 
 - 2026-09-07 · `execution` rung 1 gains the gate-log completeness qualifier (`tip_sha:` first, `exit_code:` last, else SOFT cannot-confirm), mirrored from `agents/war-auditor.md` and ADR 0024 §(C) · issue #2156
 - 2026-10-20 · evidence-seat rung (ADR 0053): for the evidence seat only, the REA-reported subject sha256 matched against the digest manifest committed at `audit_sha` is rung 1 of its measurement. The seat HOLDs only on a mismatch; every other REA finding is SOFT, and REA unreachable is `cannot-confirm`, never a hold. A regular seat never re-measures a `rea:` claim: the claim is digest-bound (the plan-interview D12 staleness exemption), never a hold, and `agents/war-auditor.md` stays byte-untouched (regular seats receive one gated dispatched line instead). The tag grammar, the digest rule and the manifest shape live in [artifact-evidence.md](../../skills/war-strategy/references/artifact-evidence.md), never restated here · plan 2026-10-20-rea-artifact-evidence
-
-## Amendment (2026-11-05): the glossary moved to GLOSSARY.md
-
-#2636 moved the glossary out of `CONTEXT.md` into `GLOSSARY.md` as a byte-identical move
-(ADR 0042 D3). `CONTEXT.md` is now the router: per role and per task, it names the file to read
-next. Each `CONTEXT.md` citation above that names the glossary now means `GLOSSARY.md`.
+- 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0041-audit-evidence-precedence.md @ b31d2203

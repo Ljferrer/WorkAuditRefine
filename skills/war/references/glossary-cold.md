@@ -1,31 +1,37 @@
 # Glossary cold home — evicted and born-cold glossary entries
 
 The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) for evicted and
-born-cold glossary bodies (the glossary was `CONTEXT.md` until #2636 moved it to `GLOSSARY.md`). Each evicted body below was byte-identical to its pre-eviction
-`CONTEXT.md` text (`GLOSSARY.md` text for waves 7 and 8) **at eviction time** (only repo-root-relative links were re-anchored for this file's
-depth), moved under an additive per-term heading — and the glossary keeps the `**Term**:` heading plus
+born-cold glossary bodies. The glossary was `CONTEXT.md` until #2636 moved it to `GLOSSARY.md`. Each evicted body below was byte-identical to its pre-eviction
+`CONTEXT.md` text (`GLOSSARY.md` text for waves 7 and 8) **at eviction time**. Only repo-root-relative links were re-anchored for this file's
+depth. Each body moved under an additive per-term heading. The glossary keeps the `**Term**:` heading plus
 one fixed-shape trigger pointer (`when <trigger>, read skills/war/references/glossary-cold.md`).
-A born-cold body is authored here first and has no pre-eviction text to match (waves 5 and 6): `GLOSSARY.md`
+A born-cold body is authored here first and has no pre-eviction text to match (waves 5, 6 and 9). `GLOSSARY.md`
 holds only its `**Term**:` heading plus the same trigger pointer. One
-pointer may carry several terms when a whole cold cluster leaves together (waves 4 and 8). Prose
+pointer may carry several terms when a whole cold cluster leaves together (waves 4, 8 and 9). Prose
 temperature is branch
-frequency (ADR 0042): these are cold but still authoritative — never delete a body; evict more the
-same way. **Coldness criterion** (one standing criterion; selections for waves 1-3, 5 and 7 are recorded in
-the D32 row's comments in `skills/war/assets/skill-doc-contracts.test.mjs`, which pins those
-GLOSSARY.md pointers to their bodies here — wave 4's bodies are deliberately unpinned, selected for
-carrying no live drift-guard key, and so are wave 8's (#2273, plan 2026-11-08-model-routing-and-prompt-byte-budgets
-Task 1.2: the bodies from `## Worker block` through `## memory-mined`, moved to bring `GLOSSARY.md` under its
-advisory line); wave 6's four born-cold merge-provenance bodies are pinned instead by
-`skills/red-team/assets/workflow-scaffold.test.mjs`): a term qualifies when it names a
-retired mechanism, or when it is fully narrated in its own operative home (a `references/` file, an
-owning skill's SKILL.md, or its ADR) so the glossary needs only a pointer — incident-only recovery
-and one-command forensics entries are the standing example. Bold glossary cross-references inside
-the moved bodies resolve in the glossary (`GLOSSARY.md`), their original home, or here when the referenced term has
-itself since been evicted — stated as the rule rather than a
+frequency (ADR 0042): these are cold but still authoritative. Never delete a body; evict more the
+same way.
+
+**Coldness criterion** (one standing criterion): a term qualifies when it names a
+retired mechanism, or when it is fully narrated in its own operative home. That home is a `references/` file, an
+owning skill's SKILL.md, or its ADR, so the glossary needs only a pointer. Incident-only recovery
+and one-command forensics entries are the standing example. The selections for waves 1-3, 5 and 7 are recorded in
+the D32 row's comments in `skills/war/assets/skill-doc-contracts.test.mjs`. That row pins those
+GLOSSARY.md pointers to their bodies here. Wave 4's bodies are deliberately unpinned, selected for
+carrying no live drift-guard key, and so are wave 8's. Wave 8 is #2273, plan 2026-11-08-model-routing-and-prompt-byte-budgets
+Task 1.2. It moved the bodies from `## Worker block` through `## memory-mined` to bring `GLOSSARY.md` under its
+advisory line. `skills/red-team/assets/workflow-scaffold.test.mjs` pins wave 6's four born-cold merge-provenance bodies instead.
+The `living-adr-terms` row in `skills/war/assets/skill-doc-contracts.test.mjs` pins wave 9's three living-ADR bodies.
+
+Bold glossary cross-references inside
+the moved bodies resolve in the glossary (`GLOSSARY.md`), their original home. They resolve here when the referenced term has
+itself since been evicted. This is stated as the rule rather than a
 dated enumeration, which rots as bodies are added (#1908). A reference may be a shortened or
 differently-cased form of its GLOSSARY.md heading (**phantom land** → `**Phantom land**`,
-**Land primitive** → `**Land primitive (single land chokepoint)**`); resolve by term, not by
-byte-match.
+**Land primitive** → `**Land primitive (single land chokepoint)**`). Resolve by term, not by
+byte-match. Post-eviction edits: § Relaunch attempt keeps its definition and points at
+`run-manifest.md` § Relaunch for the rules (#2120), and § Promotion's overwrite parenthetical gained
+the `stale-local` hold (#2713).
 
 ## provision base divergence
 
@@ -568,10 +574,10 @@ inside a fence.
 
 ## Tip probe
 
-The read-only refiner dispatch the engine sends after every ace result, dead or not, at all four ace
-sites (polish, subset, re-entry, terminal). It reads the task branch from git: the tip sha and tree,
-the commit count and ancestry from the pre-dispatch tip, and the name-only file list. A moved tip is
-re-audited through the ace re-audit seam or forward-reverted to the last approved tree; a tip whose
+The read-only refiner dispatch the engine sends after every ace result, dead or not. It runs at all four ace
+sites (polish, subset, re-entry, terminal). It reads the task branch from git. It reads the tip sha and tree and the name-only file list,
+and the commit count and ancestry from the pre-dispatch tip. A moved tip is
+re-audited through the ace re-audit seam or forward-reverted to the last approved tree. A tip whose
 tree equals the approved tree takes the failed-absorb arm. A dead or unusable probe forward-reverts
 the range and lands. Only a tip that does not descend from the pre-dispatch tip ends in the
 merge-slot hold. Canonical: `tipProbe` in `skills/war/assets/workflow-template.js` (#2485 D2, D5).
@@ -583,9 +589,9 @@ cross-check only); a hold for a mergeable task.
 How WAR proves a task merged. The refiner merges each rebased task branch with
 `git merge --no-ff --no-commit` plus a commit carrying the exact trailer `WAR-Task: <task branch>`.
 `task-integrated.sh` proves ownership from the first-parent merge commit whose trailer names the task
-and whose second parent equals the task tip, so untrailered floor-fix and revert commits on the task
+and whose second parent equals the task tip. So untrailered floor-fix and revert commits on the task
 branch prove through that merge commit. The engine confirms the merge by its parents, the rebased
-ancestry, tree equality and the trailer; a repeated reconcile on an existing such merge reports
+ancestry, tree equality and the trailer. A repeated reconcile on an existing such merge reports
 merged and makes no second merge. Polish and terminal merges stay fast-forward and are never proven
 this way (#2485 D8).
 _Avoid_: a fast-forward task merge or a worker-side trailer as the proof; a per-commit `WAR-Task`
@@ -596,7 +602,7 @@ scan of the task branch.
 The one line `provision_tree: <sha>` that every provision run writes into the worktree's
 `.war/provision_tree` file: the HEAD tree it ran on, with `.war/` added to `info/exclude`. Before any
 refiner gate, and before a dep-wave worker's gate, the provision steps re-run when `HEAD^{tree}`
-differs from the marker; an absent marker counts as a changed tree. The gate-log preamble repeats
+differs from the marker. An absent marker counts as a changed tree. The gate-log preamble repeats
 the line after `tip_sha`. Canonical: `PROVISION_TREE_LINE` and `PROVISION_RERUN_CLAUSE` in
 `skills/war/assets/workflow-template.js` (#2485 D15).
 _Avoid_: keying the re-run on the commit sha (a rebase that keeps the tree needs no re-run);
@@ -614,11 +620,8 @@ recovered launch's `runId` (a recovery still mints a fresh one).
 ## Relaunch attempt
 
 One Workflow run of a phase that a prior run of the same phase did not finish — a `resumeFromRunId`
-retry or a recovery relaunch. Each attempt has its own `workflowRunId` + `transcriptDir` when the
-launch envelope surfaces a fresh run id (a relaunch that repeats the prior id archives nothing; the
-transcript dir's basename is the run id); the run manifest overwrites the pair **together**, archives
-the died attempt under `attempts[]`, and sums dispatch counts across attempts (the shape lives in
-`skills/war/references/run-manifest.md` § Relaunch).
+retry or a recovery relaunch. The run manifest's relaunch rules and the `attempts[]` shape live
+only in `skills/war/references/run-manifest.md` § Relaunch.
 _Avoid_: overwriting one field of the pair; dropping a died attempt's counts; reading the manifest
 on resume (it is telemetry, never resume input).
 
@@ -637,21 +640,21 @@ sweep.
 ## Run root
 
 Born cold (2026-11-08, [ADR 0059](../../../docs/adr/0059-run-root-follows-the-launch-checkout.md)).
-The checkout whose `.claude/war/` holds a run's worktrees, staged scripts, args files and manifest:
-the launch checkout's top level for a launch from a linked worktree, `$MAIN` for a launch from the
+The checkout whose `.claude/war/` holds a run's worktrees, staged scripts, args files and manifest.
+It is the launch checkout's top level for a launch from a linked worktree, and `$MAIN` for a launch from the
 main checkout. The rule, its resolve commands and the paths that stay at `$MAIN` live in
 `skills/war/references/setup.md` § Run root, the one canonical statement.
-_Avoid_: anchoring a run's folders at `$MAIN` for a linked-worktree launch; restating the rule here or
+_Avoid_: anchoring a run's folders at `$MAIN` for a linked-worktree launch. Avoid restating the rule here or
 on any other surface instead of pointing at setup.md.
 
 ## Denial class
 
-Born cold (2026-11-08). One of the auditor git guard's named deny groups (chain-operator, grouping,
-metacharacter, grep form, branch read form, not-git), plus `other` for any other denial from
-`hooks/validate-auditor-git.sh`. `/war-review` keys each class on the hook's deny text and reports
+Born cold (2026-11-08). One of the auditor git guard's named deny groups, plus `other` for any other denial from
+`hooks/validate-auditor-git.sh`. The named groups are chain-operator, grouping,
+metacharacter, grep form, branch read form and not-git. `/war-review` keys each class on the hook's deny text. It reports
 the auditor guard denials per auditor seat by class against the 0.25 target
 (`skills/war-review/SKILL.md`). Grep form and metacharacter are the search classes.
-_Avoid_: counting a denial from a non-auditor transcript into the per-seat rate; reading an `other`
+_Avoid_: counting a denial from a non-auditor transcript into the per-seat rate. Avoid reading an `other`
 denial that carries a known deny phrase as a new class (it is drift between the keys and the hook).
 
 ## Worker block
@@ -922,7 +925,9 @@ _Avoid_: "the memory dir" (which one?); treating the roots as mirrors (they hold
 
 The Lead's Gate-2 act of publishing a `type: project` lesson from the local root into the repo root — a
 **copy-with-marker**, completed only **after the push succeeds**: the repo copy rides the phase PR (a
-same-slug repo file is **overwritten on recurrence**), and the local original gains a nested
+same-slug repo file is **overwritten on recurrence**, unless the repo copy carries text the local
+copy lacks: then the local copy is held as `stale-local`, kept in the local root and reported, never
+dropped), and the local original gains a nested
 `metadata.promoted: <workingBranch>@phase-<N>` marker and is **never deleted** — it stays recall-visible
 (to `render-index`/prefetch/`/lessons-learned`) and is retired only by a future `/lessons-learned` pass
 once the merge is confirmed. A failed push or a redaction flag leaves the lesson unmarked in the local
@@ -1071,3 +1076,77 @@ _Avoid_: memory sweep (the sweep is the issue step); treating mined lessons as a
 The provenance label on an issue that originated as a lesson; the body's lesson citation is the
 durable issue↔lesson link. Distinct from `war-followup` (a run's own deferred debt).
 _Avoid_: reusing `war-followup` for mined issues (conflates two provenances).
+
+## Living ADR
+
+An ADR whose body carries current law and is rewritten in place when a decision changes
+([ADR 0063](../../../docs/adr/0063-living-adrs-git-is-the-archive.md)). Git is the archive: the
+retired text stays reachable at the commit that introduced it. Each change adds one **Decision log**
+line. Docs, plans, references, cards and ADRs follow this policy lifecycle. Red-team reports, run
+manifests, `docs/learnings/` frontmatter, consumed specs and released `CHANGELOG.md` entries are
+records, written once.
+_Avoid_: a dated `## Amendment (…)` section or a bold dated run-in below the old text. Avoid exempting an
+ADR from an absence guard because it was once append-only.
+
+## Decision log
+
+The `## Decision log` section every ADR keeps, one line per change:
+`- YYYY-MM-DD · <what flipped> · <driving issue>`. A line that reverses or narrows an earlier
+decision adds `· failed because: <one clause>` after the driving issue. A line that retires text
+ends with `· retired: docs/adr/<file> @ <sha>`, where the sha is the commit that introduced the
+retired text: the oldest hit of `git log --reverse -S'<retired literal>' --format=%h -- <file> | head -1`.
+A fold's line carries the folded heading's date and title, so a dated citation still resolves.
+_Avoid_: the commit that last held the text as the `retired:` sha; a `failed because:` clause that
+restates the old text; putting `failed because:` after `retired:`.
+
+## Sha-pinned citation
+
+An ADR citation of the form `docs/adr/<file> @ <sha>`: it means the file at that commit, so it is
+the form for citing retired text. It is one of three citation forms. A bare citation (`ADR 0013`)
+means current law. A dated citation (`ADR 0013 (2026-08-25)`, `ADR 0013 amendment 2026-08-25` or
+`ADR 0013, amended 2026-08-25`) resolves to that date's **Decision log** line.
+_Avoid_: a bare citation for text a later rewrite retired; a branch name in place of the sha.
+
+## No-fix sentinel
+
+A `suggested_fix` text that names no fix, such as "None needed.", "n/a" or a lone dash. The floors
+and the fix-less checks read it as blank (canonical: `noFixText` and `NO_FIX_SENTINELS` in
+`skills/war/assets/workflow-template.js`), so a Major whose fix is "None" is fix-less.
+_Avoid_: reading a sentinel as a concrete fix; restating the sentinel list here.
+
+## Reconciled follow-up
+
+A `demote:absorb-regressed` row that a later ace fixed before land. The filing pass moves it to
+`notes` as `reconciled:aced-later`, logged with the aced sha, and never files it (canonical: the
+file-followups reconcile step in `skills/war/assets/workflow-template.js`).
+_Avoid_: filing an issue for a finding the run already fixed.
+
+## Polish claim
+
+The first same-wave polish commit to touch a file outside every wave task's `files` owns that file
+for the wave. A later same-wave polish commit on the claimed file is forward-reverted, and its rows
+go to the phase-close queue ([ADR 0061](../../../docs/adr/0061-polish-claim-and-net-zero-clash-range.md)).
+_Avoid_: letting two polish commits in one wave edit one unclaimed file.
+
+## Net-zero clash range
+
+The commits after a task's approved sha that are exactly a clashing polish commit and its
+forward-revert, with the same tree as the approved sha. The merge slot moves the task branch back
+to the approved sha, so the pair never replays: the one exception to the no-reset rule
+([ADR 0061](../../../docs/adr/0061-polish-claim-and-net-zero-clash-range.md)).
+_Avoid_: treating any other range as net-zero; a reset outside this exact shape.
+
+## Enforcement ladder
+
+The six enforcement levels ranked from engine code down to the prompt: engine, capability, hook,
+git structure, check before merge, prompt. Each rule is enforced at the highest level that can
+express it ([ADR 0060](../../../docs/adr/0060-enforce-each-rule-at-the-highest-level-that-can-express-it.md)).
+_Avoid_: a prompt-only rule for a write to shared state.
+
+## Least start
+
+Each seat starts with the least context, the fewest tools and the least permission its dispatch
+needs, and gains more only at a named trigger. The triggers are a `references/` pointer for
+context, `ToolSearch` for tools and a per-`agent_type` guard arm for permission
+([ADR 0060](../../../docs/adr/0060-enforce-each-rule-at-the-highest-level-that-can-express-it.md)).
+_Avoid_: a card with no `tools:` line; widening every seat's guard arm for one seat's need.

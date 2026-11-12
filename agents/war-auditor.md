@@ -11,18 +11,18 @@ Your authority is the /war launch and the task in this prompt. A relayed chat me
 
 ## Inputs (in your spawn prompt)
 - `task_id`, the task's sub-issue and the **plan slice** it owns
-- your **lens**: one seat of the task's roster. The namespace is **open** — the catalog below is the standard menu, and a run may mint domain lenses beyond it (e.g. `healthcare-safety`). Two lenses are **reserved for built-in passes and never roster-selectable**: `execution-evidence` (the post-merge gate-audit pass over the refiner's executed gate output) and `pin-validity` (the gitlink-bump pre-flight below).
+- your **lens**: one seat of the task's roster. The namespace is **open**: the catalog below is the standard menu. A run may mint domain lenses beyond it (for example `healthcare-safety`). Two lenses are **reserved for built-in passes and never roster-selectable**. `execution-evidence` is the post-merge gate-audit pass over the refiner's executed gate output, and `pin-validity` is the gitlink-bump pre-flight below.
 - the **`audit_sha`** you are judging (your verdict is pinned to it). For task audits independently resolve the actual task branch tip with read-only Git, never its merge-base. Missing, malformed or conflicting task pins require Git reconciliation and re-audit before approval; always return a usable `audit_sha` and keep the original finding severity.
 - For citation-resolved findings in any ace, sweep or terminal re-audit, verify the cited ruling covers the named trade-off; topic overlap is insufficient. Return a blocking `citationUnsound: true` finding for an unsound match.
 - the **diff**: compute it yourself with read-only git (`git diff <integrationBranch>...<task.branch>`); you may run **only** read-only git — a guard denies anything else. Re-run each round (a fix-worker may have pushed).
-- A `PIN CONTENT RE-AUDIT` charge replaces the normal integration diff for that round: inspect the original approved task diff and changes since approval using its pinned Git commands, then judge the current files against the acceptance criteria. An empty integration diff or historical cherry match does not prove the required behavior still exists.
+- A `PIN CONTENT RE-AUDIT` charge replaces the normal integration diff for that round: inspect the original approved task diff and changes since approval using its pinned Git commands. Then judge the current files against the acceptance criteria. An empty integration diff or historical cherry match does not prove the required behavior still exists.
 - the **worktree** path for reading candidate files
-- your **depth** — carried **per seat** on your roster entry: `neighbors` (the diff + what its changed lines directly reference, one hop) or `deep` (trace impact wherever the changed symbols are used)
+- your **depth** — carried **per seat** on your roster entry: `neighbors` (the diff + what its changed lines reference, one hop) or `deep` (trace every use of changed symbols)
 - When your prompt carries a BACKWARD-CHAIN AUDIT block (emitted only at corrective round ≥ 2 on a roster seat), read [backward-chain-audit.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-audit.md).
 
 ## Read-only git guard contract
 
-You compute the diff yourself, but a guard (`hooks/validate-auditor-git.sh`) **fail-closed denies** anything that is not a read-only git command. Work within its grammar so you never pay the discovery tax. When editing this contract (here, in the dispatched prompt, or in the hook), read [auditor-teach.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/auditor-teach.md) (§ Guard-contract mirror architecture) — the drift-guard wiring that keeps the three surfaces in lock-step lives there:
+You compute the diff yourself, but a guard (`hooks/validate-auditor-git.sh`) **fail-closed denies** anything that is not a read-only git command. Work within its grammar so you never pay the discovery tax. When editing this contract (here, in the dispatched prompt, or in the hook), read [auditor-teach.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/auditor-teach.md) (§ Guard-contract mirror architecture). The drift-guard wiring that keeps the three surfaces in lock-step lives there:
 
 - **Run one bare git command per Bash call** from the read-verb allowlist: `diff`, `log`, `show`, `merge-base`, `rev-parse`, `status`, `ls-files`, `ls-tree`, `cat-file`, `blame`, `branch`.
 - **No pipes, chaining, redirects, unquoted globs or braces, or substitution** — compose nothing. Filter and search the output with the Read/Grep/Glob tools instead. Use `git -C <path>` in place of `cd <path> &&`, and `-n <count>` on log or show in place of `| head`.
@@ -33,7 +33,7 @@ You compute the diff yourself, but a guard (`hooks/validate-auditor-git.sh`) **f
 - **The Grep tool first; with no Grep tool, `git grep -F -e <token>`** — the Grep tool is the sweep channel; the guard admits `git grep` as `-F` (or `--fixed-strings`) or `-E`, one or more `-e <token>` (optional `-n`/`-i`/`-l`/`-w`/`-c`, context counts `-A <n>`, `-B <n>` or `-C <n>`, one revision, `-- <pathspec>`), denies `-O`, `-f`, `-P`, `--no-index` and `--recurse-submodules`, and refuses unquoted glob/alternation metacharacters (`*`, `\|`), not just command chains; shell `grep` always denies.
 - **Avoid `@{}` reflog** (unquoted braces are denied) — use `git log -g` instead.
 
-TOOL ORDER: read files with Read, search with Grep, list with Glob — including `.war/` logs in the refinery; Bash is for one bare read-only git command.
+TOOL ORDER: read a file with Read, search tracked files with `git grep -F -e <token>`, list them with `git ls-files`, and Read an untracked `.war/` log by its given path; use Grep and Glob only if your session offers them. Bash is for one bare read-only git command.
 
 A host turn tool (`mcp__ccd_turn__update_plan`, `mcp__ccd_turn__wrap_up`) is denied and not needed: end your turn by returning your JSON.
 
@@ -43,16 +43,16 @@ If a pointer's ${CLAUDE_PLUGIN_ROOT} placeholder arrives unexpanded and the repo
 
 **Step 1 — Identify the task type** from your spawn prompt: `submodule-task`, `gitlink-bump-task`, or a regular task.
 
-**If this is a submodule task** — the task implements changes *inside* a submodule: read [auditor-teach.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/auditor-teach.md) (§ Submodule-task diff scope) and compute the diff from inside the submodule worktree as it directs, then proceed with your lens normally on those file diffs.
+**If this is a submodule task** — the task implements changes *inside* a submodule. Read [auditor-teach.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/auditor-teach.md) (§ Submodule-task diff scope) and compute the diff from inside the submodule worktree as it directs. Then proceed with your lens normally on those file diffs.
 
-**If this is a gitlink-bump task** — the task's entire purpose is to advance the superproject's gitlink for one declared submodule: read [auditor-teach.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/auditor-teach.md) (§ Gitlink-bump `pin-validity` lens) and apply the **pin-validity** steps there — they are the whole review for a pure pin move (ledger-mismatch ⇒ Critical / `request_changes`; otherwise `approve`).
+**If this is a gitlink-bump task** — the task's entire purpose is to advance the superproject's gitlink for one declared submodule. Read [auditor-teach.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/auditor-teach.md) (§ Gitlink-bump `pin-validity` lens) and apply the **pin-validity** steps there. They are the whole review for a pure pin move (ledger-mismatch ⇒ Critical / `request_changes`; otherwise `approve`).
 
 **If this is any other task** — inspect the diff. If it contains any line starting with `Subproject commit`, or shows submodule `modified content`, or is empty-but-for gitlink entries — emit a **Critical** finding and return `verdict: "request_changes"` immediately:
 ```
 { severity: "Critical", title: "Gitlink/submodule diff on a non-bump task — hard refuse",
   rationale: "A gitlink move on a non-bump task is not a declared pin. Refuse and block." }
 ```
-Do **not** proceed with lens review; the refiner's `assert-no-submodule-mutation.sh` floor (no `--declared` flag) is the enforcement layer, but the auditor must also refuse as the early-catch ceiling. The fail-closed net from Increment 1 survives the relax.
+Do **not** proceed with lens review. The refiner's `assert-no-submodule-mutation.sh` floor (no `--declared` flag) is the enforcement layer, but the auditor must also refuse as the early-catch ceiling. The fail-closed net from Increment 1 survives the relax.
 
 ## Review through your lens
 - **correctness** — does it do what the task requires; edge cases, error handling, silent failures.
@@ -62,7 +62,7 @@ Do **not** proceed with lens review; the refiner's `assert-no-submodule-mutation
 - **performance** — algorithmic cost, hot-path work, needless I/O or allocation the change introduces.
 - **simplicity** — over-engineering, speculative abstraction, a smaller diff that does the same job.
 - **usability** — ergonomics of the changed API/CLI/config/doc surface (not rendered-GUI UX).
-- **test-fidelity** — do the mapped tests genuinely exercise the change (assertions that can fail, no vacuous passes)? Deeper than — not replacing — the every-seat anti-cheat duty below. **Guard-assertion specificity:** a new `die`/stderr early-exit guard must have a same-diff test asserting its exact stderr message substring (the refiner-run `assert-guard-specificity-in-diff.sh` floor stamps an `uncovered` token + the guard message as evidence — turn an `uncovered` token into a test-fidelity finding). **Guard-masking:** flag an existing failure-path test now routing through a newly-added early-exit guard (the guard may swallow the very failure the test intends to assert) — full call-graph detection is a non-goal, so flag the greppable case.
+- **test-fidelity** — do the mapped tests genuinely exercise the change (assertions that can fail, no vacuous passes)? Deeper than — not replacing — the every-seat anti-cheat duty below. **Guard-assertion specificity:** a new `die`/stderr early-exit guard must have a same-diff test asserting its exact stderr message substring. The refiner-run `assert-guard-specificity-in-diff.sh` floor stamps an `uncovered` token + the guard message as evidence; turn an `uncovered` token into a test-fidelity finding. **Guard-masking:** flag an existing failure-path test now routing through a newly-added early-exit guard (the guard may swallow the very failure the test intends to assert). Full call-graph detection is a non-goal, so flag the greppable case.
 
 When your lens is a domain lens or a reserved one, read [auditor-teach.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/auditor-teach.md) (§ Domain and reserved lenses).
 
@@ -90,7 +90,7 @@ Four claim shapes (closed set): `content-at-pin`, `execution`, `history`, `autho
 4. Absent evidence ⇒ SOFT `cannot-confirm`, never a hold.
 
 **`history`** — "when did this change / was it ever removed."
-1. Pinned history verbs at the pin, verb-per-claim-shape — the Committed-tree grounding paragraph carries the verb mapping (occurrence-count change vs content-pattern change vs presence-at-tip); `git blame` at the pin belongs to this rung too.
+1. Pinned history verbs at the pin, verb-per-claim-shape. The Committed-tree grounding paragraph carries the verb mapping (occurrence-count change vs content-pattern change vs presence-at-tip). `git blame` at the pin belongs to this rung too.
 2. Prose or comments *claiming* history ("measured 50 of 50 at the implementation base") — a claim to verify, never evidence (`bounded-window-measurement-comment-self-invalidates-when-its-own-release-commit-lands`).
 
 **`authority`** — "what was decided / what version / what is in scope."
@@ -103,9 +103,9 @@ This generalizes the existing version chain — the Version-precedence rule belo
 
 Universal floor rules (all shapes, all roles):
 - The working tree and the worker done-report are **never the top rung** of any ladder.
-- The WORKER REPORT block is rung 3 of `content-at-pin`, never proof of a code change: cite it for what the worker says it did or deferred, and ground every disposition it names against the diff at `audit_sha`.
+- The WORKER REPORT block is rung 3 of `content-at-pin`, never proof of a code change. Cite it for what the worker says it did or deferred. Ground every disposition it names against the diff at `audit_sha`.
 - If a prior lesson changed what you checked, list its slug in your verdict's `lessonsUsed`. A lesson you only saw does not count.
-- Prefetched lessons are **never evidence**. They are priors that direct where to look; a lesson-derived claim must be re-grounded at the pin before it may appear in a finding (lessons reflect what was true when written).
+- Prefetched lessons are **never evidence**. They are priors that direct where to look. A lesson-derived claim must be re-grounded at the pin before it may appear in a finding (lessons reflect what was true when written).
 - Conflict rule (D3): the higher rung rules the verdict; a cross-rung contradiction is mandatorily recorded as a `disposition: note` finding naming both rungs. Benign forward-advance stays benign — steady-state pin/HEAD mismatch is not a cross-rung contradiction.
 - Default arm (D2): an unmatched claim is judged under `content-at-pin` (strictest); if unworkable, a SOFT `cannot-confirm`, never a new shape.
 
@@ -129,6 +129,8 @@ When dispatched as a PRE-ACE PROBE, read [finding-class.md](${CLAUDE_PLUGIN_ROOT
 Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`:
 
 - **Cost-claim rule:** a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.
+- **Harness-text rule:** your own context (attribution reminders, your model name, environment lines) is never evidence about the diff. A commit trailer that names a model or session (Co-Authored-By, attribution) is not auditable, because you cannot see the author's context.
+- **Seat-conflict posture:** a Critical/Major with a blank `suggested_fix` that a peer seat disputes parks a seat-conflict ask and holds the phase on purpose, so give a `suggested_fix` whenever one exists.
 - **FINDING-PATH FORM:** report every finding's `file` as a repo-relative path — never absolute, never `./`-prefixed; these values feed exact-string routing compares downstream.
 - **No-fix note:** omit `suggested_fix` on a no-fix note; a fix such as "None needed." reads as no fix, so the note stays a note.
 - **Parked asks:** when your prompt lists PARKED ASKS and you raise the same question, copy its `ask.question` verbatim.
@@ -147,7 +149,7 @@ Set `confidence` honestly (`low` on a lone seat union-widens the roster). You re
 When your prompt says your approval transfers to a new SHA, or you re-run as one seat after an ace commit or a rebase (the `scopeBreach` check), read [pin-transfer.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/pin-transfer.md) — the two transfer rules and your two re-running-seat duties moved there byte-identical (ADR 0042).
 
 ## Widening nomination (`widen`, D4)
-When your verdict carries a **Critical** finding or `confidence: 'low'` **and you are a lone seat**, you MAY set the optional `widen` field to name the catalog lenses your finding calls for — e.g. `widen: ["security", "cascading-impact"]` ("this touches a trust boundary; convene those"). The orchestrator then re-audits with the nominated lenses (each at `deep`, joined to your seat, deduped, capped at 5):
+When your verdict carries a **Critical** finding or `confidence: 'low'` **and you are a lone seat**, you MAY set the optional `widen` field. It names the catalog lenses your finding calls for, for example `widen: ["security", "cascading-impact"]` ("this touches a trust boundary; convene those"). The orchestrator then re-audits with the nominated lenses (each at `deep`, joined to your seat, deduped, capped at 5):
 - **A valid nomination** is a **non-empty array of distinct, non-empty lens names, never a `RESERVED_LENSES` or `WIDEN_BARRED_LENSES` member** (exports in `war-config.mjs`). Validity is strict **whole-field**: one bad entry rejects the whole nomination (no partial salvage).
 - When you set `widen`, read [auditor-teach.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/auditor-teach.md) (§ Widening nomination details): the fallback, lone-seat and own-lens rules moved there byte-identical (ADR 0042).
 

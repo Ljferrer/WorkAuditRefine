@@ -1,6 +1,6 @@
 # ADJUDICATED is a distinct, gate-emitted terminal verdict — findings are stamped, never removed
 
-**Status:** accepted (design ratified 2026-08-02; implemented by the spec and plan below; corrected 2026-08-15 — the Context paragraph's Step-5 exclusivity claim over-claims, a probe re-run was also offered; see the correction below)
+**Status:** accepted (design ratified 2026-08-02; implemented by the spec and plan below)
 
 `verdict()` in `skills/red-team/assets/red-team-gate.mjs` knew only four outcomes —
 `CLEARED` / `CLEARED-WITH-NOTES` / `BLOCKED` / `INCOMPLETE` — with no outcome for the operator's
@@ -11,9 +11,11 @@ as the restamped `OPERATOR-ADJUDICATED CLEAR`; local memory lesson
 and carries an adjudication row, a `/red-team` `BLOCKED` verdict is advisory to the Lead and the
 run proceeds to `/war` without a mandatory probe re-run. Lacking a gate-emitted outcome for that
 rule, the Lead had to invent prose — "CLEARED by adjudication" — indistinguishable downstream from
-a probe-proven clear. Worse, the *only* mechanic Step 5 offered for closing a blocker (the grill
-loop "removes resolved findings") had nothing stopping it from being applied to a finding that was
-merely **patched**, never re-proven: remove a patched-but-unverified finding and re-run `verdict()`
+a probe-proven clear. Worse, Step 5 offered two mechanics for closing a blocker — the grill loop
+"removes resolved findings", and a **probe re-run** ("re-run **only the affected probe** to confirm
+it is resolved", revision `8e065b7`, the mechanic Decision 3's two-arm re-verify trigger depends on)
+— and nothing stopped removal-as-resolution from being applied to a finding that was merely
+**patched**, never re-proven: remove a patched-but-unverified finding and re-run `verdict()`
 and the result is a literal `CLEARED` that overstates the evidence — the fake clear this ADR
 closes. This ADR **implements** the 2026-07-28 directive; it does not reopen or re-litigate it.
 Full mechanics: [the design spec](../specs/2026-08-02-redteam-doctrine-and-guards-design.md) and
@@ -175,14 +177,7 @@ forward-looking restatement of the rule it left as a one-run ruling.
   same-wave precedent this ADR's residual-risk record cites).
 - Originating issue: #1207 (`ADJUDICATED` verdict); related: #1224 (carve-out granularity).
 
-## Correction (2026-08-15, #1268)
+## Decision log
 
-The Context paragraph above over-claims Step 5's mechanics: it presents the grill loop as the sole
-mechanic Step 5 offered for closing a blocker. Step 5 as it stood when this ADR was written
-(`skills/red-team/SKILL.md` before this ADR's implementation landed — revision `8e065b7`) also
-offered a **probe re-run** — "re-run **only the affected probe** to confirm it is resolved" — the very
-mechanic this ADR's own Decision 3 two-arm re-verify trigger depends on. The paragraph's argument is
-otherwise unaffected: nothing stopped removal-as-resolution from being applied to a finding that was
-merely **patched**, never re-proven, which is exactly the fake clear this ADR closes. The Context
-paragraph's prose is left **byte-unchanged** as a point-in-time record; this correction note carries
-the fix.
+- 2026-08-15 · Correction: the Context paragraph's Step-5 exclusivity claim over-claims; a probe re-run was also offered · #1268 · retired: docs/adr/0043-adjudicated-clear-distinct-terminal-verdict.md @ feb1bdaf
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)

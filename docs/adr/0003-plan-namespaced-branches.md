@@ -28,3 +28,7 @@ legitimate **resume** (this run already owns the branch → reuse) from a **fore
 - **Run-id namespace (`integration/<run-id>/phase-N`).** Fully collision-proof even for concurrent
   *identical-plan* runs, but opaque. Not chosen as the default; the ledger-based foreign-branch
   fail-loud covers the rare same-plan-concurrent case while keeping names readable.
+
+## Decision log
+
+- 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
