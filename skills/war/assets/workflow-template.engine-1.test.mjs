@@ -21207,6 +21207,7 @@ test('tip-probe — an approved tree that disagrees with the same-commit pre tre
   assert.equal(p.approved_tree, PT, 'approved_tree is corrected to pre_tree')
   assert.equal(api.tipClass(p), 'moved', 'the moved ace tip classes moved')
   assert.ok(logs.some(l => l.includes(label) && l.includes(A) && l.includes(TT) && l.includes(PT)), 'the correction is logged by name, sha and both trees')
+  assert.ok(logs.some(l => l.includes('because approved_tree equals tip_tree')), 'the reason is logged')
   assert.ok(prompts[0].includes('When APPROVED and PRE name the same commit, approved_tree equals pre_tree.'), 'the probe prompt states the rule')
   // Control: a distinct APPROVED keeps the reply as returned.
   const ctl = load(code, reply)
@@ -21231,6 +21232,7 @@ test('tip-probe — an approved tree that disagrees with the same-commit pre tre
   const b = await both.api.tipProbe(args)
   assert.equal(b.approved_tree, PT, 'when both differ from tip_tree, pre_tree is kept')
   assert.equal(both.api.tipClass(b), 'moved', 'and the tip classes moved')
+  assert.ok(both.logs.some(l => l.includes('because both differ from tip_tree')), 'the reason is logged')
 })
 
 // D38 (PIN-38): every git command the tool-order sentence spells passes the auditor Bash guard, and
