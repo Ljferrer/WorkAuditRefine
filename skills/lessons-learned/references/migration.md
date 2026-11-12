@@ -1,7 +1,8 @@
 # Adoption playbook — migrating a flat memory corpus to the two-root store
 
-One-time steps to move a pre-existing, flat memory store (a single `MEMORY.md` index + `[[wikilinked]]`
-topic files, all in one dir) onto the two-root, archive-aware layout the `war-memory` CLI expects. WAR's
+One-time steps to move a pre-existing, flat memory store onto the two-root, archive-aware layout the
+`war-memory` CLI expects. A flat store is a single `MEMORY.md` index + `[[wikilinked]]` topic files,
+all in one dir. WAR's
 own 133-lesson corpus is the reference migration.
 
 The migration is **mechanical (the `migrate` verb) + agent-assisted (retype, keywords backfill, the
@@ -80,13 +81,13 @@ frontmatter. Routing (`routeRoot` in `war-memory.mjs`):
 | absent / anything else | local root | always (fail-safe) |
 
 Only type a lesson `project` if it is a durable, shareable engineering lesson with **no** personal paths,
-emails, handles, or secrets — the redaction lint (Step 4 / gate 3) will demote it to local and report it
-otherwise, but retype deliberately, don't rely on the net. Leave genuinely personal lessons untyped or
+emails, handles, or secrets. Otherwise the redaction lint (Step 4 / gate 3) will demote it to local and
+report it. But retype deliberately, and don't rely on the net. Leave genuinely personal lessons untyped or
 `user`; they stay local.
 
-A fan-out `Workflow` (one agent per batch of ~5–8 slugs, each reading the lesson and proposing a type)
-makes this tractable on a large corpus. The operator confirms the `project` set — it is the set that will
-become public.
+A fan-out `Workflow` makes this tractable on a large corpus. It runs one agent per batch of ~5–8 slugs,
+and each agent reads the lesson and proposes a type. The operator confirms the `project` set, because it
+is the set that will become public.
 
 ## Step 3 — `migrate --apply` (executes)
 
@@ -120,10 +121,10 @@ metadata:
 ---
 ```
 
-Fan out a `Workflow` over the corpus (batches of ~5–8), each agent reading the lesson and authoring the
-keyword list, preserving all other frontmatter exactly. Keywords feed the in-memory FTS5 index at query
-time (they are not stored in the projection), so no re-render is strictly required — but render once to
-confirm the corpus still parses and stays within budget:
+Fan out a `Workflow` over the corpus (batches of ~5–8). Each agent reads the lesson and authors the
+keyword list, and it preserves all other frontmatter exactly. Keywords feed the in-memory FTS5 index at
+query time (they are not stored in the projection). So no re-render is strictly required. But render
+once to confirm the corpus still parses and stays within budget:
 
 ```bash
 cli render-index --local "$CLAUDE_MEMORY_LOCAL"
@@ -132,9 +133,9 @@ cli render-index --local "$CLAUDE_MEMORY_LOCAL"
 ## Step 5 — the reviewed learnings PR (gate 2's first use)
 
 This is the first time the **repo root** is populated and committed — gate 2 (post-render lint + commit)
-run by hand. A lesson's root is decided by **which directory the file physically sits in**: the CLI never
-relocates a lesson into the repo root for you (`migrate --apply` only archives `[RESOLVED]` lessons;
-`render-index` only ever writes the local `MEMORY.md` — no repo-root projection is ever written). So:
+run by hand. A lesson's root is decided by **which directory the file physically sits in**. The CLI never
+relocates a lesson into the repo root for you. `migrate --apply` only archives `[RESOLVED]` lessons.
+`render-index` only ever writes the local `MEMORY.md`, and no repo-root projection is ever written. So:
 
 1. Confirm committing is on for this repo (`memory.commitLearnings` — opt-in / off by default; `/war-room`
    turns it on; check `.claude/war/config.json`) — the operator signal that
@@ -142,24 +143,24 @@ relocates a lesson into the repo root for you (`migrate --apply` only archives `
 2. **Move the confirmed `project`-typed files into the repo root** — the set the dry-run reported under
    `→ repo root`, minus anything you decided to keep local. `mkdir -p "$CLAUDE_MEMORY_REPO"` then move each
    file (a plain `mv` from the local root, or author it fresh under `docs/learnings/`).
-3. **Lint the repo root directory-wide** — the fail-closed redaction gate; any hit (home path, email,
-   handle, credential shape) exits non-zero, so fix or move it back to local before committing:
+3. **Lint the repo root directory-wide** — the fail-closed redaction gate. Any hit (home path, email,
+   handle, credential shape) exits non-zero. Fix it, or move it back to local, before committing:
 
    ```bash
    cli lint "$CLAUDE_MEMORY_REPO"
    ```
 
-4. Re-render so the projection reflects the moved files — repo-root rows now carry a trailing `[repo]`
-   marker in the union projection (`render-index` still writes only the local `MEMORY.md`; pass `--repo`
-   so the walk sees the repo-root lessons and marks them):
+4. Re-render so the projection reflects the moved files. Repo-root rows now carry a trailing `[repo]`
+   marker in the union projection. `render-index` still writes only the local `MEMORY.md`. Pass `--repo`
+   so the walk sees the repo-root lessons and marks them:
 
    ```bash
    cli render-index --local "$CLAUDE_MEMORY_LOCAL" --repo "$CLAUDE_MEMORY_REPO"
    ```
 
-5. **Ensure the target repo's `CLAUDE.md` carries the pointer line** (append-if-absent — create `CLAUDE.md`
-   if it does not exist, never rewrite or reorder existing operator content), so every plain Claude Code
-   session in a fresh clone inherits the lessons ambiently. It rides **this same reviewed PR**. The
+5. **Ensure the target repo's `CLAUDE.md` carries the pointer line** (append-if-absent). Create `CLAUDE.md`
+   if it does not exist, and never rewrite or reorder existing operator content. Then every plain Claude
+   Code session in a fresh clone inherits the lessons ambiently. It rides **this same reviewed PR**. The
    **ratified pointer line** (byte-identical across every surface that emits it):
 
    > 📚 **Durable engineering lessons live in `docs/learnings/`** — one fact per Markdown file, provenance-tagged frontmatter. Before changing a subsystem, read the lessons that name it (plain Read/Grep, or ranked retrieval via the `work-audit-refine` plugin's `war-memory` query).
@@ -190,7 +191,7 @@ just a file move. No lesson is ever deleted — eviction only relocates.
    selective evict names slugs as extra arguments (`/lessons-learned evict <slug>…`).
 2. **Ask about the flag — always, and first.** Ask the operator whether to also set
    `memory.commitLearnings: false` (edit `.claude/war/config.json`, or via `/war-room`). `commitLearnings`
-   is opt-in / off by default, but a populated repo root means it was turned **on**, so an evict
+   is opt-in / off by default, but a populated repo root means it was turned **on**. So an evict
    **without** flipping it back off is temporary: the next landed WAR phase repopulates `docs/learnings/`.
    Apply their answer before moving any file; if they decline, say so in the final report so the
    repopulation surprise is on record.
@@ -200,8 +201,8 @@ just a file move. No lesson is ever deleted — eviction only relocates.
 4. **Move, preserving temperature.** `mv` repo hot → local hot, repo `archive/` → local `archive/`.
    (`git mv` cannot cross out of the repo; plain `mv` then `git add -A docs/learnings/` records the
    deletions.) Frontmatter travels untouched — `type: project` stays, so re-migrating later is just
-   Step 5 again. The **`CLAUDE.md` pointer is left in place by default** (harmless once the dir empties, and
-   it points at a path a future re-migration restores); removing it is a call to make in the eviction PR.
+   Step 5 again. The **`CLAUDE.md` pointer is left in place by default**. It is harmless once the dir empties, and
+   it points at a path a future re-migration restores. Removing it is a call to make in the eviction PR.
 5. **Re-render + verify.** `cli render-index --local "$CLAUDE_MEMORY_LOCAL"` — evicted rows lose their
    trailing `[repo]` marker automatically (root = physical location). The local index re-absorbs the
    rows; on a budget REFUSE, archive low-tier lessons by **explicit slug** (never `--candidates`) and
