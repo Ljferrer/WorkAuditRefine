@@ -719,6 +719,38 @@ V_SM8="$C_SM8/pre=$PRE_SM8/$(cat "$WT_SM8/mid/inner/a.txt" 2>/dev/null)/$([ "$(g
 expect "reuse-gap(submodules-ready): a nested uninitialized submodule inits under an initialized parent that keeps its HEAD" \
   "0/pre=-/one/mid-head-kept" "$V_SM8"
 
+# Two initialized ancestors: `mid` and `mid/deep` are initialized and moved off
+# their recorded commits, and `mid/deep/inner` is at `-`. Only the deepest
+# ancestor (mid/deep) can name inner as a pathspec. A shortest-prefix or
+# first-match pick runs from mid, names deep/inner past submodule deep, and exits 9.
+FX_SM9="$(sm_fixture)"; R_SM9="${FX_SM9%% *}"; SRC_SM9="${FX_SM9##* }"
+DS_SM9="$(new_repo)"
+git -C "$DS_SM9" -c protocol.file.allow=always submodule add -q "file://$SRC_SM9" inner >/dev/null 2>&1
+git -C "$DS_SM9" commit -qm "declare inner"
+MS_SM9="$(new_repo)"
+git -C "$MS_SM9" -c protocol.file.allow=always submodule add -q "file://$DS_SM9" deep >/dev/null 2>&1
+git -C "$MS_SM9" commit -qm "declare deep"
+git -C "$R_SM9" -c protocol.file.allow=always submodule add -q "file://$MS_SM9" mid >/dev/null 2>&1
+git -C "$R_SM9" commit -qm "declare mid"
+printf 'mid two\n' > "$MS_SM9/mid.txt"; git -C "$MS_SM9" add mid.txt; git -C "$MS_SM9" commit -qm midtwo
+printf 'deep two\n' > "$DS_SM9/deep.txt"; git -C "$DS_SM9" add deep.txt; git -C "$DS_SM9" commit -qm deeptwo
+NEWM_SM9="$(git -C "$MS_SM9" rev-parse HEAD)"; NEWD_SM9="$(git -C "$DS_SM9" rev-parse HEAD)"
+WT_SM9="$(new_wt_path)"
+git -C "$R_SM9" worktree add -q -b war/myplan/p1-t5 "$WT_SM9" HEAD >/dev/null 2>&1
+env $SM_ALLOW git -C "$WT_SM9" submodule update -q --init -- sub mid >/dev/null 2>&1
+env $SM_ALLOW git -C "$WT_SM9/mid" submodule update -q --init -- deep >/dev/null 2>&1
+git -C "$WT_SM9/mid" fetch -q origin >/dev/null 2>&1
+git -C "$WT_SM9/mid" checkout -q "$NEWM_SM9" >/dev/null 2>&1
+git -C "$WT_SM9/mid/deep" fetch -q origin >/dev/null 2>&1
+git -C "$WT_SM9/mid/deep" checkout -q "$NEWD_SM9" >/dev/null 2>&1
+PRE_SM9="$(git -C "$WT_SM9" submodule status --recursive 2>/dev/null | awk '$2 == "mid/deep/inner" { print substr($0, 1, 1) }')"
+( cd "$R_SM9" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SM9" war/myplan/p1-t5 "$(git -C "$R_SM9" rev-parse HEAD)" ) >/dev/null 2>&1; C_SM9=$?
+V_SM9="$C_SM9/pre=$PRE_SM9/$(cat "$WT_SM9/mid/deep/inner/a.txt" 2>/dev/null)"
+V_SM9="$V_SM9/$([ "$(git -C "$WT_SM9/mid" rev-parse HEAD 2>/dev/null)" = "$NEWM_SM9" ] && echo mid-kept || echo mid-moved)"
+V_SM9="$V_SM9/$([ "$(git -C "$WT_SM9/mid/deep" rev-parse HEAD 2>/dev/null)" = "$NEWD_SM9" ] && echo deep-kept || echo deep-moved)"
+expect "reuse-gap(submodules-ready): a depth-2 nested submodule inits from its deepest initialized ancestor" \
+  "0/pre=-/one/mid-kept/deep-kept" "$V_SM9"
+
 # The verb's own die guards, matched by their stderr text.
 R_SMU="$(new_repo)"
 ERR_SMU="$( (cd "$R_SMU" && bash "$SCRIPT" assert-submodules-ready) 2>&1 >/dev/null)"; C_SMU=$?
