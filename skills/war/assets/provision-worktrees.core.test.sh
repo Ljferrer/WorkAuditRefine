@@ -680,6 +680,45 @@ V_SM6="$C_SM6/$(git -C "$WT_SM6" submodule status --recursive 2>/dev/null | cut 
 expect "reuse-gap(submodules-ready): refinery re-attach arm inits the submodule" \
   "0/ /one/$WT_SM6" "$V_SM6/$OUT_SM6"
 
+# Operator ruling 2026-11-13: the init takes only the `-` paths as its pathspec.
+# An initialized sibling `sib`, moved off its recorded commit (`+`), keeps its
+# HEAD while the `-` submodule `sub` inits. A bare init would move sib back.
+FX_SM7="$(sm_fixture)"; R_SM7="${FX_SM7%% *}"; SRC_SM7="${FX_SM7##* }"
+git -C "$R_SM7" -c protocol.file.allow=always submodule add -q "file://$SRC_SM7" sib >/dev/null 2>&1
+git -C "$R_SM7" commit -qm "declare sibling"
+printf 'two\n' > "$SRC_SM7/a.txt"; git -C "$SRC_SM7" commit -qam subtwo
+NEW_SM7="$(git -C "$SRC_SM7" rev-parse HEAD)"
+WT_SM7="$(new_wt_path)"
+git -C "$R_SM7" worktree add -q -b war/myplan/p1-t3 "$WT_SM7" HEAD >/dev/null 2>&1
+env $SM_ALLOW git -C "$WT_SM7" submodule update -q --init -- sib >/dev/null 2>&1
+git -C "$WT_SM7/sib" fetch -q origin >/dev/null 2>&1
+git -C "$WT_SM7/sib" checkout -q "$NEW_SM7" >/dev/null 2>&1
+( cd "$R_SM7" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SM7" war/myplan/p1-t3 "$(git -C "$R_SM7" rev-parse HEAD)" ) >/dev/null 2>&1; C_SM7=$?
+V_SM7="$C_SM7/$(cat "$WT_SM7/sub/a.txt" 2>/dev/null)/$([ "$(git -C "$WT_SM7/sib" rev-parse HEAD 2>/dev/null)" = "$NEW_SM7" ] && echo sib-head-kept || echo sib-head-moved)"
+expect "reuse-gap(submodules-ready): an initialized sibling's HEAD is left unchanged" "0/one/sib-head-kept" "$V_SM7"
+
+# A nested `-` line under an initialized parent: `mid` is initialized and moved
+# off its recorded commit, and its own submodule `mid/inner` is at `-`. The init
+# runs inside mid, so inner inits and mid keeps its HEAD.
+FX_SM8="$(sm_fixture)"; R_SM8="${FX_SM8%% *}"; SRC_SM8="${FX_SM8##* }"
+MS_SM8="$(new_repo)"
+git -C "$MS_SM8" -c protocol.file.allow=always submodule add -q "file://$SRC_SM8" inner >/dev/null 2>&1
+git -C "$MS_SM8" commit -qm "declare inner"
+git -C "$R_SM8" -c protocol.file.allow=always submodule add -q "file://$MS_SM8" mid >/dev/null 2>&1
+git -C "$R_SM8" commit -qm "declare mid"
+printf 'mid two\n' > "$MS_SM8/mid.txt"; git -C "$MS_SM8" add mid.txt; git -C "$MS_SM8" commit -qm midtwo
+NEW_SM8="$(git -C "$MS_SM8" rev-parse HEAD)"
+WT_SM8="$(new_wt_path)"
+git -C "$R_SM8" worktree add -q -b war/myplan/p1-t4 "$WT_SM8" HEAD >/dev/null 2>&1
+env $SM_ALLOW git -C "$WT_SM8" submodule update -q --init -- sub mid >/dev/null 2>&1
+git -C "$WT_SM8/mid" fetch -q origin >/dev/null 2>&1
+git -C "$WT_SM8/mid" checkout -q "$NEW_SM8" >/dev/null 2>&1
+PRE_SM8="$(git -C "$WT_SM8" submodule status --recursive 2>/dev/null | awk '$2 == "mid/inner" { print substr($0, 1, 1) }')"
+( cd "$R_SM8" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SM8" war/myplan/p1-t4 "$(git -C "$R_SM8" rev-parse HEAD)" ) >/dev/null 2>&1; C_SM8=$?
+V_SM8="$C_SM8/pre=$PRE_SM8/$(cat "$WT_SM8/mid/inner/a.txt" 2>/dev/null)/$([ "$(git -C "$WT_SM8/mid" rev-parse HEAD 2>/dev/null)" = "$NEW_SM8" ] && echo mid-head-kept || echo mid-head-moved)"
+expect "reuse-gap(submodules-ready): a nested uninitialized submodule inits under an initialized parent that keeps its HEAD" \
+  "0/pre=-/one/mid-head-kept" "$V_SM8"
+
 # The verb's own die guards, matched by their stderr text.
 R_SMU="$(new_repo)"
 ERR_SMU="$( (cd "$R_SMU" && bash "$SCRIPT" assert-submodules-ready) 2>&1 >/dev/null)"; C_SMU=$?
