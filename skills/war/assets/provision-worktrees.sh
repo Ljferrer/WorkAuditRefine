@@ -700,7 +700,7 @@ cmd_ensure_worktree() {
 # submodules_ready <worktree> : the ensure arms' submodule step (#2346, D8). A
 # plain `git worktree add` leaves every declared submodule uninitialized, so a
 # gate there fails at collection. When `submodule status --recursive` shows a
-# `-` line, run `submodule update --init --recursive` under
+# `-` line, run `submodule update --init --recursive -- <each - path>` under
 # GIT_TERMINAL_PROMPT=0, so git's own credential prompt (HTTP) fails the init
 # instead of hanging the Provision barrier. An ssh passphrase or host-key
 # prompt is ssh's own and is not covered. A failed init only warns here. The
@@ -727,7 +727,7 @@ submodules_ready() {
     else
       sr_dir="$sr_wt"; sr_rel="$sr_p"
     fi
-    GIT_TERMINAL_PROMPT=0 git -C "$sr_dir" submodule update --init --recursive -- "$sr_rel" >/dev/null 2>&1 \
+    GIT_TERMINAL_PROMPT=0 git -C "$sr_dir" submodule update --init --recursive -- "$sr_rel" </dev/null >/dev/null 2>&1 \
       || warn "submodule init failed for '$sr_p' in '$sr_wt' (an unreachable URL, or a remote that needs credentials)."
   done <<EOF
 $sr_missing
@@ -755,7 +755,7 @@ cmd_assert_submodules_ready() {
   as_missing="$(printf '%s\n' "$as_status" | awk '/^-/ { sub(/^-[0-9a-f]+ /, ""); printf "%s%s", sep, $0; sep = " " }')"
   [ -n "$as_missing" ] || return 0
   printf 'SUBMODULES_UNINITIALIZED %s\n' "$as_missing" >&2
-  die "assert-submodules-ready: '$as_wt' has uninitialized submodules: $as_missing. Run 'git -C $as_wt submodule update --init --recursive' and fix any URL or credential error it prints." "$EX_SUBMODULES"
+  die "assert-submodules-ready: '$as_wt' has uninitialized submodules: $as_missing. Run 'git -C $as_wt submodule update --init --recursive -- <path>' for each path above, and fix any URL or credential error it prints." "$EX_SUBMODULES"
 }
 
 # catch_up_reused_branch <path> <branch> <integration-tip> : on the existing-branch
@@ -1062,7 +1062,7 @@ reuse_hygiene_one() {
     rm -f "$h_gd/index.lock" 2>/dev/null || true
     h_detail="staged-deletions+stale-index.lock"
   fi
-  if git -C "$h_wt" submodule update --init --force -- "$h_sub" >/dev/null 2>&1 \
+  if git -C "$h_wt" submodule update --init --force -- "$h_sub" </dev/null >/dev/null 2>&1 \
      && [ -z "$(git -C "$h_wt" status --porcelain -- "$h_sub" 2>/dev/null)" ]; then
     hygiene_marker "$h_sub" repaired "$h_detail"
   else
