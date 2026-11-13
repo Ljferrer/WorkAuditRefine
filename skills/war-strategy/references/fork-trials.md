@@ -317,6 +317,9 @@ unreadable config falls back to the knob's default, per § Bounds.
 
 The header line records the outcome: `budget-check: asked: run`, `budget-check: asked: skip`,
 or `budget-check: not asked (<reason>)`, such as `no usage surface` or `below threshold`.
+Under `/war-machine --afk` the check is never asked: the header records
+`budget-check: not asked (afk)`, and trials and pair beats run as today, because no pair beat
+is suppressed (ADR 0044 Decision item 7).
 
 ## AFK
 

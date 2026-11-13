@@ -526,6 +526,8 @@ trial_f 'carries four provenance lines'
 trial_f '`alwaysAskAdvancedPlanning`'
 trial_f 'above 75% of any limit'
 trial_f 'If the host exposes no usage surface'
+# Operator ruling 2026-11-13 (phase 1 Checkpoint): under --afk the check is never asked.
+trial_f 'budget-check: not asked (afk)'
 doc_f 'when Stage 1b is about to start, read [references/fork-trials.md](fork-trials.md) § Budget check'
 # #1848 + #2484 (PIN-9, PIN-11): the Stage 0 whole-issue read form and the tree check.
 doc_f '`gh issue view <n> --json title,body,comments`'
