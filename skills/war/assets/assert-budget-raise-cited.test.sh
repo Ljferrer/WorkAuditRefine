@@ -55,11 +55,12 @@
 #      `1e5`, no trailer -> exit 1 — a non-integer token is unkeyed and
 #      raise-suspect (#1732); 14d: a blank-separated `2000 + 500` const
 #      value, no trailer -> exit 1
-#  15. rename (1/0/0): a renamed row whose hard value exceeds the largest
+#  15. rename (1/0/0/1): a renamed row whose hard value exceeds the largest
 #      only-in-old hard value, no trailer -> exit 1 (rename-plus-raise); the
 #      same rename with a lower value -> exit 0 (rename-plus-lowering, #1734);
 #      15c: two only-in-old rows, a renamed value between them -> exit 0
-#      (rename-largest-old-value)
+#      (rename-largest-old-value); 15d: a renamed row with hard unchanged and
+#      advisory raised 900 -> 950, no trailer -> exit 1 (rename-advisory-raise)
 #  16. real-tree BUDGET_FILE parity: the script's BUDGET_FILE literal equals
 #      the fixture path and `git ls-files --error-unmatch` finds it at this
 #      repo's root (#1733)
@@ -566,13 +567,14 @@ fi
 # row is renamed, so its key exists on one side only. A new value above the
 # largest only-in-old value in the same field is raise-suspect (15a, exit 1).
 # A new value below it is a lowering and owes nothing (15b, exit 0 control).
+# The optional fifth argument sets the renamed row's advisory (default 900).
 # ---------------------------------------------------------------------------
 rename_case() {
-  _rn_id="$1"; _rn_label="$2"; _rn_hard="$3"; _rn_want="$4"
+  _rn_id="$1"; _rn_label="$2"; _rn_hard="$3"; _rn_want="$4"; _rn_adv="${5:-900}"
   _rn_r="$(setup_repo)"
   _rn_base="$(git -C "$_rn_r" rev-parse HEAD)"
   git -C "$_rn_r" checkout -qb task/rename 2>/dev/null
-  write_budget "$_rn_r" "$_rn_hard" 900 2000 1800
+  write_budget "$_rn_r" "$_rn_hard" "$_rn_adv" 2000 1800
   sed "s|'skills/war/SKILL.md'|'skills/war/RENAMED.md'|" \
     "$_rn_r/$BUDGET_REL" > "$_rn_r/$BUDGET_REL.tmp" && mv "$_rn_r/$BUDGET_REL.tmp" "$_rn_r/$BUDGET_REL"
   git -C "$_rn_r" add "$BUDGET_REL"
@@ -590,6 +592,10 @@ rename_case() {
 }
 rename_case 15a rename-plus-raise 1200 1
 rename_case 15b rename-plus-lowering 800 0
+# Case 15d: the rename compare is per field. Hard stays 1000 and advisory
+# rises 900 -> 950 on the renamed row, no trailer -> exit 1. A cross-field
+# max key (max 1000 over both fields) or a hard-only check exits 0 here.
+rename_case 15d rename-advisory-raise 1000 1 950
 
 # Case 15c: the rename compare reads the LARGEST only-in-old value. Two rows
 # (SKILL.md hard 1000, OTHER.md hard 500) are seeded. The branch deletes
