@@ -62,8 +62,8 @@ silent restatement as a plan defect (`needsDecision`) downstream.
    listed spec qualifies); filter to specs with no corresponding plan. Non-empty → take exactly
    that list, no questions ("the survey just ran"). Resolve the main checkout `$MAIN` as the
    parent directory of the path that `git rev-parse --path-format=absolute --git-common-dir`
-   prints — **never the invoking worktree's `.claude/`**. Run that resolution as its own Bash call, never chained with other git commands
-   or variables in one line.
+   prints — **never the invoking worktree's `.claude/`**. Run that resolution as
+   its own Bash call, never chained with other git commands or variables in one line.
 3. **Fallback inference.** Scan `docs/specs/*.md` for specs no plan references. "References"
    must match the corpus, where nearly all plans cite specs by *relative* markdown link: match
    `docs/specs/<name>`, `../specs/<name>`, **or the spec's basename**. Even then, absence is a
@@ -144,8 +144,9 @@ file footprints of the plans already authored (honest contention).
    Add each converted spec as a key of `consumed.plans`. Set `by` and `at` on the first stamp
    only. The manifest is spent when every listed spec is a key. An explicit-path run stamps the
    listed specs it converted. `$MAIN` is the main checkout that tier 2 resolves. From a linked
-   worktree the host hook refuses Write and Edit under `$MAIN`, so compose the stamped manifest in the session scratchpad and copy it over
-   `$MAIN/.claude/aot/<file>` with a plain Bash `cp`.
+   worktree the host hook refuses Write and Edit under `$MAIN`, so compose the stamped
+   manifest in the session scratchpad and copy it over `$MAIN/.claude/aot/<file>` with a
+   plain Bash `cp`.
    Consumed manifests are **retained, never deleted** — `/aftermath` reads the
    issue↔spec↔plan chain to close swept issues later.
 3. **`--afk` closing commit:** close with **one commit of the pipeline artifacts** — the specs it

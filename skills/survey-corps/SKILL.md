@@ -139,8 +139,8 @@ Strays are **flagged, never dropped**.
 
 ### 6. Manifest + report
 
-Produce the survey manifest (schema and hand-off route below), then print the coverage report. It opens with a
-**Mining** section — the Step 0.7 rows (`filed #N` / `withheld: redaction` /
+Produce the survey manifest (schema and hand-off route below), then print the coverage report.
+It opens with a **Mining** section — the Step 0.7 rows (`filed #N` / `withheld: redaction` /
 `previously adjudicated (#N)` / `skipped: <reason>`) accounting for **every** mined lesson —
 rendered **ahead of** the issue→spec table: every swept issue → its spec, or its
 `deferred: <why>` row.
