@@ -16,7 +16,7 @@ Node ≥ 24 required (`node:sqlite`/FTS5). No package.json or Makefile; the repo
 
 ```bash
 # Full repository gate (configured in .claude/war/config.json):
-# run Node test files and shell suites in two bounded pools, slowest first; keep all tests and per-suite logs
+# run Node test files and shell suites in two bounded pools, slowest first, plus one staged rerun of the workflow-template files; keep all tests and per-suite logs
 node skills/war/assets/repo-gate.mjs
 
 # Tune each pool (defaults: 6 Node files and 4 shell suites, each accepts 1..32)
