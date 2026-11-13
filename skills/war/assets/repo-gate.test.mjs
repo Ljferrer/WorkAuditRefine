@@ -153,12 +153,16 @@ test('gate(node-staged) reruns the workflow-template files with WAR_TEMPLATE_STR
   const { root, put, run } = fixture(t)
   put('skills/war/assets/workflow-template.js', '// engine stand-in\n')
   put('skills/war/assets/workflow-template.flag.test.mjs', "import { appendFileSync } from 'node:fs'; import { test } from 'node:test'\n" +
-    "test('flag', () => { appendFileSync('record', (process.env.WAR_TEMPLATE_STRIPPED ?? 'unset') + '\\n') })\n")
+    "test('flag', () => { appendFileSync('record', process.env.TMPDIR.split('/').pop() + ' ' + (process.env.WAR_TEMPLATE_STRIPPED ?? 'unset') + '\\n') })\n")
   const result = run()
   assert.equal(result.status, 0, result.stdout + result.stderr)
   assert.match(result.stdout, /== gate complete: 3\/3 jobs; 0 failed ==/)
   assert.match(result.stdout, /== gate result: gate\(node-staged\); exit=0;/)
-  assert.deepEqual(readFileSync(join(root, 'record'), 'utf8').trim().split('\n').sort(), ['1', 'unset'])
+  // Each line names the job's scratch dir, so the record shows which child saw the flag.
+  const record = readFileSync(join(root, 'record'), 'utf8').trim().split('\n').sort()
+  assert.equal(record.length, 2, record.join('\n'))
+  assert.equal(record.filter(line => line === 'node-staged.tmp 1').length, 1, record.join('\n'))
+  assert.equal(record.filter(line => /^node-[0-9]+\.tmp unset$/.test(line)).length, 1, record.join('\n'))
 })
 
 test('gate(node-staged) fails and names the empty match when the engine exists but no topic file does', t => {
