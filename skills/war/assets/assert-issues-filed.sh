@@ -23,8 +23,17 @@
 #       `issue close` lacks the `--reason` flag (stderr: `unknown flag:
 #       --reason`), the close DEGRADES to `gh issue close <n> --comment ...`
 #       without the flag — the epic still closes, and the degradation is noted
-#       loudly on stderr (`gh-degraded`). Any other close failure, including a
-#       failed degraded retry, remains a die (exit 2).
+#       loudly on stderr (`gh-degraded`). On a still-older `gh` that also
+#       rejects `--comment` (`unknown flag: --comment`), a second tier runs a
+#       bare `gh issue close <n>`, then a separate `gh issue comment <n>`; each
+#       tier prints its own `gh-degraded` line. A failed comment after a good
+#       bare close is logged as a dropped comment (exit 0, epic closed). Any
+#       other close failure, including a failed degraded retry, remains a die
+#       (exit 2).
+#
+#   The ledger's `phases` may be an array or a legacy id-keyed object; the
+#   object form prints a stderr deprecation note. `node --version` is probed
+#   before the ledger parse: an unusable node exits 2 naming node and PATH.
 #
 # Both modes run `skills/_shared/gh-preflight.sh` FIRST (path resolved relative
 # to this script's own dir, cwd-independent) so a mid-run active-account flip
@@ -125,9 +134,10 @@ case "$mode" in
     # predate `issue close --reason`; they reject the flag with `unknown flag:
     # --reason` on stderr. We classify THAT stderr text (retry-on-failure, no
     # separate probe call) and degrade to a flagless close — still closing the
-    # epic, loudly noting the degradation. Any OTHER close failure, and any
-    # failure of the degraded retry itself, remains a die (exit 2) — the close
-    # never silently no-ops.
+    # epic, loudly noting the degradation. If that retry rejects `--comment`,
+    # a second tier closes bare and comments separately. Any OTHER close
+    # failure, and any failure of a degraded close itself, remains a die
+    # (exit 2) — the close never silently no-ops.
     _close_comment="${_phase_label:+$_phase_label }landed @ $_sha"
     _errf="$(mktemp 2>/dev/null || mktemp -t aif)"
     if gh issue close "$_n" --reason completed --comment "$_close_comment" 2>"$_errf"; then
@@ -137,11 +147,36 @@ case "$mode" in
       _err="$(cat "$_errf" 2>/dev/null)"
       rm -f "$_errf"
       case "$_err" in
-        *"unknown flag: --reason"*)
+        *"unknown flag: --reason"*|*"unknown flag: --comment"*)
           printf '%s: gh-degraded: active gh lacks `issue close --reason`; closing epic #%s without a close reason (upgrade gh to restore the reason)\n' \
             "$PROG" "$_n" >&2
-          gh issue close "$_n" --comment "$_close_comment" \
-            || die "gh issue close failed for epic #$_n (degraded flagless retry)" 2
+          _errf="$(mktemp 2>/dev/null || mktemp -t aif)"
+          if gh issue close "$_n" --comment "$_close_comment" 2>"$_errf"; then
+            cat "$_errf" >&2
+            rm -f "$_errf"
+          else
+            _err="$(cat "$_errf" 2>/dev/null)"
+            rm -f "$_errf"
+            case "$_err" in
+              *"unknown flag: --comment"*)
+                # Second tier: a still-older gh lacks `close --comment` too.
+                # Close bare, then post the comment as its own call. The epic
+                # is closed once the bare close succeeds, so a failed comment
+                # is logged as dropped, never a die.
+                printf '%s: gh-degraded: active gh lacks `issue close --comment`; closing epic #%s bare, then commenting separately\n' \
+                  "$PROG" "$_n" >&2
+                gh issue close "$_n" \
+                  || die "gh issue close failed for epic #$_n (degraded bare retry)" 2
+                gh issue comment "$_n" --body "$_close_comment" \
+                  || printf '%s: gh issue comment failed for epic #%s; epic is closed, close comment dropped: %s\n' \
+                       "$PROG" "$_n" "$_close_comment" >&2
+                ;;
+              *)
+                [ -z "$_err" ] || printf '%s\n' "$_err" >&2
+                die "gh issue close failed for epic #$_n (degraded flagless retry)" 2
+                ;;
+            esac
+          fi
           ;;
         *)
           [ -z "$_err" ] || printf '%s\n' "$_err" >&2
@@ -172,11 +207,22 @@ case "$mode" in
     #   epic<TAB><epic_issue-or-empty>
     #   task<TAB><task-id><TAB><task-issue-or-empty>   (one per task)
     # A parse failure or missing phase → node exits non-zero → we map to 2.
+    # `phases` is an array; the legacy id-keyed object form still reads (the
+    # key stands in for a missing `id`) and prints a stderr deprecation note.
+    # Probe node first, so an unusable node (missing, or found but not
+    # runnable) is reported as an env error naming node, never a parse failure.
+    node --version >/dev/null 2>&1 \
+      || die "node is unusable (\`node --version\` failed): install Node >= 24 or fix PATH ($PATH)" 2
     parsed="$(node -e '
       const fs = require("fs");
       const led = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
       const phase = process.argv[2];
-      const ph = (led.phases || []).find(p => String(p.id) === phase);
+      let phases = led.phases || [];
+      if (!Array.isArray(phases) && typeof phases === "object") {
+        process.stderr.write("assert-issues-filed: ledger phases is an id-keyed object; this form is deprecated, write phases as an array\n");
+        phases = Object.keys(phases).map(k => Object.assign({ id: k }, phases[k]));
+      }
+      const ph = phases.find(p => String(p.id) === phase);
       if (!ph) { process.stderr.write("phase not found in ledger: " + phase + "\n"); process.exit(3); }
       const out = [];
       out.push("status\t" + (ph.status == null ? "" : ph.status));
