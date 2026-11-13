@@ -1157,8 +1157,8 @@ _Avoid_: a card with no `tools:` line; widening every seat's guard arm for one s
 
 ## assert-submodules-ready
 
-The `provision-worktrees.sh` verb that checks every submodule a worktree declares is initialized. Each
-ensure arm inits any uninitialized submodule and then calls it, so a provisioned worktree is
+The `provision-worktrees.sh` verb that checks every submodule a worktree declares is initialized.
+`ensure-worktree` and `ensure-refinery-worktree` init any uninitialized submodule and then call it, so a provisioned worktree is
 submodule-ready or the Provision barrier fails `env-blocked`. `assert-done-when.sh` calls it before it
 runs a Done-when command, so a worktree that is not ready is an env error there, never the `done-unmet`
 route. Exit codes: the catalogue in
