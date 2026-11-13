@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Tests for safe-swap.sh do_verify — the two §4.8 rules added for the memory
-# substrate, the #891 repo-completeness hard fail (Rule 3), plus a regression
-# guard for the budget hard-fail (unchanged).
+# substrate, the #891 repo-completeness hard fail (Rule 3), the #2665 stale-index
+# hard fail (Rule 4), plus guards for the budget hard-fail.
 #
 # Rule 1 (archive-aware wikilinks): a [[slug]] resolving into archive/<slug>.md
 #         is a cold link, NOT dangling; a row resolving into archive/ is not a
@@ -19,7 +19,11 @@
 #         root are skips (WARN on non-dir, never a hard fail). A DIFFERENT, additive
 #         predicate over the [repo] marker than Rule 2 (Rule 2 excludes them; Rule 3
 #         counts them), so both live in the shared do_verify and gate verify + commit.
-# Unchanged: the budget hard-fail (>200 lines / >25600 bytes) still fires.
+# Budget hard-fail: >200 lines or >24400 bytes (BYTE_BUDGET, which mirrors
+#         HARD_BYTES in skills/_shared/war-memory.mjs) fires.
+# Rule 4 (stale index, #2665): a hot topic file with no index row HARD-FAILs.
+#         The pst T1.7 cases pin it, the 24,500-byte budget fail, and the
+#         BYTE_BUDGET == HARD_BYTES literal equality.
 #
 # Each case builds a fresh mktemp memory dir (a MEMORY.md + topic files, some in
 # archive/) and runs `safe-swap.sh verify <dir>`, asserting exit code + report
@@ -420,6 +424,52 @@ if [ -f "$CMEMD/MEMORY.md" ] && ! ls "$CMEMD".prev.* >/dev/null 2>&1; then
   pass "case7-commit: live dir untouched (no swap, no .prev)"
 else
   fail "case7-commit: live dir mutated despite failed verification"
+fi
+
+# =============================================================================
+# CASE 8 — pst T1.7 (#2665): a stale index and the HARD_BYTES budget hard-fail.
+# =============================================================================
+# --- Unindexed hot file: `orphan` is a hot topic file with no index row.
+D="$(mkmem)"
+printf '# MEMORY\n\n| slug | phase | summary |\n|--|--|--|\n' > "$D/MEMORY.md"
+add_row "$D" "alpha"
+printf '# alpha\nhot.\n' > "$D/alpha.md"
+printf '# orphan\nhot, but no row.\n' > "$D/orphan.md"
+OUT="$(bash "$SCRIPT" verify "$D" 2>&1)"; RC=$?
+if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -q 'VERIFY: FAIL' \
+   && printf '%s' "$OUT" | grep '^FAIL' | grep -q 'files not in the index.*orphan'; then
+  pass "pst T1.7: hot file with no index row -> FAIL line naming it + VERIFY: FAIL (exit $RC)"
+else
+  fail "pst T1.7: expected unindexed hot file to hard-fail, got rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+
+# --- 24,500-byte MEMORY.md: every row resolves, but bytes exceed HARD_BYTES.
+D="$(mkmem)"
+printf '# MEMORY\n\n| slug | phase | summary |\n|--|--|--|\n' > "$D/MEMORY.md"
+add_row "$D" "alpha"
+printf '# alpha\nhot.\n' > "$D/alpha.md"
+PAD=$(( 24500 - $(wc -c < "$D/MEMORY.md" | tr -d ' ') - 1 ))
+head -c "$PAD" /dev/zero | tr '\0' 'x' >> "$D/MEMORY.md"
+printf '\n' >> "$D/MEMORY.md"
+SIZE="$(wc -c < "$D/MEMORY.md" | tr -d ' ')"
+OUT="$(bash "$SCRIPT" verify "$D" 2>&1)"; RC=$?
+if [ "$SIZE" -eq 24500 ] && [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -q 'VERIFY: FAIL' \
+   && printf '%s' "$OUT" | grep -q 'over the 24400-byte budget'; then
+  pass "pst T1.7: 24,500-byte MEMORY.md -> byte-budget FAIL + VERIFY: FAIL (exit $RC)"
+else
+  fail "pst T1.7: expected a 24,500-byte MEMORY.md to hard-fail, got size=$SIZE rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+
+# --- BYTE_BUDGET literal == HARD_BYTES literal (extraction + equality).
+WARMEM="$HERE/../../_shared/war-memory.mjs"
+BB="$(sed -n 's/^BYTE_BUDGET=\([0-9][0-9]*\).*/\1/p' "$SCRIPT")"
+HB="$(sed -n 's/^export const HARD_BYTES = \([0-9_][0-9_]*\);.*/\1/p' "$WARMEM" | tr -d '_')"
+if [ -z "$BB" ] || [ -z "$HB" ]; then
+  fail "pst T1.7: literal extraction failed (BYTE_BUDGET='$BB', HARD_BYTES='$HB')"
+elif [ "$BB" = "$HB" ]; then
+  pass "pst T1.7: BYTE_BUDGET ($BB) equals HARD_BYTES ($HB) in war-memory.mjs"
+else
+  fail "pst T1.7: BYTE_BUDGET ($BB) != HARD_BYTES ($HB) — re-mirror safe-swap.sh to war-memory.mjs"
 fi
 
 # --- summary ------------------------------------------------------------------
