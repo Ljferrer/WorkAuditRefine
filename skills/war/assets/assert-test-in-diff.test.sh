@@ -1186,18 +1186,20 @@ fi
 # ---------------------------------------------------------------------------
 # Case 14: --pending-pattern ADOPTION (PIN-12, #2380). The fixture diff adds
 # src/foo.test.ts only, which the default set misses (case 7a) and the
-# near-miss scan names. Each row runs the floor twice (rc+stdout, then stderr),
-# 12a's idiom, from a clean cwd so noglob cannot be bypassed by the cwd.
+# near-miss scan names. Each row runs the floor three times (stdout, rc,
+# stderr) from a cwd seeded with a decoy app.test.ts so a missing noglob
+# reds 14a.
 #   14a adopted-pending-pattern: a pending set that matches -> exit 0, stdout
-#       EXACTLY the matched path, stderr EXACTLY the adoption marker. Also under
-#       a missing --pattern, so the arm runs after a custom active set too.
+#       EXACTLY the matched path, stderr EXACTLY the adoption marker. 14a also
+#       runs under a non-matching --pattern, so the arm runs after a custom
+#       active set too.
 #   14b pending-pattern no match: exit 1, stdout empty, stderr BYTE-IDENTICAL
 #       to the no-flag run (today's diagnostic, still naming the ACTIVE set),
 #       and no marker. Its contrast half needs 14a's matching run to adopt,
 #       so a floor that ignores the flag reds this row too.
 #   14c no pending flag byte-identical: the no-flag stderr equals today's
-#       literal diagnostic byte for byte, and the default exit-0 path keeps an
-#       empty stderr.
+#       literal diagnostic byte for byte, and the custom-pattern exit-0 path
+#       keeps an empty stderr.
 #   14d an active-set match never consults the pending set (no marker).
 #   14e missing-value die guards: --pending-pattern, --pattern, --repo.
 #   14f an empty --pending-pattern is byte-identical to the absent flag.
