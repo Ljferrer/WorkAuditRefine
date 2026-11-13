@@ -1,6 +1,6 @@
 ---
 name: the-staged-form-execution-run-is-not-in-the-repo-gate
-description: "The repo gate never sets WAR_TEMPLATE_STRIPPED=1, so staged-form breaks pass"
+description: "RESOLVED: the repo gate now runs the staged form as gate(node-staged)"
 metadata:
   node_type: memory
   type: project
@@ -25,6 +25,13 @@ metadata:
 ---
 
 # The staged-form execution run is not in the repo gate
+
+**Resolved 2026-11-13 (#2920, plan 2026-11-08-shell-floors-tests-and-lint T1.13).** `skills/war/assets/repo-gate.mjs` now runs one extra job, `gate(node-staged)`, outside both pools.
+It runs `node --test 'skills/war/assets/workflow-template.*.test.mjs'` with `WAR_TEMPLATE_STRIPPED=1` in that child's env only.
+It passes `--test-concurrency` set from the Node pool size (`WAR_GATE_NODE_JOBS`, default 6), per the operator ruling of 2026-11-13.
+If its log reports `tests 0` while `skills/war/assets/workflow-template.js` exists, the job fails and names the empty match.
+The per-file `gate(node)` jobs still run without the flag, and the harness stays the flag's only reader.
+The text below records the gap as it stood before the fix.
 
 **Fact.** The Workflow tool runs the staged copy of `skills/war/assets/workflow-template.js`, not the raw file.
 `stripFullLineComments` in `skills/war/assets/stage-workflow.mjs` now blanks full-line comments and drops the leading indent of top-level code lines (#2613).
