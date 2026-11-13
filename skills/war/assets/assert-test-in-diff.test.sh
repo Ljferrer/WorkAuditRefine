@@ -92,6 +92,10 @@
 #         stdout on success (OLD-absent, case-insensitive, SCOPED to the
 #         exit-0 contract only — the exit-1 "empty summary" prose stays,
 #         asserted present whole-file as the scoping contrast)
+#  14. --pending-pattern ADOPTION (PIN-12): a pending set that matches when the
+#      active set misses -> exit 0 + `adopted-pending-pattern:` on stderr; a
+#      pending set that matches nothing keeps exit 1 and today's diagnostic;
+#      no flag keeps the output byte-identical; an active match ignores it.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -1175,6 +1179,101 @@ if grep -qi 'empty summary' "$SCRIPT"; then
   pass "case 13c: exit-1 'empty summary' prose retained whole-file (refiner read-contract; the scoping contrast)"
 else
   fail "case 13c: the exit-1 'empty summary' prose vanished — the refiner read-contract text must stay"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 14: --pending-pattern ADOPTION (PIN-12, #2380). The fixture diff adds
+# src/foo.test.ts only, which the default set misses (case 7a) and the
+# near-miss scan names. Each row runs the floor twice (rc+stdout, then stderr),
+# 12a's idiom, from a clean cwd so noglob cannot be bypassed by the cwd.
+#   14a adopted-pending-pattern: a pending set that matches -> exit 0, stdout
+#       EXACTLY the matched path, stderr EXACTLY the adoption marker. Also under
+#       a missing --pattern, so the arm runs after a custom active set too.
+#   14b pending-pattern no match: exit 1, stdout empty, stderr BYTE-IDENTICAL
+#       to the no-flag run (today's diagnostic, still naming the ACTIVE set),
+#       and no marker. Its contrast half needs 14a's matching run to adopt,
+#       so a floor that ignores the flag reds this row too.
+#   14c no pending flag byte-identical: the no-flag stderr equals today's
+#       literal diagnostic byte for byte, and the default exit-0 path keeps an
+#       empty stderr.
+#   14d an active-set match never consults the pending set (no marker).
+# ---------------------------------------------------------------------------
+R14="$(setup_repo)"
+BASE14="$(git -C "$R14" rev-parse HEAD)"
+git -C "$R14" checkout -qb task/ts-test 2>/dev/null
+mkdir -p "$R14/src"
+printf 'test\n' > "$R14/src/foo.test.ts"
+printf 'impl\n' > "$R14/src/foo.ts"
+git -C "$R14" add src
+git -C "$R14" commit -qm "add src/foo.test.ts"
+TASK14="$(git -C "$R14" rev-parse HEAD)"
+git -C "$R14" checkout -q - 2>/dev/null
+cwd14="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd14"
+printf 'decoy\n' > "$cwd14/app.test.ts"
+
+# run14 <args...>: sets rc14, out14 (sentinel-exact stdout), err14 (stderr).
+run14() {
+  rc14=0
+  out14="$( ( cd "$cwd14" && bash "$SCRIPT" "$BASE14" "$TASK14" --repo "$R14" "$@" ) 2>/dev/null; printf x )" || true
+  out14="${out14%x}"
+  ( cd "$cwd14" && bash "$SCRIPT" "$BASE14" "$TASK14" --repo "$R14" "$@" ) >/dev/null 2>&1 || rc14=$?
+  err14="$( ( cd "$cwd14" && bash "$SCRIPT" "$BASE14" "$TASK14" --repo "$R14" "$@" ) 2>&1 >/dev/null; printf x )" || true
+  err14="${err14%x}"
+}
+
+exp_out14='src/foo.test.ts
+'
+exp_marker14='adopted-pending-pattern: *.test.ts *.test.tsx
+'
+run14 --pending-pattern '*.test.ts *.test.tsx'
+rc14a1=$rc14; out14a1="$out14"; err14a1="$err14"
+run14 --pattern '*.test.js' --pending-pattern '*.test.ts *.test.tsx'
+rc14a2=$rc14; out14a2="$out14"; err14a2="$err14"
+if [ "$rc14a1" -eq 0 ] && [ "$out14a1" = "$exp_out14" ] && [ "$err14a1" = "$exp_marker14" ] \
+   && [ "$rc14a2" -eq 0 ] && [ "$out14a2" = "$exp_out14" ] && [ "$err14a2" = "$exp_marker14" ]; then
+  pass "case 14a: adopted-pending-pattern — active set misses, pending set matches -> exit 0, matched path on stdout, marker on stderr"
+else
+  fail "case 14a: adopted-pending-pattern — default: rc=$rc14a1 out=[$out14a1] err=[$err14a1]; --pattern: rc=$rc14a2 out=[$out14a2] err=[$err14a2]"
+fi
+
+run14
+rc14c=$rc14; out14c="$out14"; err14c="$err14"
+run14 --pending-pattern '*.test.py'
+rc14b=$rc14; out14b="$out14"; err14b="$err14"
+# The contrast half (rc14a1 = 0) keeps this row from passing on a floor that
+# ignores the flag: "no match keeps exit 1" means something only when a
+# matching pending set on the SAME fixture adopts.
+if [ "$rc14b" -eq 1 ] && [ -z "$out14b" ] && [ -n "$err14b" ] && [ "$err14b" = "$err14c" ] \
+   && ! printf '%s' "$err14b" | grep -qF 'adopted-pending-pattern' \
+   && [ "$rc14a1" -eq 0 ]; then
+  pass "case 14b: pending-pattern no match keeps exit 1, empty stdout and today's diagnostic byte for byte"
+else
+  fail "case 14b: pending-pattern no match — rc=$rc14b out=[$out14b] err=[$err14b] (no-flag err=[$err14c])"
+fi
+
+# Today's literal diagnostic for this fixture, built here so a drift in the
+# no-flag output reds this row even when 14b's two runs drift together.
+exp_err14c="assert-test-in-diff: no diff file matched the active test pattern set: skills/**/*.test.mjs **/*.test.sh
+assert-test-in-diff: (the unconditional *.test.sh union arm is always in force, whatever the pattern)
+assert-test-in-diff: near-miss — test-shaped files in the diff that the active pattern did NOT match:
+assert-test-in-diff:   src/foo.test.ts
+assert-test-in-diff: if those ARE the mapped tests, either the pattern is wrong for this repo (--pattern / overrides.testPattern) or the file sits under an excluded location (node_modules/, .git/, .claude/ — mirrored from the gate discovery) — not the diff.
+"
+run14 --pattern '*.test.ts'
+rc14c2=$rc14; out14c2="$out14"; err14c2="$err14"
+if [ "$rc14c" -eq 1 ] && [ -z "$out14c" ] && [ "$err14c" = "$exp_err14c" ] \
+   && [ "$rc14c2" -eq 0 ] && [ "$out14c2" = "$exp_out14" ] && [ -z "$err14c2" ]; then
+  pass "case 14c: no pending flag byte-identical — exit-1 diagnostic and exit-0 output unchanged"
+else
+  fail "case 14c: no pending flag byte-identical — exit-1: rc=$rc14c out=[$out14c] err=[$err14c]; exit-0: rc=$rc14c2 out=[$out14c2] err=[$err14c2]"
+fi
+
+run14 --pattern '*.test.ts' --pending-pattern '*.ts'
+if [ "$rc14" -eq 0 ] && [ "$out14" = "$exp_out14" ] && [ -z "$err14" ]; then
+  pass "case 14d: an active-set match never consults the pending set (no marker, pending-only paths absent)"
+else
+  fail "case 14d: active match with a pending set — rc=$rc14 out=[$out14] err=[$err14]"
 fi
 
 # ---------------------------------------------------------------------------
