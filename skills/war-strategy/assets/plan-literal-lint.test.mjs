@@ -863,7 +863,8 @@ test('pst T1.2: the legacy plan reports six twice-read-unparsed rows', () => {
   assert.equal(unparsedRows(legacy).length, 6);
 });
 
-const releaseTask = (files, heading = '### Task 2.1: Version bump', phase = '## Phase 2 — Release') => [
+// The default task heading is not release-shaped, so the default fixture is scoped by its phase heading alone.
+const releaseTask = (files, heading = '### Task 2.1: Bump the slots', phase = '## Phase 2 — Release') => [
   phase,
   '',
   heading,
@@ -894,6 +895,19 @@ test('pst T1.2: the same release task with a test file in Files is not flagged',
     'release-requires-test-no-test-file'), 0);
 });
 
+test('pst T1.2: a release task that declares requiresTest: false but quotes requiresTest: true in its slice is not flagged', () => {
+  const slots = '`.claude-plugin/plugin.json`, `README.md`';
+  const quoted = releaseTask(slots).replace('- requiresTest: true',
+    '- Plan slice: a task with `requiresTest: true` and no test file routes the floor\n- requiresTest: false');
+  assert.equal(countOf(lint(quoted), 'release-requires-test-no-test-file'), 0);
+  // Mirror: the sibling Done-when rule reads the same declaration line, so quoted prose does not trip it.
+  const noDoneWhen = quoted.replace(/^- Done when:.*$/m, '- deps: []');
+  assert.equal(countOf(lint(noDoneWhen), 'requires-test-without-done-when'), 0);
+  // An indented declaration line still counts.
+  assert.equal(countOf(lint(releaseTask(slots).replace('- requiresTest: true', '  - requiresTest: true')),
+    'release-requires-test-no-test-file'), 1);
+});
+
 test('pst T1.2: a version literal in a fence or a Trials block under a release heading gives no hit', () => {
   const plan = [
     '### Task 2.1: Release version bump',
@@ -915,6 +929,8 @@ test('pst T1.2: a bare version literal under a release heading still gives a hit
   const plan = [
     '### Task 2.1: Release version bump',
     '```',
+    // A fenced `#` line keeps release scope, so the bare literal below still gives its hit.
+    '# a shell comment inside the fence',
     'bump to 0.21.47',
     '```',
     '- Plan slice: bump the slots to 0.21.47',
