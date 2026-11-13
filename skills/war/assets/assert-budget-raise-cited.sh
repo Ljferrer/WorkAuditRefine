@@ -26,14 +26,17 @@
 # any key/value extraction — an inline note like `// was hard: 79872` can
 # neither mask a raise nor fabricate one — and only then are keyed lines
 # (quoted-path rows and `const NAME` decls) paired old-vs-new and compared
-# numerically; a value line whose key cannot be extracted is classified by
-# set-difference over the comment-stripped text — any change to the unkeyed
-# value lines is treated as a raise-suspect requiring the trailer (deny, never
-# guess).
+# numerically; a value line whose key cannot be extracted, or whose value
+# token is not a plain `^[0-9]+$` integer (`100_000`, `0x13880`, `1e5`), is
+# classified by set-difference over the comment-stripped text — any change to
+# the unkeyed value lines is treated as a raise-suspect requiring the trailer
+# (deny, never guess). A renamed key whose new value exceeds the largest
+# only-in-old value in the same field is raise-suspect too.
 #
 # Exit codes (load-bearing contract, ADR 0006 — 2 NEVER collapses into 1):
 #   0 — no ceiling touch, a pure ratchet-down (lowering needs no trailer), a
-#       brand-new constant's initial values (nothing was raised), or a raise
+#       brand-new constant's initial values (nothing was raised), a rename
+#       plus a lowering, or a raise
 #       whose range carries a well-formed Budget-Raise trailer
 #   1 — a ceiling raise (or default-deny raise-suspect) with NO Budget-Raise
 #       trailer in the range (the named "uncited-raise" route, no-test-style;
@@ -130,7 +133,8 @@ value_lines() {
 #   <key>\t<field>\t<value>
 # for every extractable (key, field) pair, and
 #   UNKEYED\t<comment-stripped line>
-# for any value line with no recognizable key shape. Key shapes:
+# for any value line with no recognizable key shape or with a value token that
+# is not a plain `^[0-9]+$` integer. Key shapes:
 #   'path': { hard: N, advisory: M }   -> key = path   (FILE_BUDGETS rows)
 #   const NAME = { hard: N, ... }      -> key = NAME   (sibling constants)
 # A same-line trailing `//` comment is stripped BEFORE extraction: the sed
@@ -172,16 +176,36 @@ classify_lines() {
         key="${code#const }"
         key="${key%%[ =]*}" ;;
     esac
+    # Each value TOKEN runs to the next `,` or `}`, less trailing blanks. A
+    # token that is not a plain `^[0-9]+$` integer (`100_000`, `0x13880`,
+    # `1e5`, `2000 + 500`, ...) cannot be compared by `[ -gt ]`: a digit-only
+    # or blank-stopped extraction would truncate it to its leading digits and
+    # read a raise as a lowering. Such a row is UNKEYED instead, so any change
+    # to it is raise-suspect (deny, never guess).
+    recs=""
+    if [ -n "$key" ]; then
+      for field in hard advisory; do
+        val="$(printf '%s\n' "$code" | sed -nE "s/.*${field}:[[:space:]]*([^,}]*).*/\1/p")"
+        while :; do
+          case "$val" in
+            *' ')  val="${val% }" ;;
+            *'	') val="${val%	}" ;;
+            *) break ;;
+          esac
+        done
+        [ -n "$val" ] || continue
+        case "$val" in
+          *[!0-9]*) key=""; break ;;
+        esac
+        recs="$recs$key	$field	$val
+"
+      done
+    fi
     if [ -z "$key" ]; then
       printf 'UNKEYED\t%s\n' "$code"
       continue
     fi
-    for field in hard advisory; do
-      val="$(printf '%s\n' "$code" | sed -nE "s/.*${field}:[[:space:]]*([0-9]+).*/\1/p")"
-      if [ -n "$val" ]; then
-        printf '%s\t%s\t%s\n' "$key" "$field" "$val"
-      fi
-    done
+    printf '%s' "$recs"
   done
 }
 
@@ -191,12 +215,39 @@ new_records="$(value_lines "$branch" | classify_lines)"
 # ---------------------------------------------------------------------------
 # Raise detection.
 # Keyed: for every (key, field) present on BOTH sides, new > old is a raise.
-#   Only-in-new (a brand-new constant) and only-in-old (a deleted row) are not
-#   raises — no existing ceiling moved up.
-# Unkeyed (default-deny): the unkeyed value-line SETS must be identical; any
-#   difference is a raise-suspect — the floor refuses to guess the direction.
+# Renamed (only-in-new vs only-in-old): an only-in-new (key, field) whose value
+#   exceeds the LARGEST only-in-old value in the same field is raise-suspect —
+#   a rename plus a raise cannot pass as a delete plus a new constant. An
+#   only-in-new value at or below that largest value (a rename plus a
+#   lowering), a brand-new constant with no only-in-old row beside it, and a
+#   deleted row alone are not raises.
+# Unkeyed (default-deny): a row whose value token is not `^[0-9]+$` is
+#   unkeyed. The unkeyed value-line SETS must be identical; any difference is
+#   a raise-suspect — the floor refuses to guess the direction.
 # ---------------------------------------------------------------------------
+renamed="$(
+  { printf '%s\n' "$old_records" | sed 's/^/O	/'
+    printf '%s\n' "$new_records" | sed 's/^/N	/'
+  } | awk -F'\t' '
+    $2 == "" || $2 == "UNKEYED" { next }
+    $1 == "O" { old[$2 SUBSEP $3] = $4; next }
+    $1 == "N" { new[$2 SUBSEP $3] = $4 }
+    END {
+      for (k in old) if (!(k in new)) {
+        split(k, p, SUBSEP)
+        if (!(p[2] in max) || old[k] + 0 > max[p[2]] + 0) max[p[2]] = old[k]
+      }
+      for (k in new) if (!(k in old)) {
+        split(k, p, SUBSEP)
+        if ((p[2] in max) && new[k] + 0 > max[p[2]] + 0)
+          printf "renamed %s %s: %s exceeds the largest only-in-old %s value %s\n", p[1], p[2], new[k], p[2], max[p[2]]
+      }
+    }')"
 raised=""
+if [ -n "$renamed" ]; then
+  raised="$renamed
+"
+fi
 if [ -n "$new_records" ]; then
   while IFS='	' read -r key field val; do
     [ -n "$key" ] || continue
@@ -222,7 +273,8 @@ fi
 
 if [ -z "$raised" ] && [ -z "$suspect" ]; then
   # No ceiling raised: untouched values, a pure ratchet-down, a new constant's
-  # initial values, or a comment-only edit. No trailer owed.
+  # initial values, a rename plus a lowering, or a comment-only edit. No
+  # trailer owed.
   exit 0
 fi
 

@@ -2,7 +2,7 @@
 # assert-test-in-diff.sh — WAR worker test-floor guard (M2, spec §3.1).
 #
 # Usage: assert-test-in-diff.sh <integration-base> <task-branch> \
-#          [--repo <git-dir>] [--pattern <glob-set>]
+#          [--repo <git-dir>] [--pattern <glob-set>] [--pending-pattern <glob-set>]
 # (--repo is test-only: points git at a fixture repo; production invokes from the task-worktree cwd)
 #
 # Compute `git diff --name-only <base>...<branch>` (three-dot symmetric diff —
@@ -11,7 +11,8 @@
 # Exit codes (load-bearing contract):
 #   0 — at least one changed path matches the test pattern (test found in
 #       diff); stdout carries ALL matched test paths, one per line — the
-#       refiner's MergeResult.mappedTests source
+#       refiner's MergeResult.mappedTests source. Also exit 0 when the
+#       --pending-pattern set is adopted (see below).
 #   1 — no matching test in the diff (the "no-test" route; not an error).
 #       stdout stays the empty summary; stderr MAY carry the near-miss
 #       diagnostic (see NEAR-MISS DIAGNOSTIC below) — advisory, never routed on.
@@ -45,6 +46,14 @@
 # The union preserves floor ⊆ gate for the gate's unconditional discovery,
 # whatever pattern is in force for the phase.
 #
+# --pending-pattern (PIN-12, #2380): an --afk run's rejected Setup proposal,
+# threaded by the Lead. Consulted ONLY when the active set (default or
+# --pattern, plus the union arm) matched no diff file. If a pending token
+# matches one, the floor ADOPTS the set: exit 0, the matched paths on stdout as
+# above, and `adopted-pending-pattern: <set>` on stderr. A pending set that
+# matches nothing changes nothing: exit 1 and the near-miss diagnostic below,
+# which still names the ACTIVE set. Absent or empty flag = no behavior change.
+#
 # NEAR-MISS DIAGNOSTIC (spec §4, D4/D5) — EXIT-1 PATH ONLY, STDERR ONLY.
 # When nothing matched, the SAME changed-file list is re-scanned against a
 # FIXED, documented set of test-shaped conventions:
@@ -69,7 +78,7 @@ die()  { printf '%s: %s\n' "$PROG" "$1" >&2; exit "${2:-1}"; }
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
-[ $# -ge 2 ] || die "usage: $PROG <integration-base> <task-branch> [--repo <dir>] [--pattern <glob-set>]"
+[ $# -ge 2 ] || die "usage: $PROG <integration-base> <task-branch> [--repo <dir>] [--pattern <glob-set>] [--pending-pattern <glob-set>]"
 
 base="$1"
 branch="$2"
@@ -82,6 +91,7 @@ repo_dir=""
 pattern_mjs="skills/**/*.test.mjs"
 pattern_sh="**/*.test.sh"
 custom_pattern=""
+pending_pattern=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -91,6 +101,9 @@ while [ $# -gt 0 ]; do
     --pattern)
       [ $# -ge 2 ] || die "--pattern requires a glob-set"
       custom_pattern="$2"; shift 2 ;;
+    --pending-pattern)
+      [ $# -ge 2 ] || die "--pending-pattern requires a glob-set"
+      pending_pattern="$2"; shift 2 ;;
     --) shift; break ;;
     -*) die "unknown argument '$1'" ;;
     *)  die "unexpected positional argument '$1'" ;;
@@ -243,6 +256,31 @@ if [ -n "$matched_paths" ]; then
   # source.
   printf '%s' "$matched_paths"
   exit 0
+fi
+
+# Adoption arm (--pending-pattern): the active set matched nothing, so re-scan
+# the same file list against the pending tokens alone (the union arm already
+# ran above). Same noglob token idiom as the custom branch. A hit adopts the
+# set: matched paths on stdout, the marker on stderr, exit 0. No hit falls
+# through to the unchanged exit-1 path.
+if [ -n "$pending_pattern" ] && [ -n "$changed_files" ]; then
+  pending_paths=""
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    set -f
+    for pat in $pending_pattern; do
+      case "$f" in $pat) pending_paths="$pending_paths$f
+"; break ;; esac
+    done
+    set +f
+  done <<EOF
+$changed_files
+EOF
+  if [ -n "$pending_paths" ]; then
+    printf '%s' "$pending_paths"
+    printf 'adopted-pending-pattern: %s\n' "$pending_pattern" >&2
+    exit 0
+  fi
 fi
 
 # Exit non-zero: no test file in the diff. Emit an empty summary on stdout
