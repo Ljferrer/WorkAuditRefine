@@ -28,6 +28,7 @@ metadata:
 
 **Resolved 2026-11-12 (#2920, plan 2026-11-08-shell-floors-tests-and-lint T1.13).** `skills/war/assets/repo-gate.mjs` now runs one extra job, `gate(node-staged)`, outside both pools.
 It runs `node --test 'skills/war/assets/workflow-template.*.test.mjs'` with `WAR_TEMPLATE_STRIPPED=1` in that child's env only.
+It passes `--test-concurrency` set from the Node pool size (`WAR_GATE_NODE_JOBS`, default 6), per the operator ruling of 2026-11-13.
 If its log reports `tests 0` while `skills/war/assets/workflow-template.js` exists, the job fails and names the empty match.
 The per-file `gate(node)` jobs still run without the flag, and the harness stays the flag's only reader.
 The text below records the gap as it stood before the fix.
