@@ -330,7 +330,9 @@ test('version slots: the tip never moves backwards (lock-step ≠ monotonic)', (
 // checklist item that exists to catch it. When the `## Status` paragraph uses a phrase from the
 // closed set below, the paragraph must name every class the window touches. Window: the previous
 // version-bump commit (the newest slot-history commit that introduced a version other than the
-// current one, read through readSlotLog) to HEAD, files from `git diff --name-only --no-renames`.
+// current one, read through readSlotLog) to the newest commit that introduced the current version
+// (operator ruling 2026-11-13), or to HEAD when no commit introduced it yet. A commit after the
+// release commit is outside the window. Files come from `git diff --name-only --no-renames`.
 const CATEGORICAL_PHRASES = /every other change|all other changes|the rest of the window/i
 
 // Closed class table, first match wins. `names` is how a blurb names the class. A path no row
@@ -360,8 +362,12 @@ function categoricalScope({ cwd, current, status: raw }) {
   if (log.error || log.status !== 0 || String(log.stdout).trim() === '') {
     return { skip: `unusable git context or empty slot history (${log.error?.message ?? `git exit ${log.status}`})` }
   }
+  // The log is newest first. `end` is the first commit whose added version equals `current`:
+  // the newest commit that introduced it. `base` is the first commit after that whose added
+  // version differs. No commit introduced `current` (an uncommitted release tree) ends at HEAD.
   let hash = null
   let base = null
+  let end = null
   const introduced = new Set()
   for (const line of String(log.stdout).split('\n')) {
     const c = line.match(/^commit ([0-9a-f]{40})/)
@@ -370,23 +376,25 @@ function categoricalScope({ cwd, current, status: raw }) {
     if (v && hash && !introduced.has(hash)) {
       introduced.add(hash)
       if (v[1] !== current) { base = hash; break }
+      end ??= hash
     }
   }
   if (base == null) return { skip: `no previous version bump in the last ${WINDOW} slot-touching commits` }
-  const diff = spawnSync('git', ['diff', '--name-only', '--no-renames', base, 'HEAD'], { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
-  assert.equal(diff.status, 0, `categorical-scope: git diff ${base}..HEAD failed: ${String(diff.stderr).trim()}`)
+  end ??= 'HEAD'
+  const diff = spawnSync('git', ['diff', '--name-only', '--no-renames', base, end], { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
+  assert.equal(diff.status, 0, `categorical-scope: git diff ${base}..${end} failed: ${String(diff.stderr).trim()}`)
   const files = String(diff.stdout).split('\n').filter(Boolean)
   const unclassified = files.filter((f) => classifyPath(f) == null)
   const present = [...new Set(files.map(classifyPath).filter(Boolean))]
   const missing = present.filter((name) => !SCOPE_CLASSES.find((c) => c.name === name).names.test(status))
-  return { base, files, present, missing, unclassified }
+  return { base, end, files, present, missing, unclassified }
 }
 
 function assertScope(verdict, label) {
   assert.deepEqual(verdict.unclassified, [], `${label}: window files match no SCOPE_CLASSES row (extend the closed table): ${verdict.unclassified.join(', ')}`)
   assert.deepEqual(
     verdict.missing, [],
-    `${label}: the Status paragraph makes a categorical claim over the window ${verdict.base.slice(0, 8)}..HEAD but never names these touched classes: ${verdict.missing.join(', ')}. Name each class, or drop the categorical sentence.`,
+    `${label}: the Status paragraph makes a categorical claim over the window ${verdict.base.slice(0, 8)}..${verdict.end.slice(0, 8)} but never names these touched classes: ${verdict.missing.join(', ')}. Name each class, or drop the categorical sentence.`,
   )
 }
 
@@ -432,7 +440,7 @@ test('categorical-scope: synthetic window', (t) => {
 
   const omits = '**0.0.3** — moves the version slots. Every other change in the window is docs.'
   const red = categoricalScope({ cwd: dir, current: '0.0.3', status: omits })
-  assert.deepEqual(red.present.sort(), ['docs', 'hooks', 'release slots'], 'the window is the previous bump to HEAD: the pre-window agents/ file must not appear')
+  assert.deepEqual(red.present.sort(), ['docs', 'hooks', 'release slots'], 'the window is the previous bump to the 0.0.3 release commit: the pre-window agents/ file must not appear')
   assert.throws(() => assertScope(red, 'synthetic'), /never names these touched classes: hooks/)
   assert.deepEqual(red.missing, ['hooks'])
 
@@ -444,9 +452,21 @@ test('categorical-scope: synthetic window', (t) => {
   assertScope(categoricalScope({ cwd: dir, current: '0.0.3', status: names }), 'synthetic')
   assert.equal(categoricalScope({ cwd: dir, current: '0.0.3', status: '**0.0.3** — hooks.' }).skip, 'no categorical sentence')
 
-  // Fail-closed arm: a window path no SCOPE_CLASSES row matches reds even when every class is named.
+  // The window ends at the newest commit that introduced the current version (operator ruling
+  // 2026-11-13): a later commit that touches an unnamed class stays out, so the blurb stays green.
+  const release = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: dir, env, encoding: 'utf8' }).stdout.trim()
+  put('agents/late.md', 'after the release commit\n'); git('add', '-A'); git('commit', '-qm', 'post-release card')
+  const late = categoricalScope({ cwd: dir, current: '0.0.3', status: names })
+  assert.equal(late.end, release, 'the window ends at the commit that introduced 0.0.3, not at HEAD')
+  assert.ok(!late.present.includes('agent cards'), 'a commit after the release commit is outside the window')
+  assertScope(late, 'synthetic post-release')
+
+  // Fail-closed arm, read through the uncommitted-release fallback: no commit introduced 0.0.4,
+  // so the window ends at HEAD, and a path no SCOPE_CLASSES row matches reds every named class.
   put('bin/tool', 'tool\n'); git('add', '-A'); git('commit', '-qm', 'unclassified')
-  const unmatched = categoricalScope({ cwd: dir, current: '0.0.3', status: names })
+  const unmatched = categoricalScope({ cwd: dir, current: '0.0.4', status: names })
+  assert.equal(unmatched.base, release)
+  assert.equal(unmatched.end, 'HEAD')
   assert.deepEqual(unmatched.unclassified, ['bin/tool'])
   assert.throws(() => assertScope(unmatched, 'synthetic'), /match no SCOPE_CLASSES row/)
 })
