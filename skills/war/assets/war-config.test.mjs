@@ -992,6 +992,10 @@ test('interview: object guard, unknown key rejected, positive integers, null key
   assert.deepEqual(Object.fromEntries(INTERVIEW_INT_KEYS.map((k) => [k, DEFAULTS.interview[k]])),
     { trialWallSeconds: 600, commandTimeoutSeconds: 120, excerptLines: 20 },
     'DEFAULTS.interview carries the three ratified integer bounds at the D7 values')
+  // Key-set pin: the value deepEqual above reads named keys only, so an added or dropped key in
+  // DEFAULTS.interview would pass it. This row pins the key names and never the knob's default value.
+  assert.deepEqual(Object.keys(DEFAULTS.interview).sort(), [...INTERVIEW_INT_KEYS, 'alwaysAskAdvancedPlanning'].sort(),
+    'DEFAULTS.interview carries exactly the four ratified keys')
   // valid
   assert.equal(validate({}).valid, true)
   assert.equal(validate({ interview: { trialWallSeconds: 60, commandTimeoutSeconds: 30, excerptLines: 5 } }).valid, true)
