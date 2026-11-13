@@ -19,6 +19,7 @@ function fixture(t) {
   put('skills/basic.test.mjs', "import { test } from 'node:test'; test('node fixture', () => {})\n")
   const env = { ...process.env, TMPDIR: join(root, 'scratch'), WAR_GATE_SHELL_JOBS: '2', WAR_GATE_NODE_JOBS: '2' }
   delete env.NODE_TEST_CONTEXT
+  delete env.WAR_TEMPLATE_STRIPPED
   const run = (overrides = {}) => spawnSync(process.execPath, [runner], {
     cwd: root, env: { ...env, ...overrides }, encoding: 'utf8', timeout: 20000,
   })
@@ -59,7 +60,7 @@ record('end')
   symlinkSync(join(root, '.claude'), join(root, 'linked-directory'))
   const result = run()
   assert.equal(result.status, 0, result.stdout + result.stderr)
-  assert.match(result.stdout, /== gate complete: 6\/6 jobs; 0 failed ==/)
+  assert.match(result.stdout, /== gate complete: 7\/7 jobs; 0 failed ==/)
   const events = readFileSync(join(root, 'trace'), 'utf8').trim().split('\n').map(JSON.parse)
   const live = { node: 0, shell: 0 }, peak = { ...live }
   for (const event of events) {
@@ -93,7 +94,7 @@ for (const failure of ['node', 'shell', 'both']) test(`a ${failure} failure cann
   const result = run({ WAR_GATE_SHELL_JOBS: '1', WAR_GATE_NODE_JOBS: '1' })
   assert.equal(result.status, 1, result.stdout + result.stderr)
   for (const text of ['first-suite', 'last-suite', 'last-node']) assert.match(result.stdout, new RegExp(text))
-  assert.match(result.stdout, new RegExp(`== gate complete: 4/4 jobs; ${failure === 'both' ? 2 : 1} failed ==`))
+  assert.match(result.stdout, new RegExp(`== gate complete: 5/5 jobs; ${failure === 'both' ? 2 : 1} failed ==`))
   assert.match(result.stdout, new RegExp(`== gate result: gate\\(node\\): \\./skills/basic\\.test\\.mjs; exit=${failure === 'shell' ? 0 : 1};`))
   assert.match(result.stdout, new RegExp(`== gate result: gate\\(bash\\): \\./a\\.test\\.sh; exit=${failure === 'node' ? 0 : 7};`))
   assert.match(result.stdout, /== gate result: gate\(node\): \.\/skills\/z\.test\.mjs; exit=0;/)
@@ -103,7 +104,7 @@ test('zero shell suites still runs the Node gate', t => {
   const { run } = fixture(t)
   const result = run()
   assert.equal(result.status, 0, result.stdout + result.stderr)
-  assert.match(result.stdout, /== gate complete: 1\/1 jobs; 0 failed ==/)
+  assert.match(result.stdout, /== gate complete: 2\/2 jobs; 0 failed ==/)
 })
 
 for (const shape of ['an empty skills folder', 'no skills folder']) test(`zero Node files (${shape}) still runs the shell suites`, t => {
@@ -114,7 +115,7 @@ for (const shape of ['an empty skills folder', 'no skills folder']) test(`zero N
   const result = run()
   assert.equal(result.status, 0, result.stdout + result.stderr)
   assert.match(result.stdout, /only-suite/)
-  assert.match(result.stdout, /== gate complete: 1\/1 jobs; 0 failed ==/)
+  assert.match(result.stdout, /== gate complete: 2\/2 jobs; 0 failed ==/)
   assert.doesNotMatch(result.stdout, /gate\(node\)/)
 })
 
@@ -136,7 +137,7 @@ test('the Node file set matches the old skills glob, and odd file names run as t
   assert.equal(result.status, 0, result.stdout + result.stderr)
   const ran = readFileSync(join(root, 'ran'), 'utf8').trim().split('\n').sort()
   assert.deepEqual(ran, ['br{a}ce', 'n!(o)', 'nested/deep', 'odd1', 'odd[1]', 'pa(r)en', 'plain', 'plain', 'st*r'])
-  assert.match(result.stdout, /== gate complete: 9\/9 jobs; 0 failed ==/)
+  assert.match(result.stdout, /== gate complete: 10\/10 jobs; 0 failed ==/)
 })
 
 test('a shell launch error fails visibly and drains every queued suite', t => {
@@ -145,7 +146,30 @@ test('a shell launch error fails visibly and drains every queued suite', t => {
   const result = run({ PATH: '/nonexistent-war-test-path' })
   assert.equal(result.status, 1, result.stdout + result.stderr)
   assert.match(result.stdout, /Launch failed: spawn bash ENOENT/)
-  assert.match(result.stdout, /== gate complete: 3\/3 jobs; 2 failed ==/)
+  assert.match(result.stdout, /== gate complete: 4\/4 jobs; 2 failed ==/)
+})
+
+test('gate(node-staged) reruns the workflow-template files with WAR_TEMPLATE_STRIPPED=1, and per-file jobs run without it', t => {
+  const { root, put, run } = fixture(t)
+  put('skills/war/assets/workflow-template.js', '// engine stand-in\n')
+  put('skills/war/assets/workflow-template.flag.test.mjs', "import { appendFileSync } from 'node:fs'; import { test } from 'node:test'\n" +
+    "test('flag', () => { appendFileSync('record', (process.env.WAR_TEMPLATE_STRIPPED ?? 'unset') + '\\n') })\n")
+  const result = run()
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  assert.match(result.stdout, /== gate complete: 3\/3 jobs; 0 failed ==/)
+  assert.match(result.stdout, /== gate result: gate\(node-staged\); exit=0;/)
+  assert.deepEqual(readFileSync(join(root, 'record'), 'utf8').trim().split('\n').sort(), ['1', 'unset'])
+})
+
+test('gate(node-staged) fails and names the empty match when the engine exists but no topic file does', t => {
+  const { put, run } = fixture(t)
+  put('skills/war/assets/workflow-template.js', '// engine stand-in\n')
+  const result = run()
+  assert.equal(result.status, 1, result.stdout + result.stderr)
+  assert.match(result.stdout, /== gate complete: 2\/2 jobs; 1 failed ==/)
+  const block = result.stdout.split('== gate(node-staged) ==')[1]?.split('== gate result:')[0] ?? ''
+  assert.match(block, /tests 0/)
+  assert.match(block, /matched no tests: skills\/war\/assets\/workflow-template\.\*\.test\.mjs/)
 })
 
 test('invalid pool sizes fail before launching any tests', t => {
@@ -171,12 +195,15 @@ async function terminate(t, preload, thrown) {
   child.stderr.on('data', data => { output += data })
   const closed = new Promise(resolve => child.on('close', (code, signal) => resolve({ code, signal })))
   t.after(() => { if (child.exitCode === null) child.kill('SIGTERM') })
+  // The file can exist before its pid is written. An empty read is pid 0, and a kill of
+  // pid 0 signals this test's own process group, so wait for a whole pid.
   const deadline = Date.now() + 5000
-  while (!existsSync(join(root, 'child.pid'))) {
+  const readPid = () => (existsSync(join(root, 'child.pid')) ? readFileSync(join(root, 'child.pid'), 'utf8') : '')
+  while (!/^[1-9][0-9]*$/.test(readPid())) {
     assert.ok(Date.now() < deadline, 'descendant started')
     await new Promise(resolve => setTimeout(resolve, 10))
   }
-  const pid = Number(readFileSync(join(root, 'child.pid'), 'utf8'))
+  const pid = Number(readPid())
   t.after(() => { try { process.kill(pid, 'SIGKILL') } catch {} })
   child.kill('SIGTERM')
   if (thrown) {
@@ -189,6 +216,10 @@ async function terminate(t, preload, thrown) {
   assert.match(output, /== gate interrupted:/)
   assert.doesNotMatch(output, /== gate complete:/)
   assert.equal(existsSync(join(root, 'should-not-run')), false)
+  // The gate's SIGKILL has been sent, but the orphan's reaper can lag under load. Allow 2 s.
+  const reaped = Date.now() + 2000
+  const alive = () => { try { process.kill(pid, 0); return true } catch (error) { if (error.code === 'ESRCH') return false; throw error } }
+  while (alive() && Date.now() < reaped) await new Promise(resolve => setTimeout(resolve, 20))
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
 }
 
