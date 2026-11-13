@@ -65,7 +65,7 @@
 #      16b same guard + a test asserting the full literal -> exit 0 (the prefix is a
 #      substring of the full-literal assertion, so full-literal coverage still credits).
 #   -- $var-tail prefix coverage (#1688, End state 15: prefix-covered) --
-#  17. `$var`-tail truncation family (case names carry the token `prefix-covered`):
+#  17. `$var`-tail truncation family (the 17a to 17e case names carry the token `prefix-covered`):
 #      17a `die "missing snapshot: $file"` + a test asserting ONLY the distinguishing
 #          prefix -> exit 0 (prefix-covered). Removing the $-truncation no longer flips
 #          17a: the whole literal's 16-byte anchor `missing snapshot` sits inside the
@@ -740,7 +740,7 @@ rc17a=0
 if [ "$rc17a" -eq 0 ]; then
   pass "case 17a: \$var-tail die guard + distinguishing-prefix assertion -> exit 0 (prefix-covered)"
 else
-  fail "case 17a: prefix-covered \$var-tail guard -> expected exit 0, got $rc17a (\$-truncation missing: whole-literal rule unsatisfiable, #1688)"
+  fail "case 17a: prefix-covered \$var-tail guard -> expected exit 0, got $rc17a (coverage broken: neither the whole recorded prefix nor its 16-byte anchor matched a test line, #1688, #1834)"
 fi
 
 # 17b: SAME guard shape, test asserts an UNRELATED string -> exit 1, stdout carries the
