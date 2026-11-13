@@ -1307,6 +1307,25 @@ test('overrides.ghUser non-string/non-null rejected with an error naming the key
   }
 })
 
+// --- overrides.doneWhenPreamble (PIN-9): the line the refiner stages before a Done-when command ---
+test('overrides.doneWhenPreamble defaults to null', () => {
+  assert.equal(DEFAULTS.overrides.doneWhenPreamble, null)
+  assert.equal(fillDefaults({}).overrides.doneWhenPreamble, null)
+  assert.equal(validate({ overrides: { doneWhenPreamble: null } }).valid, true)
+  const r = validate({ overrides: { doneWhenPreamble: 'conda activate env' } })
+  assert.equal(r.valid, true, `a preamble string should validate; errors: ${r.errors.join('\n')}`)
+})
+
+test('overrides.doneWhenPreamble rejects a non-string', () => {
+  for (const bad of [42, true, ['conda activate env'], { line: 'x' }, '', '   ']) {
+    const r = validate({ overrides: { doneWhenPreamble: bad } })
+    assert.equal(r.valid, false, `doneWhenPreamble ${JSON.stringify(bad)} must be rejected`)
+    assert.match(r.errors.join('\n'), /overrides\.doneWhenPreamble/)
+    // The key is known: the rejection is the type/emptiness check, never the unknown-key courtesy error.
+    assert.doesNotMatch(r.errors.join('\n'), /not a known key/)
+  }
+})
+
 test('overrides.testPattern accepts a glob string (single- and multi-token, glob charclass)', () => {
   for (const p of ['*.test.ts', '*.test.ts *.test.tsx', '*.test.[jt]s', 'src/*.spec.js']) {
     const r = validate({ overrides: { testPattern: p } })
