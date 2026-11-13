@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -263,9 +263,43 @@ test('structuralFallback: the submodule step leaves an initialized sibling at it
     execFileSync('sh', ['-c', step], { cwd: wt, env, stdio: 'ignore' })
     assert.equal(git(join(wt, 'libx'), 'rev-parse', 'HEAD'), c2, "uninitialized 'lib*' matched initialized sibling libx as a glob")
     assert.equal(git(join(wt, 'lib*'), 'rev-parse', 'HEAD'), c1, "uninitialized submodule 'lib*' was not initialized")
+
+    // Fresh clone (the /red-team sandbox shape): every submodule is uninitialized, so
+    // one xargs batch carries all the paths. Submodule `n` nests `inner`, which only
+    // `update --init --recursive` reaches: `status --recursive` cannot list it yet.
+    const outer = join(root, 'outer')
+    git(root, 'init', '-q', outer)
+    git(outer, 'submodule', 'add', '-q', 'file://' + sub, 'inner')
+    git(outer, 'commit', '-q', '-m', 'add inner')
+    git(sup, 'submodule', 'add', '-q', 'file://' + outer, 'n')
+    git(sup, 'commit', '-q', '-m', 'add nested submodule')
+    // realpath: macOS tmpdir is a /var -> /private/var symlink, and --show-toplevel resolves it.
+    const fresh = join(realpathSync(root), 'fresh')
+    git(root, 'clone', '-q', 'file://' + sup, fresh)
+    const paths = ['a', 'b', 'lib*', 'libx', 'n']
+    assert.deepEqual(
+      git(fresh, 'submodule', 'status').split('\n').map((l) => l.trim().split(/\s+/)[1]).sort(),
+      [...paths].sort(),
+      'fresh clone lists a submodule set other than the one this test asserts',
+    )
+    execFileSync('sh', ['-c', step], { cwd: fresh, env, stdio: 'ignore' })
+    for (const p of paths) {
+      assert.equal(git(join(fresh, p), 'rev-parse', '--show-toplevel'), join(fresh, p), `fresh-clone submodule ${p} was not initialized`)
+      if (p !== 'n') assert.equal(git(join(fresh, p), 'rev-parse', 'HEAD'), c1, `fresh-clone submodule ${p} is off its recorded commit`)
+    }
+    assert.equal(git(join(fresh, 'n', 'inner'), 'rev-parse', 'HEAD'), c1, 'nested submodule n/inner was not initialized (--recursive dropped?)')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+// The scout card and the fixture doc hand-copy the step, so bind each copy to the
+// constant (itself bound to structuralFallback above). Counts name every copy.
+test('SUBMODULE_INIT: the scout card and EXPECTED.md carry the step byte for byte', () => {
+  const repo = join(HERE, '..', '..')
+  const copies = (text) => text.split(SUBMODULE_INIT).length - 1
+  assert.equal(copies(readFileSync(join(repo, 'agents', 'war-setup-scout.md'), 'utf8')), 2, 'agents/war-setup-scout.md: fallback list and plan-step copies')
+  assert.equal(copies(readFileSync(join(FIXTURES, 'EXPECTED.md'), 'utf8')), 1, 'skills/_shared/fixtures/provision/EXPECTED.md: expected-output copy')
 })
 
 // ----------------------------------------------------------------------------
