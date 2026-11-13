@@ -5453,6 +5453,15 @@ test('pst T1.5: the trials row counts chosen and sweep rows beside the split wit
   assert.match(row, /chosen pair row is never counted as `settled`/, 'the trials row must say a chosen pair row is never `settled`')
 })
 
+test('pst T1.5: the trials row identifies a chosen pair row by the absence of `pair declined:`, since a declined pair row also carries `chosen:`', () => {
+  const row = wrRow('trials per merged plan')
+  // Oracle from the grammar's own home: the declined pair row form carries `chosen:` too.
+  const forkTrials = readFileSync(join(HERE, '..', '..', 'war-strategy', 'references', 'fork-trials.md'), 'utf8')
+  assert.ok(forkTrials.includes('`chosen: <design> (user) — pair declined: <reason>`'), 'fork-trials.md no longer gives a declined pair row a `chosen:` field; re-check the trials row predicate')
+  assert.ok(row.includes('a chosen pair row (a pair row with no `pair declined:`)'), 'the trials row must identify a chosen pair row by the absence of `pair declined:`')
+  assert.ok(!/chosen pair row \([^)]*carries `chosen:`/.test(row), 'a chosen pair row must not be identified by `chosen:`, which declined pair rows also carry')
+})
+
 test('pst T1.5: § 4 carries the unstamped phases row after half-stamped relaunch, read from workflow_run (PIN-27)', () => {
   const half = wrBullet('half-stamped relaunch')
   const row = wrBullet('unstamped phases')
