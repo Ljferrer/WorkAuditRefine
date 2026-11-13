@@ -1809,8 +1809,8 @@ test('D27 — SKILL.md Lead evidence bindings paragraph carries the §4.4 skelet
 // [[spec-non-goal-citation-of-a-doctrines-home-file-can-be-wrong]] rot class D19 exists for.
 // Per compressed entry, two halves: (a) the glossary entry keeps its definition anchors plus the
 // trigger clause naming its destination path; (b) the destination still carries the delegated
-// doctrine's tokens, extracted BY CONSTRUCT from its own heading to EOF (submodule-flows.md's
-// section is its file's trailing section; the resume-and-recovery.md match deliberately spans the
+// doctrine's tokens, extracted BY CONSTRUCT from its own heading to the next `## ` heading or end
+// of input (submodule-flows.md's section is its file's trailing section; the resume-and-recovery.md match deliberately spans the
 // Recovery-relaunch subsection plus the held-partial-phase runbook — see the recDest comment)
 // — never a whole-file scan. Delete-and-trace: re-home or gut a
 // destination section and its (b) reds while GLOSSARY.md still points at it; drop a pointer or a
