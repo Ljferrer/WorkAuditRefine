@@ -10,15 +10,17 @@
 //      `## Contents` list of bare `#<heading-slug>` lines, one per `###` heading.
 //   3. Identity: the `## Language` span of GLOSSARY.md equals the same span of
 //      CONTEXT.md in the parent of the commit that added GLOSSARY.md (ADR 0042 D3,
-//      move never rewrite). Before that commit exists, HEAD's CONTEXT.md is the parent.
+//      move never rewrite). Before that commit exists, HEAD's CONTEXT.md is the parent, unless a
+//      staged merge's MERGE_HEAD holds that commit: then the sides are read at it (#2719).
 //
 // Each checker runs on the live files and on planted faults, so a checker that
 // stops detecting its fault goes red here.
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -133,33 +135,46 @@ export function identityFaults(before, moved, router) {
   return faults
 }
 
-function git(args) {
-  return execFileSync('git', ['-C', repoRoot, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 })
+function git(args, root = repoRoot) {
+  return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 })
 }
 
 // Both sides of the move, read at the move itself: `before` is CONTEXT.md in the parent of the
 // commit that added GLOSSARY.md, and `moved` is GLOSSARY.md in that commit. Later glossary edits
-// change neither side. Before that commit exists, the sides are HEAD's CONTEXT.md and the
-// working-tree GLOSSARY.md. null outside git, or in a shallow clone where git cannot read a
+// change neither side. If HEAD lacks that commit but a staged merge's MERGE_HEAD has it, both
+// sides are read at that commit (#2719). Otherwise the sides are HEAD's CONTEXT.md and the
+// working-tree GLOSSARY.md. `root` defaults to repoRoot. null outside git, or in a shallow clone where git cannot read a
 // side (the clone can cut at the adding commit, so its parent is missing). In a full clone an
 // unreadable side throws, so a broken read fails the test instead of skipping it.
 // `-c log.follow=false`: a user-level log.follow=true turns a one-path log into --follow, which
 // reads the move as a copy of CONTEXT.md and names CONTEXT.md's own first commit as the add.
-function moveSides() {
+function moveSides(root = repoRoot) {
+  const g = (args) => git(args, root)
   try {
-    git(['rev-parse', '--git-dir'])
+    g(['rev-parse', '--git-dir'])
   } catch {
     return null
   }
-  const added = git(['-c', 'log.follow=false', 'log', '--diff-filter=A', '--format=%H', '--', 'GLOSSARY.md'])
-    .trim().split('\n').filter(Boolean)
-  // `./` makes each blob path resolve from repoRoot, as the log pathspec above does.
-  const at = added[added.length - 1]
+  const addCommit = (rev) => {
+    const added = g(['-c', 'log.follow=false', 'log', '--diff-filter=A', '--format=%H', rev, '--', 'GLOSSARY.md'])
+      .trim().split('\n').filter(Boolean)
+    return added[added.length - 1]
+  }
+  // `./` makes each blob path resolve from root, as the log pathspec above does.
+  let at = addCommit('HEAD')
+  if (!at) {
+    let mergeHead = false
+    try {
+      g(['rev-parse', '-q', '--verify', 'MERGE_HEAD'])
+      mergeHead = true
+    } catch {}
+    if (mergeHead) at = addCommit('MERGE_HEAD')
+  }
   try {
-    if (!at) return { before: git(['show', 'HEAD:./CONTEXT.md']), moved: read('GLOSSARY.md') }
-    return { before: git(['show', `${at}^:./CONTEXT.md`]), moved: git(['show', `${at}:./GLOSSARY.md`]) }
+    if (!at) return { before: g(['show', 'HEAD:./CONTEXT.md']), moved: readFileSync(join(root, 'GLOSSARY.md'), 'utf8') }
+    return { before: g(['show', `${at}^:./CONTEXT.md`]), moved: g(['show', `${at}:./GLOSSARY.md`]) }
   } catch (err) {
-    return unreadableSide(err, () => git(['rev-parse', '--is-shallow-repository']).trim() === 'true')
+    return unreadableSide(err, () => g(['rev-parse', '--is-shallow-repository']).trim() === 'true')
   }
 }
 
@@ -232,6 +247,37 @@ test('identity — the moved ## Language span equals the pre-move CONTEXT.md spa
   const sides = moveSides()
   if (sides === null) return t.skip('no usable git context, or a shallow clone without the move commit parent')
   assert.deepEqual(identityFaults(sides.before, sides.moved, router), [])
+})
+
+test('identity — a staged merge that brings the move reads the sides at the move commit (#2719)', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'context-router-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  // A user-level log.follow, signing key or missing identity must not change the result.
+  const env = {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid',
+  }
+  const sh = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'pipe'] })
+  const put = (rel, text) => writeFileSync(join(dir, rel), text)
+  const language = '## Language\n\n### A\n\nterm body\n'
+  sh('init', '-q', '-b', 'main')
+  put('CONTEXT.md', `# Context\n\nintro\n\n${language}`)
+  sh('add', '-A'); sh('commit', '-q', '-m', 'context')
+  sh('checkout', '-q', '-b', 'move')
+  put('CONTEXT.md', '# Context\n\nintro\n')
+  put('GLOSSARY.md', `# Glossary\n\n## Contents\n\n- #a\n\n${language}`)
+  sh('add', '-A'); sh('commit', '-q', '-m', 'move')
+  put('GLOSSARY.md', `# Glossary\n\n## Contents\n\n- #a\n\n${language}\nanother glossary line\n`)
+  sh('add', '-A'); sh('commit', '-q', '-m', 'edit')
+  sh('checkout', '-q', 'main')
+  sh('merge', '-q', '--no-commit', '--no-ff', 'move')
+  sh('rev-parse', '-q', '--verify', 'MERGE_HEAD')
+  const sides = moveSides(dir)
+  assert.ok(sides, 'moveSides read no sides in the scratch repo')
+  assert.deepEqual(identityFaults(sides.before, sides.moved, readFileSync(join(dir, 'CONTEXT.md'), 'utf8')), [])
 })
 
 test('identity — planted faults go red (#2636)', () => {
