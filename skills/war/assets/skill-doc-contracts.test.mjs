@@ -5379,3 +5379,143 @@ test('doc-truth-pins — schemas.md carries none of the stale producer, ace-labe
     [/produced once/, 'the future-tense producer clause (#2242)'],
   ]) assert.doesNotMatch(schemasMd, re, `schemas.md still carries ${what}`)
 })
+
+// ---- pst T1.5 (plan 2026-11-08-pipeline-skills-and-memory-tooling, PIN-14 to PIN-18, PIN-27 to
+// PIN-32): /war-review counts what the engine emits, and the Lead stamps plan backstops. Every
+// read joins whitespace runs to one space, so a re-wrapped phrase still matches, and every
+// absent-pin is case-insensitive.
+const wrJoined = (s) => s.replace(/\s+/g, ' ')
+const wrSection = (n) => {
+  const m = warReviewSkillMd.match(new RegExp(`^## ${n}\\. [\\s\\S]*?(?=^## ${n + 1}\\. )`, 'm'))
+  assert.ok(m, `could not locate war-review § ${n} — construct rotted`)
+  return m[0]
+}
+const wrRow = (label) => {
+  const line = warReviewSkillMd.split('\n').find((l) => l.startsWith('| ' + label))
+  assert.ok(line, `could not locate the war-review \`${label}\` table row — construct rotted`)
+  return line
+}
+// One §4 bullet: from its `- **name**` opener to the next bullet or blank line, joined.
+const wrBullet = (name) => {
+  const s = wrSection(4)
+  const i = s.indexOf('- **' + name + '**')
+  assert.ok(i >= 0, `could not locate the war-review § 4 **${name}** row`)
+  const rest = s.slice(i + 2)
+  const end = rest.search(/\n- |\n\n/)
+  return { at: i, text: wrJoined(end < 0 ? rest : rest.slice(0, end)) }
+}
+
+test('pst T1.5: § 2 carries the null-workflowRunId arm after the pinned basename sentence (PIN-14)', () => {
+  const s = wrJoined(wrSection(2))
+  const pinned = s.indexOf("basename is the harness run id, so it must equal the phase's `workflowRunId`")
+  assert.ok(pinned >= 0, 'the pinned basename sentence is gone from § 2')
+  const arm = s.indexOf('A `null` `workflowRunId` means no comparison')
+  assert.ok(arm > pinned, '§ 2 must carry the null arm after the pinned basename sentence')
+  assert.match(s.slice(arm), /^[^.]*mine `transcriptDir` as-is[^.]*never file the half-stamped relaunch row/, 'the null arm must mine `transcriptDir` as-is and never file the half-stamped row')
+})
+
+test('pst T1.5: the § 4 half-stamped relaunch row keeps its bold name and carries the null arm (PIN-14)', () => {
+  const b = wrBullet('half-stamped relaunch').text
+  assert.match(b, /A `null` `workflowRunId` means no comparison/, 'the half-stamped relaunch row must carry the null arm')
+  assert.match(b, /never fires on that phase/, 'the half-stamped relaunch row must say it never fires on a null-id phase')
+})
+
+test('pst T1.5: the absorbRounds row names the site-form ace label and every engine site, ace-gate unchanged (PIN-15)', () => {
+  const row = wrRow('absorbRounds spent per task')
+  assert.ok(row.includes('`ace:<site>:<task>:a<n>`'), 'the absorbRounds row must name `ace:<site>:<task>:a<n>`')
+  assert.ok(row.includes('`ace-gate:<task>:a<n>`'), 'the absorbRounds row must keep `ace-gate:<task>:a<n>`')
+  const sites = [...new Set([...workflowTemplateSrc.matchAll(/aceLabel\(r, '(\w+)'\)/g)].map((x) => x[1]))]
+  assert.ok(sites.length > 0, 'could not extract any aceLabel site from workflow-template.js (non-vacuity floor)')
+  for (const site of sites) assert.ok(row.includes('`' + site + '`'), `the absorbRounds row must name the \`${site}\` ace site`)
+})
+
+test('pst T1.5: no war-review text names the site-less ace label (absent-pin, PIN-15)', () => {
+  assert.doesNotMatch(wrJoined(warReviewSkillMd), /ace:<task>:a<n>/i, 'war-review/SKILL.md still names the site-less `ace:<task>:a<n>` label')
+})
+
+test("pst T1.5: the grind row's regression signal excludes the engine's two named hold arms (PIN-16)", () => {
+  const row = wrRow('grind measurement')
+  for (const prefix of [
+    'fix-less blocking finding survived the rebuttal or agreed-block panel',
+    'post-rebuttal split or agreed-block panel with no blocking finding',
+  ]) {
+    assert.ok(workflowTemplateSrc.includes("'" + prefix), `workflow-template.js no longer opens a \`blocked\` text with "${prefix}" — re-quote the arm (A11)`)
+    assert.ok(row.includes('`' + prefix + '`'), `the grind row must name the "${prefix}" hold arm`)
+  }
+  assert.match(row, /`blocked` text starts with neither/, 'the grind row must qualify the regression signal by the `blocked` text prefix')
+})
+
+test('pst T1.5: the trials row counts chosen and sweep rows beside the split with the PIN-17 clause (PIN-17)', () => {
+  const row = wrRow('trials per merged plan')
+  assert.ok(row.includes('row count = split sum + chosen count + sweep count'), 'the trials row must carry the PIN-17 clause literal')
+  assert.ok(row.includes('#2452'), 'the trials row must cite #2452')
+  assert.ok(row.includes('settled / inconclusive / infra-failed / declined'), 'the trials row must keep its split literal')
+  assert.match(row, /chosen pair row is never counted as `settled`/, 'the trials row must say a chosen pair row is never `settled`')
+})
+
+test('pst T1.5: § 4 carries the unstamped phases row after half-stamped relaunch, read from workflow_run (PIN-27)', () => {
+  const half = wrBullet('half-stamped relaunch')
+  const row = wrBullet('unstamped phases')
+  assert.ok(row.at > half.at, 'the unstamped phases row must sit after the half-stamped relaunch row')
+  for (const key of ['`workflow_run`', '`workflowRunId`', 'fewer phase records than the ledger', 'record count and a field compare', 'reads no transcript', 'mid-run', '#2669'])
+    assert.ok(row.text.includes(key), `the unstamped phases row must carry ${key}`)
+  // The neighbouring row stays byte-identical.
+  assert.ok(warReviewSkillMd.includes("- **unfinalized phase record** — a phase record missing `endedAt`, `tasks`, or `land` **although\n  the run ended or a later phase started** (evidence the phase-close stamp was skipped). This is a\n  deliberate killed-run discriminator: a run that died mid-phase leaves the run's own `endedAt`\n  null and starts no later phase, so the signal stays silent there — that death already surfaces\n  through the `held:*` / dropped-return signal classes above; this one fires only when a Lead\n  demonstrably outlived the phase and still skipped the close stamp.\n"), 'the unfinalized phase record row must stay byte-identical')
+})
+
+test("pst T1.5: Decompose step 4 stamps planFile on every source: 'plan' row (PIN-18)", () => {
+  const m = skillMd.match(/^4\. \*\*Backstop extraction.*$/m)
+  assert.ok(m, 'could not locate Decompose step 4 in skills/war/SKILL.md')
+  assert.match(m[0], /`planFile: <this plan path>` on every `source: 'plan'` row/, "step 4 must stamp `planFile: <this plan path>` on every `source: 'plan'` row")
+})
+
+test('pst T1.5: the token rows name the envelope a footprint and dedupe the mined consumption by message id (PIN-28)', () => {
+  const s2 = wrJoined(wrSection(2))
+  const row = wrRow('total tokens')
+  for (const [src, label] of [[s2, '§ 2'], [row, 'the total tokens row']]) {
+    assert.match(src, /\*\*footprint\*\*/, `${label} must label the envelope a **footprint**`)
+    assert.match(src, /\*\*consumption\*\*/, `${label} must label the mined read **consumption**`)
+    assert.match(src, /message id/, `${label} must deduplicate the mined read by message id`)
+  }
+  assert.match(s2, /sums every `attempts\[\]` entry's envelope plus the current attempt's/, '§ 2 must sum the attempts[] envelopes into the phase footprint')
+  assert.match(s2, /n\/a \(mixed-source\)/, '§ 2 must keep the mixed-source rule')
+  assert.doesNotMatch(wrJoined(warReviewSkillMd), /authoritative non-transcript source/i, 'war-review still calls the envelope the authoritative non-transcript source')
+})
+
+test('pst T1.5: the sub-agents by role row renders n/a for a null count and names dispatch-count drift and the prefetch log (PIN-29)', () => {
+  const row = wrRow('sub-agents by role')
+  assert.match(row, /`dispatchCounts`/, 'the row must name the `dispatchCounts` object')
+  assert.match(row, /renders \*\*`n\/a`\*\* for that role, never `0`/, 'a null or absent count must render n/a, never 0')
+  assert.ok(row.includes('dispatch-count drift'), 'the row must name a disagreement dispatch-count drift')
+  assert.match(row, /`queries-p\*\.jsonl` is the Lead's prefetch log, never a seat `memory_query` count/, 'the row must name queries-p*.jsonl as the prefetch log')
+})
+
+test('pst T1.5: under-stamped counters is named in the § 3 counter rows and as a § 4 row (PIN-30)', () => {
+  for (const label of ['lessons written', 'issues filed']) {
+    const row = wrRow(label)
+    assert.ok(row.includes('under-stamped counters'), `the \`${label}\` row must fire the under-stamped counters row`)
+    assert.match(row, /`handoff`|servitorResult/, `the \`${label}\` row must cross-check the run ledger`)
+  }
+  const unstamped = wrBullet('unstamped phases')
+  const row = wrBullet('under-stamped counters')
+  assert.ok(row.at > unstamped.at, 'the under-stamped counters row must sit after the unstamped phases row')
+  assert.match(row.text, /both figures/, 'the under-stamped counters row must name both figures')
+})
+
+test('pst T1.5: § 1 follows supersedes and recoveryOf, and the ties-broken pin survives (PIN-31)', () => {
+  const s = wrJoined(wrSection(1))
+  assert.ok(s.includes('ties broken by ascending ASCII filename order'), 'the ties-broken pin is gone from § 1')
+  for (const f of ['`supersedes`', '`recoveryOf`']) assert.ok(s.includes(f), `§ 1 must follow ${f}`)
+  assert.match(s, /one row per manifest/, '§ 1 must render one row per chained manifest')
+  assert.match(s, /copied stamp/, '§ 1 must report an equal `endedAt` as a copied stamp')
+})
+
+test('pst T1.5: the trials row renders a declined fork and a zero split after the PIN-17 clause (PIN-32)', () => {
+  const row = wrRow('trials per merged plan')
+  const clause = row.indexOf('row count = split sum + chosen count + sweep count')
+  assert.ok(clause >= 0, 'the PIN-17 clause is gone from the trials row')
+  const fork = row.indexOf('`0 rows · 1 declined fork`')
+  assert.ok(fork > clause, 'the trials row must render `0 rows · 1 declined fork` after the PIN-17 clause')
+  assert.ok(row.indexOf('`0 / 0 / 0 / 0`') > clause, 'the trials row must render the `0 / 0 / 0 / 0` split after the PIN-17 clause')
+  assert.match(row, /never `0 trials`/, 'the declined-fork arm must say never `0 trials`')
+})

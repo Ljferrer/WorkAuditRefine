@@ -21,8 +21,8 @@ run from it (ADR 0008 ordering is git > issues > ledger, untouched here).
   absent, deleted, or unparseable renders **`n/a`** — never an estimate, never a guess. Every mined
   metric degrades to `n/a` independently.
 - **Numbers are best-effort harness reads, not billing truth.** Token and tool-call counts come from
-  the harness — the manifest `envelope` aggregates where present, otherwise Claude Code's transcript
-  files — whose formats are harness-internal and may change; state this in the report. This is not
+  the harness — the manifest `envelope` aggregates (a token footprint) where present, and Claude
+  Code's transcript files (token consumption) — whose formats are harness-internal and may change; state this in the report. This is not
   an invoice.
 
 ## Run
@@ -59,6 +59,15 @@ each falling back to `$MAIN` when the `$ROOT` file is absent.
 - **`--run <runId>`**: read `$RUNS/<runId>.json`. Missing → say so and list the runIds that do exist.
 - **`--scavenge [<plan-slug>]`**: read [`references/scavenge.md`](references/scavenge.md).
 
+**Follow the relaunch chain.** If the selected manifest carries a top-level `supersedes` (a run
+id) or `recoveryOf` (an object whose `runId` names a run), read the manifest it names under
+`$RUNS/`, and repeat on that manifest until no field names another. Render the chain as one run
+with one row per manifest: run id, chain role (`selected`, `superseded` or `recovered`), and
+`startedAt` / `endedAt`. If a manifest's `endedAt` equals the `endedAt` of a manifest it
+supersedes, report it as a copied stamp and render its wall-clock `n/a`. A named manifest that is
+absent renders its row `n/a`. Both fields are Lead-stamped and outside the manifest contract, so
+read them fail-open. Absent fields keep the single-manifest path.
+
 Parse the manifest as JSON. A present-but-malformed manifest is reported honestly (say which fields
 you could read); you never invent the missing fields.
 
@@ -70,13 +79,17 @@ basename is the harness run id, so it must equal the phase's `workflowRunId`; a 
 half-stamped relaunch (one field overwritten, not both — `skills/war/references/run-manifest.md`
 § Relaunch) — mine the dir the `workflowRunId` names when it exists, else render that phase `n/a`,
 and report the mismatch as the **half-stamped relaunch** friction row (§ 4); never mix two
-attempts' transcripts into one phase. A phase carrying `attempts[]` is a relaunched phase: its
+attempts' transcripts into one phase. A `null` `workflowRunId` means no comparison: mine
+`transcriptDir` as-is, and never file the half-stamped relaunch row for that phase.
+A phase carrying `attempts[]` is a relaunched phase: its
 `dispatches` are summed across attempts, and each archived attempt's `transcriptDir` may be mined
-separately, labelled by attempt; its `envelope` totals cover the current attempt only, so label a
-relaunched phase's token and tool-call totals attempt-scoped, never as the phase total.
-The per-model and per-class rows (§ 3) follow the same rule: `dispatchModels` is
-binding-to-attempt ([`../war/references/run-manifest.md`](../war/references/run-manifest.md) § Relaunch), so label
-a relaunched phase's rows attempt-scoped too.
+separately, labelled by attempt. Its `envelope` covers the current attempt only, so the phase
+**footprint** sums every `attempts[]` entry's envelope plus the current attempt's, and renders
+`n/a` when any of them is null or absent. Never label the current attempt's envelope alone as the
+phase total.
+The per-model and per-class rows (§ 3) are binding-to-attempt: `dispatchModels` follows
+[`../war/references/run-manifest.md`](../war/references/run-manifest.md) § Relaunch, so label
+a relaunched phase's rows attempt-scoped.
 The `journal.jsonl` and `agent-*.jsonl` files are **harness-internal, line-delimited
 JSON** — read them **defensively**:
 
@@ -84,8 +97,11 @@ JSON** — read them **defensively**:
 - Sum **token usage** (input / output / cache-read / cache-creation) from whatever usage-shaped
   fields the records carry; count **tool-call** events. If a phase's `transcriptDir` is `null`,
   missing on disk, expired, or carries no usage-shaped fields → that phase's mined metrics are
-  **`n/a`**. Prefer the manifest's per-phase `envelope` aggregates for **totals** when present — the
-  authoritative non-transcript source; the input/output/cache **split** stays transcript-mined and
+  **`n/a`**. The mined token sum is **consumption**: deduplicate usage records by message id (the
+  record's `message.id` key; one streamed message repeats its usage record) before summing, so a
+  repeated record counts once. The manifest's per-phase `envelope` token scalar is a
+  **footprint** (an endpoint context snapshot), never consumption. When both are present, render
+  both figures, each under its label. The input/output/cache **split** stays transcript-mined and
   renders `n/a` when unsourceable, and a mined split value is always **best-effort and possibly
   undercounting** (transcripts undercount tool calls roughly 20× against the envelope), never
   cross-summable against an envelope total — the same bar binds the **run** total for tool
@@ -95,7 +111,8 @@ JSON** — read them **defensively**:
   approximation).
 - The **manifest** — not the transcripts — supplies dispatch counts by role, task terminal
   statuses, per-phase and run timestamps, `land`, `lessonsWritten`, `issuesFiled`, and — when
-  present — the `envelope` token/tool-call totals. These stand even when a transcript is gone.
+  present — the `envelope` token footprint and tool-call totals. These stand even when a
+  transcript is gone.
 
 ## 3. Tally — the metric set
 
@@ -106,25 +123,25 @@ mixed-source rule — a mixed envelope/mined total renders `n/a (mixed-source)`,
 | Metric | Source |
 |---|---|
 | workflows run (= phase count) | manifest `phases[]` |
-| sub-agents by role — workers / auditors / fix-rounds / refiner dispatches / servitor | manifest `phases[].dispatches` |
+| sub-agents by role — workers / auditors / fix-rounds / refiner dispatches / servitor | manifest `phases[].dispatches` (the contract name; many manifests stamp a `dispatchCounts` object keyed by dispatch kind instead, so read whichever is present and map a kind to a role only where its key names that role, for example `work` and `audit`); a `null` count, an unmapped role, or a phase with neither object renders **`n/a`** for that role, never `0`; when the phase's transcripts are mined, report the transcript dispatch count beside the manifest count and name a disagreement **dispatch-count drift** (an evidence line in this row, not a § 4 row); `queries-p*.jsonl` is the Lead's prefetch log, never a seat `memory_query` count |
 | total tool calls | manifest `phases[].envelope`, else mined (transcripts) |
-| total tokens | manifest `phases[].envelope`, else mined (transcripts) |
+| total tokens | manifest `phases[].envelope` as the **footprint** (an endpoint context snapshot, summed across `attempts[]` per § 2), and mined (transcripts) as the **consumption**, deduplicated by message id before summing; render both figures under their labels, bound by the § 2 mixed-source rule |
 | token split — input / output / cache | mined (transcripts), `n/a` when unsourceable |
 | wall-clock — total and per phase | manifest `startedAt`/`endedAt` (run) + `phases[].startedAt`/`endedAt`; an all-identical `startedAt`/`endedAt` set is degenerate — render wall-clock **`n/a`** with a note, never a plausible-looking duration |
 | audit rounds used vs limit | manifest `phases[].dispatches.fixRounds` vs `run.roundLimit` (from `$ROOT/.claude/war/config.json`; `n/a` if absent) |
 | findings by severity and disposition | manifest / handoff if present, else `n/a` |
 | asks — parked ask-disposition findings, tallied per phase and as a run total (#1550) | the handoff's `asks` entry, via the mined workflow-return record in the transcripts, else the run ledger's phase `handoff` field when discoverable; unsourceable ⇒ `n/a`, never fabricated |
 | citation-resolutions — absorb-by-citation resolutions tallied **per standing adjudication row** (which rows fire, how often; an over-broad row firing constantly is the measured signal to narrow it — D7, ADR 0013 amendment 2026-08-27) | the `aced` records' citation stamp (row-id + match rationale), via the mined workflow-return record in the transcripts, else the run ledger's phase `handoff` field when discoverable; unsourceable ⇒ `n/a`, never fabricated |
-| grind measurement — the #1664 backstop read, decision-shaped grinding in the terminal record | three sources, all terminal: the terminal `fixRounds` distribution (manifest `phases[].dispatches.fixRounds`), the filing site's audit-round field (the `## Evidence artifacts` audit-round line each filed follow-up issue carries), and decision-shaped language in `minorsFiled` rationales. **Coarseness named:** round-level attribution does not exist — `fixRounds` is a per-phase dispatch count, the other two are per-task terminal reads. **Two-sided boundary (the #1664 fix landed):** the escalate-at-round-0 grind #1664 measured is now engine-refused — a mechanical blocking finding with budget is `request_changes`, a split runs the rebuttal round first, and a surviving `suggested_fix` dispatches a fix round (ADR 0013, Decision log 2026-09-08) — so read the residual grind as the post-rebuttal `fixRounds` count beside the `escalated[]` records that carry a seat's `escalate_reason` (decision-forked by construction); an audit escalation with no `escalate_reason` and `fixRounds` 0 on its phase is the regression signal. **Failure-routing asymmetry:** an ambiguous reading routes to #1664's instrumentation-first refinement task (a per-round `auditLog` row), never to a silent "no grinding" |
+| grind measurement — the #1664 backstop read, decision-shaped grinding in the terminal record | three sources, all terminal: the terminal `fixRounds` distribution (manifest `phases[].dispatches.fixRounds`), the filing site's audit-round field (the `## Evidence artifacts` audit-round line each filed follow-up issue carries), and decision-shaped language in `minorsFiled` rationales. **Coarseness named:** round-level attribution does not exist — `fixRounds` is a per-phase dispatch count, the other two are per-task terminal reads. **Two-sided boundary (the #1664 fix landed):** the escalate-at-round-0 grind #1664 measured is now engine-refused — a mechanical blocking finding with budget is `request_changes`, a split runs the rebuttal round first, and a surviving `suggested_fix` dispatches a fix round (ADR 0013, Decision log 2026-09-08) — so read the residual grind as the post-rebuttal `fixRounds` count beside the `escalated[]` records that carry a seat's `escalate_reason` (decision-forked by construction); an audit escalation with no `escalate_reason` and `fixRounds` 0 on its phase is the regression signal only when its record's `blocked` text starts with neither `fix-less blocking finding survived the rebuttal or agreed-block panel` nor `post-rebuttal split or agreed-block panel with no blocking finding` (the engine's two named hold arms, which hold by design). **Failure-routing asymmetry:** an ambiguous reading routes to #1664's instrumentation-first refinement task (a per-round `auditLog` row), never to a silent "no grinding" |
 | dispatches per model — one row per `model` + `effort` pair, with its dispatch count split by `agentType` (D10) | manifest `phases[].dispatchModels`, the record whose row shape lives only in [`../war/references/schemas.md`](../war/references/schemas.md) (§ Workflow per-phase return, the `handoff` block's `dispatchModels` row) — read the keys there, never from this table; a phase whose `dispatchModels` is absent or `null` (a run before plan 2026-11-08, or a hold with no `handoff`) renders **`n/a`**, never 0; the run total renders **`n/a`** unless every phase carries the block |
 | dispatches per task class — one row per `taskClass` value, with its dispatch count split by `model` (D10) | the same `phases[].dispatchModels` record; a row with no `taskClass` counts under `unclassed`; a phase whose block is absent or `null` renders **`n/a`**, and a block where no row carries `taskClass` (no task carried a class: a run with no task-class routing emits none, or the engine predates the stamp) renders the class rows **`n/a`**, never one all-`unclassed` row; the run total renders **`n/a`** unless every phase carries the block |
 | tasks by terminal status | manifest `phases[].tasks` |
 | reland / CAS-reject count | manifest `phases[].land` + any reland count, else `n/a` |
-| lessons written | manifest `phases[].lessonsWritten` |
-| issues filed | manifest `phases[].issuesFiled` |
+| lessons written | manifest `phases[].lessonsWritten`, cross-checked against the run ledger's phase record when discoverable (`$ROOT/.claude/teams/<run-id>/ledger.json`, the servitor's written set: `servitorResult.files_written`); a manifest `0` beside a non-empty ledger set renders the ledger count with the manifest figure in parentheses (`3 (manifest 0)`) and fires the § 4 **under-stamped counters** row; an unsourceable ledger leaves the manifest value standing |
+| issues filed | manifest `phases[].issuesFiled`, cross-checked against the run ledger's phase `handoff` field when discoverable (the `followUps[]` entries with a non-null `issue`); a manifest `0` beside a non-empty ledger set renders the ledger count with the manifest figure in parentheses and fires the § 4 **under-stamped counters** row; an unsourceable ledger leaves the manifest value standing |
 | sweepExcludeCount — the campaign contention set the Lead threaded (in-band-absorb-default D2/PIN-8) | manifest `phases[].sweepExcludeCount` (Task 6.1 of the in-band-absorb-default plan records it per phase, `null` when the Lead threaded no `args.sweepExclude`); the value is the count of `args.sweepExclude` **entries** (one per contending ledger plan), never a file count; render **`n/a`** when `null` and **`0`** when the Lead threaded an empty list (the workflow log's "no campaign contention set threaded" line corroborates the `n/a`; its "campaign contention set empty for <n> entries" line reports a zero-file union across `<n>` entries — read `<n>` as the entry count the manifest holds, never as a `0` render) |
 | terminal-pass — the re-audit seat and the outcome per phase (D3a) | the workflow log's `terminal pass: phase <id> — … one re-audit seat: <lens>` line names the seat (`correctness` when the roster has one, else the roster's first seat with its own lens); the outcome is the log's follow-on line — committed at `<sha>` (`Ace-Charge <polish>:<n>`), skipped (no sweep this phase, or an empty terminal queue), no terminal commit, forward-reverted after a re-audit regression or after the seat returned no verdict (the two are distinguished by the log wording — `REGRESSED on the <lens> re-audit` vs `the terminal re-audit seat returned no verdict (<n> of <m> seat(s) returned)` — and by the demote prefix, `demote:absorb-regressed` vs `demote:terminal-pass`), or unmerged — corroborated by the `terminal:phase-<id>` dispatch (`dispatchKind: 'terminal-pass'`) in the transcripts; the pass is one hop per phase, so more than one terminal commit for a phase is itself a signal; the `terminal pass: phase <id> finality — args.finalPhase …` line is present for every phase (intake bookkeeping, logged unconditionally), never an outcome; the n/a test reads the pass's own evidence only: no `— skipped` line (either skip arm — the empty-queue line ends `— skipped.`, the no-merged-sweep line ends `— skipped; a pass without a sweep has no input.`), no line naming `one re-audit seat:` for that phase, and no `terminal:phase-<id>` dispatch ⇒ **`n/a`** |
-| absorbRounds spent per task (D5) — the ace ladder's own meter, never `fixRounds` (PIN-7) | git-derived: the **highest** `Ace-Charge: <task>:<n>` trailer index carrying that task's id, read from a ref that still holds the ace commits at review time — `git log --since=<manifest startedAt> --format='%(trailers:key=Ace-Charge,valueonly)' <workingBranch>` (or the phase's `integrationBranch`) — the manifest carries neither ref, so resolve them here: the phase ref is `integration/<plan-slug>/phase-<N>` with `<plan-slug>` the manifest `planPath` basename minus `.md`, else the working branch is the run ledger's recorded run working branch (`$ROOT/.claude/teams/<run-id>/ledger.json`); a ref that does not resolve (`git rev-parse --verify` fails) renders **`n/a`**, never a read against a guessed branch — filtered to the `<task id>:<n>` values whose id is that task's — bounded by the manifest's run `startedAt`, because task ids repeat across plans and ADR 0011 stack-and-plow cuts each plan's working branch off the prior plan's tip, so an unbounded working-branch read can pick up an identically-named task id (`1.1`, `2.1`, `6.2`) from a prior stacked plan (never the two-dot range `<integrationBranch>..<branch>`: Refine merges every task branch into the integration branch, so that range is empty for every landed task and reads a false 0); the highest index, never a count; a reverted ace commit's trailer still counts; no value carrying that task id ⇒ **`n/a`**, never 0; corroborated by the `ace:<task>:a<n>` / `ace-gate:<task>:a<n>` dispatch labels and the `absorb-budget:` log lines; the polish pseudo-task's counter is the terminal pass's own charge (telemetry only, seeded 0; when the terminal-pass row reports forward-reverted or unmerged, the terminal commit stays on the polish branch `war/<slug>/p<N>-polish` and never reaches the two refs above, so read that branch for the polish pseudo-task's `Ace-Charge` trailer — the two refs then render a false `n/a` for a counter that was charged 1); render against `run.absorbRounds` (from `$ROOT/.claude/war/config.json`; default 6 when the key is absent, since `war-config.mjs` resolves an absent key to 6; `n/a` only when the config file itself is unreadable); no trailer carrying the task id, no label, and no log line ⇒ **`n/a`** (a deleted task branch does not matter: the read never targets the task branch) |
+| absorbRounds spent per task (D5) — the ace ladder's own meter, never `fixRounds` (PIN-7) | git-derived: the **highest** `Ace-Charge: <task>:<n>` trailer index carrying that task's id, read from a ref that still holds the ace commits at review time — `git log --since=<manifest startedAt> --format='%(trailers:key=Ace-Charge,valueonly)' <workingBranch>` (or the phase's `integrationBranch`) — the manifest carries neither ref, so resolve them here: the phase ref is `integration/<plan-slug>/phase-<N>` with `<plan-slug>` the manifest `planPath` basename minus `.md`, else the working branch is the run ledger's recorded run working branch (`$ROOT/.claude/teams/<run-id>/ledger.json`); a ref that does not resolve (`git rev-parse --verify` fails) renders **`n/a`**, never a read against a guessed branch — filtered to the `<task id>:<n>` values whose id is that task's — bounded by the manifest's run `startedAt`, because task ids repeat across plans and ADR 0011 stack-and-plow cuts each plan's working branch off the prior plan's tip, so an unbounded working-branch read can pick up an identically-named task id (`1.1`, `2.1`, `6.2`) from a prior stacked plan (never the two-dot range `<integrationBranch>..<branch>`: Refine merges every task branch into the integration branch, so that range is empty for every landed task and reads a false 0); the highest index, never a count; a reverted ace commit's trailer still counts; no value carrying that task id ⇒ **`n/a`**, never 0; corroborated by the `ace:<site>:<task>:a<n>` (site `subset`, `reentry` or `polish`) / `ace-gate:<task>:a<n>` dispatch labels and the `absorb-budget:` log lines; the polish pseudo-task's counter is the terminal pass's own charge (telemetry only, seeded 0; when the terminal-pass row reports forward-reverted or unmerged, the terminal commit stays on the polish branch `war/<slug>/p<N>-polish` and never reaches the two refs above, so read that branch for the polish pseudo-task's `Ace-Charge` trailer — the two refs then render a false `n/a` for a counter that was charged 1); render against `run.absorbRounds` (from `$ROOT/.claude/war/config.json`; default 6 when the key is absent, since `war-config.mjs` resolves an absent key to 6; `n/a` only when the config file itself is unreadable); no trailer carrying the task id, no label, and no log line ⇒ **`n/a`** (a deleted task branch does not matter: the read never targets the task branch) |
 | follow-ups filed per `DEMOTE_REASONS` prefix (D13/PIN-15) | tally the `minorsFiled` rows by the `DEMOTE_REASONS` member their reason string starts with — the members are canonical in [`../war/assets/land-decision.mjs`](../war/assets/land-decision.mjs) (`export const DEMOTE_REASONS`), read them there, never from memory — via the mined workflow-return record in the transcripts, else each filed war-followup issue body's fixed prefix line; a seat-cited `follow-up` (a `barrier` field, no `demote:` prefix) is its own bucket; a row with `floorSkipped` and no `demoteReason` (pushed to `minorsFiled` without `demote()` running) tallies under `demote:floor-skipped`, matching what `filedByOf` writes on the issue body; unsourceable ⇒ **`n/a`**; any `demote:unclassified` row is the defect signal of §4, not a bucket to normalize away |
 
 **Plan-scoped telemetry** — five ratified rows keyed to the run's *plan* (and any campaign it
@@ -138,7 +155,7 @@ renders **`n/a`**, never a reconstruction.
 | red-team rounds per plan — trend across campaigns | the same two sources swept across `$MAIN/docs/red-team/` reports and the campaign ledgers under `$MAIN/.claude/campaigns/*/ledger.json`, rendered as a per-plan series; state a trend reading only with at least one full campaign of field data behind it — until then the series stands alone, and an empty sweep renders `n/a` |
 | interview length — questions per merged plan | the authoring interview's final status-line question count (`Qk/<budget>` — budget default 14, operator-raisable per D8; the question contract in [`../war-strategy/references/plan-interview.md`](../war-strategy/references/plan-interview.md)); no artifact persists it today — `n/a` unless the operator supplies the count |
 | waive-rate per arming arm | the `WAIVE-<n>` rows carried in plans authored under the authoring-side verification doctrine (each row records the arming arm that fired — the artifact-borne fix-or-waive channel in [`../war-strategy/references/plan-interview.md`](../war-strategy/references/plan-interview.md)); tally waives per arm across the doctrine-authored plans in scope (this run's plan, plus the campaign's plans on a campaign run — the campaign is resolved by the same ledger-match discipline as the red-team-rounds row above: slug match, never the newest campaign; ambiguity ⇒ `n/a` with the ambiguity stated); a plan with no `WAIVE-<n>` rows contributes zero waives, but when **no doctrine-authored plan is in scope** the row renders `n/a` — never fabricated (this skill's standing `n/a` rule) |
-| trials per merged plan | the `**Trials run**` block of each doctrine-authored plan in scope (the same scope and ledger-match discipline as the waive-rate row above; the block's grammar is in [`../war-strategy/references/fork-trials.md`](../war-strategy/references/fork-trials.md)): the `TRIAL-<n>` row count and its settled / inconclusive / infra-failed / declined split (a pair row recording `pair declined:` is a declined trial); a plan whose block reads `None — no fork qualified` contributes zero trials; a plan that carries no `**Trials run**` block predates this doctrine and is out of scope for this row, never counted as zero; when no in-scope plan carries a `**Trials run**` block the row renders `n/a` — never fabricated |
+| trials per merged plan | the `**Trials run**` block of each doctrine-authored plan in scope (the same scope and ledger-match discipline as the waive-rate row above; the block's grammar is in [`../war-strategy/references/fork-trials.md`](../war-strategy/references/fork-trials.md)): the `TRIAL-<n>` row count and its settled / inconclusive / infra-failed / declined split (a pair row recording `pair declined:` is a declined trial); the split covers fact rows and declined pair rows only, and a chosen pair row (it carries `chosen:`, never an outcome) and a sweep row are each reported as a separate count beside the split, so row count = split sum + chosen count + sweep count (#2452), and a chosen pair row is never counted as `settled`; a `None` block that names a declined fork (any text beyond the bare `None — no fork qualified`) renders `0 rows · 1 declined fork` with the block's reason, never `0 trials`; a block whose rows all lack an outcome token renders the split `0 / 0 / 0 / 0` beside the chosen and sweep counts, never `n/a`; a plan whose block reads `None — no fork qualified` contributes zero trials; a plan that carries no `**Trials run**` block predates this doctrine and is out of scope for this row, never counted as zero; when no in-scope plan carries a `**Trials run**` block the row renders `n/a` — never fabricated |
 
 **Auditor guard denials per auditor seat** — render per phase and as a run total, after the tables
 above. Count each `hooks/validate-auditor-git.sh` denial in a `war-auditor` or `war-evidence-auditor`
@@ -193,6 +210,20 @@ string, its phase, and its task (where task-scoped):
 - **half-stamped relaunch** — a phase whose `transcriptDir` basename differs from its
   `workflowRunId` (one field overwritten at relaunch, not both — § 2's basename check; `endedAt`,
   `tasks` and `land` are all present, so the class above never fires on it). Evidence: both values.
+  A `null` `workflowRunId` means no comparison, so the row never fires on that phase (§ 2 mines its
+  `transcriptDir` as-is).
+- **unstamped phases** — the run ledger shows a phase the manifest never stamped. Read the ledger
+  at `$MAIN/.claude/teams/<run-id>/ledger.json` (the `$ROOT` copy first, per § 1) beside the
+  manifest. Fire when the manifest has fewer phase records than the ledger, or when a manifest
+  phase record keeps `endedAt` null or a `land` hold while the ledger shows a later attempt of that
+  phase or a later phase. The ledger's per-phase workflow field is `workflowRunId` (older ledgers
+  spell it `workflow_run`), and each ledger `attempts[]` entry carries its own `workflowRunId`.
+  Evidence: each unstamped phase and the ledger workflow ids found. The check is a record count
+  and a field compare. It reads no transcript, so it may run on a live manifest mid-run (source:
+  run 83f08e8c, #2669, #2670, #2671, where phases 2 to 6 never reached the manifest).
+- **under-stamped counters** — a phase whose manifest `lessonsWritten` or `issuesFiled` reads `0`
+  while the run ledger's phase record shows a non-empty set (§ 3's `lessons written` and
+  `issues filed` rows). Evidence: the phase and both figures, manifest and ledger.
 - **`demote:unclassified` demotions** — any filed `follow-up` row whose reason string carries the
   `demote:unclassified` prefix (the `DEMOTE_REASONS MISS` log line names the site). The engine
   prepends it when a `demote()` call site cites no `DEMOTE_REASONS` member — a plugin defect at
