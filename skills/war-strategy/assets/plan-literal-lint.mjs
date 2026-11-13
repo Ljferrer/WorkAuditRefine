@@ -141,6 +141,8 @@ export const LINT_PATTERNS = [
 // A markdown heading or a **Task N** / **Phase N** bold heading resets release scope.
 const HEADING = /^(?:#{1,6}\s|\s*[-*]*\s*\*\*(?:task|phase)\b)/i;
 const RELEASE_HEADING = /\b(?:release|version\s+bump)\b/i;
+// The `- requiresTest: true` declaration line only, so slice prose quoting the literal never matches.
+const REQUIRES_TEST_TRUE = /^\s*-\s*requiresTest:\s*true\b/im;
 
 // ---------------------------------------------------------------------------
 // Merged-template shape rules (spec §4f). Structural — scoped to a section, a logical bullet,
@@ -424,7 +426,7 @@ export const SHAPE_RULES = [
     name: 'requires-test-without-done-when',
     slot: 'per-task `Done when:` (merged-template `### Task N:` block — required iff `requiresTest: true`)',
     scan: (doc) => doc.taskBlocks
-      .filter((t) => /requiresTest:\s*true/i.test(t.body) && !/\bDone when:/i.test(t.body))
+      .filter((t) => REQUIRES_TEST_TRUE.test(t.body) && !/\bDone when:/i.test(t.body))
       .map((t) => t.heading),
   },
   {
@@ -597,7 +599,7 @@ export const SHAPE_RULES = [
     slot: 'per-task `requiresTest` (merged-template `### Task N:` block under a release heading — `requiresTest: true` needs a test file in `Files:`)',
     scan: (doc) => doc.taskBlocks
       .filter((t) => RELEASE_HEADING.test(t.heading) || RELEASE_HEADING.test(t.phase))
-      .filter((t) => /requiresTest:\s*true/i.test(t.body))
+      .filter((t) => REQUIRES_TEST_TRUE.test(t.body))
       .filter((t) => {
         const files = t.body.split('\n').filter((l) => /^\s*-\s*Files:/i.test(l))
           .flatMap((l) => [...l.matchAll(/`([^`]+)`/g)].map((m) => m[1].trim()));
