@@ -5479,6 +5479,8 @@ test('pst T1.5: the token rows name the envelope a footprint and dedupe the mine
   }
   assert.match(s2, /sums every `attempts\[\]` entry's envelope plus the current attempt's/, '§ 2 must sum the attempts[] envelopes into the phase footprint')
   assert.match(s2, /n\/a \(mixed-source\)/, '§ 2 must keep the mixed-source rule')
+  assert.match(s2, /renders `n\/a` when any of them is null or absent/, '§ 2 must render the footprint n/a when any attempt envelope is null')
+  assert.doesNotMatch(wrJoined(warReviewSkillMd), /aggregates where present, otherwise Claude Code's transcript files/i, 'the retired envelope-or-transcript wording is back in § 0')
   assert.doesNotMatch(wrJoined(warReviewSkillMd), /authoritative non-transcript source/i, 'war-review still calls the envelope the authoritative non-transcript source')
 })
 

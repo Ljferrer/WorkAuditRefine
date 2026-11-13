@@ -22,8 +22,8 @@ run from it (ADR 0008 ordering is git > issues > ledger, untouched here).
   metric degrades to `n/a` independently.
 - **Numbers are best-effort harness reads, not billing truth.** Token and tool-call counts come from
   the harness — the manifest `envelope` aggregates (a token footprint) where present, and Claude
-  Code's transcript files (token consumption) — whose formats are harness-internal and may change; state this in the report. This is not
-  an invoice.
+  Code's transcript files (token consumption) — whose formats are harness-internal and may change;
+  state this in the report. This is not an invoice.
 
 ## Run
 
