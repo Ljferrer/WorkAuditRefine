@@ -51,6 +51,15 @@
 #  13. malformed trailer (1): the case-1 raise with a PARTIAL citation in the
 #      commit body (`Budget-Raise:` lines missing the `+<bytes>` delta or the
 #      ADR-0042 token) -> exit 1 — pins TRAILER_RE's required form
+#  14. numeric-form (1/1/1): a row hard value written `100_000`, `0x13880` or
+#      `1e5`, no trailer -> exit 1 — a non-integer token is unkeyed and
+#      raise-suspect (#1732)
+#  15. rename (1/0): a renamed row whose hard value exceeds the largest
+#      only-in-old hard value, no trailer -> exit 1 (rename-plus-raise); the
+#      same rename with a lower value -> exit 0 (rename-plus-lowering, #1734)
+#  16. real-tree BUDGET_FILE parity: the script's BUDGET_FILE literal equals
+#      the fixture path and `git ls-files --error-unmatch` finds it at this
+#      repo's root (#1733)
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -498,6 +507,81 @@ if [ "$rc13" -eq 1 ]; then
   pass "case 13: partial Budget-Raise citation (no +<bytes> / no ADR token) -> exit 1"
 else
   fail "case 13: partial Budget-Raise citation -> expected exit 1, got $rc13"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 14: numeric-form default-deny (#1732). A legal JS numeric literal that
+# is not a plain `^[0-9]+$` integer, no trailer -> exit 1. A digit-only
+# extraction truncated `100_000` to 100, `0x13880` to 0 and `1e5` to 1, so
+# each of these raises read as a lowering and exited 0.
+# ---------------------------------------------------------------------------
+numeric_form_case() {
+  _nf_id="$1"; _nf_val="$2"
+  _nf_r="$(setup_repo)"
+  _nf_base="$(git -C "$_nf_r" rev-parse HEAD)"
+  git -C "$_nf_r" checkout -qb task/numeric-form 2>/dev/null
+  write_budget "$_nf_r" "$_nf_val" 900 2000 1800
+  git -C "$_nf_r" add "$BUDGET_REL"
+  git -C "$_nf_r" commit -qm "raise SKILL.md hard ceiling as $_nf_val (no trailer)"
+  _nf_task="$(git -C "$_nf_r" rev-parse HEAD)"
+  git -C "$_nf_r" checkout -q - 2>/dev/null
+  _nf_cwd="$(fresh_cwd)"
+  _nf_rc=0
+  ( cd "$_nf_cwd" && bash "$SCRIPT" "$_nf_base" "$_nf_task" --repo "$_nf_r" ) >/dev/null 2>&1 || _nf_rc=$?
+  if [ "$_nf_rc" -eq 1 ]; then
+    pass "case $_nf_id: numeric-form: $_nf_val -> exit 1 (non-integer token is raise-suspect)"
+  else
+    fail "case $_nf_id: numeric-form: $_nf_val -> expected exit 1, got $_nf_rc"
+  fi
+}
+numeric_form_case 14a 100_000
+numeric_form_case 14b 0x13880
+numeric_form_case 14c 1e5
+
+# ---------------------------------------------------------------------------
+# Case 15: rename plus raise / rename plus lowering (#1734). The FILE_BUDGETS
+# row is renamed, so its key exists on one side only. A new value above the
+# largest only-in-old value in the same field is raise-suspect (15a, exit 1).
+# A new value below it is a lowering and owes nothing (15b, exit 0 control).
+# ---------------------------------------------------------------------------
+rename_case() {
+  _rn_id="$1"; _rn_label="$2"; _rn_hard="$3"; _rn_want="$4"
+  _rn_r="$(setup_repo)"
+  _rn_base="$(git -C "$_rn_r" rev-parse HEAD)"
+  git -C "$_rn_r" checkout -qb task/rename 2>/dev/null
+  write_budget "$_rn_r" "$_rn_hard" 900 2000 1800
+  sed "s|'skills/war/SKILL.md'|'skills/war/RENAMED.md'|" \
+    "$_rn_r/$BUDGET_REL" > "$_rn_r/$BUDGET_REL.tmp" && mv "$_rn_r/$BUDGET_REL.tmp" "$_rn_r/$BUDGET_REL"
+  git -C "$_rn_r" add "$BUDGET_REL"
+  git -C "$_rn_r" commit -qm "rename SKILL.md row, hard $_rn_hard (no trailer)"
+  _rn_task="$(git -C "$_rn_r" rev-parse HEAD)"
+  git -C "$_rn_r" checkout -q - 2>/dev/null
+  _rn_cwd="$(fresh_cwd)"
+  _rn_rc=0
+  ( cd "$_rn_cwd" && bash "$SCRIPT" "$_rn_base" "$_rn_task" --repo "$_rn_r" ) >/dev/null 2>&1 || _rn_rc=$?
+  if [ "$_rn_rc" -eq "$_rn_want" ]; then
+    pass "case $_rn_id: $_rn_label (hard 1000 -> $_rn_hard) -> exit $_rn_want"
+  else
+    fail "case $_rn_id: $_rn_label (hard 1000 -> $_rn_hard) -> expected exit $_rn_want, got $_rn_rc"
+  fi
+}
+rename_case 15a rename-plus-raise 1200 1
+rename_case 15b rename-plus-lowering 800 0
+
+# ---------------------------------------------------------------------------
+# Case 16: real-tree BUDGET_FILE parity (#1733). Every fixture above seeds its
+# own budget file at BUDGET_REL, so a drifted BUDGET_FILE literal in the
+# script would leave the floor reading a path the real repo never tracks — a
+# silent exit 0 on every real raise. Extract the literal from the script and
+# require git to track it at this repo's root.
+# ---------------------------------------------------------------------------
+lit16="$(sed -n 's/^BUDGET_FILE="\([^"]*\)"$/\1/p' "$SCRIPT")"
+root16="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null)" || root16=""
+if [ -n "$lit16" ] && [ "$lit16" = "$BUDGET_REL" ] && [ -n "$root16" ] \
+   && git -C "$root16" ls-files --error-unmatch -- ":(top)$lit16" >/dev/null 2>&1; then
+  pass "real-tree BUDGET_FILE parity: '$lit16' is tracked at the repo root"
+else
+  fail "real-tree BUDGET_FILE parity: literal '$lit16' (fixture '$BUDGET_REL') is not tracked at repo root '$root16'"
 fi
 
 # ---------------------------------------------------------------------------
