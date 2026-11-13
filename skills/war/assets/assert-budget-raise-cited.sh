@@ -176,15 +176,23 @@ classify_lines() {
         key="${code#const }"
         key="${key%%[ =]*}" ;;
     esac
-    # Each value TOKEN runs to the next `,`, `}` or blank. A token that is not
-    # a plain `^[0-9]+$` integer (`100_000`, `0x13880`, `1e5`, ...) cannot be
-    # compared by `[ -gt ]`: a digit-only extraction would truncate it to its
-    # leading digits and read a raise as a lowering. Such a row is UNKEYED
-    # instead, so any change to it is raise-suspect (deny, never guess).
+    # Each value TOKEN runs to the next `,` or `}`, less trailing blanks. A
+    # token that is not a plain `^[0-9]+$` integer (`100_000`, `0x13880`,
+    # `1e5`, `2000 + 500`, ...) cannot be compared by `[ -gt ]`: a digit-only
+    # or blank-stopped extraction would truncate it to its leading digits and
+    # read a raise as a lowering. Such a row is UNKEYED instead, so any change
+    # to it is raise-suspect (deny, never guess).
     recs=""
     if [ -n "$key" ]; then
       for field in hard advisory; do
-        val="$(printf '%s\n' "$code" | sed -nE "s/.*${field}:[[:space:]]*([^,}[:space:]]*).*/\1/p")"
+        val="$(printf '%s\n' "$code" | sed -nE "s/.*${field}:[[:space:]]*([^,}]*).*/\1/p")"
+        while :; do
+          case "$val" in
+            *' ')  val="${val% }" ;;
+            *'	') val="${val%	}" ;;
+            *) break ;;
+          esac
+        done
         [ -n "$val" ] || continue
         case "$val" in
           *[!0-9]*) key=""; break ;;
