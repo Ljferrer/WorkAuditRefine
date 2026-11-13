@@ -1800,35 +1800,36 @@ const GATE_SITE_CAPTURES = [
 // prompt-truth sweep), and (2) the absent ⇒ '' set-minus identity — a doneWhen-less run's prompts are
 // byte-identical to a doneWhen-bearing run's prompts minus the single inserted clause (legacy
 // byte-identity, End state 9). Fresh task objects per run (dwTask) — never the shared SINGLE_TASK —
-// because these tests byte-compare prompts ACROSS runs.
+// because these tests byte-compare prompts ACROSS runs. Each run's optional second argument spreads
+// into the phase args (a { plan } override for the doneWhenPreamble rows).
 const DW_CMD = 'node --test skills/war/assets/task-one.acceptance.test.mjs'
 const dwTask = (over = {}) => ({ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], ...over })
 const DONE_WHEN_SITES = [
   { site: 'primary worker dispatch (work:<task>)', find: (c) => c.find(isWorker),
-    run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), defaultImpl) },
+    run: (taskOver, over) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)], ...over }), defaultImpl) },
   { site: 'FIX_NEEDED fix prompt (fix:<task>:r<n>)', find: (c) => c.find(x => /^fix:t1:/.test(x.opts.label || '')),
-    run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), fixNeededImpl()) },
+    run: (taskOver, over) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)], ...over }), fixNeededImpl()) },
   { site: 'ADD_TEST floor-fix prompt (add-test:<task>:r<n>)', find: (c) => c.find(isAddTestWorker),
-    run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), floorRetryImpl()) },
+    run: (taskOver, over) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)], ...over }), floorRetryImpl()) },
   { site: 'PACKAGE_IT floor-fix prompt (package-it:<task>:r<n>)', find: (c) => c.find(isPackageItWorker),
-    run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), pkgFloorRetryImpl()) },
+    run: (taskOver, over) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)], ...over }), pkgFloorRetryImpl()) },
   { site: 'ace advisory-polish prompt (ace:polish:<task>:a<n>)', find: (c) => c.find(x => /^ace:polish:/.test(x.opts.label || '')),
-    run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), aceBase()) },
+    run: (taskOver, over) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)], ...over }), aceBase()) },
   // The ace bisection SUBSET dispatch (realized-absorb-rate Task 1.1) is the seventh worker-family
   // site — doneWhenClause rides it beside its Gate: line like its siblings — ADDED, never skipped.
   { site: 'ace bisection subset prompt (ace:subset:<task>:a<n>, n>=2)', find: (c) => c.find(x => /^ace:subset:t1:a2$/.test(x.opts.label || '')),
-    run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), bisectSubsetImpl()) },
+    run: (taskOver, over) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)], ...over }), bisectSubsetImpl()) },
   // MAKE_DONE_PASS (Task 2.3) is the fifth fix-family prompt — doneWhenClause rides it like its
   // siblings, so its row is ADDED, never skipped. (Production only reaches it for a doneWhen-bearing
   // task — the floor never runs otherwise — but the mock drives the doneWhen-less arm too, proving
   // the set-minus identity holds even there.)
   { site: 'MAKE_DONE_PASS floor-fix prompt (make-pass:<task>:r<n>)', find: (c) => c.find(isMakePassWorker),
-    run: (taskOver) => runDoneUnmetLoop({ taskOver }) },
+    run: (taskOver, over) => runDoneUnmetLoop({ taskOver, ...over }) },
   // The ace RE-ENTRY batch dispatch (in-run-finding-resolution Task 1.1) is the eighth
   // worker-family site — doneWhenClause rides it beside its Gate: line — ADDED, never skipped.
   { site: 'ace re-entry batch prompt (ace:reentry:<task>:a<n>, fresh re-audit absorb)',
     find: (c) => c.find(x => /^ace:reentry:t1:a2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE RE-ENTRY BATCH')),
-    run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), reentryImpl()) },
+    run: (taskOver, over) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)], ...over }), reentryImpl()) },
 ]
 
 // A1 (D9) — the RETIRED plan-slice-criteria framing, asserted absent from the standing worker card
