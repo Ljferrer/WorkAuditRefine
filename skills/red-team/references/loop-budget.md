@@ -21,7 +21,7 @@ Advisory fast-fail (prose-only pending field data; gate-typing is a deferred bac
 
 ## The `## Route upstream` block
 
-On a route-upstream terminal, Step 6 appends this block to the report — the residual questions phrased as the `/war-strategy` regrill agenda, plus the exact re-entry command:
+On a route-upstream terminal, Step 6 appends this block to the report — the residual questions phrased as the `/war-strategy` regrill agenda, plus the exact re-entry command or the budget-spent line:
 
 ```markdown
 ## Route upstream
@@ -30,6 +30,10 @@ On a route-upstream terminal, Step 6 appends this block to the report — the re
 - <the unsettled decision — its non-equivalent resolutions, and what the gate saw>
 
 **Re-entry:** `/red-team <abs plan path> [--repo <path>]` — after the regrill; the fresh run seeds its cumulative count from this report's `**Rounds:**` line.
+
+**Budget spent:** operator decides — backstop, Note, or waiver
 ```
 
-The agenda rows are the run's residual open questions verbatim — every unpatched root, every unsettled `needsDecision` — one row per question, nothing summarized away. Both commands are exact (absolute plan path filled in), copy-paste ready: the block is the handoff artifact `/war-campaign`'s halt arm surfaces in CAMPAIGN-STATE.md, and a vague agenda row defeats the regrill it exists to seed.
+Write exactly one of the last two lines. The Re-entry line is the default. When the run's seed already meets the round limit and the gate routes upstream, write the Budget spent line in place of the Re-entry line. A re-entry would only route upstream again, so the operator picks a backstop, a Note or a waiver for the residual questions the agenda still lists. A run that ran zero sweeps and routed upstream writes `seed + 1` in its `**Rounds:**` line (SKILL.md Step 6), so the next run's seed counts the routed run.
+
+The agenda rows are the run's residual open questions verbatim — every unpatched root, every unsettled `needsDecision` — one row per question, nothing summarized away. Every command in the block is exact (absolute plan path filled in), copy-paste ready: the block is the handoff artifact `/war-campaign`'s halt arm surfaces in CAMPAIGN-STATE.md, and a vague agenda row defeats the regrill it exists to seed.
