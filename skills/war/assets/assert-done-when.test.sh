@@ -753,13 +753,24 @@ setup_nt_wt() {
   printf '%s\n' "$nt_wt"
 }
 
-# Case 26: RED PROOF — drop the probe and node exits 0.
+# Case 26: RED PROOF — drop the probe and node exits 0. Lines 2-5 put a
+# node --test after each of the `&&`, `||`, `|` and lone `&` boundaries:
+# drop one boundary and its missingN file is not named. Line 6: a complete
+# `2>&1` is not a bare operator, so the token after it is still probed.
+# Line 7: an `&>>` target is never probed (the command never runs here, so
+# bash 3.2's lack of `&>>` cannot matter).
 WT26="$(setup_nt_wt)"
 CF26="$(tmp_dir)/nt26.cmd"
-printf 'out=$(node --test --test-reporter=tap a.test.mjs missing.test.mjs) && printf ran > nt-ran.txt\n' > "$CF26"
+printf 'out=$(node --test --test-reporter=tap a.test.mjs missing.test.mjs) && printf ran > nt-ran.txt\ntrue && node --test a.test.mjs missing2.test.mjs\nfalse || node --test a.test.mjs missing3.test.mjs\ntrue | node --test a.test.mjs missing4.test.mjs\ntrue & node --test a.test.mjs missing5.test.mjs\nnode --test a.test.mjs 2>&1 missing6.test.mjs\nnode --test a.test.mjs &>> notprobed7.log\n' > "$CF26"
 run_floor "$WT26" --cmd-file "$CF26"
 if [ "$RC" -eq 1 ] \
    && printf '%s' "$ERR" | grep -qF 'assert-done-when: node --test names a missing file: missing.test.mjs (node skips it silently and exits 0; the done-unmet route)' \
+   && printf '%s' "$ERR" | grep -qF 'missing file: missing2.test.mjs' \
+   && printf '%s' "$ERR" | grep -qF 'missing file: missing3.test.mjs' \
+   && printf '%s' "$ERR" | grep -qF 'missing file: missing4.test.mjs' \
+   && printf '%s' "$ERR" | grep -qF 'missing file: missing5.test.mjs' \
+   && printf '%s' "$ERR" | grep -qF 'missing file: missing6.test.mjs' \
+   && ! printf '%s' "$ERR" | grep -qF 'notprobed7.log' \
    && ! printf '%s' "$ERR" | grep -qF 'missing file: a.test.mjs' \
    && [ ! -f "$WT26/nt-ran.txt" ]; then
   pass "case 26: node --test missing file exits 1 (named on stderr, command never ran)"
@@ -768,10 +779,11 @@ else
 fi
 
 # Case 27: a quoted glob with no match is not probed. RED PROOF: drop the
-# glob skip and '*.nomatch.test.mjs' is reported missing.
+# `*`, `?` or `[` glob skip and that token is reported missing. Line 2: drop
+# the valflag table and the spaced flag value 'tap' is reported missing.
 WT27="$(setup_nt_wt)"
 CF27="$(tmp_dir)/nt27.cmd"
-printf "node --test a.test.mjs '*.nomatch.test.mjs' > /dev/null\n" > "$CF27"
+printf "node --test a.test.mjs '*.nomatch.test.mjs' '?.nomatch.test.mjs' '[x].nomatch.test.mjs' > /dev/null\nnode --test --test-reporter tap a.test.mjs > /dev/null\n" > "$CF27"
 run_floor "$WT27" --cmd-file "$CF27"
 if [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
   pass "case 27: node --test glob token is not probed (exit 0 through the command)"
@@ -791,11 +803,13 @@ else
   fail "case 28: variable token -> expected exit 0 and no probe, got RC=$RC (err: $ERR)"
 fi
 
-# Case 29: a redirect and its target are not probed, spaced or glued. RED
-# PROOF: drop the redirect skip and '>' is reported missing.
+# Case 29: a redirect and its target are not probed, spaced or glued, with
+# or without an fd number, and a heredoc word is not probed. RED PROOF: drop
+# the bare-operator skip and '/dev/null' or 'EOF' is reported missing; drop
+# the attached-operator skip and '1>/dev/null' or '<<EOF' is reported.
 WT29="$(setup_nt_wt)"
 CF29="$(tmp_dir)/nt29.cmd"
-printf 'node --test a.test.mjs > /dev/null\nnode --test a.test.mjs >/dev/null 2>&1\n' > "$CF29"
+printf 'node --test a.test.mjs > /dev/null\nnode --test a.test.mjs >/dev/null 2>&1\nnode --test a.test.mjs >> /dev/null\nnode --test a.test.mjs < /dev/null\nnode --test a.test.mjs 2> /dev/null\nnode --test a.test.mjs 1>/dev/null\nnode --test a.test.mjs 1> /dev/null\nnode --test a.test.mjs 2>> /dev/null\nnode --test a.test.mjs &> /dev/null\nnode --test a.test.mjs > /dev/null <<EOF\nx\nEOF\nnode --test a.test.mjs > /dev/null << EOF\nx\nEOF\n' > "$CF29"
 run_floor "$WT29" --cmd-file "$CF29"
 if [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
   pass "case 29: node --test redirect target is not probed (exit 0 through the command)"
@@ -814,6 +828,28 @@ if [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
   pass "case 30: quoted node --test text is not probed (exit 0 through the command)"
 else
   fail "case 30: quoted text -> expected exit 0 and no probe, got RC=$RC (err: $ERR; cmd: $(cat "$CF30"))"
+fi
+
+# Case 32: after a command-position `cd` or `pushd`, paths resolve against a
+# run-time directory, so no later node --test is probed (fail-open). The
+# test files live only under sub/. Each verb gets its own cmd file. RED
+# PROOF: drop the cdseen flag, or the `cd` or `pushd` test, and
+# 'b.test.mjs' is reported missing.
+WT32="$(setup_wt)"
+mkdir -p "$WT32/sub"
+printf "import test from 'node:test';\ntest('x', () => {});\n" > "$WT32/sub/b.test.mjs"
+CF32="$(tmp_dir)/nt32.cmd"
+printf 'cd sub && node --test b.test.mjs > /dev/null\n' > "$CF32"
+run_floor "$WT32" --cmd-file "$CF32"
+RC32a="$RC"; ERR32a="$ERR"
+CF32="$(tmp_dir)/nt32b.cmd"
+printf 'pushd sub > /dev/null && node --test b.test.mjs > /dev/null\n' > "$CF32"
+run_floor "$WT32" --cmd-file "$CF32"
+if [ "$RC32a" -eq 0 ] && ! printf '%s' "$ERR32a" | grep -qF 'missing file' \
+   && [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
+  pass "case 32: node --test after an in-command cd is not probed (exit 0 through the command)"
+else
+  fail "case 32: in-command cd -> expected exit 0 and no probe, got cd RC=$RC32a pushd RC=$RC (err: $ERR32a $ERR)"
 fi
 
 # Case 31: a failed command-file scan is an env error -> exit 2, never the

@@ -44,11 +44,14 @@
 # The tokens after `--test` up to `)`, `&&`, `||`, `|`, `;` or a newline are
 # candidates, quotes stripped. Skipped: a `-` flag (and the next token after
 # a value-taking node flag written without `=`); a token holding `*`, `?`,
-# `[` or `$` (globs and variables resolve at run time); a redirect operator
-# (`>`, `>>`, `<`, `2>`, `2>&1`, `&>`) with the token after it; and a token
-# that starts with a redirect operator (`>/dev/null`). Each other token that
-# is not a file under the worktree is printed as missing. A cmd file with no
-# such `node --test` call keeps today's output byte-for-byte.
+# `[` or `$` (globs and variables resolve at run time); a bare redirect
+# operator with an optional fd number (`>`, `1>`, `2>>`, `&>>`, `<`, `<<`,
+# `>&`) with the token after it; and a token that starts with a redirect
+# operator (`>/dev/null`, `1>log`, `2>&1`, `<<EOF`). Once a command-position
+# `cd` or `pushd` is seen, no later `node --test` is probed: paths then
+# resolve against a run-time directory, so the probe fails open. Each other
+# token that is not a file under the worktree is printed as missing. A cmd
+# file with no such `node --test` call keeps today's output byte-for-byte.
 #
 # TIMEOUT (A3): default 600s, override via --timeout <secs> (positive integer;
 # --timeout is also the test knob). A hung command fails THIS DISPATCH ONLY —
@@ -183,14 +186,14 @@ function flush() {
 }
 function boundary() { flush(); nw = 0; isnode = 0; probing = 0; skipnext = 0 }
 function emit(w) {
-  if (nw == 0) isnode = (w == "node")
-  else if (nw == 1) probing = (isnode && w == "--test")
+  if (nw == 0) { isnode = (w == "node"); if (w == "cd" || w == "pushd") cdseen = 1 }
+  else if (nw == 1) probing = (isnode && w == "--test" && !cdseen)
   else if (probing) {
     if (skipnext) skipnext = 0
-    else if (w == ">" || w == ">>" || w == "<" || w == "2>" || w == "2>&1" || w == "&>") skipnext = 1
+    else if (w ~ /^[0-9]*(>>?|<<?<?|>&|<&|&>>?)$/) skipnext = 1
+    else if (w ~ /^[0-9]*(>|<|&>)/) { }
     else if (substr(w, 1, 1) == "-") { if (w in valflag) skipnext = 1 }
     else if (w == "" || index(w, "*") || index(w, "?") || index(w, "[") || index(w, "$") || index(w, "\n")) { }
-    else if (substr(w, 1, 1) == ">" || substr(w, 1, 1) == "<" || substr(w, 1, 2) == "2>" || substr(w, 1, 2) == "&>") { }
     else print w
   }
   nw++
