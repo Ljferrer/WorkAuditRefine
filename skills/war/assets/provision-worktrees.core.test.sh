@@ -829,6 +829,25 @@ V_SMI2="$C_SMI2/$(printf '%s\n' "$ERR_SMI2" | grep -F 'WORKTREE_HYGIENE path=' |
 expect "HYG.stdin: a stdin-reading repair command leaves the next submodule its hygiene pass" \
   "0/WORKTREE_HYGIENE path=sub action=detected detail=repair-failed:staged-deletions|WORKTREE_HYGIENE path=zzz action=detected detail=sha-mismatch|" "$V_SMI2"
 
+# The prompt guard on the per-path update. `submodule.sub.update` is a `!`
+# command, which inherits git's environment, so it writes the value of
+# GIT_TERMINAL_PROMPT that the update ran under to a file. The row reads that
+# file, never the script. The first cut runs with the variable unset by the
+# caller. The second cut runs with the caller exporting 1. Both must read 0.
+FX_SMP="$(sm_fixture)"; R_SMP="${FX_SMP%% *}"
+F_SMP="$(mktemp 2>/dev/null || mktemp -t warsmp)"; REPOS="$REPOS $F_SMP"
+git -C "$R_SMP" config submodule.sub.update "!printf '%s' \"\${GIT_TERMINAL_PROMPT-unset}\" > '$F_SMP'; :"
+TIP_SMP="$(git -C "$R_SMP" rev-parse HEAD)"
+WT_SMP="$(new_wt_path)"
+( cd "$R_SMP" && env -u GIT_TERMINAL_PROMPT $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMP" war/myplan/p1-t10 "$TIP_SMP" ) >/dev/null 2>&1; C_SMP=$?
+expect "reuse-gap(submodules-ready): the init runs with GIT_TERMINAL_PROMPT=0" \
+  "0/0" "$C_SMP/$(cat "$F_SMP" 2>/dev/null)"
+: > "$F_SMP"
+WT_SMP2="$(new_wt_path)"
+( cd "$R_SMP" && env GIT_TERMINAL_PROMPT=1 $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMP2" war/myplan/p1-t11 "$TIP_SMP" ) >/dev/null 2>&1; C_SMP2=$?
+expect "reuse-gap(submodules-ready): the init overrides a caller's GIT_TERMINAL_PROMPT=1" \
+  "0/0" "$C_SMP2/$(cat "$F_SMP" 2>/dev/null)"
+
 # A fresh cut with two top-level `-` submodules, `mid` and `sub`, where mid
 # declares its own `inner`. Every pass of the loop must run, and the update
 # must recurse, or a `-` line stays and the cut exits 9.
