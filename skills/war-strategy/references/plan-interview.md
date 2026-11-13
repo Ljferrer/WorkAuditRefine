@@ -20,6 +20,12 @@ falsifier probes + provenance scan against a drafted conversion).
    `## Evidence artifacts` section). What this lane read (or could not) lands in the plan's
    **Evidence consumed** block: one row per linked artifact, read or unread-with-reason —
    placement latitude anywhere in Part 1, never a new required H2.
+   Read each cited issue whole: `gh issue view <n> --json title,body,comments`, with
+   `gh api repos/{owner}/{repo}/issues/<n>/comments` as the comments fallback.
+   Never pipe an evidence read through `head`. If a read is too large, write it to a file
+   and read that file whole. Operator comments outrank sketches in the issue body. The
+   issue's Evidence consumed row records `read (body + N comments)`, with N the JSON
+   comment count.
 3. **Batched memory prefetch** — one batched call, one query per interview area (scope,
    decomposition, guards, release), mirroring the /war Lead's flag discipline — `--local`
    always, `--repo` when a repo root resolved, fail-open:
@@ -40,6 +46,10 @@ node skills/_shared/war-memory.mjs query --queries <file> --local <local root> -
 Fail-open means a missing CLI, Node < 24, an absent `docs/learnings/`, an empty run corpus, or
 an absent REA never blocks the interview — proceed without the rows (and without a `--local`
 root the query writes nothing).
+
+**The tree check.** Before any trial is pre-registered, run `git status --porcelain` in the
+checkout. Its output must be empty. If the tree is dirty, report the dirty paths to the
+operator, and trials wait until the tree is clean. The rest of the interview goes on.
 
 **Stage 1 — silent rehearsal + pre-mortem.** Mentally execute the plan-to-be, then name **at
 least two landmine falsifiers** from the WAR falsifier list:
@@ -76,6 +86,9 @@ least two landmine falsifiers** from the WAR falsifier list:
   its token through its `Files:` and the gate's tools; the probe body lives only in
   [references/backward-chain-plan.md](backward-chain-plan.md) `## The reachability probe`,
   never restated here.
+
+For the budget check, when Stage 1b is about to start, read [references/fork-trials.md](fork-trials.md) § Budget check:
+it decides whether this interview runs fork trials and pair beats.
 
 **Stage 1b — private full-template draft.** Before Q1, draft the entire merged template
 privately, every slot filled and tagged (evidence tags, D4). Bin every unknown:

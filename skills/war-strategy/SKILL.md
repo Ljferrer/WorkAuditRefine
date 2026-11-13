@@ -332,7 +332,7 @@ None.
 - **Mirrored constants** — say "append to the canonical export in `land-decision.mjs`; the drift guard in
   `land-decision.test.mjs` is the arbiter"; never restate the final array literal.
 - **Nested keys** — use the dotted path (`metadata.provenance`), never a flat abbreviation.
-- **Release tasks** — state "next free patch above the live base", never a hardcoded `v<semver>`.
+- **Release tasks** — state "next free patch above the live base", never a hardcoded `v<semver>`. A release-only task declares `requiresTest: false` unless its Files name a test file.
 - **Defined-but-not-yet-emitted** — for any cross-slice mirrored constant/schema/prose-ref, annotate
   "defined-but-not-yet-emitted; produced in Task N" so the auditor cross-links the producing task rather
   than flagging a dangling ref.

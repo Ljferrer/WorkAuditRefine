@@ -205,7 +205,9 @@ interactive (`plan-interview.md`) and AFK (the `/war-machine` grill charter).
    ([`skills/war-strategy/references/strategy-verifier.md`](../../skills/war-strategy/references/strategy-verifier.md))
    with bounded refute flow (successful refutation ⇒ amend + re-arm once; unresolved ⇒ a live
    fork in the beat) and three inline degraded-mode stamps (`corpus-empty` · corpus-partial
-   naming the missing classes inline · `unavailable (<reason>)`). Skips are operator utterances
+   naming the missing classes inline · `unavailable (<reason>)`). Its leak-shape checklist
+   names a fourth shape, **Partial-source read**: an evidence object cited as read but
+   consumed in projection. Skips are operator utterances
    recorded as `WAIVE-<n>` rows naming the fired arm; AFK runs armed-by-rule, unwaived.
 4. **Gate reconciliation backed by advisory lint.** Everything reconciles at the two echo-back
    gates: `plan-literal-lint.mjs` stays exit-0 report-only (the ratified posture above),
@@ -335,7 +337,8 @@ reached by `when <trigger>, read` pointers from `plan-interview.md` Stage 1b and
    block inherits the Evidence consumed block's law by name. `command` and `observed` ride a
    nested fence under the bullet, with no column-0 `## `, `### ` or `- Files:` inside it. The
    header carries the bounds, their config provenance, the trial tier, the token and wall cost,
-   and the escape-guard result. `None — no fork qualified` is a valid block. Gate 1 enumerates
+   the escape-guard result, and the `budget-check:` line (whether the operator was asked to run
+   trials and pair beats). `None — no fork qualified` is a valid block. Gate 1 enumerates
    the block aloud beside the Evidence consumed block.
 5. **The provenance rule.** Only a pre-registered `settled` row backs
    `(verified: TRIAL-n at <base>)` in the design tree. An inconclusive or infra-failed row backs
@@ -343,14 +346,13 @@ reached by `when <trigger>, read` pointers from `plan-interview.md` Stage 1b and
    trial's clone-root-relative replay command. An assumption a trial confirms is retired with the
    reason `settled by TRIAL-n`. An exploratory run with no prior row may mint a fork or an
    `[assumed:]`, never a settlement.
-6. **The config section and the trial tier.** `DEFAULTS.interview` in `war-config.mjs` carries
-   exactly three keys: `trialWallSeconds` (600), `commandTimeoutSeconds` (120) and
-   `excerptLines` (20), validated in the hooks/memory shape, set by no preset and never threaded
-   into Workflow args. The retry rule is doctrine, fixed at 1. The bounds are a safety precaution
+6. **The config section and the trial tier.** `DEFAULTS.interview` in `war-config.mjs` is the
+   canonical key set and its defaults, never restated here. The section is validated in the
+   hooks/memory shape, set by no preset and never threaded into Workflow args. The retry rule is doctrine, fixed at 1. The bounds are a safety precaution
    (ADR 0052 §4): every trial carries a wall cap written in its row before the run, and Stage 3
    reads the trial count and wall time aloud. The trial subagent's model and effort live at
    `agents.trial`, a validated tier beside `agents.redteam`, read fail-open; no new `agents/*.md`
-   card exists. `/war-room` names the three keys and the tier, and an interview may override a
+   card exists. `/war-room` offers the keys of `DEFAULTS.interview` and the tier, and an interview may override a
    bound on the record as a `(user)` fact in the Trials header, never written back.
 7. **The AFK shape.** Under `/war-machine --afk` fact trials run unattended with `AI-declared`
    rows. For a pair beat the drafter authors both candidates from one frozen brief and picks; the
@@ -428,3 +430,4 @@ recorded on the pair row with the grafts each contributed.
 - 2026-11-05 · the glossary moved to GLOSSARY.md · #2636 · retired: docs/adr/0044-authoring-contract-and-merged-artifact.md @ b31d2203
 - 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
 - 2026-11-11 · Decision item 4 states the converged D4 and D5 connectives, and the Consequences no longer exempt decision records from the pin sweep · #1498, #1850 (ADR 0063) · retired: docs/adr/0044-authoring-contract-and-merged-artifact.md @ eca7a57b
+- 2026-11-12 · fourth interview key (alwaysAskAdvancedPlanning), fourth leak shape, fourth Trials header line · #2436, #1848 · retired: docs/adr/0044-authoring-contract-and-merged-artifact.md @ 2b1ac17d
