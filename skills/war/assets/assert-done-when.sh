@@ -21,7 +21,8 @@
 #   1 — the done-when command exited non-zero OR timed out (the "done-unmet"
 #       route; not an error). Diagnostic on stderr names which. On exit 127
 #       (command not found) a second line prints the first token of the
-#       cmd file's last non-blank line (the command, below any preamble) and names `overrides.doneWhenPreamble`: a prose first token
+#       cmd file's last non-blank line (the command, below any preamble)
+#       and names `overrides.doneWhenPreamble`: a prose first token
 #       means the Done-when threading broke upstream, and a missing
 #       interpreter is fixed by the preamble (PIN-9).
 #       Also exit 1, BEFORE the command runs: a `node --test` at command
