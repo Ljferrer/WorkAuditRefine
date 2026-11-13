@@ -16,12 +16,12 @@
 #   commit  <memdir>              verify staging, then atomic-swap it into place
 #   recover <memdir>              detect + repair an interrupted swap
 #
-# Budget (consolidate-memory): MEMORY.md should stay < 200 lines and ~25 KB.
+# Budget: MEMORY.md must stay within 200 lines and HARD_BYTES bytes, the render cap.
 # macOS bash 3.2.57-compatible: no globstar, no associative arrays, no ${,,}.
 set -euo pipefail
 
 LINE_BUDGET=200
-BYTE_BUDGET=25600   # 25 KiB
+BYTE_BUDGET=24400   # mirrors HARD_BYTES in skills/_shared/war-memory.mjs; safe-swap.test.sh asserts they agree
 
 die() { printf 'safe-swap: %s\n' "$1" >&2; exit 2; }
 abspath() { # portable realpath for an existing dir
@@ -56,7 +56,7 @@ do_verify() {
   # `[repo]` marker (the T1 render-index contract, plan Note 1) name repo-root
   # lessons whose files live in the repo root, NOT this staged local dir — the
   # hard-fail must SKIP them, else no swap can complete once commitLearnings is
-  # on. We keep them in .ll_idx (they ARE indexed, for the unindexed-file WARN)
+  # on. We keep them in .ll_idx (they ARE indexed, for the unindexed-file FAIL)
   # but exclude them here by dropping any `|`-row containing the [repo] marker.
   grep -E '^\|' "$mem" 2>/dev/null | grep '\[\[' | grep -v '\[repo\]' \
     | sed -E 's/^[^[]*\[\[([a-z0-9-]+)\]\].*/\1/' | sort -u > /tmp/.ll_local_idx.$$ || true
@@ -81,10 +81,10 @@ do_verify() {
     echo "ok    every index row maps to a file"
   fi
 
-  # WARNING: a topic file not referenced anywhere in the index.
+  # HARD FAIL: a hot topic file with no index row — the projection is stale.
   unindexed="$(comm -23 /tmp/.ll_files.$$ /tmp/.ll_idx.$$ | tr '\n' ' ')"
   if [ -n "${unindexed// /}" ]; then
-    echo "WARN  files not in the index (add a row or confirm intentional):$unindexed"
+    echo "FAIL  files not in the index (re-render with render-index to add the row, or move a non-lesson file out of the root):$unindexed"; FAILED=1
   else
     echo "ok    every topic file is indexed"
   fi
