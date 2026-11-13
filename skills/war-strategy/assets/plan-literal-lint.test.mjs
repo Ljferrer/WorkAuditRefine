@@ -950,6 +950,21 @@ test('pst T1.2: a heading right after an unclosed Trials block ends the skip', (
   assert.deepEqual(hits.map((h) => h.match), ['0.21.47']);
 });
 
+test('pst T1.2: a fence closes only on a bare run of its own character at least as long as its opener', () => {
+  // Each inner line looks like a delimiter but must not close the fence, so the literal stays fenced.
+  const inners = ['```', '```js', '~~~~', '````js', '``` x'];
+  for (const inner of inners) {
+    const plan = ['### Task 2.1: Release version bump', '````', inner, 'bump to 0.21.47', '````'].join('\n');
+    assert.equal(countOf(lint(plan), 'hardcoded-version'), 0, `inner ${inner} must not close a \`\`\`\` fence`);
+  }
+  // Each closer does close the fence, so the bare literal after it still gives its hit.
+  const closers = [['```', '```'], ['```', '````'], ['```', '   ```  '], ['~~~', '~~~~'], ['````js', '````']];
+  for (const [opener, closer] of closers) {
+    const plan = ['### Task 2.1: Release version bump', opener, 'x', closer, '- Plan slice: bump to 0.21.47'].join('\n');
+    assert.equal(countOf(lint(plan), 'hardcoded-version'), 1, `${opener} closed by ${JSON.stringify(closer)}`);
+  }
+});
+
 test('pst T1.2: a fence is still no carve-out for target-content-paste', () => {
   const plan = ['### Task 2.1: Release version bump', '```', 'undefined8 FUN_00401000(void)', '```'].join('\n');
   assert.ok(countOf(lint(plan), 'target-content-paste') >= 1);
