@@ -107,10 +107,13 @@ test('validateProvision: rejects a discard-exit tail', () => {
   const cases = [
     ['pnpm install || true', '|| true'],
     ['pnpm install ||true  ', '|| true'],
+    ['pnpm install ||  true', '|| true'],
     ['make setup || :', '|| :'],
     ['make setup||:', '|| :'],
+    ['make setup ||  :', '|| :'],
     ['npm ci || exit 0', '|| exit 0'],
     ['npm ci ||exit   0', '|| exit 0'],
+    ['npm ci ||  exit 0', '|| exit 0'],
     ['make deps; true', '; true'],
     ['make deps;true', '; true'],
     ['make deps ;  true', '; true'],
@@ -134,7 +137,7 @@ test('validateProvision: rejects a discard-exit tail', () => {
 })
 
 test('validateProvision: accepts an or-fallback to a real command', () => {
-  for (const entry of ['pnpm install --frozen-lockfile || npm ci', 'true', 'make setup || truecmd', 'make deps; trueish', 'make setup || : ; make verify', 'npm ci || exit 05']) {
+  for (const entry of ['pnpm install --frozen-lockfile || npm ci', 'true', 'make setup || truecmd', 'make deps; trueish', 'make setup || : ; make verify', 'npm ci || exit 05', 'npm ci || exit0']) {
     assert.deepEqual(validateProvision([entry]), { ok: true, errors: [] }, `expected ${JSON.stringify(entry)} to pass`)
   }
 })
