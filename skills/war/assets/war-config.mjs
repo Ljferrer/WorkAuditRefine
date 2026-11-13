@@ -170,7 +170,10 @@ export const DEFAULTS = {
   // overrides.ghUser: the personal `gh` account gh-preflight.sh asserts is active before every gh write
   // batch (multi-account machines) | null. Ships null — no real handle in any committed file (C1); it lives
   // in the local .claude/war/config.json. Validated as string|null by the generic overrides loop below.
-  overrides: { gate: null, workingBranch: null, landingBranch: null, learningsTarget: null, testPattern: null, ghUser: null },
+  // overrides.doneWhenPreamble (PIN-9): one shell line the refiner stages before the task's Done-when
+  // command in its cmd file (e.g. an interpreter activation the gate also uses) | null. null keeps the
+  // staged bytes unchanged. A string must be non-empty; the done-when floor names this key on exit 127.
+  overrides: { gate: null, workingBranch: null, landingBranch: null, learningsTarget: null, testPattern: null, ghUser: null, doneWhenPreamble: null },
 }
 
 // Presets are partials, deep-merged over DEFAULTS by presetConfig().
@@ -533,7 +536,8 @@ export function validate(input) {
   // pair, per the case-glob-star lesson) and a `*<word>*` substring shape whose word is unbounded by `.`/`/`
   // (`*test_*` over-matches `latest_results.py`; anchor as `test_*.py` or `*/test_*.py`). Shape checks run
   // only on the clean charset — they are correctness footguns, not injection.
-  const KNOWN_OVERRIDES = ['gate', 'workingBranch', 'landingBranch', 'learningsTarget', 'testPattern', 'ghUser']
+  // doneWhenPreamble must be a non-empty (once trimmed) string when set: an empty line stages nothing.
+  const KNOWN_OVERRIDES = ['gate', 'workingBranch', 'landingBranch', 'learningsTarget', 'testPattern', 'ghUser', 'doneWhenPreamble']
   const GLOB_UNSAFE = /[^A-Za-z0-9_.*?\/ \[\]-]/
   // Non-object guard mirrors the memory.* block above: a hand-edited `overrides: null`/`overrides: 'x'`
   // would otherwise throw a raw TypeError at Object.keys() instead of a named validation error.
@@ -542,6 +546,8 @@ export function validate(input) {
     const v = c.overrides[k]
     if (!KNOWN_OVERRIDES.includes(k)) { errors.push(`overrides.${k} is not a known key (${KNOWN_OVERRIDES.join('|')}) — run /war-room to regenerate the config`); continue }
     if (v !== null && typeof v !== 'string') { errors.push(`overrides.${k} must be null or a string`); continue }
+    if (k === 'doneWhenPreamble' && typeof v === 'string' && v.trim() === '')
+      errors.push('overrides.doneWhenPreamble must be null or a non-empty string')
     if (k === 'testPattern' && typeof v === 'string') {
       if (v === '' || GLOB_UNSAFE.test(v))
         errors.push(`overrides.testPattern must be a non-empty glob-safe string (only [A-Za-z0-9_.*?/[] -]; no quotes, ';', backticks, '$', or newlines) — it is embedded into an agent-executed shell command`)
