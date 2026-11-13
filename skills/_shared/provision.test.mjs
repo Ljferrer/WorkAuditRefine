@@ -102,6 +102,42 @@ test('validateProvision: a valid entry with surrounding whitespace is still acce
   assert.equal(r.ok, true)
 })
 
+test('validateProvision: rejects a discard-exit tail', () => {
+  // Each shape of the closed set (A26), with the operator-to-word whitespace varied.
+  const cases = [
+    ['pnpm install || true', '|| true'],
+    ['pnpm install ||true  ', '|| true'],
+    ['make setup || :', '|| :'],
+    ['make setup||:', '|| :'],
+    ['npm ci || exit 0', '|| exit 0'],
+    ['npm ci ||exit   0', '|| exit 0'],
+    ['make deps; true', '; true'],
+    ['make deps ;  true', '; true'],
+  ]
+  for (const [entry, tail] of cases) {
+    const r = validateProvision(['make setup', entry])
+    assert.equal(r.ok, false, `expected ${JSON.stringify(entry)} to be refused`)
+    assert.deepEqual(r.errors, [
+      `provision[1] ends in a discard-exit tail ('${tail}'); a failed step must fail the Provision barrier (#2716)`,
+    ])
+  }
+  // A mixed list reports one indexed error per offender.
+  const mixed = validateProvision(['a || true', 'make setup', 'b || :', 'c || exit 0', 'd; true'])
+  assert.equal(mixed.ok, false)
+  assert.deepEqual(mixed.errors, [
+    "provision[0] ends in a discard-exit tail ('|| true'); a failed step must fail the Provision barrier (#2716)",
+    "provision[2] ends in a discard-exit tail ('|| :'); a failed step must fail the Provision barrier (#2716)",
+    "provision[3] ends in a discard-exit tail ('|| exit 0'); a failed step must fail the Provision barrier (#2716)",
+    "provision[4] ends in a discard-exit tail ('; true'); a failed step must fail the Provision barrier (#2716)",
+  ])
+})
+
+test('validateProvision: accepts an or-fallback to a real command', () => {
+  for (const entry of ['pnpm install --frozen-lockfile || npm ci', 'true']) {
+    assert.deepEqual(validateProvision([entry]), { ok: true, errors: [] }, `expected ${JSON.stringify(entry)} to pass`)
+  }
+})
+
 // ----------------------------------------------------------------------------
 // structuralFallback
 // ----------------------------------------------------------------------------
