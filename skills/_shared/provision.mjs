@@ -19,7 +19,11 @@ const LOCKFILE_INSTALL = Object.freeze({
   'pnpm-lock.yaml': 'pnpm install --frozen-lockfile',
 })
 
-const SUBMODULE_INIT = 'git submodule update --init --recursive'
+// Inits only the uninitialized (`-`) submodules, so a reused worktree keeps every
+// initialized sibling at its own HEAD (operator ruling 2026-11-13). A fresh
+// clone has every submodule uninitialized, so it still inits them all.
+// `xargs -r` runs no update on empty input. No `;`, so no statement split.
+const SUBMODULE_INIT = "git submodule status --recursive | awk '/^-/{print $2}' | xargs -r git submodule update --init --recursive --"
 
 /**
  * Parse .gitmodules and return the array of submodule path values.
@@ -91,7 +95,7 @@ export function validateProvision(list) {
 /**
  * Tiny structural fallback: the last-resort provisioning floor when no explicit
  * list / CI / onboarding signal is available. Returns, in order:
- *   - 'git submodule update --init --recursive'  iff repoDir/.gitmodules exists
+ *   - SUBMODULE_INIT (init only uninitialized)  iff repoDir/.gitmodules exists
  *   - the lockfile-matched install               iff a known lockfile exists
  * Both (in that order) if both apply; [] if neither. Never throws on a missing dir.
  *
