@@ -97,7 +97,9 @@
 #      pending set that matches nothing keeps exit 1 and today's diagnostic;
 #      no flag keeps the output byte-identical; an active match ignores it;
 #      --pending-pattern, --pattern and --repo with no value each die with
-#      their own message; an empty --pending-pattern equals the absent flag.
+#      their own message; an empty --pending-pattern equals the absent flag;
+#      the adopted set emits every matched path; the usage die names every
+#      flag the parser accepts.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
