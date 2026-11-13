@@ -5479,6 +5479,25 @@ test("pst T1.5: Decompose step 4 stamps planFile on every source: 'plan' row (PI
   assert.match(m[0], /`planFile: <this plan path>` on every `source: 'plan'` row/, "step 4 must stamp `planFile: <this plan path>` on every `source: 'plan'` row")
 })
 
+// The schemas.md handoff `backstops` Entry shape restates the engine's declared args.backstops
+// shape. The oracle is the engine source: every `{ check, why, runner, ... }` shape literal in
+// workflow-template.js, compared with whitespace removed. The Decompose step 4 line in SKILL.md keeps
+// its shorter shape on purpose (that line may grow by the planFile sentence only), so it is not read here.
+test('pst T1.5: the schemas.md backstops Entry shape equals the engine shape and names planFile (PIN-18)', () => {
+  const squash = (s) => s.replace(/\s+/g, '')
+  const line = schemasMd.split('\n').find((l) => /^\s*backstops \} \}\s+\/\/ /.test(l))
+  assert.ok(line, 'could not locate the handoff `backstops` row in references/schemas.md')
+  const entry = line.match(/Entry: (\{ check, why, runner,[^}]*\})/)
+  assert.ok(entry, 'the handoff `backstops` row must carry an `Entry: { check, why, runner, ... }` shape')
+  const engine = workflowTemplateSrc.match(/\{ check, why, runner, source:[^}]*\}/g) || []
+  assert.ok(engine.length >= 1, 'could not locate the args.backstops shape literal in workflow-template.js')
+  for (const shape of engine)
+    assert.equal(squash(entry[1]), squash(shape), 'the schemas.md backstops Entry shape must equal the engine shape')
+  assert.ok(entry[1].includes('planFile?'), 'the Entry shape must list the optional planFile key')
+  assert.match(line, /'plan' = [^;]*carries the Lead-stamped `planFile`/, "the 'plan' arm must say the row carries the Lead-stamped planFile")
+  assert.match(line, /an 'auto' row carries none/, "the row must say an 'auto' row carries no planFile")
+})
+
 test('pst T1.5: the token rows name the envelope a footprint and dedupe the mined consumption by message id (PIN-28)', () => {
   const s2 = wrJoined(wrSection(2))
   const row = wrRow('total tokens')
