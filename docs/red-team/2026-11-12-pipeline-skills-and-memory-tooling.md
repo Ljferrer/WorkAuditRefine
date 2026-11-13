@@ -24,6 +24,7 @@
 - **ADR 0044 has no three-leak-shape or three-header-line count (Major).** T1.3 and PIN-25 now add text at three named Decision items: item 3 names **Partial-source read**, item 4's Trials-header list gains the `budget-check:` line, and item 6's "`/war-room` names the three keys" is de-mirrored. End state 14's absent half now matches `three keys` anywhere in the body.
 - **Red-team Step 5 kept the old rule (Major).** Step 5's "only unit" clause and its `<n>` definition contradicted the new Step 6 text. T1.1 now rewrites both.
 - **The ADR 0045 Decision-log form missed ADR 0063 (Major).** ADR 0063 Decision 4 says a line that narrows a decision carries `failed because:`. The routed-run exception narrows the "only unit" rule, so the T1.1 line form and End state 5 now carry that field. The ADR 0044 line is an extension, and End state 14 accepts the field as optional.
+- **Six checks held `;` inside quotes (Minor, patched before launch).** The End-state runner splits a statement at every `;`, inside quotes too, so End states 5, 14, 15, 28, 29 and 31 could read red at land when met. Each now has no quoted `;`. Each was run at base in a throwaway clone, and each is red without a syntax error. End state 31 prints `PASS-E31` with the slots at 0.21.47. End state 17's red-at-base note now says one old hit.
 - **The glossary basis was stale (needsDecision, self-decided).** `GLOSSARY.md` is 111,335 B at base, 281 B under its advisory line. Three term rows would cross it, so PIN-26 keeps the rows out, with the figures restated.
 
 ## Adjudications
