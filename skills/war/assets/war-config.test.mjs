@@ -2471,12 +2471,12 @@ const REFERENCES_NOT_SCANNED = {
 }
 
 // Returns the references files a list neither scans nor exempts, plus stale exemption rows.
-function referencesCensus(list) {
+function referencesCensus(list, notScanned = REFERENCES_NOT_SCANNED) {
   const prefix = `${REFERENCES_DIR}/`
   const scanned = new Set(list.filter(p => p.startsWith(prefix)).map(p => p.slice(prefix.length)))
   const onDisk = readdirSync(join(REPO_ROOT, REFERENCES_DIR)).sort()
-  const unplaced = onDisk.filter(name => !scanned.has(name) && !Object.hasOwn(REFERENCES_NOT_SCANNED, name))
-  const stale = [...scanned, ...Object.keys(REFERENCES_NOT_SCANNED)].filter(name => !onDisk.includes(name))
+  const unplaced = onDisk.filter(name => !scanned.has(name) && !Object.hasOwn(notScanned, name))
+  const stale = [...scanned, ...Object.keys(notScanned)].filter(name => !onDisk.includes(name))
   return { onDisk, scanned, unplaced, stale }
 }
 
@@ -2514,7 +2514,9 @@ test('doc-contract: the references census reports a file a list drops (red-path 
   const dropped = SCOPE_HOOK_GLOB_SURFACES.filter(p => p !== 'skills/war/references/setup.md')
   assert.notEqual(dropped.length, SCOPE_HOOK_GLOB_SURFACES.length, 'the self-check must drop a real list member')
   assert.deepEqual(referencesCensus(dropped).unplaced, ['setup.md'])
+  assert.deepEqual(referencesCensus(dropped, { ...REFERENCES_NOT_SCANNED, 'setup.md': 'planted' }).unplaced, [])
   assert.deepEqual(referencesCensus([...SCOPE_HOOK_GLOB_SURFACES, 'skills/war/references/no-such-file.md']).stale, ['no-such-file.md'])
+  assert.deepEqual(referencesCensus(SCOPE_HOOK_GLOB_SURFACES, { ...REFERENCES_NOT_SCANNED, 'no-such-row.md': 'planted' }).stale, ['no-such-row.md'])
 })
 
 test('doc-contract: SKILL.md drops the retired scope-hook-glob compatibility clause (Task 2 obsoletes it, #584)', () => {
