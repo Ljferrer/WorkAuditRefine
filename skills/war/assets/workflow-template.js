@@ -33,7 +33,7 @@ export const meta = {
 //                                     // the Lead threads at this phase's launch (string|null; absent ⇒ null
 //                                     // — the plan.gate precedent), appended VERBATIM as the
 //                                     // assert-test-in-diff.sh `--pattern '<value>'` arg at every dispatched
-//                                     // merge-task floor invocation site; null ⇒ bare, byte-identical to today.
+//                                     // merge-task floor invocation site; null and no pending set ⇒ bare.
 //                                     // testPatternPending = the validator-clean pending set, appended the same
 //                                     // way as `--pending-pattern '<value>'`; doneWhenPreamble = the
 //                                     // overrides.doneWhenPreamble line staged before each Done-when command.
@@ -774,8 +774,9 @@ const backstops = Array.isArray(A.backstops) ? A.backstops : null
 // pinned at Setup, and under --afk a sanity-floor-rejected Setup proposal is re-checked at each phase
 // launch and can be adopted monotonically — so this value is resolved per phase, not once per run).
 // A non-empty string is appended VERBATIM as the assert-test-in-diff.sh `--pattern '<value>'` argument at
-// EVERY dispatched merge-task floor invocation site; null ⇒ testPatternArg is '' so every dispatched
-// prompt is byte-identical to a testPattern-less run (criterion 2). The floor's *.test.sh union is
+// EVERY dispatched merge-task floor invocation site; null ⇒ the --pattern arg is omitted (testPatternArg
+// is '' only when the pending set is null too), so every dispatched prompt is byte-identical to a
+// testPattern-less run (criterion 2). The floor's *.test.sh union is
 // script-side (Phase 1, assert-test-in-diff.sh) — never re-stated per prompt. The glob-safe charset is
 // validated in war-config.mjs, never here (the value is embedded single-quoted into an agent shell line).
 // Pending pattern (PIN-12): the Lead threads args.plan.testPatternPending, the validator-clean --afk
@@ -3675,7 +3676,7 @@ const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRS
 // PIN-28 (#2792): the backgrounded command writes its own exit_code: line, and the refiner never
 // appends one, so a job that died unstamped can never read as a complete log (step 10 of war-refiner.md).
 const backgroundGateRule = shape =>
-  pt`BACKGROUNDED GATE (tool-timeout survival): a foreground call stops at 120000 ms unless you pass timeout. If the gate can outrun one tool call (600000 ms), start it with run_in_background (teed to the stamped gate log), then poll that log with foreground calls in this same turn until its LAST line is exit_code: — your turn end kills the job. The backgrounded command writes that line itself (\`<gate>; echo "exit_code: $?"\`): never append exit_code: yourself, because a job that ends with no exit_code: line left an incomplete log. Return ${shape} only if the job dies before it writes exit_code: — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an environment-proceed or baseline-proceed prompt allows. ${PARTIAL_LOG_RULE}`
+  pt`BACKGROUNDED GATE (tool-timeout survival): a foreground call stops at 120000 ms unless you pass timeout. If the gate can outrun one tool call (600000 ms), start it with run_in_background (teed to the stamped gate log), then poll that log with foreground calls in this same turn until its LAST line is exit_code: — your turn end kills the job. The backgrounded command writes that line itself (\`{ <gate>; echo "exit_code: $?"; } 2>&1 | tee -a <log>\`, so $? is the gate's, never tee's): never append exit_code: yourself, because a job that ends with no exit_code: line left an incomplete log. Return ${shape} only if the job dies before it writes exit_code: — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an environment-proceed or baseline-proceed prompt allows. ${PARTIAL_LOG_RULE}`
 const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: '<the step you reached>' }`)
 // segmentLoop(result, isSegment, redispatch): the roundLimit bound every segmented gate shares.
 // redispatch takes the incomplete result and the next segment ordinal, and returns the admitted reply.
