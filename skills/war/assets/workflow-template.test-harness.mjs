@@ -2079,7 +2079,9 @@ const LITERAL_REGISTRY = [
   ["workflow-template prompt: undefined interpol"],
   ["workflow-template: args is a string but not "],
   ["workflow-template: args must be a JSON objec"],
-  [" --pattern '${testPattern}'` : ''\n// Partial"],
+  // The --pattern head now runs into the pt-tagged --pending-pattern fold (PIN-12, plan
+  // 2026-11-08-shell-floors-tests-and-lint T2.1); the pending literal is pt-tagged, so it has no row.
+  [" --pattern '${testPattern}'` : '') + (testPa"],
   ["war/${planSlug}/p${ph.id}-${t.id}` : t.branc"],
   ["${worktreeRoot}/${runId}/p${ph.id}-${t.id}` "],
   ["roster must be an array of 1-5 seats (got ${", 2],
@@ -2375,7 +2377,10 @@ const BARE_INTERPOLATION_CENSUS = [
   // ACE_TRAILER_CHECK (D24, PIN-25): a module const, the pre-push trailer check on the four ace-family prompts.
   'ACE_TRAILER_CHECK',
   'PLAN_DEFECT_SENTINEL', 'PREFLIGHT', 'PROVISION_SCRIPT', 'SCRIPT', 'artifactLine', 'authArtifactLine', 'authCriteria',
-  'baseDesc', 'batchSha', 'block', 'depSha', 'depth', 'doneWhenLog', 'e.preMergeTip', 'e.taskId',
+  'baseDesc', 'batchSha', 'block', 'depSha', 'depth', 'doneWhenLog',
+  // doneWhenPreamble / testPatternPending (PIN-9, PIN-12; plan 2026-11-08-shell-floors-tests-and-lint T2.1):
+  // module consts read `?? null` and string-only, each interpolated only inside its own non-null ternary arm.
+  'doneWhenPreamble', 'e.preMergeTip', 'e.taskId',
   // ev.sha left this census (in-band-absorb-default 4.1 polish): the pinned-sha slot renders the
   // `pin` local (ev.sha, else the row's own sanitized sha for a gate-audit pseudo-task).
   'ensures', 'ev.round', 'f.file', 'f.severity', 'f.suggested_fix', 'gateHeadSha',
@@ -2435,7 +2440,7 @@ const BARE_INTERPOLATION_CENSUS = [
   'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
   'r.task.worktree', 'r.unsupported', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
   's.seat', 's.verdict', 'submodLandTask.targetRepo', 'submodPath', 't.id', 'task.branch',
-  'task.doneWhen', 'task.id', 'task.title', 'task.worktree', 'taskId', 'testPatternArg', 'trailer',
+  'task.doneWhen', 'task.id', 'task.title', 'task.worktree', 'taskId', 'testPatternArg', 'testPatternPending', 'trailer',
   'workerIntentClause', 'working',
   // MEMORY_TOOL / memoryQueryRepoArg (2026-10-27-memory-query-mcp-tool D1): the hook's tool-name literal
   // (a plain-string module const) and the `, repo: <root>` fragment (a ternary with an explicit '' arm) —

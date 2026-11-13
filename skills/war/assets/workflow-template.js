@@ -28,12 +28,16 @@ export const meta = {
 //              // the gate-audit pass — conditions owned by a later phase, OR by a deps-chained
 //              // sibling task of THIS phase not yet landed at the audit's scope, are out-of-scope there,
 //              // never a hold
-//     plan:  { file, gate, testPattern },  // gate = a shell command, run BY agents (this script has no
+//     plan:  { file, gate, testPattern, testPatternPending, doneWhenPreamble },  // gate = a shell command, run BY agents (this script has no
 //                                     // shell/fs). testPattern = the per-phase-RESOLVED overrides.testPattern
 //                                     // the Lead threads at this phase's launch (string|null; absent ⇒ null
 //                                     // — the plan.gate precedent), appended VERBATIM as the
 //                                     // assert-test-in-diff.sh `--pattern '<value>'` arg at every dispatched
-//                                     // merge-task floor invocation site; null ⇒ bare, byte-identical to today.
+//                                     // merge-task floor invocation site; null and no pending set ⇒ bare.
+//                                     // testPatternPending = the validator-clean pending set, appended the same
+//                                     // way as `--pending-pattern '<value>'`; doneWhenPreamble = the
+//                                     // overrides.doneWhenPreamble line staged before each Done-when command.
+//                                     // Both string|null; null ⇒ every prompt byte-identical.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                roster:[{ lens, depth?, agentType?, model?, effort?, tier? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging?, pendingAbsorbs? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
 //                                     // pendingAbsorbs = RELAUNCH-SEED ONLY ([finding rows] held by a blocker-held batch ace at a prior launch); aceStage folds
@@ -770,12 +774,24 @@ const backstops = Array.isArray(A.backstops) ? A.backstops : null
 // pinned at Setup, and under --afk a sanity-floor-rejected Setup proposal is re-checked at each phase
 // launch and can be adopted monotonically — so this value is resolved per phase, not once per run).
 // A non-empty string is appended VERBATIM as the assert-test-in-diff.sh `--pattern '<value>'` argument at
-// EVERY dispatched merge-task floor invocation site; null ⇒ testPatternArg is '' so every dispatched
-// prompt is byte-identical to a testPattern-less run (criterion 2). The floor's *.test.sh union is
+// EVERY dispatched merge-task floor invocation site; null ⇒ the --pattern arg is omitted (testPatternArg
+// is '' only when the pending set is null too), so every dispatched prompt is byte-identical to a
+// testPattern-less run (criterion 2). The floor's *.test.sh union is
 // script-side (Phase 1, assert-test-in-diff.sh) — never re-stated per prompt. The glob-safe charset is
 // validated in war-config.mjs, never here (the value is embedded single-quoted into an agent shell line).
+// Pending pattern (PIN-12): the Lead threads args.plan.testPatternPending, the validator-clean --afk
+// proposal from setup.md's per-phase re-check (string|null). It folds into testPatternArg as
+// ` --pending-pattern '<set>'`, so every floor site reads it; the floor adopts it only when the active
+// set matches no diff test file. Its exit-0 `adopted-pending-pattern:` stderr marker is not captured
+// (accepted residual A19). null ⇒ the arg is unchanged and every prompt stays byte-identical.
+// Both Lead-built fields read `?? null` (Constraint 6) and keep strings only.
+const strOrNull = v => (typeof v === 'string' && v) ? v : null
 const testPattern = (plan && typeof plan.testPattern === 'string' && plan.testPattern) ? plan.testPattern : null
-const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
+const testPatternPending = strOrNull((plan && plan.testPatternPending) ?? null)
+const testPatternArg = (testPattern ? ` --pattern '${testPattern}'` : '') + (testPatternPending ? pt` --pending-pattern '${testPatternPending}'` : '')
+// Done-when preamble (PIN-9): overrides.doneWhenPreamble threaded as args.plan.doneWhenPreamble
+// (string|null). doneWhenFloorClause stages it as the cmd file's first line; null ⇒ the clause is byte-identical.
+const doneWhenPreamble = strOrNull((plan && plan.doneWhenPreamble) ?? null)
 // Partial-phase recovery (spec §4.2/§4.4): a Lead-supplied top-level arg armed ONLY on a sanctioned
 // recovery relaunch (the war skill's references/resume-and-recovery.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean, priorReturn?: { aced?: [...], minorsFiled?: [...] } }.
 // Absent / non-sanctioned ⇒ FOUR recovery-gated barrier arms are DORMANT, not one: (1) the
@@ -3510,8 +3526,10 @@ const doneWhenClause = task => (task && typeof task.doneWhen === 'string' && tas
 // doneWhen ⇒ '' (the set-minus pattern) — a legacy task dispatches byte-identical merge prompts and the
 // floor never runs (End state 9). Rides every merge-task dispatch (initial, floor-retry re-merge,
 // environment-proceed, baseline-proceed), keeping the dispatched prompts in sync with war-refiner.md.
+// A set doneWhenPreamble (PIN-9) is staged as the cmd file's first line, before the verbatim command;
+// null keeps the clause byte-identical.
 const doneWhenFloorClause = (task, refineryPath) => (task && typeof task.doneWhen === 'string' && task.doneWhen)
-  ? pt` After the gate, run the done-when floor: write the task's Done when: acceptance command — BYTE-VERBATIM, exactly: ${task.doneWhen} — to ${refineryPath}/.war/done-when-${task.id}.cmd (ensure .war/ is git-excluded inside _refinery, the step you already do for the gate log), then run assert-done-when.sh ${task.worktree} --cmd-file ${refineryPath}/.war/done-when-${task.id}.cmd (file-threaded — never interpolate the command into another script) with its combined stdout+stderr teed to the evidence artifact ${refineryPath}/.war/done-when-${task.id}.log, reading the FLOOR's OWN exit status across that capture (D14): run \`assert-done-when.sh … > ${refineryPath}/.war/done-when-${task.id}.log 2>&1\` and read \`$?\`, or if piping to tee, read \`\${PIPESTATUS[0]}\` — never the tee pipeline's status (a naive \`… 2>&1 | tee\` reports tee's 0 for a red AND an exit-2 floor). Branch on that captured code: exit 0 → the acceptance command is green; continue. exit 1 (the command exited red or timed out) → return { mode: 'merge-task', status: 'done-unmet', done_when_log_path: ${refineryPath}/.war/done-when-${task.id}.log } — the teed artifact's ABSOLUTE path rides the return; do NOT merge. The floor is fail-closed on EVERY merge-task dispatch, including a baseline-proceed: a red done-when is never proceeded over as baseline debt. exit 2 (a git/env error — bad worktree, missing/unreadable command file) → return { mode: 'merge-task', status: 'error' }, never 'done-unmet' — a transient git/env error must not spin a pointless make-this-command-pass loop.`
+  ? pt` After the gate, run the done-when floor: write ${doneWhenPreamble ? pt`the preamble line — exactly: ${doneWhenPreamble} — then a newline, then ` : ''}the task's Done when: acceptance command — BYTE-VERBATIM, exactly: ${task.doneWhen} — to ${refineryPath}/.war/done-when-${task.id}.cmd (ensure .war/ is git-excluded inside _refinery, the step you already do for the gate log), then run assert-done-when.sh ${task.worktree} --cmd-file ${refineryPath}/.war/done-when-${task.id}.cmd (file-threaded — never interpolate the command into another script) with its combined stdout+stderr teed to the evidence artifact ${refineryPath}/.war/done-when-${task.id}.log, reading the FLOOR's OWN exit status across that capture (D14): run \`assert-done-when.sh … > ${refineryPath}/.war/done-when-${task.id}.log 2>&1\` and read \`$?\`, or if piping to tee, read \`\${PIPESTATUS[0]}\` — never the tee pipeline's status (a naive \`… 2>&1 | tee\` reports tee's 0 for a red AND an exit-2 floor). Branch on that captured code: exit 0 → the acceptance command is green; continue. exit 1 (the command exited red or timed out) → return { mode: 'merge-task', status: 'done-unmet', done_when_log_path: ${refineryPath}/.war/done-when-${task.id}.log } — the teed artifact's ABSOLUTE path rides the return; do NOT merge. The floor is fail-closed on EVERY merge-task dispatch, including a baseline-proceed: a red done-when is never proceeded over as baseline debt. exit 2 (a git/env error — bad worktree, missing/unreadable command file) → return { mode: 'merge-task', status: 'error' }, never 'done-unmet' — a transient git/env error must not spin a pointless make-this-command-pass loop.`
   : ''
 // A1 redefinition (precision-chain D9): acceptance_criteria_covered is the task's CLAIMED End-state ids
 // — the numbered Commander's Intent End-state conditions the task claims — no longer plan-slice
@@ -3655,8 +3673,10 @@ const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRS
 // continuation sentence (#2155) keeps a SEGMENTED re-dispatch apart from the one re-run that an
 // environment-proceed or baseline-proceed prompt allows, for the merge and land clauses alike. The ace
 // gate check and its pre-ace base check carry it too, and no ace gate prompt allows such a re-run.
+// PIN-28 (#2792): the backgrounded command writes its own exit_code: line, and the refiner never
+// appends one, so a job that died unstamped can never read as a complete log (step 10 of war-refiner.md).
 const backgroundGateRule = shape =>
-  pt`BACKGROUNDED GATE (tool-timeout survival): a foreground call stops at 120000 ms unless you pass timeout. If the gate can outrun one tool call (600000 ms), start it with run_in_background (teed to the stamped gate log), then poll that log with foreground calls in this same turn until its LAST line is exit_code: — your turn end kills the job. Return ${shape} only if the job dies before it writes exit_code: — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an environment-proceed or baseline-proceed prompt allows. ${PARTIAL_LOG_RULE}`
+  pt`BACKGROUNDED GATE (tool-timeout survival): a foreground call stops at 120000 ms unless you pass timeout. If the gate can outrun one tool call (600000 ms), start it with run_in_background (teed to the stamped gate log), then poll that log with foreground calls in this same turn until its LAST line is exit_code: — your turn end kills the job. The backgrounded command writes that line itself (\`{ <gate>; echo "exit_code: $?"; } 2>&1 | tee -a <log>\`, so $? is the gate's, never tee's): never append exit_code: yourself, because a job that ends with no exit_code: line left an incomplete log. Return ${shape} only if the job dies before it writes exit_code: — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. A SEGMENTED continuation resumes the same gate run, so it never counts as the one re-run that an environment-proceed or baseline-proceed prompt allows. ${PARTIAL_LOG_RULE}`
 const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: '<the step you reached>' }`)
 // segmentLoop(result, isSegment, redispatch): the roundLimit bound every segmented gate shares.
 // redispatch takes the incomplete result and the next segment ordinal, and returns the admitted reply.
