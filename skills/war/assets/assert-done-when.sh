@@ -19,10 +19,36 @@
 # assert-packaging-in-diff.sh):
 #   0 — the done-when command exited 0 (green)
 #   1 — the done-when command exited non-zero OR timed out (the "done-unmet"
-#       route; not an error). Diagnostic on stderr names which.
+#       route; not an error). Diagnostic on stderr names which. On exit 127
+#       (command not found) a second line prints the command file's first
+#       token and names `overrides.doneWhenPreamble`: a prose first token
+#       means the Done-when threading broke upstream, and a missing
+#       interpreter is fixed by the preamble (PIN-9).
+#       Also exit 1, BEFORE the command runs: a `node --test` at command
+#       position names a file absent from the worktree (PIN-26, #2718). Node
+#       skips a missing listed file and exits 0 when another listed file
+#       runs, so the floor probes the list itself. See NODE --TEST PROBE.
 #   2 — git/env error (HARD error; NEVER collapses into the floor status):
 #       usage error, missing/non-git worktree, missing/unreadable/empty
-#       command file, invalid --timeout, `..` path segment, mktemp failure.
+#       command file, invalid --timeout, `..` path segment, mktemp failure,
+#       a failed command-file scan, and a worktree whose submodules are not
+#       ready: the sibling `provision-worktrees.sh assert-submodules-ready
+#       <worktree>` exited non-zero (its SUBMODULES_UNINITIALIZED marker is
+#       re-printed on stderr). Submodule readiness is env, so it is exit 2,
+#       never 1 (PIN-8). The verb is a silent no-op without `.gitmodules`.
+#
+# NODE --TEST PROBE (PIN-26): before the command runs, an awk scanner reads
+# the cmd file with shell quoting. It probes only a `node --test` at command
+# position: line start, or right after `$(`, `(`, `&&`, `||`, `;`, `|` or a
+# lone `&`. Quoted text is never a command (`grep 'node --test x'` is text).
+# The tokens after `--test` up to `)`, `&&`, `||`, `|`, `;` or a newline are
+# candidates, quotes stripped. Skipped: a `-` flag (and the next token after
+# a value-taking node flag written without `=`); a token holding `*`, `?`,
+# `[` or `$` (globs and variables resolve at run time); a redirect operator
+# (`>`, `>>`, `<`, `2>`, `2>&1`, `&>`) with the token after it; and a token
+# that starts with a redirect operator (`>/dev/null`). Each other token that
+# is not a file under the worktree is printed as missing. A cmd file with no
+# such `node --test` call keeps today's output byte-for-byte.
 #
 # TIMEOUT (A3): default 600s, override via --timeout <secs> (positive integer;
 # --timeout is also the test knob). A hung command fails THIS DISPATCH ONLY —
@@ -55,6 +81,7 @@ set -euo pipefail
 
 PROG="assert-done-when"
 unset CDPATH # a set CDPATH would redirect a relative-path `cd` and echo the resolved dir to stdout (which belongs to the executed command)
+HERE="$(cd -- "$(dirname -- "$0")" && pwd)" # the sibling provision-worktrees.sh lives here
 # Multi-code contract: every callsite passes the exit code EXPLICITLY (the
 # default 2 is belt-and-braces in the safe direction — a forgotten arg can
 # never collapse into the floor status 1).
@@ -133,6 +160,94 @@ grep -q '[^[:space:]]' "$cmd_file_abs" \
   || die "command file '$cmd_file_abs' is empty — refusing a vacuous done-when (threading defect upstream)" 2
 
 # ---------------------------------------------------------------------------
+# Submodule readiness (PIN-8): a worktree with uninitialized submodules is an
+# env defect, so it is exit 2, never the done-unmet route. The verb prints
+# nothing and exits 0 without `.gitmodules`, so that path keeps today's bytes.
+# ---------------------------------------------------------------------------
+sm_rc=0
+sm_err="$(bash "$HERE/provision-worktrees.sh" assert-submodules-ready "$worktree" 2>&1 >/dev/null)" || sm_rc=$?
+if [ "$sm_rc" -ne 0 ]; then
+  [ -z "$sm_err" ] || printf '%s\n' "$sm_err" >&2
+  die "worktree '$worktree' is not submodule-ready (provision-worktrees.sh assert-submodules-ready exited $sm_rc) — an env error, not the done-unmet route" 2
+fi
+
+# ---------------------------------------------------------------------------
+# NODE --TEST PROBE (PIN-26; rules in the header). The awk scanner prints one
+# candidate path per line; the shell checks each against the worktree.
+# ---------------------------------------------------------------------------
+probe_out="$(awk '
+function flush() {
+  if (!inword) return
+  emit(word)
+  word = ""; inword = 0
+}
+function boundary() { flush(); nw = 0; isnode = 0; probing = 0; skipnext = 0 }
+function emit(w) {
+  if (nw == 0) isnode = (w == "node")
+  else if (nw == 1) probing = (isnode && w == "--test")
+  else if (probing) {
+    if (skipnext) skipnext = 0
+    else if (w == ">" || w == ">>" || w == "<" || w == "2>" || w == "2>&1" || w == "&>") skipnext = 1
+    else if (substr(w, 1, 1) == "-") { if (w in valflag) skipnext = 1 }
+    else if (w == "" || index(w, "*") || index(w, "?") || index(w, "[") || index(w, "$") || index(w, "\n")) { }
+    else if (substr(w, 1, 1) == ">" || substr(w, 1, 1) == "<" || substr(w, 1, 2) == "2>" || substr(w, 1, 2) == "&>") { }
+    else print w
+  }
+  nw++
+}
+BEGIN {
+  split("--test-reporter --test-reporter-destination --test-name-pattern --test-skip-pattern --test-concurrency --test-timeout --test-shard --test-coverage-include --test-coverage-exclude --import --require -r --loader --experimental-loader", vf, " ")
+  for (k in vf) valflag[vf[k]] = 1
+}
+{ s = s $0 "\n" }
+END {
+  n = length(s); i = 1; q = ""; word = ""; inword = 0
+  boundary()
+  while (i <= n) {
+    c = substr(s, i, 1); d = substr(s, i + 1, 1)
+    if (q == "\047") { if (c == "\047") q = ""; else word = word c; i++; continue }
+    if (q == "\"") {
+      if (c == "\\" && (d == "$" || d == "`" || d == "\"" || d == "\\")) { word = word d; i += 2; continue }
+      if (c == "\\" && d == "\n") { i += 2; continue }
+      if (c == "\"") q = ""; else word = word c
+      i++; continue
+    }
+    if (c == "\\") { if (d != "\n") { word = word d; inword = 1 }; i += 2; continue }
+    if (c == "\047" || c == "\"") { q = c; inword = 1; i++; continue }
+    if (c == "#" && !inword) { while (i <= n && substr(s, i, 1) != "\n") i++; continue }
+    if (c == "\n" || c == ";" || c == "(" || c == ")") { boundary(); i++; continue }
+    if (c == "|") { boundary(); i += (d == "|") ? 2 : 1; continue }
+    if (c == "$" && d == "(") { boundary(); i += 2; continue }
+    if (c == "&") {
+      if (d == "&") { boundary(); i += 2; continue }
+      if ((inword && word ~ /[<>]$/) || d == ">") { word = word c; inword = 1; i++; continue }
+      boundary(); i++; continue
+    }
+    if (c == " " || c == "\t") { flush(); i++; continue }
+    if ((c == ">" || c == "<") && inword && word !~ /^([0-9]+|&)$/ && word !~ /[<>]$/) flush()
+    word = word c; inword = 1; i++
+  }
+  flush()
+}' "$cmd_file_abs")" || die "could not scan command file '$cmd_file_abs' for node --test paths" 2
+if [ -n "$probe_out" ]; then
+  probe_missing=0
+  while IFS= read -r probe_tok; do
+    case "$probe_tok" in
+      /*) probe_path="$probe_tok" ;;
+      *)  probe_path="$worktree/$probe_tok" ;;
+    esac
+    if [ ! -f "$probe_path" ]; then
+      printf '%s: node --test names a missing file: %s (node skips it silently and exits 0; the done-unmet route)\n' \
+        "$PROG" "$probe_tok" >&2
+      probe_missing=1
+    fi
+  done <<EOF
+$probe_out
+EOF
+  [ "$probe_missing" -eq 0 ] || exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # Execute the done-when command in the worktree, under the watchdog.
 # ---------------------------------------------------------------------------
 tmpdir="$(mktemp -d 2>/dev/null || mktemp -d -t donewhen)" \
@@ -204,4 +319,9 @@ fi
 
 printf '%s: done-when command exited %s (the done-unmet route)\n' \
   "$PROG" "$cmd_status" >&2
+if [ "$cmd_status" -eq 127 ]; then
+  first_tok="$(awk 'NF { print $1; exit }' "$cmd_file_abs" 2>/dev/null)" || first_tok=""
+  printf "%s: exit 127 is command not found; the command file's first token is '%s'. If that token is prose, not a command, the Done-when threading broke upstream. If it names an interpreter missing from PATH, set overrides.doneWhenPreamble to a line that puts it there.\n" \
+    "$PROG" "$first_tok" >&2
+fi
 exit 1
