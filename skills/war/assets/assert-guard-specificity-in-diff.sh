@@ -38,8 +38,9 @@
 # and `#`-comment lines are skipped — the ubiquitous `die() { printf ... >&2; exit; }` helper
 # is a definition, not a guard, and must never self-flag.
 #
-# Coverage: for each unique new guard MSG, some TEST file in the same diff must contain MSG
-# as a substring in its ADDED lines. The set of files that count as tests is EXACTLY the
+# Coverage: for each unique new guard MSG, some TEST file in the same diff must contain, in
+# its ADDED lines, either MSG whole or a leading substring of MSG at least
+# ANCHORED_PREFIX_MIN (16) bytes long. A mid-message substring never covers. The set of files that count as tests is EXACTLY the
 # assert-test-in-diff.sh gate-mirror default (skills/**/*.test.mjs ∪ repo-wide **/*.test.sh,
 # excluding node_modules/.git/.claude) UNIONED with any --pattern tokens — preserving
 # floor ⊆ gate: coverage can only be credited to a test the gate would actually run.
@@ -64,10 +65,11 @@
 # #     are >1 added line apart, escapes detection. A message that is ENTIRELY a bare variable
 # #     ($name/${name}) is intentionally DROPPED by record_guard (no assertable literal — a
 # #     `die "$msg"` guard used to self-flag forever); a double-quoted message with a
-# #     `$var` TAIL is truncated by extract_msg to its static distinguishing prefix (so a
-# #     prefix stderr assertion honestly covers it — the assert-no-repo-escape case-28
-# #     precedent; six recorded recurrences of the old unsatisfiable whole-literal rule,
-# #     #1688); a `%`-bearing message is truncated to
+# #     `$var` TAIL is truncated by extract_msg to its static distinguishing prefix (#1688).
+# #     A test line covers that prefix only when it holds the whole prefix or its leading
+# #     ANCHORED_PREFIX_MIN bytes (#1834). A mid-message substring stays uncovered, so the
+# #     assert-no-repo-escape case-28 assertion (it starts mid-message) would still stamp
+# #     uncovered; a `%`-bearing message is truncated to
 # #     its literal prefix before the FIRST `%` (a `%%` literal-percent truncates too — spurious
 # #     but safe: the prefix stays a true substring of the emitted text);
 # #   - the stderr emit-segment scan recognizes only `echo`/`printf` keywords; a multi-command
@@ -211,12 +213,12 @@ is_scan_excluded() {
 #
 # $-interpolation truncation (DOUBLE-quoted literals only — inside single quotes a `$` is
 # literal text, never interpolation): a message with a `$var` tail is truncated to the static
-# distinguishing prefix before the FIRST `$`, so a `die "...: $var"` guard is honestly
-# coverable by a distinguishing-prefix stderr assertion. assert-no-repo-escape.test.sh case 28
-# is the AUTHORING precedent for asserting a static distinguishing prefix instead of the whole
-# literal — but coverage here still requires the test line to contain the ENTIRE recorded
-# static prefix, so case 28's own shorter mid-substring assertion would itself still stamp
-# uncovered. An empty static prefix (an all-interpolation OR leading-interpolation message,
+# distinguishing prefix before the FIRST `$`, so a `die "...: $var"` guard is coverable by a
+# stderr assertion of that prefix. assert-no-repo-escape.test.sh case 28 is the AUTHORING
+# precedent for asserting a static prefix instead of the whole literal. Coverage requires the
+# test line to hold the whole recorded prefix or its leading ANCHORED_PREFIX_MIN bytes, so
+# case 28's own assertion, which starts mid-message, would still stamp uncovered. An empty
+# static prefix (an all-interpolation OR leading-interpolation message,
 # empty/whitespace-only prefix) keeps the whole literal — falling back to today's behavior
 # (record_guard's bare-variable drop still applies downstream); a leading-interpolation
 # message like `die "$file not found"` therefore stays permanently uncoverable (the whole
@@ -224,7 +226,7 @@ is_scan_excluded() {
 # prefix ending in `\` also keeps the whole literal (the backslash is not emitted, so the
 # prefix would not be a true substring of the emitted text). record_guard's downstream trim
 # strips the truncated prefix's trailing whitespace (`"error: $x"` records as `error:`) —
-# still a true substring of the emitted text, so coverage stays honest.
+# still a true substring of the emitted text, so a match on it is a match on emitted text.
 # ---------------------------------------------------------------------------
 extract_msg() {
   em_s="$1"
@@ -251,7 +253,8 @@ extract_msg() {
   # when the static prefix is empty/whitespace-only (an all-interpolation OR
   # leading-interpolation message) or ends in `\` (escaped $).
   # # ponytail: naive first-$ split — a short prefix (`die "x: $y"` records as `x:`) can be
-  # # near-vacuous: any test file containing `x:` credits the guard. Upgrade to a
+  # # near-vacuous: any test file containing `x:` credits the guard. ANCHORED_PREFIX_MIN
+  # # bounds only the leading-substring arm, never a short whole prefix. Upgrade to a
   # # conversion-aware parse or a minimum-prefix-length floor only if gate-audit evidence
   # # shows near-vacuous prefix matches; the floor is advisory-evidence-only, so the trade
   # # stands (same upgrade path as record_guard's %-truncation ponytail below).
@@ -464,8 +467,28 @@ $diff_out
 EOF
 
 # ---------------------------------------------------------------------------
-# Coverage: each UNIQUE guard message must appear as a substring in the test corpus.
+# Coverage: each UNIQUE guard message is covered when the test corpus holds the whole
+# recorded message, or its leading ANCHORED_PREFIX_MIN bytes. A test line that holds any
+# leading substring at least that long holds those bytes, so one check covers both.
+# A mid-message substring never covers (it is not anchored at the message start).
 # ---------------------------------------------------------------------------
+# Lowering this value admits shorter, near-vacuous anchored matches. A change must cite
+# #1834 (the issue that set the 16-byte floor) in its commit body.
+ANCHORED_PREFIX_MIN=16
+
+# covered_by_corpus <msg> -> 0 iff the corpus covers <msg>. LC_ALL=C in the subshell makes
+# the cut and the match count bytes, not characters.
+covered_by_corpus() (
+  LC_ALL=C
+  cbc_msg="$1"
+  case "$test_added" in *"$cbc_msg"*) exit 0 ;; esac
+  if [ "${#cbc_msg}" -gt "$ANCHORED_PREFIX_MIN" ]; then
+    cbc_pfx="${cbc_msg:0:$ANCHORED_PREFIX_MIN}"
+    case "$test_added" in *"$cbc_pfx"*) exit 0 ;; esac
+  fi
+  exit 1
+)
+
 uncovered=""
 seen=""    # newline-joined messages already reported (dedup on the literal message)
 if [ -n "$guard_hits" ]; then
@@ -483,12 +506,12 @@ SEEN
     [ "$already" -eq 0 ] || continue
     seen="$seen$gmsg
 "
-    # covered iff the corpus contains the message as a LITERAL substring (quoted -> no glob).
-    case "$test_added" in
-      *"$gmsg"*) ;;                                   # covered
-      *) uncovered="$uncovered$gfile: $gmsg
-" ;;
-    esac
+    # covered iff the corpus holds the message or its anchored prefix as a LITERAL
+    # substring (quoted -> no glob).
+    if ! covered_by_corpus "$gmsg"; then
+      uncovered="$uncovered$gfile: $gmsg
+"
+    fi
   done <<EOF
 $guard_hits
 EOF
