@@ -889,5 +889,13 @@ test('tip probe: a reply without approved_tree is re-asked once', async () => {
     const RELAND = 'const reLand = await segmentedLand('
     assert.equal(src.split(RELAND).length - 1, GATE_SITES.find(r => r.builder === 'reLand').sites, 'the mutation target is every live re-land dispatch')
     assert.deepEqual(gateSiteCensus(src.replace(RELAND, 'const reLand = await dispatchSite('), GATE_SITES).problems, ['reLand | Run the gate: no backgroundGateRule in its statement'], 'a re-land that loses segmentedLand reds')
+    // The segmentedMerge carrier family: the evidence-proceed merge loses its segmentedMerge dispatch.
+    const EP = 'const ep = routedMr(await segmentedMerge('
+    assert.equal(src.split(EP).length - 1, 1, 'the mutation target is the live evidence-proceed merge dispatch')
+    assert.deepEqual(gateSiteCensus(src.replace(EP, 'const ep = routedMr(await dispatchSite('), GATE_SITES).problems, ['ep | Run the gate: no segmentedGateClause in its statement'], 'a merge that loses segmentedMerge reds')
+    // The consumers() arm split: one floorFixHead arm loses FIX_GATE_RULE, and a sibling arm may not vouch for it.
+    const ARM = 'never weaken, skip, or delete a test to force it green. Commit and push. ${FIX_GATE_RULE}'
+    assert.equal(src.split(ARM).length - 1, 1, 'the mutation target is the live done-unmet floor-fix arm')
+    assert.deepEqual(gateSiteCensus(src.replace(ARM, ARM.replace(' ${FIX_GATE_RULE}', '')), GATE_SITES).problems, ['floorFixHead | Gate:: no \\bFIX_GATE_RULE\\b in its statement'], 'an arm that loses FIX_GATE_RULE reds')
   })
 }
