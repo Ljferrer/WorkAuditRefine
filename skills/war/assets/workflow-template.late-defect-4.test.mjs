@@ -8,6 +8,8 @@
 // read the debt list; and a resolved null at the aceBisect subset and re-entry sites reads env-died.
 // Section (e), #2629: the aceBisect subset and aceReentry re-audits probe too, each against its own
 // pre-dispatch tip.
+// The gate-site census at the end of this file (plan 2026-11-08-shell-floors-tests-and-lint T2.4, #2658)
+// fails when a ${plan.gate} dispatch carries no background rule and has no exemption row.
 import { test } from 'node:test'
 import {
   assert,
@@ -54,6 +56,7 @@ import {
   unprefixed,
   NEW_SEAT_DEFAULTS,
   probeAt,
+  workerMd,
 } from './workflow-template.test-harness.mjs'
 
 const labelOf = c => c.opts.label || ''
@@ -747,3 +750,127 @@ test('tip probe: a reply without approved_tree is re-asked once', async () => {
   assert.equal(probes(mutant.calls).length, 1, 'the mutant asks once')
   assert.ok(!tidyAced(mutant.out), 'and loses the good ace')
 })
+
+// Gate-site census (plan 2026-11-08-shell-floors-tests-and-lint T2.4, PIN-17, #2658). A default-deny
+// static census over the engine text: every non-comment ${plan.gate} interpolation is a gate site. Its
+// builder is the innermost assignment whose statement is still open at the site (statement extent by
+// indentation). A row keys on that builder name plus the site's leading literal ('Gate:' or 'Run the
+// gate'), never on a line number. A row either names the carrier the site's statement reaches, or is
+// exempt with a reason. A carrier passes only if its token sits in the builder's statement, or in every
+// statement that consumes the builder by name (mergeSplitClause rides two segmentedMerge calls).
+// Carriers: aceBgRule rides the ace gate checks, segmentedMerge appends segmentedGateClause, and
+// segmentedLand appends segmentedLandClause, a backgroundGateRule call. An unlisted site, a stale row,
+// a count mismatch under a key, or a missing carrier token reds the census.
+{
+  const CARRIERS = {
+    aceBgRule: /\baceBgRule\b/,
+    segmentedGateClause: /\bsegmentedMerge\(/,
+    backgroundGateRule: /\bsegmentedLand\(/,
+  }
+  const FIX = 'FIX_GATE_RULE site: a fix dispatch runs only its touched tests, and the engine gates the new tip'
+  const GATE_SITES = [
+    { builder: 'aceBaseIds', lead: 'Gate:', carries: 'aceBgRule' },
+    { builder: 'bodyOf', lead: 'Gate:', carries: 'aceBgRule' },
+    // aceBisect's subset, aceReentry's batch and aceStage's polish commit, each `const { w: <name> }`.
+    { builder: 'sw', lead: 'Gate:', exempt: 'ace subset, ' + FIX, proof: /\bFIX_GATE_RULE\b/ },
+    { builder: 'rw', lead: 'Gate:', exempt: 'ace re-entry, ' + FIX, proof: /\bFIX_GATE_RULE\b/ },
+    { builder: 'ace', lead: 'Gate:', exempt: 'ace polish, ' + FIX, proof: /\bFIX_GATE_RULE\b/ },
+    { builder: 'impl', lead: 'Gate:', exempt: 'worker WORK dispatch: the worker card owns the run_in_background rule', card: 'run_in_background' },
+    { builder: 'fix', lead: 'Gate:', exempt: FIX, proof: /\bFIX_GATE_RULE\b/ },
+    { builder: 'mergeSplitClause', lead: 'Run the gate', carries: 'segmentedGateClause' },
+    { builder: 'floorFixHead', lead: 'Gate:', exempt: FIX, proof: /\bFIX_GATE_RULE\b/ },
+    { builder: 'ep', lead: 'Run the gate', carries: 'segmentedGateClause' },
+    { builder: 'bp', lead: 'Run the gate', carries: 'segmentedGateClause' },
+    { builder: 'evidence', lead: 'Run the gate', exempt: 'fail-open evidence re-run: a missing or unstamped integratedTipGate reads SOFT cannot-confirm, never a red merge' },
+    { builder: 'w', lead: 'Gate:', exempt: 'late-fix worker, ' + FIX, proof: /\bFIX_GATE_RULE\b/ },
+    { builder: 'mr', lead: 'Run the gate', carries: 'segmentedGateClause' },
+    { builder: 'sweep', lead: 'Gate:', exempt: 'polish sweep worker, ' + FIX, proof: /\bFIX_GATE_RULE\b/ },
+    { builder: 'pmr', lead: 'Run the gate', carries: 'segmentedGateClause' },
+    { builder: 'tw', lead: 'Gate:', exempt: 'terminal pass worker, ' + FIX, proof: /\bFIX_GATE_RULE\b/ },
+    { builder: 'tmr', lead: 'Run the gate', carries: 'segmentedGateClause' },
+    { builder: 'landPrompt', lead: 'Run the gate', carries: 'backgroundGateRule' },
+    // The environment-proceed and baseline-proceed re-lands are two `const reLand` statements.
+    { builder: 'reLand', lead: 'Run the gate', sites: 2, carries: 'backgroundGateRule' },
+  ]
+  const gateSiteCensus = (text, rows) => {
+    const lines = text.split('\n')
+    const indentOf = l => l.match(/^ */)[0].length
+    const isComment = l => /^\s*\/\//.test(l)
+    // A plain binding names itself. A destructured one names its first local binding ({ w: sw } => sw).
+    const ASSIGN = /^\s*(?:(?:const|let|var)\s+)?(?:([A-Za-z_$][\w$]*)|\{\s*(?:[\w$]+\s*:\s*)?([\w$]+)[^}]*\})\s*=(?![=>])/
+    // A statement opened at line j runs until the next code line indented no deeper than line j.
+    const endOf = j => {
+      for (let k = j + 1; k < lines.length; k++) {
+        if (lines[k].trim() && !isComment(lines[k]) && indentOf(lines[k]) <= indentOf(lines[j])) return k
+      }
+      return lines.length
+    }
+    const builderAt = i => {
+      for (let j = i; j >= 0; j--) {
+        const m = !isComment(lines[j]) && lines[j].match(ASSIGN)
+        if (m && endOf(j) > i) return { name: m[1] || m[2], start: j, end: endOf(j), body: lines.slice(j, endOf(j)).join('\n') }
+      }
+      return { name: '<none>', start: i, end: i + 1, body: '' }
+    }
+    // Each `+ <name>` use is one home. Two uses in one statement (the arms of a ternary) split it: a
+    // use's home runs from that use to the next one, so one arm cannot vouch for another.
+    const consumers = name => {
+      const uses = lines.flatMap((l, i) => !isComment(l) && new RegExp('\\+\\s*' + name + '\\b').test(l) ? [{ i, st: builderAt(i) }] : [])
+      return uses.map(({ i, st }) => {
+        const same = uses.filter(u => u.st.start === st.start)
+        const at = same.findIndex(u => u.i === i)
+        const from = at === 0 ? st.start : i
+        const to = at === same.length - 1 ? st.end : same[at + 1].i
+        return { name: st.name, body: lines.slice(from, to).join('\n') }
+      })
+    }
+    const sites = []
+    lines.forEach((l, i) => {
+      if (isComment(l) || !l.includes('${plan.gate}')) return
+      const pre = l.slice(0, l.indexOf('${plan.gate}'))
+      const lead = /Gate: $/.test(pre) ? 'Gate:' : /run the (?:FULL )?gate \($/i.test(pre) ? 'Run the gate' : '<unknown lead>'
+      sites.push({ ...builderAt(i), lead })
+    })
+    const problems = []
+    const keyOf = r => (r.builder || r.name) + ' | ' + r.lead
+    for (const key of new Set(sites.map(keyOf))) {
+      const found = sites.filter(s => keyOf(s) === key)
+      const row = rows.find(r => keyOf(r) === key)
+      if (!row) { problems.push('unclassified gate site: ' + key); continue }
+      if (found.length !== (row.sites || 1)) problems.push(key + ': ' + found.length + ' site(s) found, the row lists ' + (row.sites || 1))
+      const token = row.carries ? CARRIERS[row.carries] : row.proof
+      if (row.carries && !token) problems.push(key + ': unknown carrier ' + row.carries)
+      if (!row.carries && !row.exempt) problems.push(key + ': a row needs carries or an exempt reason')
+      for (const s of token ? found : []) {
+        const homes = token.test(s.body) ? [s] : consumers(s.name)
+        if (!homes.length || !homes.every(h => token.test(h.body))) problems.push(key + ': no ' + (row.carries || token.source) + ' in its statement')
+      }
+    }
+    for (const r of rows) if (!sites.some(s => keyOf(s) === keyOf(r))) problems.push('stale row: ' + keyOf(r))
+    // Per builder, the rows' site total equals the sites found under that builder.
+    for (const b of new Set(sites.map(s => s.name))) {
+      const listed = rows.filter(r => r.builder === b).reduce((n, r) => n + (r.sites || 1), 0)
+      const found = sites.filter(s => s.name === b).length
+      if (listed && listed !== found) problems.push(b + ': rows list ' + listed + ' site(s), ' + found + ' found')
+    }
+    return { sites, problems }
+  }
+
+  test('gate-site census: every plan.gate dispatch is classified', () => {
+    const { sites, problems } = gateSiteCensus(src, GATE_SITES)
+    assert.deepEqual(problems, [], 'every gate site has a row whose carrier or exemption holds')
+    assert.ok(sites.length > 0 && sites.every(s => s.lead !== '<unknown lead>'), 'every site has a known leading literal')
+    for (const r of GATE_SITES.filter(r => r.card)) assert.ok(workerMd.includes(r.card), r.builder + ': the worker card carries ' + r.card)
+  })
+
+  test('gate-site census: an unclassified synthetic site reds', () => {
+    const tail = '\nconst syntheticGateSite = async () => {\n  await dispatchSite(\n    pt`SYNTHETIC`\n    + pt`Gate: ${plan.gate}\\n`,\n    {})\n}\n'
+    assert.deepEqual(gateSiteCensus(src + tail, GATE_SITES).problems, ['unclassified gate site: syntheticGateSite | Gate:'], 'an unlisted site reds')
+    // A commented-out site is not a site.
+    assert.deepEqual(gateSiteCensus(src + '\n// Gate: ${plan.gate}\n', GATE_SITES).problems, [], 'a comment line is skipped')
+    // A row without its carrier token reds: the ace gate check loses aceBgRule.
+    const DROP = '      + aceBgRule\n'
+    assert.ok(src.includes(DROP), 'the mutation target is the live ace gate check carrier')
+    assert.deepEqual(gateSiteCensus(src.replace(DROP, '\n'), GATE_SITES).problems, ['bodyOf | Gate:: no aceBgRule in its statement'], 'a dropped carrier reds')
+  })
+}
