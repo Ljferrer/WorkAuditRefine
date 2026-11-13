@@ -2429,17 +2429,89 @@ test('doc-contract: SKILL.md Setup step 4 threads memoryLocalRoot and names the 
   )
 })
 
+// Directory-scan census for the three enumerated OLD-absent lists below (#2089). A new
+// skills/war/references/ file must join each list or sit in REFERENCES_NOT_SCANNED with a reason,
+// or every census reds. Members outside skills/war/references (SKILL.md, GLOSSARY.md, CONTEXT.md,
+// ADR files) stay hand-listed and sit outside the census. A file both listed and in the table is
+// scanned: the list wins, so design.md and schemas.md stay scanned where a list names them.
+const REFERENCES_DIR = 'skills/war/references'
+const REFERENCES_NOT_SCANNED = {
+  // Agent-card evictions: their prose moved from agents/*.md, never from skills/war/SKILL.md.
+  'auditor-teach.md': 'verbatim eviction from agents/war-auditor.md, not a SKILL.md eviction destination',
+  'disposition-eligibility.md': 'verbatim eviction from agents/war-auditor.md, not a SKILL.md eviction destination',
+  'finding-class.md': 'born cold plus an agents/war-auditor.md eviction, not a SKILL.md eviction destination',
+  'gate-audit-checklist.md': 'verbatim eviction from agents/war-auditor.md, not a SKILL.md eviction destination',
+  'pin-transfer.md': 'verbatim eviction from agents/war-auditor.md, not a SKILL.md eviction destination',
+  'budget-raise-floor.md': 'refiner floor prose and agents/war-refiner.md evictions, not a SKILL.md eviction destination',
+  'file-followups.md': 'eviction from agents/war-refiner.md, not a SKILL.md eviction destination',
+  'gate-failure-classification.md': 'eviction from agents/war-refiner.md, not a SKILL.md eviction destination',
+  'merge-provenance.md': 'eviction from agents/war-refiner.md, not a SKILL.md eviction destination',
+  'refiner-recovery.md': 'verbatim evictions from agents/war-refiner.md, not a SKILL.md eviction destination',
+  'worker-servitor-edges.md': 'verbatim evictions from agents/war-worker.md and agents/war-servitor.md, not a SKILL.md eviction destination',
+  // Seat doctrine that rides dispatched prompts: born in references/, no SKILL.md block moved in.
+  'backward-chain-audit.md': 'auditor backward-chain doctrine, born cold, no moved SKILL.md block',
+  'backward-chain-examples.md': 'backward-chain examples bank, born cold, no moved SKILL.md block',
+  'backward-chain-fix.md': 'fixer backward-chain doctrine, born cold, no moved SKILL.md block',
+  'backward-chain-worker.md': 'worker backward-chain doctrine, born cold, no moved SKILL.md block',
+  'fix-round-doctrine.md': 'fixer rules canonical home (#2097), born cold, no moved SKILL.md block',
+  // Lead doctrine born cold behind a SKILL.md trigger pointer: no moved SKILL.md block lives there.
+  'artifact-evidence-lead.md': 'Lead REA evidence procedure, born cold (#2388), no moved SKILL.md block',
+  'launch-identity.md': 'Lead runId mint procedure, born cold, no moved SKILL.md block',
+  'late-defects.md': 'Lead late-defect doctrine, born cold (plan 2026-11-04 Task 6.2), no moved SKILL.md block',
+  'late-fix-pass.md': 'late-fix pass doctrine, born cold (#2621), no moved SKILL.md block',
+  'model-routing.md': 'routing doctrine home, born cold (#2844), no moved SKILL.md block',
+  'budget-rebaseline.md': 'operator budget re-baseline pass, born cold (#1729), no moved SKILL.md block',
+  'touched-doc-accuracy.md': 'authoring duty for /war-strategy, born cold (#1598), no moved SKILL.md block',
+  'gastown-design-params.md': 'inherited Gas Town parameters, a design record since v0.1.0, no moved SKILL.md block',
+  // Design and contract docs: lists that sweep them name them directly.
+  'design.md': 'the WAR design doc since v0.1.0, not a SKILL.md eviction destination',
+  'schemas.md': 'the WAR data contracts since v0.1.0, not a SKILL.md eviction destination',
+  'glossary-cold.md': 'the glossary cold home (GLOSSARY.md evictions), not a SKILL.md eviction destination',
+  // Not a doc surface.
+  'schemas-manifest.test.sh': 'a shell test beside schemas.md, not a doc surface',
+}
+
+// Returns the references files a list neither scans nor exempts, plus stale exemption rows.
+function referencesCensus(list) {
+  const prefix = `${REFERENCES_DIR}/`
+  const scanned = new Set(list.filter(p => p.startsWith(prefix)).map(p => p.slice(prefix.length)))
+  const onDisk = readdirSync(join(REPO_ROOT, REFERENCES_DIR)).sort()
+  const unplaced = onDisk.filter(name => !scanned.has(name) && !Object.hasOwn(REFERENCES_NOT_SCANNED, name))
+  const stale = [...scanned, ...Object.keys(REFERENCES_NOT_SCANNED)].filter(name => !onDisk.includes(name))
+  return { onDisk, scanned, unplaced, stale }
+}
+
+function assertReferencesCensus(listName, list) {
+  const { onDisk, scanned, unplaced, stale } = referencesCensus(list)
+  // Non-vacuity: the scan sees the directory and the list carries in-root members.
+  assert.ok(onDisk.length > 0 && scanned.size > 0, `${listName}: the census must see ${REFERENCES_DIR} and in-root list members`)
+  assert.deepEqual(unplaced, [],
+    `${listName}: every ${REFERENCES_DIR} file must join the list or carry a REFERENCES_NOT_SCANNED reason (#2089)`)
+  assert.deepEqual(stale, [], `${listName}: a list member or exemption row names a file absent from ${REFERENCES_DIR}`)
+}
+
+// UNION scan (prompt-surface simplification, adjudication I): the OLD-absent key covers the
+// origin surface PLUS every eviction destination, so moved prose can never re-shelter the clause.
+const SCOPE_HOOK_GLOB_SURFACES = [
+  'skills/war/SKILL.md',
+  'skills/war/references/setup.md',
+  'skills/war/references/docker-gate.md',
+  'skills/war/references/submodule-flows.md',
+  'skills/war/references/resume-and-recovery.md',
+  'skills/war/references/learnings-publication.md', // #2635 Gate 2 promotion eviction
+  // SKILL.md eviction destinations the #2089 census found unlisted.
+  'skills/war/references/retired-token-sweep.md',
+  'skills/war/references/run-manifest.md',
+  'skills/war/references/staged-script.md',
+  'skills/war/references/sweep-exclusion.md',
+]
+
+test('doc-contract: the scope-hook-glob OLD-absent list covers every skills/war/references file (directory-scan census, #2089)', () => {
+  assertReferencesCensus('SCOPE_HOOK_GLOB_SURFACES', SCOPE_HOOK_GLOB_SURFACES)
+})
+
 test('doc-contract: SKILL.md drops the retired scope-hook-glob compatibility clause (Task 2 obsoletes it, #584)', () => {
-  // UNION scan (prompt-surface simplification, adjudication I): the OLD-absent key covers the
-  // origin surface PLUS every eviction destination, so moved prose can never re-shelter the clause.
-  for (const relPath of [
-    'skills/war/SKILL.md',
-    'skills/war/references/setup.md',
-    'skills/war/references/docker-gate.md',
-    'skills/war/references/submodule-flows.md',
-    'skills/war/references/resume-and-recovery.md',
-    'skills/war/references/learnings-publication.md', // #2635 Gate 2 promotion eviction
-  ]) {
+  for (const relPath of SCOPE_HOOK_GLOB_SURFACES) {
     const text = readDoc(relPath)
     assert.ok(
       !text.includes('must still match the servitor scope-hook'),
@@ -2505,25 +2577,36 @@ test('doc-contract: Gate 2 (SKILL.md + learnings-publication.md) carries the ove
   )
 })
 
+// Enumerated file list — anchored to these files, never a repo-root scan
+// (`absence-guard-search-root-must-anchor-to-subtree`,
+//  `enumerated-file-list-absence-guard-for-rename-with-legitimate-history`). Its in-root members
+// are held complete by the directory-scan census below (#2089).
+const SERVITOR_TARGET_SURFACES = [
+  'skills/war/SKILL.md',
+  'skills/war/references/design.md',
+  'skills/war/references/schemas.md',
+  // UNION extension (prompt-surface simplification, adjudication I): the SKILL.md eviction
+  // destinations join the enumerated OLD-absent list — still an anchored file list.
+  'skills/war/references/setup.md',
+  'skills/war/references/docker-gate.md',
+  'skills/war/references/submodule-flows.md',
+  'skills/war/references/resume-and-recovery.md',
+  'skills/war/references/learnings-publication.md', // #2635 Gate 2 promotion eviction
+  // SKILL.md eviction destinations the #2089 census found unlisted.
+  'skills/war/references/retired-token-sweep.md',
+  'skills/war/references/run-manifest.md',
+  'skills/war/references/staged-script.md',
+  'skills/war/references/sweep-exclusion.md',
+]
+
+test('doc-contract: the docs/learnings servitor-target list covers every skills/war/references file (directory-scan census, #2089)', () => {
+  assertReferencesCensus('SERVITOR_TARGET_SURFACES', SERVITOR_TARGET_SURFACES)
+})
+
 test('doc-contract: swept surfaces no longer offer docs/learnings as a servitor-writable glob or aggregate file (#584)', () => {
-  // Enumerated file list — anchored to these files, never a repo-root scan
-  // (`absence-guard-search-root-must-anchor-to-subtree`,
-  //  `enumerated-file-list-absence-guard-for-rename-with-legitimate-history`).
   // `docs/learnings/` itself is legitimate (the promotion destination) — anchor on the retired
   // *phrasings*: the servitor-writable glob (`docs/learnings/*`) and the aggregate-file shape.
-  const sweptSurfaces = [
-    'skills/war/SKILL.md',
-    'skills/war/references/design.md',
-    'skills/war/references/schemas.md',
-    // UNION extension (prompt-surface simplification, adjudication I): the SKILL.md eviction
-    // destinations join the enumerated OLD-absent list — still an anchored file list, never a scan.
-    'skills/war/references/setup.md',
-    'skills/war/references/docker-gate.md',
-    'skills/war/references/submodule-flows.md',
-    'skills/war/references/resume-and-recovery.md',
-    'skills/war/references/learnings-publication.md', // #2635 Gate 2 promotion eviction
-  ]
-  for (const relPath of sweptSurfaces) {
+  for (const relPath of SERVITOR_TARGET_SURFACES) {
     const text = readDoc(relPath)
     assert.ok(
       !text.includes('docs/learnings/*'),
@@ -2638,31 +2721,42 @@ test('doc-contract: env-blocked bullet carries the evidence-gate token (C)', () 
   )
 })
 
+// Enumerated file list — search is anchored to these files, never a repo-root scan
+// (learnings `enumerated-file-list-absence-guard-for-rename-with-legitimate-history`,
+//  `absence-guard-search-root-must-anchor-to-subtree`). Under the living-ADR law (ADR 0063) ADR
+//  0012 names the `p<N>-polish` path in place, so it joins the list; ADR 0021 (D) still records
+//  the rename itself and legitimately names the old literal, so it stays out. Its in-root members
+//  are held complete by the directory-scan census below (#2089).
+const RETIREMENT_SWEEP_SURFACES = [
+  'docs/adr/0012-intra-phase-visibility-and-phase-close-sweep.md',
+  'skills/war/SKILL.md',
+  'skills/war/references/design.md',
+  'GLOSSARY.md',
+  'CONTEXT.md', // the Layer 1 router (#2636), still a live prompt-bearing surface
+  // UNION extension (prompt-surface simplification, adjudication I): the SKILL.md eviction
+  // destinations join the enumerated OLD-absent list — still an anchored file list.
+  'skills/war/references/setup.md',
+  'skills/war/references/docker-gate.md',
+  'skills/war/references/submodule-flows.md',
+  'skills/war/references/resume-and-recovery.md',
+  'skills/war/references/learnings-publication.md', // #2635 Gate 2 promotion eviction
+  // SKILL.md eviction destinations the #2089 census found unlisted.
+  'skills/war/references/retired-token-sweep.md',
+  'skills/war/references/run-manifest.md',
+  'skills/war/references/staged-script.md',
+  'skills/war/references/sweep-exclusion.md',
+  // UNION extension (verdict-adjudication-integrity D14 eviction, #1265/#1357): the glossary (then CONTEXT.md, now GLOSSARY.md)
+  // glossary-eviction destination joins the same anchored list, so a future retirement sweep
+  // cannot silently skip the cold home.
+  'skills/war/references/glossary-cold.md',
+]
+
+test('doc-contract: the retirement-sweep list covers every skills/war/references file (directory-scan census, #2089)', () => {
+  assertReferencesCensus('RETIREMENT_SWEEP_SURFACES', RETIREMENT_SWEEP_SURFACES)
+})
+
 test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename to p<N>-polish; ADR 0012 included)', () => {
-  // Enumerated file list — search is anchored to these files, never a repo-root scan
-  // (learnings `enumerated-file-list-absence-guard-for-rename-with-legitimate-history`,
-  //  `absence-guard-search-root-must-anchor-to-subtree`). Under the living-ADR law (ADR 0063) ADR
-  //  0012 names the `p<N>-polish` path in place, so it joins the list; ADR 0021 (D) still records
-  //  the rename itself and legitimately names the old literal, so it stays out.
-  const sweptSurfaces = [
-    'docs/adr/0012-intra-phase-visibility-and-phase-close-sweep.md',
-    'skills/war/SKILL.md',
-    'skills/war/references/design.md',
-    'GLOSSARY.md',
-    'CONTEXT.md', // the Layer 1 router (#2636), still a live prompt-bearing surface
-    // UNION extension (prompt-surface simplification, adjudication I): the SKILL.md eviction
-    // destinations join the enumerated OLD-absent list — still an anchored file list, never a scan.
-    'skills/war/references/setup.md',
-    'skills/war/references/docker-gate.md',
-    'skills/war/references/submodule-flows.md',
-    'skills/war/references/resume-and-recovery.md',
-    'skills/war/references/learnings-publication.md', // #2635 Gate 2 promotion eviction
-    // UNION extension (verdict-adjudication-integrity D14 eviction, #1265/#1357): the glossary (then CONTEXT.md, now GLOSSARY.md)
-    // glossary-eviction destination joins the same anchored list, so a future retirement sweep
-    // cannot silently skip the cold home.
-    'skills/war/references/glossary-cold.md',
-  ]
-  for (const relPath of sweptSurfaces) {
+  for (const relPath of RETIREMENT_SWEEP_SURFACES) {
     const text = readDoc(relPath)
     assert.ok(
       !text.includes('_polish'),
