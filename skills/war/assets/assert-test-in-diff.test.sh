@@ -95,7 +95,9 @@
 #  14. --pending-pattern ADOPTION (PIN-12): a pending set that matches when the
 #      active set misses -> exit 0 + `adopted-pending-pattern:` on stderr; a
 #      pending set that matches nothing keeps exit 1 and today's diagnostic;
-#      no flag keeps the output byte-identical; an active match ignores it.
+#      no flag keeps the output byte-identical; an active match ignores it;
+#      --pending-pattern, --pattern and --repo with no value each die with
+#      their own message; an empty --pending-pattern equals the absent flag.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -1197,6 +1199,8 @@ fi
 #       literal diagnostic byte for byte, and the default exit-0 path keeps an
 #       empty stderr.
 #   14d an active-set match never consults the pending set (no marker).
+#   14e missing-value die guards: --pending-pattern, --pattern, --repo.
+#   14f an empty --pending-pattern is byte-identical to the absent flag.
 # ---------------------------------------------------------------------------
 R14="$(setup_repo)"
 BASE14="$(git -C "$R14" rev-parse HEAD)"
@@ -1274,6 +1278,37 @@ if [ "$rc14" -eq 0 ] && [ "$out14" = "$exp_out14" ] && [ -z "$err14" ]; then
   pass "case 14d: an active-set match never consults the pending set (no marker, pending-only paths absent)"
 else
   fail "case 14d: active match with a pending set — rc=$rc14 out=[$out14] err=[$err14]"
+fi
+
+# 14e: each value-taking flag given last with no value hits its own die guard.
+# die() exits 1 by default. Each stderr must carry that flag's own message, so
+# a deleted guard (set -u unbound-variable text instead) reds its row.
+e14_bad=""
+for e14 in '--pending-pattern|--pending-pattern requires a glob-set' \
+           '--pattern|--pattern requires a glob-set' \
+           '--repo|--repo requires a path'; do
+  e14_flag="${e14%%|*}"; e14_msg="${e14#*|}"
+  run14 "$e14_flag"
+  if [ "$rc14" -ne 1 ] || [ -n "$out14" ] \
+     || ! printf '%s' "$err14" | grep -qF -- "assert-test-in-diff: $e14_msg"; then
+    e14_bad="$e14_bad [$e14_flag: rc=$rc14 out=[$out14] err=[$err14]]"
+  fi
+done
+if [ -z "$e14_bad" ]; then
+  pass "case 14e: a value-taking flag with no value dies with its own message and exit 1"
+else
+  fail "case 14e: missing-value die guards —$e14_bad"
+fi
+
+# 14f: an empty --pending-pattern is the absent flag, per the script header
+# ("Absent or empty flag = no behavior change"): rc, stdout and stderr all
+# equal the no-flag run (14c's rc14c/out14c/err14c).
+run14 --pending-pattern ''
+if [ "$rc14" -eq "$rc14c" ] && [ "$out14" = "$out14c" ] && [ "$err14" = "$err14c" ] \
+   && [ "$rc14c" -eq 1 ]; then
+  pass "case 14f: an empty --pending-pattern behaves exactly as the absent flag"
+else
+  fail "case 14f: empty --pending-pattern — rc=$rc14 out=[$out14] err=[$err14] (no-flag rc=$rc14c err=[$err14c])"
 fi
 
 # ---------------------------------------------------------------------------
