@@ -1094,6 +1094,33 @@ for (const flag of ['status', 'branch', 'sha', 'stopPoint']) {
   }
 }
 
+// ---- CLI --backstops refusal (PIN-6, #2911) --------------------------------
+// A bare --backstops reaches the parse as boolean true (JSON.parse(true) is
+// true, stamped verbatim), and a JSON object or scalar parses to a non-array.
+// Both refuse: exit 1, one stderr line naming the flag, ledger byte-identical.
+
+for (const c of [
+  { title: 'bare --backstops refuses', extra: ['--backstops'], token: 'true' },
+  { title: 'non-array --backstops refuses', extra: ['--backstops', '{"id":"x"}'], token: '{"id":"x"}' },
+]) {
+  test(c.title, () => {
+    const dir = tmpDir()
+    const planA = writePlan(dir, 'a.md', PLAN_A)
+    const campaignDir = path.join(dir, 'campaign')
+    init(campaignDir, { plans: [planA], mode: 'stack' })
+    const before = fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')
+
+    const { status, stderr } = cliRefusal('record', '--campaign', campaignDir, '--plan', planA, '--status', 'landed', ...c.extra)
+
+    assert.equal(status, 1, 'must exit 1 before record()')
+    assert.match(stderr, /--backstops/, 'stderr must name the offending flag')
+    assert.ok(stderr.includes(`'${c.token}'`), `stderr must render the offending token; got: ${stderr}`)
+    assert.equal(stderr.trim().split('\n').length, 1, 'one stderr line')
+    const after = fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')
+    assert.equal(after, before, 'a refused invocation leaves the ledger byte-identical')
+  })
+}
+
 test('CLI record with valid string values for every guarded flag still records them (bare-flag guard passes strings through)', () => {
   const dir = tmpDir()
   const planA = writePlan(dir, 'a.md', PLAN_A)
