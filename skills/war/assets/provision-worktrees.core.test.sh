@@ -769,6 +769,66 @@ V_SMG="$C_SMG/$(cat "$WT_SMG/lib*/a.txt" 2>/dev/null)/$([ "$(git -C "$WT_SMG/lib
 expect "reuse-gap(submodules-ready): a glob-named submodule path is read literally, so its sibling keeps its HEAD" \
   "0/one/libx-head-kept" "$V_SMG"
 
+# The reuse_hygiene twin of the glob row above. `lib*` and `libx` are both
+# initialized, and libx is moved off its recorded commit. First reuse: `lib*`
+# is clean, so it gets no marker of its own (a glob read would see libx's dirt).
+# Second reuse: the index of `lib*` is emptied, so the repair runs. A glob
+# `--force` update would move libx back, and a glob re-read would report
+# repair-failed.
+FX_HG="$(sm_fixture)"; R_HG="${FX_HG%% *}"; SRC_HG="${FX_HG##* }"
+git -C "$R_HG" -c protocol.file.allow=always submodule add -q "file://$SRC_HG" 'lib*' >/dev/null 2>&1
+git -C "$R_HG" -c protocol.file.allow=always submodule add -q "file://$SRC_HG" libx >/dev/null 2>&1
+git -C "$R_HG" commit -qm "declare glob pair"
+printf 'two\n' > "$SRC_HG/a.txt"; git -C "$SRC_HG" commit -qam subtwo
+NEW_HG="$(git -C "$SRC_HG" rev-parse HEAD)"
+TIP_HG="$(git -C "$R_HG" rev-parse HEAD)"
+WT_HG="$(new_wt_path)"
+( cd "$R_HG" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_HG" war/myplan/p1-t8 "$TIP_HG" ) >/dev/null 2>&1
+git -C "$WT_HG/libx" fetch -q origin >/dev/null 2>&1
+git -C "$WT_HG/libx" checkout -q "$NEW_HG" >/dev/null 2>&1
+ERR_HG1="$( ( cd "$R_HG" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_HG" war/myplan/p1-t8 "$TIP_HG" ) 2>&1 >/dev/null )"; C_HG1=$?
+V_HG1="$C_HG1/own-markers=$(printf '%s\n' "$ERR_HG1" | grep -Fc 'WORKTREE_HYGIENE path=lib* ')"
+V_HG1="$V_HG1/$(printf '%s\n' "$ERR_HG1" | grep -Fxq 'WORKTREE_HYGIENE path=libx action=detected detail=sha-mismatch' && echo libx-sha-mismatch || echo no-libx-marker)"
+expect "HYG.glob: a clean glob-named submodule gets no marker from its moved sibling's dirt" \
+  "0/own-markers=0/libx-sha-mismatch" "$V_HG1"
+git -C "$WT_HG/lib*" read-tree --empty
+ERR_HG2="$( ( cd "$R_HG" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_HG" war/myplan/p1-t8 "$TIP_HG" ) 2>&1 >/dev/null )"; C_HG2=$?
+V_HG2="$C_HG2/$(printf '%s\n' "$ERR_HG2" | grep -F 'WORKTREE_HYGIENE path=lib* ')"
+V_HG2="$V_HG2/$([ -z "$(git -C "$WT_HG/lib*" status --porcelain 2>/dev/null)" ] && echo glob-sub-clean || echo glob-sub-dirty)"
+V_HG2="$V_HG2/$([ "$(git -C "$WT_HG/libx" rev-parse HEAD 2>/dev/null)" = "$NEW_HG" ] && echo libx-head-kept || echo libx-head-moved)"
+expect "HYG.glob: the repair of a glob-named submodule is read literally, so its sibling keeps its HEAD" \
+  "0/WORKTREE_HYGIENE path=lib* action=repaired detail=staged-deletions/glob-sub-clean/libx-head-kept" "$V_HG2"
+
+# The stdin guard on the per-path update. `submodule.sub.update` is a `!cat`
+# command, so the update of `sub` runs a child that reads stdin to its end.
+# The loop feeds the `-` paths on stdin. With the update's stdin at /dev/null,
+# the next path `zzz` still inits. The custom command checks nothing out, so
+# the row reads the status prefix, never a file.
+FX_SMI="$(sm_fixture)"; R_SMI="${FX_SMI%% *}"; SRC_SMI="${FX_SMI##* }"
+git -C "$R_SMI" -c protocol.file.allow=always submodule add -q "file://$SRC_SMI" zzz >/dev/null 2>&1
+git -C "$R_SMI" commit -qm "declare zzz"
+git -C "$R_SMI" config submodule.sub.update '!cat >/dev/null; :'
+TIP_SMI="$(git -C "$R_SMI" rev-parse HEAD)"
+WT_SMI="$(new_wt_path)"
+( cd "$R_SMI" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMI" war/myplan/p1-t9 "$TIP_SMI" ) >/dev/null 2>&1; C_SMI=$?
+V_SMI="$C_SMI/$(git -C "$WT_SMI" submodule status --recursive 2>/dev/null | awk '{ printf "%s:%s ", $2, (substr($0, 1, 1) == "-" ? "uninit" : "init") }')"
+expect "reuse-gap(submodules-ready): a stdin-reading update command leaves the next path its loop pass" \
+  "0/sub:init zzz:init " "$V_SMI"
+
+# Its reuse_hygiene twin, on the same worktree. The `!cat` command left `sub`
+# with an empty index, which is the corruption signature, so the `--force`
+# repair runs the same stdin-reading child. `zzz` is moved off its recorded
+# commit. With the repair's stdin at /dev/null, the hygiene loop still reaches
+# zzz and reports it.
+printf 'two\n' > "$SRC_SMI/a.txt"; git -C "$SRC_SMI" commit -qam subtwo
+NEW_SMI="$(git -C "$SRC_SMI" rev-parse HEAD)"
+git -C "$WT_SMI/zzz" fetch -q origin >/dev/null 2>&1
+git -C "$WT_SMI/zzz" checkout -q "$NEW_SMI" >/dev/null 2>&1
+ERR_SMI2="$( ( cd "$R_SMI" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMI" war/myplan/p1-t9 "$TIP_SMI" ) 2>&1 >/dev/null )"; C_SMI2=$?
+V_SMI2="$C_SMI2/$(printf '%s\n' "$ERR_SMI2" | grep -F 'WORKTREE_HYGIENE path=' | tr '\n' '|')"
+expect "HYG.stdin: a stdin-reading repair command leaves the next submodule its hygiene pass" \
+  "0/WORKTREE_HYGIENE path=sub action=detected detail=repair-failed:staged-deletions|WORKTREE_HYGIENE path=zzz action=detected detail=sha-mismatch|" "$V_SMI2"
+
 # A fresh cut with two top-level `-` submodules, `mid` and `sub`, where mid
 # declares its own `inner`. Every pass of the loop must run, and the update
 # must recurse, or a `-` line stays and the cut exits 9.

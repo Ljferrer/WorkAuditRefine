@@ -951,6 +951,10 @@ EOF
 # is indistinguishable from the emptied-index corruption on every surface this
 # arm reads (both leave an empty index with only staged deletions), so that one
 # shape is still repaired as corruption.
+# The superproject `status -- <sub>` reads and the `--force` update run under
+# GIT_LITERAL_PATHSPECS=1, so a declared path such as `lib*` names only itself
+# and never a sibling such as `libx`. The update's stdin is /dev/null, so a
+# child that reads stdin cannot eat the caller's remaining paths.
 reuse_hygiene_one() {
   h_wt="$1"; h_sub="$2"
   [ -d "$h_wt/$h_sub" ] || return 0
@@ -958,7 +962,7 @@ reuse_hygiene_one() {
   # unreadable submodule index fails this read. A failed read is env-error:*,
   # never a silent clean (the first read of the #1476 gap 3 rule).
   h_rc=0
-  h_dirt="$(git -C "$h_wt" status --porcelain -- "$h_sub" 2>/dev/null)" || h_rc=$?
+  h_dirt="$(GIT_LITERAL_PATHSPECS=1 git -C "$h_wt" status --porcelain -- "$h_sub" 2>/dev/null)" || h_rc=$?
   if [ "$h_rc" -ne 0 ]; then
     hygiene_marker "$h_sub" detected "env-error:dirt-read-rc=$h_rc"
     return 0
@@ -1064,8 +1068,8 @@ reuse_hygiene_one() {
     rm -f "$h_gd/index.lock" 2>/dev/null || true
     h_detail="staged-deletions+stale-index.lock"
   fi
-  if git -C "$h_wt" submodule update --init --force -- "$h_sub" </dev/null >/dev/null 2>&1 \
-     && [ -z "$(git -C "$h_wt" status --porcelain -- "$h_sub" 2>/dev/null)" ]; then
+  if GIT_LITERAL_PATHSPECS=1 git -C "$h_wt" submodule update --init --force -- "$h_sub" </dev/null >/dev/null 2>&1 \
+     && [ -z "$(GIT_LITERAL_PATHSPECS=1 git -C "$h_wt" status --porcelain -- "$h_sub" 2>/dev/null)" ]; then
     hygiene_marker "$h_sub" repaired "$h_detail"
   else
     hygiene_marker "$h_sub" detected "repair-failed:$h_detail"
