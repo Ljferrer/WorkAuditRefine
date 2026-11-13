@@ -891,6 +891,15 @@ ERR_SMS="$( (cd "$D_SMS" && GIT_CEILING_DIRECTORIES="$(dirname "$D_SMS")" bash "
 expect "verb status-read guard: a non-repo with .gitmodules exits 9 and names the status read" \
   "9/status-read" "$C_SMS/$(printf '%s' "$ERR_SMS" | grep -Fq "assert-submodules-ready: could not read the submodule status of '" && echo status-read || echo no-status-read)"
 
+# The dispatcher's default arm: a bogus verb dies nonzero and its have: list names the new verb.
+R_SMB="$(new_repo)"
+ERR_SMB="$( (cd "$R_SMB" && bash "$SCRIPT" bogus) 2>&1 >/dev/null)"; C_SMB=$?
+V_SMB="$([ "$C_SMB" -ne 0 ] && echo nonzero || echo zero)"
+V_SMB="$V_SMB/$(printf '%s' "$ERR_SMB" | grep -Fq "unknown subcommand 'bogus' (have:" && echo die-text || echo no-die-text)"
+V_SMB="$V_SMB/$(printf '%s' "$ERR_SMB" | grep -Fq 'assert-submodules-ready' && echo verb-listed || echo verb-missing)"
+expect "dispatcher default arm: a bogus verb exits nonzero and lists assert-submodules-ready" \
+  "nonzero/die-text/verb-listed" "$V_SMB"
+
 # ---------------------------------------------------------------------------
 # Case (RG.5 / #1712 fix 1, End state 26) holder-naming die, ensure-worktree:
 # the branch is already checked out at worktree A; provisioning worktree B on
