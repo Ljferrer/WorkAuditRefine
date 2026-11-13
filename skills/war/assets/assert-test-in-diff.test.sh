@@ -1205,6 +1205,8 @@ fi
 #   14e missing-value die guards: --pending-pattern, --pattern, --repo.
 #   14f an empty --pending-pattern is byte-identical to the absent flag.
 #   14g the adopted set emits every matched path, not only the first hit.
+#   14h the usage die (no argument, or one positional argument) names every
+#       flag the parser accepts, --pending-pattern included.
 # ---------------------------------------------------------------------------
 R14="$(setup_repo)"
 BASE14="$(git -C "$R14" rev-parse HEAD)"
@@ -1326,6 +1328,34 @@ if [ "$rc14" -eq "$rc14c" ] && [ "$out14" = "$out14c" ] && [ "$err14" = "$err14c
   pass "case 14f: an empty --pending-pattern behaves exactly as the absent flag"
 else
   fail "case 14f: empty --pending-pattern — rc=$rc14 out=[$out14] err=[$err14] (no-flag rc=$rc14c err=[$err14c])"
+fi
+
+# 14h: fewer than two positional arguments hits the usage die. Stdout stays
+# empty, the exit is 1, and stderr is the usage line byte for byte, so a usage
+# string that drops a flag the parser accepts reds this row. The one-argument
+# call and the no-argument call take the same guard.
+exp_usage14h='assert-test-in-diff: usage: assert-test-in-diff <integration-base> <task-branch> [--repo <dir>] [--pattern <glob-set>] [--pending-pattern <glob-set>]
+'
+h14_bad=""
+for h14 in one none; do
+  if [ "$h14" = one ]; then set -- "$BASE14"; else set --; fi
+  rc14h=0
+  out14h="$( ( cd "$cwd14" && bash "$SCRIPT" "$@" ) 2>/dev/null; printf x )" || true
+  out14h="${out14h%x}"
+  ( cd "$cwd14" && bash "$SCRIPT" "$@" ) >/dev/null 2>&1 || rc14h=$?
+  err14h="$( ( cd "$cwd14" && bash "$SCRIPT" "$@" ) 2>&1 >/dev/null; printf x )" || true
+  err14h="${err14h%x}"
+  if [ "$rc14h" -ne 1 ] || [ -n "$out14h" ] || [ "$err14h" != "$exp_usage14h" ] \
+     || ! printf '%s' "$err14h" | grep -qF -- 'assert-test-in-diff: usage:' \
+     || ! printf '%s' "$err14h" | grep -qF -- '--pending-pattern'; then
+    h14_bad="$h14_bad [$h14 argument: rc=$rc14h out=[$out14h] err=[$err14h]]"
+  fi
+done
+set --
+if [ -z "$h14_bad" ]; then
+  pass "case 14h: the usage die names --pending-pattern"
+else
+  fail "case 14h: the usage die names --pending-pattern —$h14_bad"
 fi
 
 # ---------------------------------------------------------------------------
