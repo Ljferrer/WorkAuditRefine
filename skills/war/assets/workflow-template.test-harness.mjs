@@ -1095,7 +1095,7 @@ const crossTaskImpl = (prompt, opts) => {
 // ---------------------------------------------------------------------------
 // #990 — the LANDED-TIP ANCHOR is hoisted above the Wrap-up gate and THREADED into the servitor
 // prompt. Same computation the handoff block used to own (the test above pins its semantics
-// unchanged); these three pin the RENDERED value at each rung of its fallback chain:
+// unchanged); these pin the RENDERED value at each rung of its fallback chain:
 // landed working_sha → lastLandedTip (the last task merge commit or merged late-fix tip) → the named placeholder. The placeholder rung is the
 // ADR 0034 proof: `pt` throws on undefined, so the null case must be pre-resolved BEFORE interpolation.
 // ---------------------------------------------------------------------------
@@ -2475,7 +2475,7 @@ const BARE_INTERPOLATION_CENSUS = [
   // hoisted `drainCauseOf(m)` local, and the span sits inside a `dc ? pt\`…\` : ''` conditional;
   // drainCauseOf's shape guard returns null unless dispatch is a string, and String-coerces why.
   'dc.dispatch', 'dc.why',
-  // NEVER_MOVE_LITERAL (verdict-integrity Task 12.1 ace): the by-literal sentence interpolated at the five
+  // NEVER_MOVE_LITERAL (verdict-integrity Task 12.1 ace): the by-literal sentence interpolated at the
   // ace-family, sweep and terminal builds — a plain-string module const, construction-guaranteed.
   'NEVER_MOVE_LITERAL',
   // The pin-content comparison runs only after verifyPinTransfer proves these full Git SHAs.
@@ -3745,10 +3745,10 @@ const PROVISION_SITE_CENSUS = [
   'PROVISION_CLEAN_LINE @ PROVISION_RERUN_CLAUSE',
   'PROVISION_CLEAN_LINE @ tipWorktreeProvision',
   'PROVISION_CLEAN_LINE @ provisionStep',
-  // the refiner gate sites (D15): three merge step (a) copies (the primary merge and the floor-retry
+  // the refiner gate sites (D15): the merge step (a) copies (the primary merge and the floor-retry
   // re-merge share one mergeSplitClause, named by the primary label; late-defects T6.1), the ace-gate
   // check and its pre-ace base check (late-defects T5.1), the integrated-tip re-run, the polish-sweep,
-  // terminal-pass and late-fix merges, the three land gates and the _refinery base re-run
+  // terminal-pass and late-fix merges, the land gates and the _refinery base re-run
   'PROVISION_RERUN_CLAUSE @ ace-base-gate:',
   'PROVISION_RERUN_CLAUSE @ ace-gate:',
   'PROVISION_RERUN_CLAUSE @ classificationClause',
