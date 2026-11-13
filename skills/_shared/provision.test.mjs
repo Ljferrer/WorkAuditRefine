@@ -12,7 +12,8 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const FIXTURES = join(HERE, 'fixtures', 'provision')
 // Inits only the uninitialized (`-`) submodules, so an initialized sibling keeps
 // its own HEAD (operator ruling 2026-11-13). `xargs -r` runs nothing on empty input.
-const SUBMODULE_INIT = "git submodule status --recursive | awk '/^-/{print $2}' | xargs -r git submodule update --init --recursive --"
+// GIT_LITERAL_PATHSPECS=1 keeps a `-` path such as `lib*` from matching `libx`.
+const SUBMODULE_INIT = "git submodule status --recursive | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"
 const PNPM_INSTALL = 'pnpm install --frozen-lockfile'
 
 // Build a throwaway repo dir with the given files (name -> contents) for the
@@ -204,7 +205,8 @@ test('structuralFallback: an unknown lockfile is NOT matched (anti-goal: no ecos
 
 // Run the real structuralFallback submodule step in a fixture clone whose
 // submodule `a` is initialized but checked out off its recorded commit and whose
-// submodule `b` is uninitialized. Local file-URL submodules only; the
+// submodule `b` is uninitialized, then again with an uninitialized `lib*` beside
+// an initialized `libx` off its recorded commit. Local file-URL submodules only; the
 // protocol.file.allow override rides the env, never the command text.
 test('structuralFallback: the submodule step leaves an initialized sibling at its own HEAD and inits an uninitialized one', () => {
   const root = mkdtempSync(join(tmpdir(), 'provision-sm-'))
@@ -248,6 +250,19 @@ test('structuralFallback: the submodule step leaves an initialized sibling at it
     // All initialized: the step must run no update at all (GNU xargs without -r would run a bare one).
     execFileSync('sh', ['-c', step], { cwd: wt, env, stdio: 'ignore' })
     assert.equal(git(join(wt, 'a'), 'rev-parse', 'HEAD'), c2, 'a second run moved the initialized sibling')
+
+    // A repo-controlled `-` path is a glob pathspec unless GIT_LITERAL_PATHSPECS=1:
+    // uninitialized `lib*` must not match the initialized sibling `libx`.
+    // Add `lib*` first: `submodule add` checks its path as a glob against the index.
+    git(sup, 'submodule', 'add', '-q', 'file://' + sub, 'lib*')
+    git(sup, 'submodule', 'add', '-q', 'file://' + sub, 'libx')
+    git(sup, 'commit', '-q', '-m', 'add glob-named submodules')
+    git(wt, 'pull', '-q', '--no-rebase', '--no-recurse-submodules')
+    git(wt, 'submodule', 'update', '--init', '-q', '--', 'libx')
+    git(join(wt, 'libx'), 'checkout', '-q', c2)
+    execFileSync('sh', ['-c', step], { cwd: wt, env, stdio: 'ignore' })
+    assert.equal(git(join(wt, 'libx'), 'rev-parse', 'HEAD'), c2, "uninitialized 'lib*' matched initialized sibling libx as a glob")
+    assert.equal(git(join(wt, 'lib*'), 'rev-parse', 'HEAD'), c1, "uninitialized submodule 'lib*' was not initialized")
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

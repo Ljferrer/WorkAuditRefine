@@ -23,7 +23,9 @@ const LOCKFILE_INSTALL = Object.freeze({
 // initialized sibling at its own HEAD (operator ruling 2026-11-13). A fresh
 // clone has every submodule uninitialized, so it still inits them all.
 // `xargs -r` runs no update on empty input. No `;`, so no statement split.
-const SUBMODULE_INIT = "git submodule status --recursive | awk '/^-/{print $2}' | xargs -r git submodule update --init --recursive --"
+// GIT_LITERAL_PATHSPECS=1 reads each repo-controlled path literally, so a `-`
+// path such as `lib*` never matches an initialized sibling such as `libx`.
+const SUBMODULE_INIT = "git submodule status --recursive | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"
 
 /**
  * Parse .gitmodules and return the array of submodule path values.
