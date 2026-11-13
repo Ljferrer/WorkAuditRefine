@@ -492,11 +492,46 @@ expect "reuse-gap(sigpipe): the large emptied-index submodule is REPAIRED" \
   "yes" "$(printf '%s' "$OUT_RG3" | grep -Fq 'WORKTREE_HYGIENE path=sub action=repaired' && echo yes || echo no)"
 expect "reuse-gap(sigpipe): never misclassified as unrecognized-dirt" \
   "no" "$(printf '%s' "$OUT_RG3" | grep -Fq 'unrecognized-dirt' && echo yes || echo no)"
-# The defensive env-error route (a classification read failing or dying of a
-# signal classifies as env error, never a hygiene finding) has no reachable
-# in-fixture trigger — pin its presence in the script.
-expect "reuse-gap(sigpipe): env-error classification arm exists (never a hygiene finding on a failed read)" \
-  "yes" "$(grep -Fq 'detected "env-error:' "$SCRIPT" && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Case (hygiene env-error, PIN-7, #1824) the env-error route by behavior: a
+# mode-000 submodule index makes every classification read fail, so the reuse
+# emits `detected env-error:*`, never unrecognized-dirt (which implies
+# possibly-real work). Root reads a mode-000 file, so the row skips there by name.
+# ---------------------------------------------------------------------------
+if [ "$(id -u)" -eq 0 ]; then
+  expect "hygiene env-error (SKIP: running as root)" "skip" "skip"
+else
+  FXH_EE="$(hyg_fixture)"; RH_EE="${FXH_EE%% *}"; WTH_EE="${FXH_EE##* }"
+  TIPH_EE="$(git -C "$RH_EE" rev-parse war/myplan/p2-t3)"
+  IDX_EE="$(cd "$WTH_EE/sub" && git rev-parse --path-format=absolute --git-path index)"
+  chmod 000 "$IDX_EE"
+  OUT_HEE="$( ( cd "$RH_EE" && bash "$SCRIPT" ensure-worktree "$WTH_EE" war/myplan/p2-t3 "$TIPH_EE" ) 2>&1 )"
+  chmod 644 "$IDX_EE"
+  V_HEE="$(printf '%s' "$OUT_HEE" | grep -Fq 'WORKTREE_HYGIENE path=sub action=detected detail=env-error:' && echo env-error || echo no-env-error)"
+  V_HEE="$V_HEE/$(printf '%s' "$OUT_HEE" | grep -Fq 'unrecognized-dirt' && echo unrecognized-dirt || echo no-dirt-finding)"
+  expect "hygiene env-error: a mode-000 submodule index gives env-error:*, never unrecognized-dirt" \
+    "env-error/no-dirt-finding" "$V_HEE"
+fi
+
+# ---------------------------------------------------------------------------
+# Case (hygiene unrecognized-dirt, PIN-7, #1825) an emptied index plus a
+# foreign untracked file do not match the corruption signature: the reuse
+# emits `detected unrecognized-dirt` and never repairs (--force would restore
+# the index and wipe the staged deletions). The index is emptied, as in HYG.j,
+# so the shape check is the only guard before the repair arm.
+# ---------------------------------------------------------------------------
+FXH_UD="$(hyg_fixture)"; RH_UD="${FXH_UD%% *}"; WTH_UD="${FXH_UD##* }"
+TIPH_UD="$(git -C "$RH_UD" rev-parse war/myplan/p2-t3)"
+git -C "$WTH_UD/sub" read-tree --empty
+printf 'foreign\n' > "$WTH_UD/sub/foreign.txt"
+OUT_HUD="$( ( cd "$RH_UD" && bash "$SCRIPT" ensure-worktree "$WTH_UD" war/myplan/p2-t3 "$TIPH_UD" ) 2>&1 )"
+V_HUD="$(printf '%s' "$OUT_HUD" | grep -Fxq 'WORKTREE_HYGIENE path=sub action=detected detail=unrecognized-dirt' && echo unrecognized-dirt || echo no-marker)"
+V_HUD="$V_HUD/$(printf '%s' "$OUT_HUD" | grep -Fq 'action=repaired' && echo repaired || echo not-repaired)"
+expect "hygiene unrecognized-dirt: staged deletions plus a foreign file are detected, never repaired" \
+  "unrecognized-dirt/not-repaired" "$V_HUD"
+expect "HYG.ud: the staged deletions survive" \
+  "a.txt b.txt" "$(git -C "$WTH_UD/sub" diff --cached --name-only --diff-filter=D 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
 
 # ---------------------------------------------------------------------------
 # Case (RG.4 / #1476 gap 4) refinery-worktree hygiene arm: the SAME corrupted
@@ -530,6 +565,331 @@ expect "reuse-gap(refinery): refinery reuse repairs the corrupted submodule" \
   "yes" "$(printf '%s' "$OUT_RG4" | grep -Fq 'WORKTREE_HYGIENE path=sub action=repaired' && echo yes || echo no)"
 expect "reuse-gap(refinery): submodule ends clean in superproject porcelain" \
   "clean" "$([ -z "$(git -C "$WTRG4" status --porcelain -- sub 2>/dev/null)" ] && echo clean || echo dirty)"
+
+# ---------------------------------------------------------------------------
+# Case (RG.4b, PIN-7, #1826, ledger A4) the refinery (c) arm's reuse_hygiene
+# call is reachable: the refinery worktree sits CLEAN under -uno on a prior
+# branch whose gitlink pins an older submodule commit. `git switch` leaves the
+# submodule checkout alone, so after the re-attach the checkout differs from
+# the integration branch's gitlink, and the (c) call emits sha-mismatch.
+# ---------------------------------------------------------------------------
+RG4B_SUB="$(mktemp -d 2>/dev/null || mktemp -d -t warhy4b)"; REPOS="$REPOS $RG4B_SUB"
+git -C "$RG4B_SUB" init -q
+git -C "$RG4B_SUB" config user.email war@test.local
+git -C "$RG4B_SUB" config user.name "WAR Test"
+git -C "$RG4B_SUB" config commit.gpgsign false
+printf 'one\n' > "$RG4B_SUB/a.txt"; git -C "$RG4B_SUB" add -A; git -C "$RG4B_SUB" commit -qm s1
+RG4B_S1="$(git -C "$RG4B_SUB" rev-parse HEAD)"
+printf 'two\n' > "$RG4B_SUB/a.txt"; git -C "$RG4B_SUB" commit -qam s2
+RRG4B="$(new_repo)"
+git -C "$RRG4B" -c protocol.file.allow=always submodule add -q "file://$RG4B_SUB" sub >/dev/null 2>&1
+git -C "$RRG4B" commit -qm "declare submodule"
+git -C "$RRG4B" branch integration/myplan/phase-9 HEAD
+git -C "$RRG4B" branch integration/myplan/phase-8 HEAD
+WTRG4B="$(new_wt_path)"
+( cd "$RRG4B" && bash "$SCRIPT" ensure-refinery-worktree "$WTRG4B" integration/myplan/phase-8 ) >/dev/null 2>&1
+git -C "$WTRG4B" -c protocol.file.allow=always submodule update --init sub >/dev/null 2>&1
+git -C "$WTRG4B/sub" checkout -q "$RG4B_S1"
+git -C "$WTRG4B" add sub
+git -C "$WTRG4B" -c user.email=war@test.local -c user.name="WAR Test" -c commit.gpgsign=false commit -qm "phase-8 pins s1"
+expect "reuse-gap(refinery re-attach) setup: prior-branch tree is clean under -uno" \
+  "" "$(git -C "$WTRG4B" status --porcelain -uno 2>/dev/null)"
+OUT_RG4B="$( ( cd "$RRG4B" && bash "$SCRIPT" ensure-refinery-worktree "$WTRG4B" integration/myplan/phase-9 ) 2>&1 )"; C_RG4B=$?
+V_RG4B="$C_RG4B/$(git -C "$WTRG4B" symbolic-ref --short HEAD 2>/dev/null)"
+V_RG4B="$V_RG4B/$(printf '%s' "$OUT_RG4B" | grep -Fxq 'WORKTREE_HYGIENE path=sub action=detected detail=sha-mismatch' && echo sha-mismatch || echo no-marker)"
+expect "RG.4b: a clean prior-branch refinery worktree re-attaches and emits detected sha-mismatch" \
+  "0/integration/myplan/phase-9/sha-mismatch" "$V_RG4B"
+
+# ===========================================================================
+# PIN-8 (#2346, D8): submodule-ready worktrees. A plain `git worktree add`
+# leaves declared submodules uninitialized, so both ensure arms init them and
+# then call assert-submodules-ready, which exits EX_SUBMODULES (9) with a
+# SUBMODULES_UNINITIALIZED marker if one stays uninitialized. Fixtures use
+# local file-URL submodules only. SM_ALLOW lets the fixture's own file-URL
+# clone through, whatever the host's protocol.file.allow says.
+# ===========================================================================
+SM_ALLOW="GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=protocol.file.allow GIT_CONFIG_VALUE_0=always"
+# sm_fixture -> echoes "REPO SRC": a superproject that declares the file-URL
+# submodule `sub` (source SRC), with a task branch and an integration branch.
+sm_fixture() {
+  ss="$(mktemp -d 2>/dev/null || mktemp -d -t warsmsrc)"; REPOS="$REPOS $ss"
+  git -C "$ss" init -q
+  git -C "$ss" config user.email war@test.local
+  git -C "$ss" config user.name "WAR Test"
+  git -C "$ss" config commit.gpgsign false
+  printf 'one\n' > "$ss/a.txt"; git -C "$ss" add -A; git -C "$ss" commit -qm subseed
+  sr="$(new_repo)"
+  git -C "$sr" -c protocol.file.allow=always submodule add -q "file://$ss" sub >/dev/null 2>&1
+  git -C "$sr" commit -qm "declare submodule"
+  git -C "$sr" branch integration/myplan/phase-1 HEAD
+  echo "$sr $ss"
+}
+
+R_SM0="$(new_repo)"
+OUT_SM0="$(cd "$R_SM0" && bash "$SCRIPT" assert-submodules-ready "$R_SM0" 2>&1)"; C_SM0=$?
+expect "assert-submodules-ready: no .gitmodules is a silent no-op" "0:" "$C_SM0:$OUT_SM0"
+
+FX_SM1="$(sm_fixture)"; R_SM1="${FX_SM1%% *}"
+WT_SM1="$(new_wt_path)"
+( cd "$R_SM1" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SM1" war/myplan/p1-t1 "$(git -C "$R_SM1" rev-parse HEAD)" ) >/dev/null 2>&1; C_SM1=$?
+V_SM1="$C_SM1/$(git -C "$WT_SM1" submodule status --recursive 2>/dev/null | cut -c1)/$(cat "$WT_SM1/sub/a.txt" 2>/dev/null)"
+expect "assert-submodules-ready: ensure-worktree inits the submodule of a fresh cut" "0/ /one" "$V_SM1"
+
+FX_SM2="$(sm_fixture)"; R_SM2="${FX_SM2%% *}"; SRC_SM2="${FX_SM2##* }"
+rm -rf "$SRC_SM2"
+WT_SM2="$(new_wt_path)"
+ERRF_SM2="$(mktemp 2>/dev/null || mktemp -t warsm2)"; REPOS="$REPOS $ERRF_SM2"
+OUT_SM2="$( ( cd "$R_SM2" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SM2" war/myplan/p1-t1 "$(git -C "$R_SM2" rev-parse HEAD)" ) 2>"$ERRF_SM2" )"; C_SM2=$?
+V_SM2="$C_SM2/$(grep -Fxq 'SUBMODULES_UNINITIALIZED sub' "$ERRF_SM2" && echo marker || echo no-marker)"
+V_SM2="$V_SM2/$(grep -Fq "assert-submodules-ready: '" "$ERRF_SM2" && echo die-text || echo no-die-text)/stdout=$OUT_SM2"
+expect "assert-submodules-ready: unreachable URL exits 9 with SUBMODULES_UNINITIALIZED on stderr" \
+  "9/marker/die-text/stdout=" "$V_SM2"
+
+FX_SM3="$(sm_fixture)"; R_SM3="${FX_SM3%% *}"
+WT_SM3="$(new_wt_path)"
+OUT_SM3="$( ( cd "$R_SM3" && env $SM_ALLOW bash "$SCRIPT" ensure-refinery-worktree "$WT_SM3" integration/myplan/phase-1 ) 2>/dev/null )"; C_SM3=$?
+V_SM3="$C_SM3/$(git -C "$WT_SM3" submodule status --recursive 2>/dev/null | cut -c1)/$(cat "$WT_SM3/sub/a.txt" 2>/dev/null)"
+expect "assert-submodules-ready: refinery arm inits the submodule and keeps stdout the path" \
+  "0/ /one/$WT_SM3" "$V_SM3/$OUT_SM3"
+
+# The reuse arms init too: a plain `git worktree add` leaves the submodule at
+# `-`, so the next ensure call takes the reuse arm, and its init is the
+# recovery path after a failed first init.
+FX_SM4="$(sm_fixture)"; R_SM4="${FX_SM4%% *}"
+WT_SM4="$(new_wt_path)"
+git -C "$R_SM4" worktree add -q -b war/myplan/p1-t2 "$WT_SM4" HEAD >/dev/null 2>&1
+( cd "$R_SM4" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SM4" war/myplan/p1-t2 "$(git -C "$R_SM4" rev-parse HEAD)" ) >/dev/null 2>&1; C_SM4=$?
+V_SM4="$C_SM4/$(git -C "$WT_SM4" submodule status --recursive 2>/dev/null | cut -c1)/$(cat "$WT_SM4/sub/a.txt" 2>/dev/null)"
+expect "reuse-gap(submodules-ready): ensure-worktree reuse arm inits the submodule" "0/ /one" "$V_SM4"
+
+FX_SM5="$(sm_fixture)"; R_SM5="${FX_SM5%% *}"
+WT_SM5="$(new_wt_path)"
+git -C "$R_SM5" worktree add -q "$WT_SM5" integration/myplan/phase-1 >/dev/null 2>&1
+OUT_SM5="$( ( cd "$R_SM5" && env $SM_ALLOW bash "$SCRIPT" ensure-refinery-worktree "$WT_SM5" integration/myplan/phase-1 ) 2>/dev/null )"; C_SM5=$?
+V_SM5="$C_SM5/$(git -C "$WT_SM5" submodule status --recursive 2>/dev/null | cut -c1)/$(cat "$WT_SM5/sub/a.txt" 2>/dev/null)"
+expect "reuse-gap(submodules-ready): refinery reuse arm inits the submodule" \
+  "0/ /one/$WT_SM5" "$V_SM5/$OUT_SM5"
+
+# The refinery re-attach arm (c): a clean worktree on a prior branch, its
+# submodule still at `-`, switches to the integration branch and inits.
+FX_SM6="$(sm_fixture)"; R_SM6="${FX_SM6%% *}"
+WT_SM6="$(new_wt_path)"
+git -C "$R_SM6" worktree add -q -b integration/myplan/phase-0 "$WT_SM6" HEAD >/dev/null 2>&1
+OUT_SM6="$( ( cd "$R_SM6" && env $SM_ALLOW bash "$SCRIPT" ensure-refinery-worktree "$WT_SM6" integration/myplan/phase-1 ) 2>/dev/null )"; C_SM6=$?
+V_SM6="$C_SM6/$(git -C "$WT_SM6" submodule status --recursive 2>/dev/null | cut -c1)/$(cat "$WT_SM6/sub/a.txt" 2>/dev/null)"
+expect "reuse-gap(submodules-ready): refinery re-attach arm inits the submodule" \
+  "0/ /one/$WT_SM6" "$V_SM6/$OUT_SM6"
+
+# Operator ruling 2026-11-13: the init takes only the `-` paths as its pathspec.
+# An initialized sibling `sib`, moved off its recorded commit (`+`), keeps its
+# HEAD while the `-` submodule `sub` inits. A bare init would move sib back.
+FX_SM7="$(sm_fixture)"; R_SM7="${FX_SM7%% *}"; SRC_SM7="${FX_SM7##* }"
+git -C "$R_SM7" -c protocol.file.allow=always submodule add -q "file://$SRC_SM7" sib >/dev/null 2>&1
+git -C "$R_SM7" commit -qm "declare sibling"
+printf 'two\n' > "$SRC_SM7/a.txt"; git -C "$SRC_SM7" commit -qam subtwo
+NEW_SM7="$(git -C "$SRC_SM7" rev-parse HEAD)"
+WT_SM7="$(new_wt_path)"
+git -C "$R_SM7" worktree add -q -b war/myplan/p1-t3 "$WT_SM7" HEAD >/dev/null 2>&1
+env $SM_ALLOW git -C "$WT_SM7" submodule update -q --init -- sib >/dev/null 2>&1
+git -C "$WT_SM7/sib" fetch -q origin >/dev/null 2>&1
+git -C "$WT_SM7/sib" checkout -q "$NEW_SM7" >/dev/null 2>&1
+( cd "$R_SM7" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SM7" war/myplan/p1-t3 "$(git -C "$R_SM7" rev-parse HEAD)" ) >/dev/null 2>&1; C_SM7=$?
+V_SM7="$C_SM7/$(cat "$WT_SM7/sub/a.txt" 2>/dev/null)/$([ "$(git -C "$WT_SM7/sib" rev-parse HEAD 2>/dev/null)" = "$NEW_SM7" ] && echo sib-head-kept || echo sib-head-moved)"
+expect "reuse-gap(submodules-ready): an initialized sibling's HEAD is left unchanged" "0/one/sib-head-kept" "$V_SM7"
+
+# A nested `-` line under an initialized parent: `mid` is initialized and moved
+# off its recorded commit, and its own submodule `mid/inner` is at `-`. The init
+# runs inside mid, so inner inits and mid keeps its HEAD.
+FX_SM8="$(sm_fixture)"; R_SM8="${FX_SM8%% *}"; SRC_SM8="${FX_SM8##* }"
+MS_SM8="$(new_repo)"
+git -C "$MS_SM8" -c protocol.file.allow=always submodule add -q "file://$SRC_SM8" inner >/dev/null 2>&1
+git -C "$MS_SM8" commit -qm "declare inner"
+git -C "$R_SM8" -c protocol.file.allow=always submodule add -q "file://$MS_SM8" mid >/dev/null 2>&1
+git -C "$R_SM8" commit -qm "declare mid"
+printf 'mid two\n' > "$MS_SM8/mid.txt"; git -C "$MS_SM8" add mid.txt; git -C "$MS_SM8" commit -qm midtwo
+NEW_SM8="$(git -C "$MS_SM8" rev-parse HEAD)"
+WT_SM8="$(new_wt_path)"
+git -C "$R_SM8" worktree add -q -b war/myplan/p1-t4 "$WT_SM8" HEAD >/dev/null 2>&1
+env $SM_ALLOW git -C "$WT_SM8" submodule update -q --init -- sub mid >/dev/null 2>&1
+git -C "$WT_SM8/mid" fetch -q origin >/dev/null 2>&1
+git -C "$WT_SM8/mid" checkout -q "$NEW_SM8" >/dev/null 2>&1
+PRE_SM8="$(git -C "$WT_SM8" submodule status --recursive 2>/dev/null | awk '$2 == "mid/inner" { print substr($0, 1, 1) }')"
+( cd "$R_SM8" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SM8" war/myplan/p1-t4 "$(git -C "$R_SM8" rev-parse HEAD)" ) >/dev/null 2>&1; C_SM8=$?
+V_SM8="$C_SM8/pre=$PRE_SM8/$(cat "$WT_SM8/mid/inner/a.txt" 2>/dev/null)/$([ "$(git -C "$WT_SM8/mid" rev-parse HEAD 2>/dev/null)" = "$NEW_SM8" ] && echo mid-head-kept || echo mid-head-moved)"
+expect "reuse-gap(submodules-ready): a nested uninitialized submodule inits under an initialized parent that keeps its HEAD" \
+  "0/pre=-/one/mid-head-kept" "$V_SM8"
+
+# Two initialized ancestors: `mid` and `mid/deep` are initialized and moved off
+# their recorded commits, and `mid/deep/inner` is at `-`. Only the deepest
+# ancestor (mid/deep) can name inner as a pathspec. A shortest-prefix or
+# first-match pick runs from mid, names deep/inner past submodule deep, and exits 9.
+FX_SM9="$(sm_fixture)"; R_SM9="${FX_SM9%% *}"; SRC_SM9="${FX_SM9##* }"
+DS_SM9="$(new_repo)"
+git -C "$DS_SM9" -c protocol.file.allow=always submodule add -q "file://$SRC_SM9" inner >/dev/null 2>&1
+git -C "$DS_SM9" commit -qm "declare inner"
+MS_SM9="$(new_repo)"
+git -C "$MS_SM9" -c protocol.file.allow=always submodule add -q "file://$DS_SM9" deep >/dev/null 2>&1
+git -C "$MS_SM9" commit -qm "declare deep"
+git -C "$R_SM9" -c protocol.file.allow=always submodule add -q "file://$MS_SM9" mid >/dev/null 2>&1
+git -C "$R_SM9" commit -qm "declare mid"
+printf 'mid two\n' > "$MS_SM9/mid.txt"; git -C "$MS_SM9" add mid.txt; git -C "$MS_SM9" commit -qm midtwo
+printf 'deep two\n' > "$DS_SM9/deep.txt"; git -C "$DS_SM9" add deep.txt; git -C "$DS_SM9" commit -qm deeptwo
+NEWM_SM9="$(git -C "$MS_SM9" rev-parse HEAD)"; NEWD_SM9="$(git -C "$DS_SM9" rev-parse HEAD)"
+WT_SM9="$(new_wt_path)"
+git -C "$R_SM9" worktree add -q -b war/myplan/p1-t5 "$WT_SM9" HEAD >/dev/null 2>&1
+env $SM_ALLOW git -C "$WT_SM9" submodule update -q --init -- sub mid >/dev/null 2>&1
+env $SM_ALLOW git -C "$WT_SM9/mid" submodule update -q --init -- deep >/dev/null 2>&1
+git -C "$WT_SM9/mid" fetch -q origin >/dev/null 2>&1
+git -C "$WT_SM9/mid" checkout -q "$NEWM_SM9" >/dev/null 2>&1
+git -C "$WT_SM9/mid/deep" fetch -q origin >/dev/null 2>&1
+git -C "$WT_SM9/mid/deep" checkout -q "$NEWD_SM9" >/dev/null 2>&1
+PRE_SM9="$(git -C "$WT_SM9" submodule status --recursive 2>/dev/null | awk '$2 == "mid/deep/inner" { print substr($0, 1, 1) }')"
+( cd "$R_SM9" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SM9" war/myplan/p1-t5 "$(git -C "$R_SM9" rev-parse HEAD)" ) >/dev/null 2>&1; C_SM9=$?
+V_SM9="$C_SM9/pre=$PRE_SM9/$(cat "$WT_SM9/mid/deep/inner/a.txt" 2>/dev/null)"
+V_SM9="$V_SM9/$([ "$(git -C "$WT_SM9/mid" rev-parse HEAD 2>/dev/null)" = "$NEWM_SM9" ] && echo mid-kept || echo mid-moved)"
+V_SM9="$V_SM9/$([ "$(git -C "$WT_SM9/mid/deep" rev-parse HEAD 2>/dev/null)" = "$NEWD_SM9" ] && echo deep-kept || echo deep-moved)"
+expect "reuse-gap(submodules-ready): a depth-2 nested submodule inits from its deepest initialized ancestor" \
+  "0/pre=-/one/mid-kept/deep-kept" "$V_SM9"
+
+# A glob path: the `-` submodule `lib*` would match the initialized `+` sibling
+# `libx` as a pathspec. The update reads the path literally, so libx keeps its HEAD.
+FX_SMG="$(sm_fixture)"; R_SMG="${FX_SMG%% *}"; SRC_SMG="${FX_SMG##* }"
+git -C "$R_SMG" -c protocol.file.allow=always submodule add -q "file://$SRC_SMG" 'lib*' >/dev/null 2>&1
+git -C "$R_SMG" -c protocol.file.allow=always submodule add -q "file://$SRC_SMG" libx >/dev/null 2>&1
+git -C "$R_SMG" commit -qm "declare glob pair"
+printf 'two\n' > "$SRC_SMG/a.txt"; git -C "$SRC_SMG" commit -qam subtwo
+NEW_SMG="$(git -C "$SRC_SMG" rev-parse HEAD)"
+WT_SMG="$(new_wt_path)"
+git -C "$R_SMG" worktree add -q -b war/myplan/p1-t7 "$WT_SMG" HEAD >/dev/null 2>&1
+env $SM_ALLOW git -C "$WT_SMG" submodule update -q --init -- sub libx >/dev/null 2>&1
+git -C "$WT_SMG/libx" fetch -q origin >/dev/null 2>&1
+git -C "$WT_SMG/libx" checkout -q "$NEW_SMG" >/dev/null 2>&1
+( cd "$R_SMG" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMG" war/myplan/p1-t7 "$(git -C "$R_SMG" rev-parse HEAD)" ) >/dev/null 2>&1; C_SMG=$?
+V_SMG="$C_SMG/$(cat "$WT_SMG/lib*/a.txt" 2>/dev/null)/$([ "$(git -C "$WT_SMG/libx" rev-parse HEAD 2>/dev/null)" = "$NEW_SMG" ] && echo libx-head-kept || echo libx-head-moved)"
+expect "reuse-gap(submodules-ready): a glob-named submodule path is read literally, so its sibling keeps its HEAD" \
+  "0/one/libx-head-kept" "$V_SMG"
+
+# The reuse_hygiene twin of the glob row above. `lib*` and `libx` are both
+# initialized, and libx is moved off its recorded commit. First reuse: `lib*`
+# is clean, so it gets no marker of its own (a glob read would see libx's dirt).
+# Second reuse: the index of `lib*` is emptied, so the repair runs. A glob
+# `--force` update would move libx back, and a glob re-read would report
+# repair-failed.
+FX_HG="$(sm_fixture)"; R_HG="${FX_HG%% *}"; SRC_HG="${FX_HG##* }"
+git -C "$R_HG" -c protocol.file.allow=always submodule add -q "file://$SRC_HG" 'lib*' >/dev/null 2>&1
+git -C "$R_HG" -c protocol.file.allow=always submodule add -q "file://$SRC_HG" libx >/dev/null 2>&1
+git -C "$R_HG" commit -qm "declare glob pair"
+printf 'two\n' > "$SRC_HG/a.txt"; git -C "$SRC_HG" commit -qam subtwo
+NEW_HG="$(git -C "$SRC_HG" rev-parse HEAD)"
+TIP_HG="$(git -C "$R_HG" rev-parse HEAD)"
+WT_HG="$(new_wt_path)"
+( cd "$R_HG" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_HG" war/myplan/p1-t8 "$TIP_HG" ) >/dev/null 2>&1
+git -C "$WT_HG/libx" fetch -q origin >/dev/null 2>&1
+git -C "$WT_HG/libx" checkout -q "$NEW_HG" >/dev/null 2>&1
+ERR_HG1="$( ( cd "$R_HG" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_HG" war/myplan/p1-t8 "$TIP_HG" ) 2>&1 >/dev/null )"; C_HG1=$?
+V_HG1="$C_HG1/own-markers=$(printf '%s\n' "$ERR_HG1" | grep -Fc 'WORKTREE_HYGIENE path=lib* ')"
+V_HG1="$V_HG1/$(printf '%s\n' "$ERR_HG1" | grep -Fxq 'WORKTREE_HYGIENE path=libx action=detected detail=sha-mismatch' && echo libx-sha-mismatch || echo no-libx-marker)"
+expect "HYG.glob: a clean glob-named submodule gets no marker from its moved sibling's dirt" \
+  "0/own-markers=0/libx-sha-mismatch" "$V_HG1"
+git -C "$WT_HG/lib*" read-tree --empty
+ERR_HG2="$( ( cd "$R_HG" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_HG" war/myplan/p1-t8 "$TIP_HG" ) 2>&1 >/dev/null )"; C_HG2=$?
+V_HG2="$C_HG2/$(printf '%s\n' "$ERR_HG2" | grep -F 'WORKTREE_HYGIENE path=lib* ')"
+V_HG2="$V_HG2/$([ -z "$(git -C "$WT_HG/lib*" status --porcelain 2>/dev/null)" ] && echo glob-sub-clean || echo glob-sub-dirty)"
+V_HG2="$V_HG2/$([ "$(git -C "$WT_HG/libx" rev-parse HEAD 2>/dev/null)" = "$NEW_HG" ] && echo libx-head-kept || echo libx-head-moved)"
+expect "HYG.glob: the repair of a glob-named submodule is read literally, so its sibling keeps its HEAD" \
+  "0/WORKTREE_HYGIENE path=lib* action=repaired detail=staged-deletions/glob-sub-clean/libx-head-kept" "$V_HG2"
+
+# The stdin guard on the per-path update. `submodule.sub.update` is a `!cat`
+# command, so the update of `sub` runs a child that reads stdin to its end.
+# The loop feeds the `-` paths on stdin. With the update's stdin at /dev/null,
+# the next path `zzz` still inits. The custom command checks nothing out, so
+# the row reads the status prefix, never a file.
+FX_SMI="$(sm_fixture)"; R_SMI="${FX_SMI%% *}"; SRC_SMI="${FX_SMI##* }"
+git -C "$R_SMI" -c protocol.file.allow=always submodule add -q "file://$SRC_SMI" zzz >/dev/null 2>&1
+git -C "$R_SMI" commit -qm "declare zzz"
+git -C "$R_SMI" config submodule.sub.update '!cat >/dev/null; :'
+TIP_SMI="$(git -C "$R_SMI" rev-parse HEAD)"
+WT_SMI="$(new_wt_path)"
+( cd "$R_SMI" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMI" war/myplan/p1-t9 "$TIP_SMI" ) >/dev/null 2>&1; C_SMI=$?
+V_SMI="$C_SMI/$(git -C "$WT_SMI" submodule status --recursive 2>/dev/null | awk '{ printf "%s:%s ", $2, (substr($0, 1, 1) == "-" ? "uninit" : "init") }')"
+expect "reuse-gap(submodules-ready): a stdin-reading update command leaves the next path its loop pass" \
+  "0/sub:init zzz:init " "$V_SMI"
+
+# Its reuse_hygiene twin, on the same worktree. The `!cat` command left `sub`
+# with an empty index, which is the corruption signature, so the `--force`
+# repair runs the same stdin-reading child. `zzz` is moved off its recorded
+# commit. With the repair's stdin at /dev/null, the hygiene loop still reaches
+# zzz and reports it.
+printf 'two\n' > "$SRC_SMI/a.txt"; git -C "$SRC_SMI" commit -qam subtwo
+NEW_SMI="$(git -C "$SRC_SMI" rev-parse HEAD)"
+git -C "$WT_SMI/zzz" fetch -q origin >/dev/null 2>&1
+git -C "$WT_SMI/zzz" checkout -q "$NEW_SMI" >/dev/null 2>&1
+ERR_SMI2="$( ( cd "$R_SMI" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMI" war/myplan/p1-t9 "$TIP_SMI" ) 2>&1 >/dev/null )"; C_SMI2=$?
+V_SMI2="$C_SMI2/$(printf '%s\n' "$ERR_SMI2" | grep -F 'WORKTREE_HYGIENE path=' | tr '\n' '|')"
+expect "HYG.stdin: a stdin-reading repair command leaves the next submodule its hygiene pass" \
+  "0/WORKTREE_HYGIENE path=sub action=detected detail=repair-failed:staged-deletions|WORKTREE_HYGIENE path=zzz action=detected detail=sha-mismatch|" "$V_SMI2"
+
+# The prompt guard on the per-path update. `submodule.sub.update` is a `!`
+# command, which inherits git's environment, so it writes the value of
+# GIT_TERMINAL_PROMPT that the update ran under to a file. The row reads that
+# file, never the script. The first cut runs with the variable unset by the
+# caller. The second cut runs with the caller exporting 1. Both must read 0.
+FX_SMP="$(sm_fixture)"; R_SMP="${FX_SMP%% *}"
+F_SMP="$(mktemp 2>/dev/null || mktemp -t warsmp)"; REPOS="$REPOS $F_SMP"
+git -C "$R_SMP" config submodule.sub.update "!printf '%s' \"\${GIT_TERMINAL_PROMPT-unset}\" > '$F_SMP'; :"
+TIP_SMP="$(git -C "$R_SMP" rev-parse HEAD)"
+WT_SMP="$(new_wt_path)"
+( cd "$R_SMP" && env -u GIT_TERMINAL_PROMPT $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMP" war/myplan/p1-t10 "$TIP_SMP" ) >/dev/null 2>&1; C_SMP=$?
+expect "reuse-gap(submodules-ready): the init runs with GIT_TERMINAL_PROMPT=0" \
+  "0/0" "$C_SMP/$(cat "$F_SMP" 2>/dev/null)"
+: > "$F_SMP"
+WT_SMP2="$(new_wt_path)"
+( cd "$R_SMP" && env GIT_TERMINAL_PROMPT=1 $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMP2" war/myplan/p1-t11 "$TIP_SMP" ) >/dev/null 2>&1; C_SMP2=$?
+expect "reuse-gap(submodules-ready): the init overrides a caller's GIT_TERMINAL_PROMPT=1" \
+  "0/0" "$C_SMP2/$(cat "$F_SMP" 2>/dev/null)"
+
+# A fresh cut with two top-level `-` submodules, `mid` and `sub`, where mid
+# declares its own `inner`. Every pass of the loop must run, and the update
+# must recurse, or a `-` line stays and the cut exits 9.
+FX_SMR="$(sm_fixture)"; R_SMR="${FX_SMR%% *}"; SRC_SMR="${FX_SMR##* }"
+MS_SMR="$(new_repo)"
+git -C "$MS_SMR" -c protocol.file.allow=always submodule add -q "file://$SRC_SMR" inner >/dev/null 2>&1
+git -C "$MS_SMR" commit -qm "declare inner"
+git -C "$R_SMR" -c protocol.file.allow=always submodule add -q "file://$MS_SMR" mid >/dev/null 2>&1
+git -C "$R_SMR" commit -qm "declare mid"
+WT_SMR="$(new_wt_path)"
+( cd "$R_SMR" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMR" war/myplan/p1-t6 "$(git -C "$R_SMR" rev-parse HEAD)" ) >/dev/null 2>&1; C_SMR=$?
+V_SMR="$C_SMR/$(cat "$WT_SMR/sub/a.txt" 2>/dev/null)/$(cat "$WT_SMR/mid/inner/a.txt" 2>/dev/null)"
+expect "reuse-gap(submodules-ready): a fresh cut inits two top-level submodules and a nested one" \
+  "0/one/one" "$V_SMR"
+
+# Its twin with both sources removed: neither top-level path inits, so the
+# marker joins both `-` paths in status order.
+FX_SMT="$(sm_fixture)"; R_SMT="${FX_SMT%% *}"; SRC_SMT="${FX_SMT##* }"
+MS_SMT="$(new_repo)"
+git -C "$MS_SMT" -c protocol.file.allow=always submodule add -q "file://$SRC_SMT" inner >/dev/null 2>&1
+git -C "$MS_SMT" commit -qm "declare inner"
+git -C "$R_SMT" -c protocol.file.allow=always submodule add -q "file://$MS_SMT" mid >/dev/null 2>&1
+git -C "$R_SMT" commit -qm "declare mid"
+rm -rf "$SRC_SMT" "$MS_SMT"
+WT_SMT="$(new_wt_path)"
+ERRF_SMT="$(mktemp 2>/dev/null || mktemp -t warsmt)"; REPOS="$REPOS $ERRF_SMT"
+( cd "$R_SMT" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMT" war/myplan/p1-t6 "$(git -C "$R_SMT" rev-parse HEAD)" ) >/dev/null 2>"$ERRF_SMT"; C_SMT=$?
+V_SMT="$C_SMT/$(grep -Fxq 'SUBMODULES_UNINITIALIZED mid sub' "$ERRF_SMT" && echo marker || echo no-marker)"
+V_SMT="$V_SMT/$(grep -Fq "submodule update --init --recursive -- <path relative to parent>" "$ERRF_SMT" && echo nested-hint || echo no-nested-hint)"
+expect "reuse-gap(submodules-ready): two uninitialized top-level paths join in one marker line" \
+  "9/marker/nested-hint" "$V_SMT"
+
+# The verb's own die guards, matched by their stderr text.
+R_SMU="$(new_repo)"
+ERR_SMU="$( (cd "$R_SMU" && bash "$SCRIPT" assert-submodules-ready) 2>&1 >/dev/null)"; C_SMU=$?
+expect "verb usage guard: assert-submodules-ready with no argument exits 1 and prints usage" \
+  "1/usage" "$C_SMU/$(printf '%s' "$ERR_SMU" | grep -Fq 'usage: assert-submodules-ready <worktree>' && echo usage || echo no-usage)"
+D_SMS="$(mktemp -d 2>/dev/null || mktemp -d -t warsms)"; REPOS="$REPOS $D_SMS"
+: > "$D_SMS/.gitmodules"
+ERR_SMS="$( (cd "$D_SMS" && GIT_CEILING_DIRECTORIES="$(dirname "$D_SMS")" bash "$SCRIPT" assert-submodules-ready "$D_SMS") 2>&1 >/dev/null)"; C_SMS=$?
+expect "verb status-read guard: a non-repo with .gitmodules exits 9 and names the status read" \
+  "9/status-read" "$C_SMS/$(printf '%s' "$ERR_SMS" | grep -Fq "assert-submodules-ready: could not read the submodule status of '" && echo status-read || echo no-status-read)"
 
 # ---------------------------------------------------------------------------
 # Case (RG.5 / #1712 fix 1, End state 26) holder-naming die, ensure-worktree:
