@@ -1879,9 +1879,9 @@ test('D28 — GLOSSARY.md compressed glossary entries keep definition + trigger 
         'sanctioned rewording, never drop the anchor to make a reword pass',
     )
   }
-  // Heading → EOF: the pointer delegates to the whole playbook (the Recovery relaunch subsection
+  // Heading → next `## ` heading: the pointer delegates to the whole playbook (the Recovery relaunch subsection
   // plus the held-partial-phase runbook that carries orphan adoption + reclaimStaleRemote arming).
-  const recDest = resumeMd.match(/^### Recovery relaunch\n[\s\S]*$/m)
+  const recDest = resumeMd.match(/^### Recovery relaunch\n[\s\S]*?(?=\n## )/m)
   assert.ok(
     recDest,
     'references/resume-and-recovery.md no longer carries the `### Recovery relaunch` section — ' +
@@ -4831,6 +4831,8 @@ test('D20 — release-slot eligibility by literal: eligibility absorb block (its
   assert.match(d5n, /Release-slot eligibility is otherwise by literal, not by file/, 'ADR 0013 Decision 5 must carry the in-place by-literal rule (D20; no dated amendment)')
   assert.match(d5n, /`version-slots\.test\.mjs`/, 'ADR 0013 Decision 5 must name `version-slots.test.mjs` as the merge guard')
   assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(d5n), "ADR 0013 Decision 5's retired file-based routing sentence must be gone (OLD-absent, in-place edit)")
+  // OLD-absent keys keep the whole-body scope too: a narrow scope would let the retired sentence return elsewhere.
+  assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(norm(adr0013Body)), "ADR 0013's retired file-based routing sentence must be gone from the whole body, not only Decision 5 (OLD-absent)")
   assert.match(adr0013, /^- 2026-09-08 · Decision 5 edited in place/m, "ADR 0013's Decision log must carry the dated Task 12.2 line")
   // SKILL.md — the `--ace` bullet's file-based routing clause is retired (OLD-absent, present at ffb3ab6).
   assert.ok(!/or a release-slot filename routes to the/.test(norm(skillMd)), "skills/war/SKILL.md's `--ace` bullet must no longer route by release-slot filename (OLD-absent; D20)")
