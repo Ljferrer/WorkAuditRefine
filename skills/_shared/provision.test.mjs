@@ -1,15 +1,19 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { execFileSync } from 'node:child_process'
 
 import { validateProvision, structuralFallback, readManifest, submodulePaths } from './provision.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FIXTURES = join(HERE, 'fixtures', 'provision')
-const SUBMODULE_INIT = 'git submodule update --init --recursive'
+// Inits only the uninitialized (`-`) submodules, so an initialized sibling keeps
+// its own HEAD (operator ruling 2026-11-13). `xargs -r` runs nothing on empty input.
+// GIT_LITERAL_PATHSPECS=1 keeps a `-` path such as `lib*` from matching `libx`.
+const SUBMODULE_INIT = "git submodule status --recursive | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"
 const PNPM_INSTALL = 'pnpm install --frozen-lockfile'
 
 // Build a throwaway repo dir with the given files (name -> contents) for the
@@ -199,6 +203,105 @@ test('structuralFallback: an unknown lockfile is NOT matched (anti-goal: no ecos
   }
 })
 
+// Run the real structuralFallback submodule step in a fixture clone whose
+// submodule `a` is initialized but checked out off its recorded commit and whose
+// submodule `b` is uninitialized, then again with an uninitialized `lib*` beside
+// an initialized `libx` off its recorded commit. Local file-URL submodules only; the
+// protocol.file.allow override rides the env, never the command text.
+test('structuralFallback: the submodule step leaves an initialized sibling at its own HEAD and inits an uninitialized one', () => {
+  const root = mkdtempSync(join(tmpdir(), 'provision-sm-'))
+  const env = {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'protocol.file.allow',
+    GIT_CONFIG_VALUE_0: 'always',
+    GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.invalid',
+    GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.invalid',
+  }
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  try {
+    const sub = join(root, 'sub')
+    git(root, 'init', '-q', sub)
+    git(sub, 'commit', '-q', '--allow-empty', '-m', 'c1')
+    const c1 = git(sub, 'rev-parse', 'HEAD')
+    git(sub, 'commit', '-q', '--allow-empty', '-m', 'c2')
+    const c2 = git(sub, 'rev-parse', 'HEAD')
+    git(sub, 'checkout', '-q', c1)
+
+    const sup = join(root, 'super')
+    git(root, 'init', '-q', sup)
+    git(sup, 'submodule', 'add', '-q', 'file://' + sub, 'a')
+    git(sup, 'submodule', 'add', '-q', 'file://' + sub, 'b')
+    git(sup, 'commit', '-q', '-m', 'add submodules')
+
+    const wt = join(root, 'wt')
+    git(root, 'clone', '-q', 'file://' + sup, wt)
+    git(wt, 'submodule', 'update', '--init', '-q', '--', 'a')
+    git(join(wt, 'a'), 'checkout', '-q', c2)
+
+    const [step] = structuralFallback(wt)
+    assert.equal(step, SUBMODULE_INIT)
+    execFileSync('sh', ['-c', step], { cwd: wt, env, stdio: 'ignore' })
+    assert.equal(git(join(wt, 'a'), 'rev-parse', 'HEAD'), c2, 'initialized sibling a was moved to its recorded commit')
+    assert.equal(git(join(wt, 'b'), 'rev-parse', 'HEAD'), c1, 'uninitialized submodule b was not initialized')
+
+    // All initialized: the step must run no update at all (GNU xargs without -r would run a bare one).
+    execFileSync('sh', ['-c', step], { cwd: wt, env, stdio: 'ignore' })
+    assert.equal(git(join(wt, 'a'), 'rev-parse', 'HEAD'), c2, 'a second run moved the initialized sibling')
+
+    // A repo-controlled `-` path is a glob pathspec unless GIT_LITERAL_PATHSPECS=1:
+    // uninitialized `lib*` must not match the initialized sibling `libx`.
+    // Add `lib*` first: `submodule add` checks its path as a glob against the index.
+    git(sup, 'submodule', 'add', '-q', 'file://' + sub, 'lib*')
+    git(sup, 'submodule', 'add', '-q', 'file://' + sub, 'libx')
+    git(sup, 'commit', '-q', '-m', 'add glob-named submodules')
+    git(wt, 'pull', '-q', '--no-rebase', '--no-recurse-submodules')
+    git(wt, 'submodule', 'update', '--init', '-q', '--', 'libx')
+    git(join(wt, 'libx'), 'checkout', '-q', c2)
+    execFileSync('sh', ['-c', step], { cwd: wt, env, stdio: 'ignore' })
+    assert.equal(git(join(wt, 'libx'), 'rev-parse', 'HEAD'), c2, "uninitialized 'lib*' matched initialized sibling libx as a glob")
+    assert.equal(git(join(wt, 'lib*'), 'rev-parse', 'HEAD'), c1, "uninitialized submodule 'lib*' was not initialized")
+
+    // Fresh clone (the /red-team sandbox shape): every submodule is uninitialized, so
+    // one xargs batch carries all the paths. Submodule `n` nests `inner`, which only
+    // `update --init --recursive` reaches: `status --recursive` cannot list it yet.
+    const outer = join(root, 'outer')
+    git(root, 'init', '-q', outer)
+    git(outer, 'submodule', 'add', '-q', 'file://' + sub, 'inner')
+    git(outer, 'commit', '-q', '-m', 'add inner')
+    git(sup, 'submodule', 'add', '-q', 'file://' + outer, 'n')
+    git(sup, 'commit', '-q', '-m', 'add nested submodule')
+    // realpath: macOS tmpdir is a /var -> /private/var symlink, and --show-toplevel resolves it.
+    const fresh = join(realpathSync(root), 'fresh')
+    git(root, 'clone', '-q', 'file://' + sup, fresh)
+    const paths = ['a', 'b', 'lib*', 'libx', 'n']
+    assert.deepEqual(
+      git(fresh, 'submodule', 'status').split('\n').map((l) => l.trim().split(/\s+/)[1]).sort(),
+      [...paths].sort(),
+      'fresh clone lists a submodule set other than the one this test asserts',
+    )
+    execFileSync('sh', ['-c', step], { cwd: fresh, env, stdio: 'ignore' })
+    for (const p of paths) {
+      assert.equal(git(join(fresh, p), 'rev-parse', '--show-toplevel'), join(fresh, p), `fresh-clone submodule ${p} was not initialized`)
+      if (p !== 'n') assert.equal(git(join(fresh, p), 'rev-parse', 'HEAD'), c1, `fresh-clone submodule ${p} is off its recorded commit`)
+    }
+    assert.equal(git(join(fresh, 'n', 'inner'), 'rev-parse', 'HEAD'), c1, 'nested submodule n/inner was not initialized (--recursive dropped?)')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+// The scout card and the fixture doc hand-copy the step, so bind each copy to the
+// constant (itself bound to structuralFallback above). Counts name every copy.
+test('SUBMODULE_INIT: the scout card and EXPECTED.md carry the step byte for byte', () => {
+  const repo = join(HERE, '..', '..')
+  const copies = (text) => text.split(SUBMODULE_INIT).length - 1
+  assert.equal(copies(readFileSync(join(repo, 'agents', 'war-setup-scout.md'), 'utf8')), 2, 'agents/war-setup-scout.md: fallback list and plan-step copies')
+  assert.equal(copies(readFileSync(join(FIXTURES, 'EXPECTED.md'), 'utf8')), 1, 'skills/_shared/fixtures/provision/EXPECTED.md: expected-output copy')
+})
+
 // ----------------------------------------------------------------------------
 // readManifest — T1.1
 // ----------------------------------------------------------------------------
@@ -216,7 +319,7 @@ test('readManifest: absent file -> {found:false}', () => {
 test('readManifest: valid manifest with two steps and rationale -> found:true, ok:true', () => {
   const dir = makeRepo({
     '.war-provision.json': JSON.stringify({
-      provision: ['git submodule update --init --recursive', 'pnpm install --frozen-lockfile'],
+      provision: [SUBMODULE_INIT, 'pnpm install --frozen-lockfile'],
       rationale: 'bootstrap the repo',
     }),
   })
@@ -224,7 +327,7 @@ test('readManifest: valid manifest with two steps and rationale -> found:true, o
     const r = readManifest(dir)
     assert.equal(r.found, true)
     assert.equal(r.ok, true)
-    assert.deepEqual(r.provision, ['git submodule update --init --recursive', 'pnpm install --frozen-lockfile'])
+    assert.deepEqual(r.provision, [SUBMODULE_INIT, 'pnpm install --frozen-lockfile'])
     assert.equal(r.rationale, 'bootstrap the repo')
   } finally {
     rmSync(dir, { recursive: true, force: true })
