@@ -1,5 +1,7 @@
 # Shell floors, guards, and provisioning — auditor-guard integrity, SIGPIPE-safe provisioning, and the floor-fidelity ladder
 
+Superseded for this group by docs/plans/2026-11-08-shell-floors-tests-and-lint.md for issues #1732, #1733, #1734, #1824, #1825, #1826, #1827, #1833, #1834, #1835, #1836, #1837, #1839, #2092.
+
 Converted by `/war-machine` from `docs/specs/2026-09-06-shell-floors-guards-and-provisioning-design.md` (Part 1 is its decision digest; every spec §1 anchor was re-verified at `ffb3ab6` — `master` after PR #2065 landed, release 0.21.10 — and each correction is recorded under `## Notes / conscious deviations`). Issue-derived claims keep the `(verified: issue #N (<date>))` source form (D11). The sibling plan `docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md` (the engine plan) was read for contention; this plan is drafted to land **after** it (see Pivotal constraints).
 
 **Evidence consumed** — one row per linked artifact:
