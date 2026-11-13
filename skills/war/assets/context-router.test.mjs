@@ -149,8 +149,8 @@ function git(args, root = repoRoot) {
 // broken read fails the test instead of skipping it.
 // `-c log.follow=false`: a user-level log.follow=true turns a one-path log into --follow, which
 // reads the move as a copy of CONTEXT.md and names CONTEXT.md's own first commit as the add.
-// `--no-renames`: a user-level diff.renames=copies can tag the new GLOSSARY.md as a copy (C),
-// which --diff-filter=A then skips. With no rename or copy detection a new file always reads A.
+// `--no-renames`: pins the add lookup against any user-level diff.renames setting, so with no
+// rename or copy detection a new GLOSSARY.md always reads A to --diff-filter=A.
 function moveSides(root = repoRoot) {
   const g = (args) => git(args, root)
   try {
