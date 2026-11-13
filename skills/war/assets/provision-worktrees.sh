@@ -710,6 +710,8 @@ cmd_ensure_worktree() {
 # 2026-11-13), so an initialized sibling is never moved to its recorded commit.
 # A nested `-` path under an initialized parent is updated from inside its
 # deepest initialized ancestor, because a superproject pathspec cannot name it.
+# GIT_LITERAL_PATHSPECS=1 makes git read each path literally, so a `-` path
+# such as `lib*` never matches an initialized sibling such as `libx`.
 submodules_ready() {
   sr_wt="$1"
   [ -f "$sr_wt/.gitmodules" ] || return 0
@@ -727,7 +729,7 @@ submodules_ready() {
     else
       sr_dir="$sr_wt"; sr_rel="$sr_p"
     fi
-    GIT_TERMINAL_PROMPT=0 git -C "$sr_dir" submodule update --init --recursive -- "$sr_rel" </dev/null >/dev/null 2>&1 \
+    GIT_TERMINAL_PROMPT=0 GIT_LITERAL_PATHSPECS=1 git -C "$sr_dir" submodule update --init --recursive -- "$sr_rel" </dev/null >/dev/null 2>&1 \
       || warn "submodule init failed for '$sr_p' in '$sr_wt' (an unreachable URL, or a remote that needs credentials)."
   done <<EOF
 $sr_missing
@@ -755,7 +757,7 @@ cmd_assert_submodules_ready() {
   as_missing="$(printf '%s\n' "$as_status" | awk '/^-/ { sub(/^-[0-9a-f]+ /, ""); printf "%s%s", sep, $0; sep = " " }')"
   [ -n "$as_missing" ] || return 0
   printf 'SUBMODULES_UNINITIALIZED %s\n' "$as_missing" >&2
-  die "assert-submodules-ready: '$as_wt' has uninitialized submodules: $as_missing. Run 'git -C $as_wt submodule update --init --recursive -- <path>' for each path above, and fix any URL or credential error it prints." "$EX_SUBMODULES"
+  die "assert-submodules-ready: '$as_wt' has uninitialized submodules: $as_missing. Run 'git -C $as_wt submodule update --init --recursive -- <path>' for each path above, and fix any URL or credential error it prints. A path under an initialized submodule runs from that parent: 'git -C $as_wt/<parent> submodule update --init --recursive -- <path relative to parent>'." "$EX_SUBMODULES"
 }
 
 # catch_up_reused_branch <path> <branch> <integration-tip> : on the existing-branch
