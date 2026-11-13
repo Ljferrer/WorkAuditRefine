@@ -757,7 +757,8 @@ test('tip probe: a reply without approved_tree is re-asked once', async () => {
 // indentation). A row keys on that builder name plus the site's leading literal ('Gate:' or 'Run the
 // gate'), never on a line number. A row either names the carrier the site's statement reaches, or is
 // exempt with a reason. A carrier passes only if its token sits in the builder's statement, or in every
-// statement that consumes the builder by name (mergeSplitClause rides two segmentedMerge calls).
+// statement that consumes the builder by name (mergeSplitClause rides two segmentedMerge calls, and
+// landPrompt is an argument of its segmentedLand call). Only code lines count: a comment never vouches.
 // Carriers: aceBgRule rides the ace gate checks, segmentedMerge appends segmentedGateClause, and
 // segmentedLand appends segmentedLandClause, a backgroundGateRule call. An unlisted site, a stale row,
 // a count mismatch under a key, or a missing carrier token reds the census.
@@ -805,23 +806,27 @@ test('tip probe: a reply without approved_tree is re-asked once', async () => {
       }
       return lines.length
     }
+    // A body is code lines only: a comment that names a carrier never vouches for it.
+    const codeOf = (from, to) => lines.slice(from, to).filter(l => !isComment(l)).join('\n')
     const builderAt = i => {
       for (let j = i; j >= 0; j--) {
         const m = !isComment(lines[j]) && lines[j].match(ASSIGN)
-        if (m && endOf(j) > i) return { name: m[1] || m[2], start: j, end: endOf(j), body: lines.slice(j, endOf(j)).join('\n') }
+        if (m && endOf(j) > i) return { name: m[1] || m[2], start: j, end: endOf(j), body: codeOf(j, endOf(j)) }
       }
       return { name: '<none>', start: i, end: i + 1, body: '' }
     }
-    // Each `+ <name>` use is one home. Two uses in one statement (the arms of a ternary) split it: a
-    // use's home runs from that use to the next one, so one arm cannot vouch for another.
+    // A use is the builder name concatenated (`+ <name>`) or passed as a call argument (`(<name>` or
+    // `, <name>`), and each use is one home. More than one use in one statement (the arms of a ternary)
+    // splits it: a use's home runs from that use to the next one, so one arm cannot vouch for another.
     const consumers = name => {
-      const uses = lines.flatMap((l, i) => !isComment(l) && new RegExp('\\+\\s*' + name + '\\b').test(l) ? [{ i, st: builderAt(i) }] : [])
+      const USE = new RegExp('(?:\\+|\\(|,)\\s*' + name + '\\b')
+      const uses = lines.flatMap((l, i) => !isComment(l) && USE.test(l) ? [{ i, st: builderAt(i) }] : [])
       return uses.map(({ i, st }) => {
         const same = uses.filter(u => u.st.start === st.start)
         const at = same.findIndex(u => u.i === i)
         const from = at === 0 ? st.start : i
         const to = at === same.length - 1 ? st.end : same[at + 1].i
-        return { name: st.name, body: lines.slice(from, to).join('\n') }
+        return { name: st.name, body: codeOf(from, to) }
       })
     }
     const sites = []
@@ -872,5 +877,17 @@ test('tip probe: a reply without approved_tree is re-asked once', async () => {
     const DROP = '      + aceBgRule\n'
     assert.ok(src.includes(DROP), 'the mutation target is the live ace gate check carrier')
     assert.deepEqual(gateSiteCensus(src.replace(DROP, '\n'), GATE_SITES).problems, ['bodyOf | Gate:: no aceBgRule in its statement'], 'a dropped carrier reds')
+    // A carrier named only in a comment reds too: comment lines are not part of a statement body.
+    assert.deepEqual(gateSiteCensus(src.replace(DROP, '      // + aceBgRule\n'), GATE_SITES).problems, ['bodyOf | Gate:: no aceBgRule in its statement'], 'a commented-out carrier reds')
+    // A carrier reached through a call argument: the land prompt loses its segmentedLand dispatch. The
+    // comment above the helper still names segmentedLand(, and the mutant adds a comment that names it
+    // inside the consuming statement. Neither comment may vouch for the row.
+    const LAND = 'segmentedLand(landPrompt,'
+    assert.ok(src.includes(LAND), 'the mutation target is the live initial land dispatch')
+    assert.deepEqual(gateSiteCensus(src.replace(LAND, 'dispatchSite(landPrompt,\n    // was segmentedLand(\n'), GATE_SITES).problems, ['landPrompt | Run the gate: no backgroundGateRule in its statement'], 'a land prompt that loses segmentedLand reds')
+    // The mirror arm: a re-land whose statement opens on another dispatch reds once per mutated site.
+    const RELAND = 'const reLand = await segmentedLand('
+    assert.equal(src.split(RELAND).length - 1, GATE_SITES.find(r => r.builder === 'reLand').sites, 'the mutation target is every live re-land dispatch')
+    assert.deepEqual(gateSiteCensus(src.replace(RELAND, 'const reLand = await dispatchSite('), GATE_SITES).problems, ['reLand | Run the gate: no backgroundGateRule in its statement'], 'a re-land that loses segmentedLand reds')
   })
 }
