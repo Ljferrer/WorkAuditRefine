@@ -751,6 +751,56 @@ V_SM9="$V_SM9/$([ "$(git -C "$WT_SM9/mid/deep" rev-parse HEAD 2>/dev/null)" = "$
 expect "reuse-gap(submodules-ready): a depth-2 nested submodule inits from its deepest initialized ancestor" \
   "0/pre=-/one/mid-kept/deep-kept" "$V_SM9"
 
+# A glob path: the `-` submodule `lib*` would match the initialized `+` sibling
+# `libx` as a pathspec. The update reads the path literally, so libx keeps its HEAD.
+FX_SMG="$(sm_fixture)"; R_SMG="${FX_SMG%% *}"; SRC_SMG="${FX_SMG##* }"
+git -C "$R_SMG" -c protocol.file.allow=always submodule add -q "file://$SRC_SMG" 'lib*' >/dev/null 2>&1
+git -C "$R_SMG" -c protocol.file.allow=always submodule add -q "file://$SRC_SMG" libx >/dev/null 2>&1
+git -C "$R_SMG" commit -qm "declare glob pair"
+printf 'two\n' > "$SRC_SMG/a.txt"; git -C "$SRC_SMG" commit -qam subtwo
+NEW_SMG="$(git -C "$SRC_SMG" rev-parse HEAD)"
+WT_SMG="$(new_wt_path)"
+git -C "$R_SMG" worktree add -q -b war/myplan/p1-t7 "$WT_SMG" HEAD >/dev/null 2>&1
+env $SM_ALLOW git -C "$WT_SMG" submodule update -q --init -- sub libx >/dev/null 2>&1
+git -C "$WT_SMG/libx" fetch -q origin >/dev/null 2>&1
+git -C "$WT_SMG/libx" checkout -q "$NEW_SMG" >/dev/null 2>&1
+( cd "$R_SMG" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMG" war/myplan/p1-t7 "$(git -C "$R_SMG" rev-parse HEAD)" ) >/dev/null 2>&1; C_SMG=$?
+V_SMG="$C_SMG/$(cat "$WT_SMG/lib*/a.txt" 2>/dev/null)/$([ "$(git -C "$WT_SMG/libx" rev-parse HEAD 2>/dev/null)" = "$NEW_SMG" ] && echo libx-head-kept || echo libx-head-moved)"
+expect "reuse-gap(submodules-ready): a glob-named submodule path is read literally, so its sibling keeps its HEAD" \
+  "0/one/libx-head-kept" "$V_SMG"
+
+# A fresh cut with two top-level `-` submodules, `mid` and `sub`, where mid
+# declares its own `inner`. Every pass of the loop must run, and the update
+# must recurse, or a `-` line stays and the cut exits 9.
+FX_SMR="$(sm_fixture)"; R_SMR="${FX_SMR%% *}"; SRC_SMR="${FX_SMR##* }"
+MS_SMR="$(new_repo)"
+git -C "$MS_SMR" -c protocol.file.allow=always submodule add -q "file://$SRC_SMR" inner >/dev/null 2>&1
+git -C "$MS_SMR" commit -qm "declare inner"
+git -C "$R_SMR" -c protocol.file.allow=always submodule add -q "file://$MS_SMR" mid >/dev/null 2>&1
+git -C "$R_SMR" commit -qm "declare mid"
+WT_SMR="$(new_wt_path)"
+( cd "$R_SMR" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMR" war/myplan/p1-t6 "$(git -C "$R_SMR" rev-parse HEAD)" ) >/dev/null 2>&1; C_SMR=$?
+V_SMR="$C_SMR/$(cat "$WT_SMR/sub/a.txt" 2>/dev/null)/$(cat "$WT_SMR/mid/inner/a.txt" 2>/dev/null)"
+expect "reuse-gap(submodules-ready): a fresh cut inits two top-level submodules and a nested one" \
+  "0/one/one" "$V_SMR"
+
+# Its twin with both sources removed: neither top-level path inits, so the
+# marker joins both `-` paths in status order.
+FX_SMT="$(sm_fixture)"; R_SMT="${FX_SMT%% *}"; SRC_SMT="${FX_SMT##* }"
+MS_SMT="$(new_repo)"
+git -C "$MS_SMT" -c protocol.file.allow=always submodule add -q "file://$SRC_SMT" inner >/dev/null 2>&1
+git -C "$MS_SMT" commit -qm "declare inner"
+git -C "$R_SMT" -c protocol.file.allow=always submodule add -q "file://$MS_SMT" mid >/dev/null 2>&1
+git -C "$R_SMT" commit -qm "declare mid"
+rm -rf "$SRC_SMT" "$MS_SMT"
+WT_SMT="$(new_wt_path)"
+ERRF_SMT="$(mktemp 2>/dev/null || mktemp -t warsmt)"; REPOS="$REPOS $ERRF_SMT"
+( cd "$R_SMT" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SMT" war/myplan/p1-t6 "$(git -C "$R_SMT" rev-parse HEAD)" ) >/dev/null 2>"$ERRF_SMT"; C_SMT=$?
+V_SMT="$C_SMT/$(grep -Fxq 'SUBMODULES_UNINITIALIZED mid sub' "$ERRF_SMT" && echo marker || echo no-marker)"
+V_SMT="$V_SMT/$(grep -Fq "submodule update --init --recursive -- <path relative to parent>" "$ERRF_SMT" && echo nested-hint || echo no-nested-hint)"
+expect "reuse-gap(submodules-ready): two uninitialized top-level paths join in one marker line" \
+  "9/marker/nested-hint" "$V_SMT"
+
 # The verb's own die guards, matched by their stderr text.
 R_SMU="$(new_repo)"
 ERR_SMU="$( (cd "$R_SMU" && bash "$SCRIPT" assert-submodules-ready) 2>&1 >/dev/null)"; C_SMU=$?
