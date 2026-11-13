@@ -25,7 +25,10 @@ that routes chronic under-specification back to the `/war-strategy` interview. I
 verdict.**
 
 1. **The rounds unit.** A **round** is one full grill sweep — one pass through the open
-   blockers/`needsDecision` set. That is the only unit "round" carries; the per-blocker bound
+   blockers/`needsDecision` set. The full sweep is the unit "round" carries, with one exception:
+   a run that routes upstream before any sweep also counts as one round, so its report writes
+   `**Rounds:** <seed + 1>` and the next run's seed counts it. The gate arithmetic is unchanged:
+   that run's gate computations still carry the seed. The per-blocker bound
    `/red-team`'s Step 5 already imposed is counted in **re-verify attempts (≤ 2 per blocker)**, a
    deliberately distinct term so the two bounds can never be conflated. Rounds count
    cumulatively across `/red-team` invocations of the same plan: the churn the loop-breaker
@@ -77,7 +80,8 @@ verdict.**
    gate-typed). Patch style: patches state the final rule; genealogy lives in the report's
    `## Adjudications` rows. On a route-upstream terminal, Step 6 emits the `## Route upstream`
    block — the residual open questions verbatim as the `/war-strategy` regrill agenda, plus the
-   exact re-entry command — the handoff artifact `/war-campaign`'s halt arm
+   exact re-entry command, or the `**Budget spent:**` line in its place when the seed already met
+   the round limit — the handoff artifact `/war-campaign`'s halt arm
    (`stopPoint: redteam-route-upstream`) surfaces in CAMPAIGN-STATE.md, never
    skip-and-continue ([ADR 0011](0011-campaign-stack-and-plow-branch-model.md)).
 
@@ -131,6 +135,12 @@ verdict.**
   file keeps every patch already applied, and re-entry after the interview continues the same
   cumulative count. The default of 3 sits one above the census median precisely so the common
   case never sees the limit.
+- **The budget-spent terminal.** When a run's seed already meets the round limit and the gate
+  routes upstream, a re-entry would only route again. The `## Route upstream` block then writes
+  `**Budget spent:** operator decides — backstop, Note, or waiver` in place of the Re-entry
+  command and still lists the residual questions, so the loop ends on its budget and the
+  operator settles the residue. The report template keeps its Re-entry line; the budget-spent
+  line is the alternative line beside it.
 - The fast-fail threshold (≥ 3 `needsDecision` in round 1 ⇒ recommend routing upstream) stays
   prose-advisory in `loop-budget.md` pending a campaign of field data — its gate-typing is a
   ratified deferred backstop of the plan, not part of this contract.
@@ -159,3 +169,4 @@ verdict.**
 ## Decision log
 
 - 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
+- 2026-11-12 · routed-run round and budget-spent terminal · #2352 · failed because: a routed run with zero sweeps added no round, so the budget never ended · retired: docs/adr/0045-red-team-loop-budget-and-route-upstream.md @ 981b3ba6

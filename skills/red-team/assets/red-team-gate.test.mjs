@@ -1045,3 +1045,66 @@ test('doc-guard D11: the retired escape-guard exit-contract wording stays absent
     }
   }
 })
+
+// --- pipeline-skills-and-memory-tooling Task 1.1 (#2893; PIN-1 to PIN-5, PIN-33): doc guards for
+// the routed-run round, the budget-spent terminal, the main-checkout exclude before the scaffold
+// copy, the trial-replay probe and the per-run fan-out override. Each step is extracted
+// fail-closed (a missing extraction reds instead of passing vacuously).
+
+const skillStep = (n) => {
+  const next = n === 6 ? '^## ' : `^${n + 1}\\. `
+  const step = SKILL.match(new RegExp(`^${n}\\. [\\s\\S]*?(?=${next})`, 'm'))?.[0]
+  assert.ok(step, `SKILL.md Step ${n} must be extractable`)
+  return step
+}
+
+test('pst T1.1: a run that routes upstream with zero sweeps writes seed + 1 (Step 6) and Step 5 states the exception', () => {
+  const step5 = skillStep(5)
+  const step6 = skillStep(6)
+  assert.match(step6, /zero (grill )?sweeps[\s\S]{0,300}?`?\*\*Rounds:\*\* <seed \+ 1>`?/i,
+    'Step 6 must say a routed run with zero sweeps writes **Rounds:** <seed + 1>')
+  assert.match(step5, /only unit "round" carries[^.]{0,80}?one exception[^.]{0,200}?routes upstream before any (grill )?sweep/i,
+    'Step 5 "only unit" clause must carry the routed-run exception')
+  assert.match(step5, /`<n>` = the Step-1 seed \+ the full grill sweeps completed this run[^.]{0,300}?`seed \+ 1`/i,
+    'Step 5 <n> definition must carry the routed-run seed + 1 exception')
+})
+
+test('pst T1.1: both Route upstream templates carry the Budget spent line after a blank line and keep Re-entry', () => {
+  const line = '**Budget spent:** operator decides — backstop, Note, or waiver'
+  for (const [name, text] of [['references/lenses.md', LENSES], ['references/loop-budget.md', LOOP_BUDGET]]) {
+    const reentry = text.search(/^\*\*Re-entry:\*\*/m)
+    assert.ok(reentry >= 0, `${name} lost its **Re-entry:** line`)
+    const spent = text.indexOf(`\n\n${line}`, reentry)
+    assert.ok(spent > reentry, `${name} must carry "${line}" after a blank line, after the Re-entry line`)
+  }
+  assert.match(skillStep(5), /seed already meets the round limit[\s\S]{0,300}?\*\*Budget spent:\*\*/i,
+    'Step 5 terminal rule must name the budget-spent terminal')
+})
+
+test('pst T1.1: Step 3 runs ensure-exclude "$MAIN" on the main checkout before the scaffold copy', () => {
+  const step3 = skillStep(3)
+  const main = step3.indexOf('MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")')
+  const exclude = step3.indexOf('provision-worktrees.sh ensure-exclude "$MAIN"')
+  const copy = step3.search(/copy `assets\/workflow-scaffold\.js`/i)
+  assert.ok(main >= 0, 'Step 3 must resolve MAIN from --git-common-dir')
+  assert.ok(exclude > main, 'Step 3 must run ensure-exclude "$MAIN" after resolving MAIN')
+  assert.ok(copy > exclude, 'Step 3 must run ensure-exclude before the scaffold copy')
+  assert.match(step3, /its own Bash call/i, 'the MAIN line must be its own Bash call')
+  assert.match(step3, /common `info\/exclude`/i, 'Step 3 must say why: the exclude lands in the common info/exclude')
+})
+
+test('pst T1.1: the trial-replay probe is in the lenses.md catalog and Step 2 makes it mandatory', () => {
+  assert.match(LENSES, /^\| [^|\n]*\*\*Trials run\*\*[^|\n]*\| `trial-replay` \| executed \|[^\n]*fresh clone[^\n]*`base:`[^\n]*Major[^\n]*inconclusive[^\n]*Check/m,
+    'lenses.md catalog must carry the trial-replay executed row with the PIN-4 mechanics')
+  assert.match(skillStep(2), /`trial-replay`[^.]{0,200}?mandatory[^.]{0,200}?\*\*Trials run\*\*[^.]{0,200}?settled[^.]{0,200}?inconclusive/i,
+    'Step 2 must make trial-replay mandatory for a settled or ledger-backing inconclusive Trials run row')
+})
+
+test('pst T1.1: --max-parallel is in the ## Run block and the Step 3 fan-out text', () => {
+  const run = SKILL.match(/^## Run\n[\s\S]*?(?=^## )/m)?.[0]
+  assert.ok(run, 'the ## Run block must be extractable')
+  assert.match(run, /^\/red-team [^\n]*\[--max-parallel <n\|off>\]/m, 'the Run invocation line must list --max-parallel <n|off>')
+  assert.match(run, /^- `--max-parallel <n\|off>`/m, 'the Run bullet list must carry the --max-parallel entry')
+  assert.match(skillStep(3), /`--max-parallel`[^.]{0,200}?replaces[^.]{0,80}?`run\.maxParallel`[^.]{0,200}?`off` lifts the cap/i,
+    'Step 3 fan-out text must say --max-parallel replaces run.maxParallel and off lifts the cap')
+})
