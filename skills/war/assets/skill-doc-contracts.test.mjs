@@ -1838,7 +1838,7 @@ test('D28 — GLOSSARY.md compressed glossary entries keep definition + trigger 
         'sanctioned rewording, never drop the anchor to make a reword pass',
     )
   }
-  const subDest = submoduleMd.match(/^## `held:submodule-pr` sub-procedure[\s\S]*$/m)
+  const subDest = submoduleMd.match(/^## `held:submodule-pr` sub-procedure[\s\S]*?(?=\n## |(?![\s\S]))/m)
   assert.ok(
     subDest,
     'references/submodule-flows.md no longer carries the `## `held:submodule-pr` sub-procedure` ' +
