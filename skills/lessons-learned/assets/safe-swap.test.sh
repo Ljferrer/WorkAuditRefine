@@ -130,8 +130,8 @@ else
 fi
 
 # =============================================================================
-# CASE 3 — budget hard-fail UNCHANGED: >200 lines still FAILs even when every
-#   row and link resolves. (regression guard for the untouched rule)
+# CASE 3 — line-budget hard-fail still fires: >200 lines FAILs even when every
+#   row and link resolves.
 # =============================================================================
 D="$(mkmem)"
 printf '# MEMORY\n\n| slug | phase | summary |\n|--|--|--|\n' > "$D/MEMORY.md"
@@ -140,7 +140,7 @@ while [ "$i" -lt 250 ]; do printf 'filler line %d\n' "$i" >> "$D/MEMORY.md"; i=$
 
 OUT="$(bash "$SCRIPT" verify "$D" 2>&1)"; RC=$?
 if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -q 'over the .*line budget'; then
-  pass "case3: 250-line MEMORY.md -> budget HARD FAIL (unchanged, exit $RC)"
+  pass "case3: 250-line MEMORY.md -> budget HARD FAIL (exit $RC)"
 else
   fail "case3: expected line-budget fail, got rc=$RC:"; printf '%s\n' "$OUT" >&2
 fi
@@ -437,7 +437,8 @@ printf '# alpha\nhot.\n' > "$D/alpha.md"
 printf '# orphan\nhot, but no row.\n' > "$D/orphan.md"
 OUT="$(bash "$SCRIPT" verify "$D" 2>&1)"; RC=$?
 if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -q 'VERIFY: FAIL' \
-   && printf '%s' "$OUT" | grep '^FAIL' | grep -q 'files not in the index.*orphan'; then
+   && printf '%s' "$OUT" | grep '^FAIL' | grep 'files not in the index.*orphan' \
+   | grep 'render-index' | grep -q 'move a non-lesson file out'; then
   pass "pst T1.7: hot file with no index row -> FAIL line naming it + VERIFY: FAIL (exit $RC)"
 else
   fail "pst T1.7: expected unindexed hot file to hard-fail, got rc=$RC:"; printf '%s\n' "$OUT" >&2
