@@ -980,18 +980,22 @@ test('hooks: non-object and unknown keys rejected (memory.* precedent)', () => {
 })
 
 // --- interview.* (fork-trial bounds, D7 / D11; PIN-7, PIN-11) ---------------------------------
-// The hooks/memory validate() shape: isObj guard, unknown-key loop, each key a positive integer, an
-// explicit null key read as unset via `!= null` (the run.maxParallel idiom, never hooks' `!== null`).
-// Exactly three keys, no preset sets the section, nothing threads it into Workflow args (the
-// phase engine never reads it). Delete-the-feature: drop DEFAULTS.interview or the validate()
-// block → the deepEqual, the rejections and the war-room presence pins go red.
+// The hooks/memory validate() shape: isObj guard, unknown-key loop, each of the three bounds a
+// positive integer, an explicit null key read as unset via `!= null` (the run.maxParallel idiom,
+// never hooks' `!== null`). The three integer bounds are named here, never read from
+// Object.keys(DEFAULTS.interview): the boolean knob alwaysAskAdvancedPlanning (PIN-13) sits beside
+// them and has its own `pst T1.4:` tests. No preset sets the section, nothing threads it into
+// Workflow args (the phase engine never reads it). Delete-the-feature: drop DEFAULTS.interview or
+// the validate() block → the deepEqual, the rejections and the war-room presence pins go red.
+const INTERVIEW_INT_KEYS = ['trialWallSeconds', 'commandTimeoutSeconds', 'excerptLines']
 test('interview: object guard, unknown key rejected, positive integers, null key unset, no preset', () => {
-  assert.deepEqual(DEFAULTS.interview, { trialWallSeconds: 600, commandTimeoutSeconds: 120, excerptLines: 20 },
-    'DEFAULTS.interview carries exactly the three ratified keys at the D7 bounds')
+  assert.deepEqual(Object.fromEntries(INTERVIEW_INT_KEYS.map((k) => [k, DEFAULTS.interview[k]])),
+    { trialWallSeconds: 600, commandTimeoutSeconds: 120, excerptLines: 20 },
+    'DEFAULTS.interview carries the three ratified integer bounds at the D7 values')
   // valid
   assert.equal(validate({}).valid, true)
   assert.equal(validate({ interview: { trialWallSeconds: 60, commandTimeoutSeconds: 30, excerptLines: 5 } }).valid, true)
-  for (const key of Object.keys(DEFAULTS.interview)) {
+  for (const key of INTERVIEW_INT_KEYS) {
     // string value, negative, zero, non-integer: each rejected with an error naming the key
     for (const bad of ['600', -1, 0, 1.5]) {
       const r = validate({ interview: { [key]: bad } })
@@ -1006,7 +1010,7 @@ test('interview: object guard, unknown key rejected, positive integers, null key
   // unknown key: a courtesy error naming the key and /war-room (the memory.* precedent)
   const typo = validate({ interview: { trialWallSecond: 600 } })
   assert.equal(typo.valid, false)
-  assert.match(typo.errors.join('\n'), /interview\.trialWallSecond is not a known key \(trialWallSeconds\|commandTimeoutSeconds\|excerptLines\)/)
+  assert.match(typo.errors.join('\n'), /interview\.trialWallSecond is not a known key \(trialWallSeconds\|commandTimeoutSeconds\|excerptLines\|alwaysAskAdvancedPlanning\)/)
   // null section rejected: the isObj guard, byte-named like hooks/memory
   for (const bad of [null, 'x', 7, []]) {
     const r = validate({ interview: bad })
@@ -1030,6 +1034,63 @@ test('interview: object guard, unknown key rejected, positive integers, null key
   for (const key of ['interview.trialWallSeconds', 'interview.commandTimeoutSeconds', 'interview.excerptLines']) {
     assert.ok(bullet[0].includes(`\`${key}\``), `/war-room step 2 interview bullet must name ${key}`)
   }
+})
+
+// --- interview.alwaysAskAdvancedPlanning (the budget-check opt-out knob, PIN-13, #2436) -----------
+// A boolean beside the three integer bounds; null = unset (the `!= null` idiom). The default value
+// stays de-mirrored (Rule 8) and gets no pin; only the key's presence on the two key lists is pinned.
+test('pst T1.4: alwaysAskAdvancedPlanning accepts true, false and null', () => {
+  for (const v of [true, false, null]) {
+    const r = validate({ interview: { alwaysAskAdvancedPlanning: v } })
+    assert.equal(r.valid, true, `interview.alwaysAskAdvancedPlanning ${JSON.stringify(v)} must validate (${r.errors.join('; ')})`)
+  }
+  assert.equal(Object.prototype.hasOwnProperty.call(DEFAULTS.interview, 'alwaysAskAdvancedPlanning'), true,
+    'DEFAULTS.interview carries the knob')
+})
+
+test('pst T1.4: alwaysAskAdvancedPlanning rejects a non-boolean with an error naming the key', () => {
+  for (const bad of ['yes', 1, 0, {}, []]) {
+    const r = validate({ interview: { alwaysAskAdvancedPlanning: bad } })
+    assert.equal(r.valid, false, `interview.alwaysAskAdvancedPlanning ${JSON.stringify(bad)} must be rejected`)
+    assert.match(r.errors.join('\n'), /interview\.alwaysAskAdvancedPlanning must be a boolean/)
+    assert.doesNotMatch(r.errors.join('\n'), /alwaysAskAdvancedPlanning is not a known key/)
+  }
+})
+
+test('pst T1.4: an unknown interview key still errors beside the knob', () => {
+  const r = validate({ interview: { alwaysAskAdvancedPlanning: true, alwaysAskAdvanced: true } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /interview\.alwaysAskAdvanced is not a known key/)
+})
+
+test('pst T1.4: no preset sets alwaysAskAdvancedPlanning', () => {
+  for (const name of Object.keys(PRESETS)) {
+    assert.equal(PRESETS[name].interview?.alwaysAskAdvancedPlanning, undefined, `preset ${name} must not set the knob`)
+    assert.equal(presetConfig(name).interview.alwaysAskAdvancedPlanning, DEFAULTS.interview.alwaysAskAdvancedPlanning,
+      `presetConfig(${name}) must inherit the knob from DEFAULTS.interview`)
+  }
+})
+
+// Presence pins (extraction + equality shape, beside the interview bullet pin above): anchor the
+// /war-room bullet and the schemas.md `interview:` line by shape, then check the knob on that line.
+test('pst T1.4: /war-room step 2 interview bullet names the knob and scopes the integer sentence', () => {
+  const warRoom = readDoc('skills/war-room/SKILL.md')
+  const bullets = warRoom.match(/^\s*- `interview\.trialWallSeconds` \/ `interview\.commandTimeoutSeconds` \/ `interview\.excerptLines`[^\n]*$/gm) || []
+  assert.equal(bullets.length, 1, '/war-room step 2 must carry exactly one interview bullet line')
+  assert.equal(bullets[0].includes('`interview.alwaysAskAdvancedPlanning`'), true,
+    '/war-room step 2 interview bullet must name interview.alwaysAskAdvancedPlanning')
+  assert.equal(/Each a positive integer/.test(bullets[0]), false,
+    'the bullet must not say "Each a positive integer" unscoped once a boolean key joins it')
+  assert.equal(/three bounds are each a positive integer/.test(bullets[0]), true,
+    'the integer sentence binds the three bounds only')
+})
+
+test('pst T1.4: schemas.md interview: config line names alwaysAskAdvancedPlanning', () => {
+  const schemas = readDoc('skills/war/references/schemas.md')
+  const lines = schemas.match(/^\s*interview: \{[^}\n]*\},[^\n]*$/gm) || []
+  assert.equal(lines.length, 1, 'schemas.md must carry exactly one interview: config line')
+  const keys = lines[0].match(/^\s*interview: \{([^}]*)\}/)[1].split(',').map((s) => s.trim())
+  assert.deepEqual(keys, ['trialWallSeconds', 'commandTimeoutSeconds', 'excerptLines', 'alwaysAskAdvancedPlanning'])
 })
 
 // --- agents.trial (the fork-trial subagent tier, D18; PIN-12) --------------------------------
