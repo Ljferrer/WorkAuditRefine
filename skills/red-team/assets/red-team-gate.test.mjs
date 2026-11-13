@@ -1080,6 +1080,10 @@ test('pst T1.1: both Route upstream templates carry the Budget spent line after 
   }
   assert.match(skillStep(5), /seed already meets the round limit[\s\S]{0,300}?\*\*Budget spent:\*\*/i,
     'Step 5 terminal rule must name the budget-spent terminal')
+  const glossary = fs.readFileSync(path.join(repoRoot, 'skills/war/references/glossary-cold.md'), 'utf8')
+  const entry = (glossary.split(/^## Route-upstream$/m)[1] || '').split(/^## /m)[0].replace(/\s+/g, ' ')
+  assert.match(entry, /plus the exact re-entry command, or the `\*\*Budget spent:\*\*` line in its place when the seed already met the round limit/,
+    'glossary-cold.md Route-upstream entry must carry the budget-spent clause beside the re-entry command')
 })
 
 test('pst T1.1: Step 3 runs ensure-exclude "$MAIN" on the main checkout before the scaffold copy', () => {

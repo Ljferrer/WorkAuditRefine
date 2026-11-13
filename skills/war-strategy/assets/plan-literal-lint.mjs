@@ -27,8 +27,9 @@
 // Fourth family (plan 2026-08-25-authoring-doctrine-and-lint-coherence D3, operator-ratified
 // OD-1): the report-only ‡ INVENTORY rule (`twice-read-inventory`) — one advisory row per
 // ‡-marked design-tree pin. ‡ is mandated authoring, never a defect, so this rule (and the sixth
-// family's `twice-read-unparsed`) rides a SEPARATE informational channel: `lintInfo(text)`, excluded from `lint()`'s hits and from the
-// CLI's `anyHit`, so `--strict` still exits 0 on a ‡-marked conforming plan.
+// family's `twice-read-unparsed`) rides a SEPARATE informational channel: `lintInfo(text)`,
+// excluded from `lint()`'s hits and from the CLI's `anyHit`, so `--strict` still exits 0 on a
+// ‡-marked conforming plan.
 //
 // Fifth family (plan 2026-10-20-rea-artifact-evidence D5/D7): two advisory line-level rules in
 // LINT_PATTERNS — `rea-source-base` (a `rea:` source carries a 64-hex `sha256:` base; a prefix, an
