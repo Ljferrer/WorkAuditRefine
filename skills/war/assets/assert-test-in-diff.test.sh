@@ -1185,8 +1185,9 @@ fi
 
 # ---------------------------------------------------------------------------
 # Case 14: --pending-pattern ADOPTION (PIN-12, #2380). The fixture diff adds
-# src/foo.test.ts only, which the default set misses (case 7a) and the
-# near-miss scan names. Each row runs the floor three times (stdout, rc,
+# src/foo.test.ts (the only test file, which the default set misses (case 7a)
+# and the near-miss scan names) and src/foo.ts (an impl file that only a broad
+# pending set matches). Each row runs the floor three times (stdout, rc,
 # stderr) from a cwd seeded with a decoy app.test.ts so a missing noglob
 # reds 14a.
 #   14a adopted-pending-pattern: a pending set that matches -> exit 0, stdout
@@ -1203,6 +1204,7 @@ fi
 #   14d an active-set match never consults the pending set (no marker).
 #   14e missing-value die guards: --pending-pattern, --pattern, --repo.
 #   14f an empty --pending-pattern is byte-identical to the absent flag.
+#   14g the adopted set emits every matched path, not only the first hit.
 # ---------------------------------------------------------------------------
 R14="$(setup_repo)"
 BASE14="$(git -C "$R14" rev-parse HEAD)"
@@ -1280,6 +1282,19 @@ if [ "$rc14" -eq 0 ] && [ "$out14" = "$exp_out14" ] && [ -z "$err14" ]; then
   pass "case 14d: an active-set match never consults the pending set (no marker, pending-only paths absent)"
 else
   fail "case 14d: active match with a pending set — rc=$rc14 out=[$out14] err=[$err14]"
+fi
+
+# 14g: the default active set misses both diff files and '*.ts' matches both,
+# so an adoption arm that stops at its first hit under-emits and reds here.
+exp_out14g='src/foo.test.ts
+src/foo.ts
+'
+run14 --pending-pattern '*.ts'
+if [ "$rc14" -eq 0 ] && [ "$out14" = "$exp_out14g" ] && [ "$err14" = 'adopted-pending-pattern: *.ts
+' ]; then
+  pass "case 14g: the adopted set emits every matched path"
+else
+  fail "case 14g: the adopted set emits every matched path — rc=$rc14 out=[$out14] err=[$err14]"
 fi
 
 # 14e: each value-taking flag given last with no value hits its own die guard.
