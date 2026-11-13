@@ -534,7 +534,7 @@ doc_f 'Never pipe an evidence read through `head`'
 doc_f '`read (body + N comments)`'
 doc_f '`git status --porcelain`'
 # #2095 (PIN-7, doc half): the release-only task's requiresTest declaration.
-check_f 'A release-only task declares `requiresTest: false` unless its Files name a test file.'
+check_f '- **Release tasks** — state "next free patch above the live base", never a hardcoded `v<semver>`. A release-only task declares `requiresTest: false` unless its Files name a test file.'
 # The doctrine phrases the two hot surfaces point at, pinned on the cold home too.
 trial_f 'git clone --no-hardlinks'
 trial_f '**Trials run** — one row per trial:'

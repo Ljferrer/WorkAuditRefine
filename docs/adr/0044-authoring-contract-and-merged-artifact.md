@@ -348,12 +348,13 @@ reached by `when <trigger>, read` pointers from `plan-interview.md` Stage 1b and
    `[assumed:]`, never a settlement.
 6. **The config section and the trial tier.** `DEFAULTS.interview` in `war-config.mjs` is the
    canonical key set and its defaults, never restated here. The section is validated in the
-   hooks/memory shape, set by no preset and never threaded into Workflow args. The retry rule is doctrine, fixed at 1. The bounds are a safety precaution
-   (ADR 0052 §4): every trial carries a wall cap written in its row before the run, and Stage 3
-   reads the trial count and wall time aloud. The trial subagent's model and effort live at
-   `agents.trial`, a validated tier beside `agents.redteam`, read fail-open; no new `agents/*.md`
-   card exists. `/war-room` offers the keys of `DEFAULTS.interview` and the tier, and an interview may override a
-   bound on the record as a `(user)` fact in the Trials header, never written back.
+   hooks/memory shape, set by no preset and never threaded into Workflow args. The retry rule is
+   doctrine, fixed at 1. The bounds are a safety precaution (ADR 0052 §4): every trial carries a
+   wall cap written in its row before the run, and Stage 3 reads the trial count and wall time
+   aloud. The trial subagent's model and effort live at `agents.trial`, a validated tier beside
+   `agents.redteam`, read fail-open; no new `agents/*.md` card exists. `/war-room` offers the keys
+   of `DEFAULTS.interview` and the tier, and an interview may override a bound on the record as a
+   `(user)` fact in the Trials header, never written back.
 7. **The AFK shape.** Under `/war-machine --afk` fact trials run unattended with `AI-declared`
    rows. For a pair beat the drafter authors both candidates from one frozen brief and picks; the
    Source cell reads `PIN-n · AI-declared [assumed: picked on the frozen criteria, TRIAL-n — if
