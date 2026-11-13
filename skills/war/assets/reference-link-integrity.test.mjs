@@ -740,6 +740,29 @@ test('reference link integrity — the refiner card keeps a trigger pointer per 
   assert.ok(refinerCardText.includes('covering all runners). Before you run the gate'), 'the card keeps the resolved-gate all-runners sentence directly before its budget-raise-floor pointer');
 });
 
+// --- Arm 7b: the packaging-floor branches eviction (plan 2026-11-08-shell-floors-tests-and-lint T2.1) ---
+// The four merge-task step-5 exit bullets moved byte-identical from agents/war-refiner.md into
+// budget-raise-floor.md (ADR 0042, PIN-22) to fund the card's --pending-pattern, preamble and
+// exit_code: sentences. Pinned by SHA-256 of the pre-eviction card bytes (`git show 4bca2722:agents/war-refiner.md`).
+// Its own array: EVICTED_2115 is the #2115 census and never grows here.
+const EVICTED_PACKAGING_BRANCHES = [
+  ['budget-raise-floor.md § the packaging-floor branches',
+    () => evictedSectionBody(budgetRaiseFloorText, '## Evicted: § merge-task step 5 — the packaging-floor branches'),
+    689, '3c82493b86a9317c6ae8ed2b7e39c3c1228376b793ad90184b9de1f0d2a00adf'],
+];
+
+test('reference link integrity — the packaging-floor branches landed byte-identical in budget-raise-floor.md and the card keeps only a trigger pointer (ADR 0042, PIN-22)', () => {
+  assert.equal(EVICTED_PACKAGING_BRANCHES.length, 1, 'the packaging-floor eviction census lists its one moved block — an emptied list would pass vacuously');
+  for (const [name, extract, bytes, digest] of EVICTED_PACKAGING_BRANCHES) {
+    const body = extract();
+    assert.equal(Buffer.byteLength(body, 'utf8'), bytes, `${name}: the moved block is ${bytes} B (pre-eviction card bytes)`);
+    assert.equal(sha256(body), digest, `${name}: the moved block must be byte-identical to its pre-eviction card text (ADR 0042)`);
+  }
+  assert.ok(refinerCardText.includes('When it exits, read [budget-raise-floor.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/budget-raise-floor.md) (§ the evicted packaging-floor branches).'),
+    'war-refiner.md step 5 must carry the packaging-floor trigger pointer');
+  assert.ok(!refinerCardText.includes("a Dockerfile's enumerated COPYs miss"), 'war-refiner.md still carries the evicted packaging-floor exit-1 bullet — the block lives in budget-raise-floor.md only');
+});
+
 // --- Arm 6: the auditor-card pin-transfer eviction (2026-10-27-memory-query-mcp-tool Task 1.3) ----
 // The `## Pin transfer (#1913)` body moved byte-identical from agents/war-auditor.md into
 // pin-transfer.md to fund the card's memory_query `tools:` entry (PIN-5, ADR 0042). The digest pins
