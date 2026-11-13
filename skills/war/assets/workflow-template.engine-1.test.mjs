@@ -161,6 +161,7 @@ import {
   REFINERY,
   ES_ROWS_CHECK_SECOND,
   ES_BT,
+  esPrompts,
   esTransportPrompt,
   esFenced,
   esSeatPromptFor,
@@ -2479,6 +2480,87 @@ test('testPattern drift-guard (validation 6, --pattern half): war-refiner.md ste
     'war-refiner.md step 4 names the --pattern argument (standing mirror of the dispatched prompt)')
   assert.match(refinerMd, /overrides\.testPattern/i,
     'war-refiner.md step 4 attributes --pattern to the per-phase-resolved overrides.testPattern')
+})
+
+// T2.3 threading rows (plan 2026-11-08-shell-floors-tests-and-lint, End state 20; PIN-9, PIN-12).
+// T2.1 threads plan.testPatternPending into testPatternArg and plan.doneWhenPreamble into
+// doneWhenFloorClause, each `?? null` and string-only. Each row drives every merge-task site
+// (taskMergeSitePrompts: initial, floor-retry, environment-proceed, baseline-proceed) once per value.
+const PLAN_BASE_T23 = { file: 'docs/plans/wtprov-A.md', gate: 'make gate' }
+const PENDING_T23 = '*.spec.ts *.spec.tsx'
+const PREAMBLE_T23 = 'source .venv/bin/activate'
+const MERGE_SITES_T23 = ['initial', 'floor-retry', 'environment-proceed', 'baseline-proceed']
+// Every assert-test-in-diff.sh invocation in a prompt: the args between the script name and the
+// clause that follows them (` to verify …` or ` (exit 1 …`).
+const floorLinesOf = prompt => [...prompt.matchAll(/assert-test-in-diff\.sh ([^`]*?) (?:to verify|\(exit 1)/g)].map(m => m[1])
+
+test('testPatternPending null is byte-identical', async () => {
+  const absent = await taskMergeSitePrompts({ plan: PLAN_BASE_T23 })
+  const nul = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, testPatternPending: null } })
+  const nonString = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, testPatternPending: 42 } })
+  const set = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, testPatternPending: PENDING_T23 } })
+  const ARG = ` --pending-pattern '${PENDING_T23}'`
+  for (const site of MERGE_SITES_T23) {
+    assert.ok(absent[site] && floorLinesOf(absent[site]).length >= 1, `${site}: the merge prompt carries a floor line (presence guard)`)
+    for (const [name, run] of [['absent', absent], ['null', nul], ['non-string', nonString]]) {
+      assert.ok(!run[site].includes('--pending-pattern'), `${site} (${name}): no --pending-pattern anywhere in the prompt`)
+    }
+    assert.equal(stableGatePrompt(nul[site]), stableGatePrompt(absent[site]), `${site}: a null testPatternPending is byte-identical to an absent one`)
+    assert.equal(stableGatePrompt(nonString[site]), stableGatePrompt(absent[site]), `${site}: a non-string testPatternPending reads as null`)
+    // Set minus the single inserted arg restores the null prompt EXACTLY: nothing else conditions on the field.
+    assert.ok(set[site].includes(ARG), `${site}: the set run carries the arg (anti-vacuous)`)
+    assert.equal(stableGatePrompt(set[site].split(ARG).join('')), stableGatePrompt(nul[site]), `${site}: set minus the --pending-pattern arg is byte-identical to null`)
+  }
+})
+
+test('testPatternPending reaches every merge-task floor line', async () => {
+  const ARG = ` --pending-pattern '${PENDING_T23}'`
+  const pend = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, testPatternPending: PENDING_T23 } })
+  const both = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, testPattern: '*.test.ts', testPatternPending: PENDING_T23 } })
+  for (const site of MERGE_SITES_T23) {
+    const lines = floorLinesOf(pend[site])
+    assert.ok(lines.length >= 1, `${site}: at least one floor line (presence guard)`)
+    lines.forEach((args, i) => assert.ok(args.endsWith(ARG), `${site} floor line ${i + 1}: ends with the --pending-pattern arg (got: ${args})`))
+    // Beside an active set, the pending arg follows --pattern (the fold appends it to testPatternArg).
+    floorLinesOf(both[site]).forEach((args, i) => assert.ok(args.endsWith(` --pattern '*.test.ts'${ARG}`),
+      `${site} floor line ${i + 1}: --pattern then --pending-pattern (got: ${args})`))
+  }
+  // Source census: every dispatched assert-test-in-diff.sh invocation reads the widened testPatternArg,
+  // so a new floor site that skips it reds here.
+  const all = (src.match(/assert-test-in-diff\.sh \$\{ph\.integrationBranch\} \$\{r\.task\.branch\}/g) || []).length
+  const folded = [...src.matchAll(FLOOR_SITE_RE)].length
+  assert.ok(all >= 4, `non-vacuity: at least the four merge-task floor sites (found ${all})`)
+  assert.equal(folded, all, 'every floor invocation interpolates ${testPatternArg}')
+})
+
+test('testPatternPending both surfaces: the dispatched floor line and agents/war-refiner.md both carry --pending-pattern', async () => {
+  const pend = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, testPatternPending: PENDING_T23 } })
+  assert.ok(floorLinesOf(pend.initial).some(a => a.includes('--pending-pattern')), 'the dispatched merge prompt carries --pending-pattern on its floor line')
+  assert.ok(refinerMd.includes('--pending-pattern'), 'agents/war-refiner.md names --pending-pattern (the standing mirror)')
+})
+
+test('doneWhenPreamble null is byte-identical and a set preamble is staged', async () => {
+  const tasks = [dwTask({ doneWhen: DU_CMD })]
+  const absent = await taskMergeSitePrompts({ plan: PLAN_BASE_T23, tasks })
+  const nul = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, doneWhenPreamble: null }, tasks })
+  const nonString = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, doneWhenPreamble: ['x'] }, tasks })
+  const set = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, doneWhenPreamble: PREAMBLE_T23 }, tasks })
+  const STAGE = `the preamble line — exactly: ${PREAMBLE_T23} — then a newline, then `
+  for (const site of MERGE_SITES_T23) {
+    assert.ok(absent[site].includes(' After the gate, run the done-when floor: write the task\'s Done when: acceptance command'),
+      `${site}: the done-when floor clause rides the prompt (presence guard)`)
+    for (const [name, run] of [['absent', absent], ['null', nul], ['non-string', nonString]]) {
+      assert.ok(!run[site].includes('preamble line'), `${site} (${name}): no preamble instruction`)
+    }
+    assert.equal(stableGatePrompt(nul[site]), stableGatePrompt(absent[site]), `${site}: a null doneWhenPreamble is byte-identical to an absent one`)
+    assert.equal(stableGatePrompt(nonString[site]), stableGatePrompt(absent[site]), `${site}: a non-string doneWhenPreamble reads as null`)
+    // Staged: the preamble line comes first, then the byte-verbatim command, into the one cmd file.
+    const clause = (set[site].match(/ After the gate, run the done-when floor:[^]*?make-this-command-pass loop\./) || [''])[0]
+    assert.ok(clause.includes(`write ${STAGE}the task's Done when: acceptance command — BYTE-VERBATIM, exactly: ${DU_CMD} — to `),
+      `${site}: the set preamble is staged before the verbatim command`)
+    assert.match(clause, /exactly: [^]*? — to \S*\/\.war\/done-when-t1\.cmd /, `${site}: both lines go to the one done-when cmd file`)
+    assert.equal(stableGatePrompt(set[site].split(STAGE).join('')), stableGatePrompt(nul[site]), `${site}: set minus the preamble instruction is byte-identical to null`)
+  }
 })
 
 test('#1046 floor_diagnostic drift-guard (validation 6, both surfaces): EVERY dispatched assert-test-in-diff.sh site instructs verbatim-stderr capture into floor_diagnostic scoped to exit 1; war-refiner.md step 4 carries the same tokens', () => {
@@ -5075,7 +5157,8 @@ test('endstate-transport intake-lint: a whitespace-only check literal is INTAKE-
 
 test('endstate: compound check exit aggregation (D16/A6, #1782; operator ruling 2026-09-07) — the dispatched END-STATE CHECK runner instruction records one cmd[i] exit: line per STATEMENT (`;` / newline boundaries only) and the artifact\'s exit_code is the MAXIMUM of the statement statuses; the seat block and the auditor card carry the reading rule', async () => {
   const twoCmd = "node --test skills/war/assets/wibble.acceptance.test.mjs; grep -c 'wobble' skills/war/assets/wibble.log"
-  const runner = await esTransportPrompt(twoCmd)
+  // One phase run yields both prompts (#2256): the runner instruction and the seat-side block.
+  const { transport: runner, seat } = await esPrompts(twoCmd)
   assert.match(runner, /STATEMENT BOUNDARIES \(#1782, operator ruling 2026-09-07\)/, 'the runner instruction names the statement-boundary clause (the per-command COMPOUND CHECKS clause is retired)')
   assert.ok(!runner.includes('COMPOUND CHECKS (#1782)'), 'the retired per-command clause header is gone (OLD-absent)')
   assert.ok(runner.includes('records one `cmd[i] exit: <n>` line per statement'), 'the runner records one cmd[i] exit: line per statement')
@@ -5094,7 +5177,6 @@ test('endstate: compound check exit aggregation (D16/A6, #1782; operator ruling 
   assert.match(runner, /execute the file AS A WHOLE, FROM THE FILE/i, 'the AS A WHOLE clause survives beside the aggregation rule (every statement still runs)')
   assert.ok(runner.includes(esFenced('```', twoCmd)), 'the ;-joined literal still rides the fenced block whole')
   // The reading rule — the seat block and the card are the runner instruction's twins.
-  const seat = await esSeatPromptFor(twoCmd)
   assert.ok(seat.includes('one `cmd[i] exit: <n>` line per statement'), 'the seat-side END-STATE CHECK block names the per-statement lines')
   assert.ok(seat.includes('an `&&` or `||` list is one statement'), 'the seat-side block states the list rule')
   assert.match(seat, /final `exit_code:` is the MAXIMUM of those statuses/, 'the seat-side block carries the maximum rule')
@@ -12814,7 +12896,7 @@ test('ask-content-key (End state 6, cross-round stability): a persisting ask re-
   assert.equal((out.asks || []).length, 1, 'ONE parked record for the persisting ask across two rounds (content-key identity beats minorsOf\'s fresh copies, #1810)')
   // The round-2 re-mint comes from the seat that parked the record (one seat, two rounds), so it is
   // the survivor's own raiser: parkAsk's dup arm skips it, so its corroborators list stays empty.
-  assert.deepEqual(out.asks[0].corroborators || [], [], 'the round-2 re-mint by the parking seat never lands on its own corroborators list')
+  assert.deepEqual(out.asks[0].corroborators, [], 'the round-2 re-mint by the parking seat never lands on its own corroborators list')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('merged as corroboration')), 'the collision is logged (never a silent drop, #1790)')
 })
 
@@ -13306,6 +13388,27 @@ test('#2326 — the ace gate prompt carries the capture, the background rule and
   assert.ok(two.prompt.includes('Prior gate_log_path: ' + path + '.'), 'the continuation carries the admitted log path')
   assert.ok(two.prompt.includes(unprefixed(one.prompt)), 'the FULL check prompt rides the continuation')
   assert.ok(two.prompt.includes('its exit_code is the gate result: do not rerun the gate'), 'the continuation reads the finished log, so a long gate finishes inside the bound')
+})
+
+// PIN-28 (#2792): the backgrounded command writes its own exit_code: line, and the refiner never
+// appends one. The clause runs from its BACKGROUNDED GATE header to PARTIAL_LOG_RULE, which
+// backgroundGateRule appends last, so the sentence is counted inside that span only.
+test('backgrounded gate — the job writes its own exit_code stamp', async () => {
+  const SENTENCE = 'never append exit_code: yourself'
+  const merge = (await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl)).calls.find(isMergeTask)
+  const ace = aceGateCalls((await runPhase(PT_ARGS(), acePtImpl())).calls)[0]
+  const partial = evalPt('PARTIAL_LOG_RULE')
+  for (const [name, c] of [['merge-task', merge], ['ace-gate', ace]]) {
+    assert.ok(c, `${name}: the dispatch is present (presence guard)`)
+    const start = c.prompt.indexOf('BACKGROUNDED GATE (tool-timeout survival)')
+    assert.ok(start >= 0, `${name}: the backgrounded-gate clause rides the prompt`)
+    const end = c.prompt.indexOf(partial, start)
+    assert.ok(end > start, `${name}: the clause ends at PARTIAL_LOG_RULE`)
+    const clause = c.prompt.slice(start, end)
+    assert.equal(clause.split(SENTENCE).length - 1, 1, `${name}: the clause says "${SENTENCE}" exactly once`)
+    assert.equal(c.prompt.split(SENTENCE).length - 1, 1, `${name}: the prompt carries the sentence only inside the clause`)
+    assert.match(clause, /echo "exit_code: \$\?"/, `${name}: the clause shows the job writing its own stamp`)
+  }
 })
 
 test('#2326 — a log path outside the dispatch prefix never reaches a continuation, from the first reply or a later one', async () => {
@@ -16307,7 +16410,8 @@ test('parkAsk collision: corroborator carries file/title/fork and reaches the ha
   assert.ok(merged, 'the colliding question parks once')
   assert.equal((out.asks || []).filter(a => a && a.question === 'mirror the value or point at the source?').length, 1, 'one surviving record for the shared question')
   // The widened entry (#1876): seat + sha + file + title + fork. `file` is the repo-relative path —
-  // normalizeFinding ran at intake, so the seat's `./docs/y.md` records as `docs/y.md`.
+  // normalizeFinding at intake and parkAsk's aceRelPath on the push both normalize, so the seat's
+  // `./docs/y.md` records as `docs/y.md`; this fixture cannot tell which one produced it.
   const entry = { seat: 'audit:t1:security', sha: 'deadbeef', file: 'docs/y.md', title: 'mirror or point (y)',
     fork: ['mirror the value', 'point at the source', 'drop the value'] }
   assert.deepEqual(merged.corroborators, [entry], 'the surviving record\'s corroborator carries the re-raiser\'s seat, sha, repo-relative file, title and fork')
