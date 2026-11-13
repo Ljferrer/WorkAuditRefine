@@ -5468,6 +5468,7 @@ test('pst T1.5: § 4 carries the unstamped phases row after half-stamped relaunc
   assert.ok(row.at > half.at, 'the unstamped phases row must sit after the half-stamped relaunch row')
   for (const key of ['`workflow_run`', '`workflowRunId`', 'fewer phase records than the ledger', 'record count and a field compare', 'reads no transcript', 'mid-run', '#2669'])
     assert.ok(row.text.includes(key), `the unstamped phases row must carry ${key}`)
+  assert.match(row.text, /keeps `endedAt` null or a `land` hold while the ledger shows a later attempt of that phase or a later phase/, 'the unstamped phases row must carry the second fire arm (a null `endedAt` or a `land` hold beside a later ledger attempt or phase)')
   // The neighbouring row stays byte-identical.
   assert.ok(warReviewSkillMd.includes("- **unfinalized phase record** — a phase record missing `endedAt`, `tasks`, or `land` **although\n  the run ended or a later phase started** (evidence the phase-close stamp was skipped). This is a\n  deliberate killed-run discriminator: a run that died mid-phase leaves the run's own `endedAt`\n  null and starts no later phase, so the signal stays silent there — that death already surfaces\n  through the `held:*` / dropped-return signal classes above; this one fires only when a Lead\n  demonstrably outlived the phase and still skipped the close stamp.\n"), 'the unfinalized phase record row must stay byte-identical')
 })
@@ -5506,6 +5507,7 @@ test('pst T1.5: under-stamped counters is named in the § 3 counter rows and as 
     const row = wrRow(label)
     assert.ok(row.includes('under-stamped counters'), `the \`${label}\` row must fire the under-stamped counters row`)
     assert.match(row, /`handoff`|servitorResult/, `the \`${label}\` row must cross-check the run ledger`)
+    assert.match(wrJoined(row), /renders the ledger count with the manifest figure in parentheses/, `the \`${label}\` row must render the ledger count with the manifest figure in parentheses`)
   }
   const unstamped = wrBullet('unstamped phases')
   const row = wrBullet('under-stamped counters')
@@ -5519,6 +5521,7 @@ test('pst T1.5: § 1 follows supersedes and recoveryOf, and the ties-broken pin 
   for (const f of ['`supersedes`', '`recoveryOf`']) assert.ok(s.includes(f), `§ 1 must follow ${f}`)
   assert.match(s, /one row per manifest/, '§ 1 must render one row per chained manifest')
   assert.match(s, /copied stamp/, '§ 1 must report an equal `endedAt` as a copied stamp')
+  assert.match(s, /copied stamp and render its wall-clock `n\/a`/, '§ 1 must render a copied stamp wall-clock as `n/a`')
 })
 
 test('pst T1.5: the trials row renders a declined fork and a zero split after the PIN-17 clause (PIN-32)', () => {
