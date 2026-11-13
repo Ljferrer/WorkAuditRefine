@@ -152,12 +152,14 @@ export const DEFAULTS = {
   hooks: { replyStandard: true, valeMarkdown: true, valeStyle: 'workAuditRefine' },
   // interview.*: the fork-trial bounds /war-strategy's plan interview reads fail-open (D7, D11):
   // trialWallSeconds is the wall cap per trial, commandTimeoutSeconds the per-command timeout inside
-  // the sweep, excerptLines the fenced-excerpt cap. Each a positive integer; an explicit null reads as
-  // unset (the run.maxParallel `!= null` idiom) and the interview falls back to this value per key.
-  // No preset sets the section and nothing threads it into Workflow args — the phase engine never
-  // reads it, so no workflow-template.js mirror. The retry rule (one retry, on infra-failed only) is
-  // doctrine in fork-trials.md, never a key here (PIN-11: exactly three keys).
-  interview: { trialWallSeconds: 600, commandTimeoutSeconds: 120, excerptLines: 20 },
+  // the sweep, excerptLines the fenced-excerpt cap. The three bounds are each a positive integer.
+  // alwaysAskAdvancedPlanning (PIN-13, #2436) is a boolean: true makes the interviewer always ask
+  // before fork trials and pair beats (fork-trials.md § Budget check). An explicit null on any key
+  // reads as unset (the run.maxParallel `!= null` idiom) and the interview falls back to this value
+  // per key. No preset sets the section and nothing threads it into Workflow args — the phase engine
+  // never reads it, so no workflow-template.js mirror. The retry rule (one retry, on infra-failed
+  // only) is doctrine in fork-trials.md, never a key here.
+  interview: { trialWallSeconds: 600, commandTimeoutSeconds: 120, excerptLines: 20, alwaysAskAdvancedPlanning: false },
   // overrides.testPattern: the run's declared test-floor glob set (space-separated glob tokens) | null.
   // null ⇒ today's hardcoded gate-mirror floor defaults, byte-identical. Floor ⊆ gate is ONE Setup
   // decision (ADR 0006): testPattern is pinned TOGETHER with the gate — though that confirmation is not
@@ -500,15 +502,20 @@ export function validate(input) {
 
   // interview.* — the fork-trial bounds (D7, D11), defaulted in DEFAULTS. Consumed fail-open by
   // /war-strategy's plan interview, never by the phase engine — no workflow-template.js mirror.
-  // The hooks/memory shape: isObj guard, each key a positive integer, unknown keys courtesy errors.
-  // An explicit null key is unset (the run.maxParallel `!= null` idiom, never hooks' `!== null`):
-  // the interview falls back to DEFAULTS.interview per key.
+  // The hooks/memory shape: isObj guard, each of the three bounds a positive integer, the
+  // alwaysAskAdvancedPlanning knob a boolean, unknown keys courtesy errors. An explicit null key is
+  // unset (the run.maxParallel `!= null` idiom, never hooks' `!== null`): the interview falls back
+  // to DEFAULTS.interview per key.
   const iv = c.interview
   if (!isObj(iv)) { errors.push('interview must be an object') }
   else {
-    const INTERVIEW_KEYS = ['trialWallSeconds', 'commandTimeoutSeconds', 'excerptLines']
-    for (const k of INTERVIEW_KEYS) {
+    const INTERVIEW_INT_KEYS = ['trialWallSeconds', 'commandTimeoutSeconds', 'excerptLines']
+    const INTERVIEW_KEYS = [...INTERVIEW_INT_KEYS, 'alwaysAskAdvancedPlanning']
+    for (const k of INTERVIEW_INT_KEYS) {
       if (iv[k] != null && (!Number.isInteger(iv[k]) || iv[k] < 1)) errors.push(`interview.${k} must be an integer >= 1 when set (got ${JSON.stringify(iv[k])})`)
+    }
+    if (iv.alwaysAskAdvancedPlanning != null && typeof iv.alwaysAskAdvancedPlanning !== 'boolean') {
+      errors.push(`interview.alwaysAskAdvancedPlanning must be a boolean when set (got ${JSON.stringify(iv.alwaysAskAdvancedPlanning)})`)
     }
     for (const k of Object.keys(iv)) {
       if (!INTERVIEW_KEYS.includes(k)) errors.push(`interview.${k} is not a known key (${INTERVIEW_KEYS.join('|')}) — run /war-room to regenerate the config`)
