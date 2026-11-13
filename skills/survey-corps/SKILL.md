@@ -96,9 +96,10 @@ and enter the sweep as ordinary open issues. Zero issues after the filter → re
 
 ### 2. Fan out readers
 
-One agent per issue (or small batch): read the body + comments + the code the issue touches;
-read each issue whole with `gh issue view <n> --json title,body,comments` (fallback
-`gh api repos/{owner}/{repo}/issues/<n>/comments`), never through `head`; return a structured summary — theme, affected files, severity, staleness signals.
+One agent per issue (or small batch): read each issue whole, then the code it touches. Read the
+issue with `gh issue view <n> --json title,body,comments` (fallback
+`gh api repos/{owner}/{repo}/issues/<n>/comments`), never through `head`. Return a structured
+summary — theme, affected files, severity, staleness signals.
 
 ### 3. Cluster (barrier)
 
@@ -138,7 +139,7 @@ Strays are **flagged, never dropped**.
 
 ### 6. Manifest + report
 
-Write the survey manifest (schema below), then print the coverage report. It opens with a
+Produce the survey manifest (schema and hand-off route below), then print the coverage report. It opens with a
 **Mining** section — the Step 0.7 rows (`filed #N` / `withheld: redaction` /
 `previously adjudicated (#N)` / `skipped: <reason>`) accounting for **every** mined lesson —
 rendered **ahead of** the issue→spec table: every swept issue → its spec, or its
@@ -182,8 +183,9 @@ Schema (verbatim — `/war-machine` consumes exactly this):
 ```
 
 `dependsOn` is the survey's ordering hint (which clusters build on which); `/war-machine` firms
-it up into the roadmap's dependency spine. `consumed` is stamped by `/war-machine`, one `consumed.plans` key per converted spec — consumed
-manifests are **retained, never deleted** (`/aftermath` needs the issue↔spec↔plan chain to
+it up into the roadmap's dependency spine. `consumed` is stamped by `/war-machine`, which adds
+one `consumed.plans` key per converted spec. Consumed manifests are **retained, never deleted**
+(`/aftermath` needs the issue↔spec↔plan chain to
 close swept issues later).
 
 ## Invariants

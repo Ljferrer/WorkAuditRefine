@@ -60,9 +60,9 @@ silent restatement as a plan defect (`needsDecision`) downstream.
    (path pattern `.claude/aot/YYYY-MM-DD-survey.json`): take its listed specs that still exist
    and are not keys of `consumed.plans` (a manifest with `consumed: null` has none, so every
    listed spec qualifies); filter to specs with no corresponding plan. Non-empty → take exactly
-   that list, no questions ("the survey just ran"). Resolve the main checkout via
-   `git rev-parse --path-format=absolute --git-common-dir` — **never the invoking worktree's
-   `.claude/`**. Run that resolution as its own Bash call, never chained with other git commands
+   that list, no questions ("the survey just ran"). Resolve the main checkout `$MAIN` as the
+   parent directory of the path that `git rev-parse --path-format=absolute --git-common-dir`
+   prints — **never the invoking worktree's `.claude/`**. Run that resolution as its own Bash call, never chained with other git commands
    or variables in one line.
 3. **Fallback inference.** Scan `docs/specs/*.md` for specs no plan references. "References"
    must match the corpus, where nearly all plans cite specs by *relative* markdown link: match
@@ -87,7 +87,8 @@ file footprints of the plans already authored (honest contention).
    before drafting a slice, so every task is chained backward from an End state; when the spec
    cites source issues, reads each cited issue's `## Evidence artifacts`
    section (read the issue whole with `gh issue view <n> --json title,body,comments`, fallback
-   `gh api repos/{owner}/{repo}/issues/<n>/comments`) — the recon inputs the issue author staged — before drafting. Split degraded arms:
+   `gh api repos/{owner}/{repo}/issues/<n>/comments`) — the recon inputs the issue author
+   staged — before drafting. Split degraded arms:
    a cited issue whose `## Evidence artifacts` section is absent ⇒ the read is **vacuously
    satisfied** for that issue (nothing to read is a pass, not a gap); a cited issue that is
    **unreachable** (gh/network/auth failure, incl. an exogenous account flip) ⇒ a **named note**
@@ -142,8 +143,8 @@ file footprints of the plans already authored (honest contention).
    `{ "by": "war-machine", "at": "<ISO 8601>", "plans": { "<spec path>": "<plan path>" } }`.
    Add each converted spec as a key of `consumed.plans`. Set `by` and `at` on the first stamp
    only. The manifest is spent when every listed spec is a key. An explicit-path run stamps the
-   listed specs it converted. From a linked worktree the host hook refuses Write and Edit under
-   `$MAIN`, so compose the stamped manifest in the session scratchpad and copy it over
+   listed specs it converted. `$MAIN` is the main checkout that tier 2 resolves. From a linked
+   worktree the host hook refuses Write and Edit under `$MAIN`, so compose the stamped manifest in the session scratchpad and copy it over
    `$MAIN/.claude/aot/<file>` with a plain Bash `cp`.
    Consumed manifests are **retained, never deleted** — `/aftermath` reads the
    issue↔spec↔plan chain to close swept issues later.
