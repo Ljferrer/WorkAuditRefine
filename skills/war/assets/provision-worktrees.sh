@@ -706,16 +706,32 @@ cmd_ensure_worktree() {
 # prompt is ssh's own and is not covered. A failed init only warns here. The
 # assert-submodules-ready call that follows then dies EX_SUBMODULES, and the
 # barrier routes the task env-blocked. Writes nothing to stdout.
+# Only the `-` paths are passed as the update pathspec (operator ruling
+# 2026-11-13), so an initialized sibling is never moved to its recorded commit.
+# A nested `-` path under an initialized parent is updated from inside its
+# deepest initialized ancestor, because a superproject pathspec cannot name it.
 submodules_ready() {
   sr_wt="$1"
   [ -f "$sr_wt/.gitmodules" ] || return 0
   # Captured first, never piped into `grep -q`: under pipefail an early grep exit
-  # SIGPIPE-kills git, and the `if` would then skip the init.
+  # SIGPIPE-kills git, and the init would then be skipped.
   sr_status="$(git -C "$sr_wt" submodule status --recursive 2>/dev/null || true)"
-  if printf '%s\n' "$sr_status" | awk '/^-/ { f = 1 } END { exit f ? 0 : 1 }'; then
-    GIT_TERMINAL_PROMPT=0 git -C "$sr_wt" submodule update --init --recursive >/dev/null 2>&1 \
-      || warn "submodule init failed in '$sr_wt' (an unreachable URL, or a remote that needs credentials)."
-  fi
+  sr_missing="$(printf '%s\n' "$sr_status" | awk '/^-/ { sub(/^-[0-9a-f]+ /, ""); print }')"
+  # Initialized entries (prefix ' ', '+' or 'U'), path only, describe suffix cut.
+  sr_inited="$(printf '%s\n' "$sr_status" | awk '/^[ +U]/ { sub(/^.[0-9a-f]+ /, ""); sub(/ \([^()]*\)$/, ""); print }')"
+  while IFS= read -r sr_p; do
+    [ -n "$sr_p" ] || continue
+    sr_base="$(printf '%s\n' "$sr_inited" | SR_P="$sr_p" awk 'index(ENVIRON["SR_P"], $0 "/") == 1 && length($0) > length(b) { b = $0 } END { print b }')"
+    if [ -n "$sr_base" ]; then
+      sr_dir="$sr_wt/$sr_base"; sr_rel="${sr_p#"$sr_base"/}"
+    else
+      sr_dir="$sr_wt"; sr_rel="$sr_p"
+    fi
+    GIT_TERMINAL_PROMPT=0 git -C "$sr_dir" submodule update --init --recursive -- "$sr_rel" >/dev/null 2>&1 \
+      || warn "submodule init failed for '$sr_p' in '$sr_wt' (an unreachable URL, or a remote that needs credentials)."
+  done <<EOF
+$sr_missing
+EOF
   cmd_assert_submodules_ready "$sr_wt"
 }
 
