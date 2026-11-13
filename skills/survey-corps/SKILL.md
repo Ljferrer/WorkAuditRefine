@@ -96,8 +96,10 @@ and enter the sweep as ordinary open issues. Zero issues after the filter → re
 
 ### 2. Fan out readers
 
-One agent per issue (or small batch): read the body + comments + the code the issue touches;
-return a structured summary — theme, affected files, severity, staleness signals.
+One agent per issue (or small batch): read each issue whole, then the code it touches. Read the
+issue with `gh issue view <n> --json title,body,comments` (fallback
+`gh api repos/{owner}/{repo}/issues/<n>/comments`), never through `head`. Return a structured
+summary — theme, affected files, severity, staleness signals.
 
 ### 3. Cluster (barrier)
 
@@ -137,8 +139,8 @@ Strays are **flagged, never dropped**.
 
 ### 6. Manifest + report
 
-Write the survey manifest (schema below), then print the coverage report. It opens with a
-**Mining** section — the Step 0.7 rows (`filed #N` / `withheld: redaction` /
+Produce the survey manifest (schema and hand-off route below), then print the coverage report.
+It opens with a **Mining** section — the Step 0.7 rows (`filed #N` / `withheld: redaction` /
 `previously adjudicated (#N)` / `skipped: <reason>`) accounting for **every** mined lesson —
 rendered **ahead of** the issue→spec table: every swept issue → its spec, or its
 `deferred: <why>` row.
@@ -154,6 +156,11 @@ worktree via:
 MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
 # manifest: $MAIN/.claude/aot/YYYY-MM-DD-survey.json
 ```
+
+Run the `MAIN=$(...)` line as its own Bash call, never chained with other git commands or
+variables in one line. From a linked worktree the host hook refuses Write and Edit under `$MAIN`,
+so compose the manifest in the session scratchpad, then copy it to `$MAIN/.claude/aot/` with a
+plain Bash `cp`.
 
 **Uncommitted; latest-wins** — a same-day re-run overwrites the file; a re-survey supersedes its
 predecessor.
@@ -176,8 +183,9 @@ Schema (verbatim — `/war-machine` consumes exactly this):
 ```
 
 `dependsOn` is the survey's ordering hint (which clusters build on which); `/war-machine` firms
-it up into the roadmap's dependency spine. `consumed` is stamped by `/war-machine` — consumed
-manifests are **retained, never deleted** (`/aftermath` needs the issue↔spec↔plan chain to
+it up into the roadmap's dependency spine. `consumed` is stamped by `/war-machine`, which adds
+one `consumed.plans` key per converted spec. Consumed manifests are **retained, never deleted**
+(`/aftermath` needs the issue↔spec↔plan chain to
 close swept issues later).
 
 ## Invariants
