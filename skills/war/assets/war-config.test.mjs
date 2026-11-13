@@ -2433,7 +2433,7 @@ test('doc-contract: SKILL.md Setup step 4 threads memoryLocalRoot and names the 
 // skills/war/references/ file must join each list or sit in REFERENCES_NOT_SCANNED with a reason,
 // or every census reds. Members outside skills/war/references (SKILL.md, GLOSSARY.md, CONTEXT.md,
 // ADR files) stay hand-listed and sit outside the census. A file both listed and in the table is
-// scanned: the list wins, so design.md and schemas.md stay scanned where a list names them.
+// scanned: the list wins, so design.md, schemas.md and late-defects.md stay scanned where a list names them.
 const REFERENCES_DIR = 'skills/war/references'
 const REFERENCES_NOT_SCANNED = {
   // Agent-card evictions: their prose moved from agents/*.md, never from skills/war/SKILL.md.
@@ -2457,14 +2457,14 @@ const REFERENCES_NOT_SCANNED = {
   // Lead doctrine born cold behind a SKILL.md trigger pointer: no moved SKILL.md block lives there.
   'artifact-evidence-lead.md': 'Lead REA evidence procedure, born cold (#2388), no moved SKILL.md block',
   'launch-identity.md': 'Lead runId mint procedure, born cold, no moved SKILL.md block',
-  'late-defects.md': 'Lead late-defect doctrine, born cold (plan 2026-11-04 Task 6.2), no moved SKILL.md block',
+  'late-defects.md': 'Lead late-defect doctrine (plan 2026-11-04 Task 6.2), no moved SKILL.md block, its ## Moved from CONTEXT.md section is a CONTEXT.md eviction',
   'late-fix-pass.md': 'late-fix pass doctrine, born cold (#2621), no moved SKILL.md block',
   'model-routing.md': 'routing doctrine home, born cold (#2844), no moved SKILL.md block',
   'budget-rebaseline.md': 'operator budget re-baseline pass, born cold (#1729), no moved SKILL.md block',
   'touched-doc-accuracy.md': 'authoring duty for /war-strategy, born cold (#1598), no moved SKILL.md block',
   'gastown-design-params.md': 'inherited Gas Town parameters, a design record since v0.1.0, no moved SKILL.md block',
   // Design and contract docs: lists that sweep them name them directly.
-  'design.md': 'the WAR design doc since v0.1.0, not a SKILL.md eviction destination',
+  'design.md': 'the WAR design doc since v0.1.0, a partial SKILL.md eviction destination (the §4 step 3 default-roster sentence)',
   'schemas.md': 'the WAR data contracts since v0.1.0, not a SKILL.md eviction destination',
   'glossary-cold.md': 'the glossary cold home (GLOSSARY.md evictions), not a SKILL.md eviction destination',
   // Not a doc surface.
@@ -2504,10 +2504,17 @@ const SCOPE_HOOK_GLOB_SURFACES = [
   'skills/war/references/run-manifest.md',
   'skills/war/references/staged-script.md',
   'skills/war/references/sweep-exclusion.md',
+  'skills/war/references/design.md', // the §4 step 3 default-roster sentence eviction
 ]
 
 test('doc-contract: the scope-hook-glob OLD-absent list covers every skills/war/references file (directory-scan census, #2089)', () => {
   assertReferencesCensus('SCOPE_HOOK_GLOB_SURFACES', SCOPE_HOOK_GLOB_SURFACES)
+})
+
+test('doc-contract: the references census reports a file a list drops (red-path self-check, #2089)', () => {
+  const dropped = SCOPE_HOOK_GLOB_SURFACES.filter(p => p !== 'skills/war/references/setup.md')
+  assert.notEqual(dropped.length, SCOPE_HOOK_GLOB_SURFACES.length, 'the self-check must drop a real list member')
+  assert.deepEqual(referencesCensus(dropped).unplaced, ['setup.md'])
 })
 
 test('doc-contract: SKILL.md drops the retired scope-hook-glob compatibility clause (Task 2 obsoletes it, #584)', () => {
@@ -2749,6 +2756,8 @@ const RETIREMENT_SWEEP_SURFACES = [
   // glossary-eviction destination joins the same anchored list, so a future retirement sweep
   // cannot silently skip the cold home.
   'skills/war/references/glossary-cold.md',
+  // Its ## Moved from CONTEXT.md section is a CONTEXT.md eviction, and CONTEXT.md is swept above.
+  'skills/war/references/late-defects.md',
 ]
 
 test('doc-contract: the retirement-sweep list covers every skills/war/references file (directory-scan census, #2089)', () => {
