@@ -1096,12 +1096,14 @@ for (const flag of ['status', 'branch', 'sha', 'stopPoint']) {
 
 // ---- CLI --backstops refusal (PIN-6, #2911) --------------------------------
 // A bare --backstops reaches the parse as boolean true (JSON.parse(true) is
-// true, stamped verbatim), and a JSON object or scalar parses to a non-array.
-// Both refuse: exit 1, one stderr line naming the flag, ledger byte-identical.
+// true, stamped verbatim), a JSON object or scalar parses to a non-array, and
+// a malformed string makes JSON.parse throw. Each refuses: exit 1, one stderr
+// line naming the flag, ledger byte-identical.
 
 for (const c of [
   { title: 'bare --backstops refuses', extra: ['--backstops'], token: 'true' },
   { title: 'non-array --backstops refuses', extra: ['--backstops', '{"id":"x"}'], token: '{"id":"x"}' },
+  { title: 'malformed --backstops refuses', extra: ['--backstops', '{not json'], token: '{not json' },
 ]) {
   test(c.title, () => {
     const dir = tmpDir()
