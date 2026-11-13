@@ -410,11 +410,11 @@ export function parsePlanShape(text) {
 
 // The five §4f advisory rules, the four third-family authoring-verification rules (plan
 // 2026-08-24-authoring-side-verification T1.3), the report-only ‡ inventory (plan
-// 2026-08-25-authoring-doctrine-and-lint-coherence D3), and the sixth family's report-only
-// `twice-read-unparsed` and release-task test rule (plan 2026-11-08-pipeline-skills-and-memory-tooling
-// T1.2). Each scan(doc) returns match strings;
-// slot names the merged-template slot the rule checks. A rule with channel: 'info' reports on
-// the informational channel only — see lintShape.
+// 2026-08-25-authoring-doctrine-and-lint-coherence D3), and the sixth family's
+// `twice-read-unparsed` (report-only, info channel) and the advisory
+// `release-requires-test-no-test-file` (plan 2026-11-08-pipeline-skills-and-memory-tooling T1.2).
+// Each scan(doc) returns match strings; slot names the merged-template slot the rule checks. A
+// rule with channel: 'info' reports on the informational channel only — see lintShape.
 export const SHAPE_RULES = [
   {
     // D5/D18: every numbered End-state bullet carries one tag from the closed set.

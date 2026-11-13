@@ -1070,7 +1070,7 @@ test('pst T1.1: a run that routes upstream with zero sweeps writes seed + 1 (Ste
     'Step 5 <n> definition must carry the routed-run seed + 1 exception')
 })
 
-test('pst T1.1: both Route upstream templates carry the Budget spent line after a blank line and keep Re-entry', () => {
+test('pst T1.1: both Route upstream templates carry the Budget spent line after a blank line and keep Re-entry and the glossary entry names it', () => {
   const line = '**Budget spent:** operator decides — backstop, Note, or waiver'
   for (const [name, text] of [['references/lenses.md', LENSES], ['references/loop-budget.md', LOOP_BUDGET]]) {
     const reentry = text.search(/^\*\*Re-entry:\*\*/m)
