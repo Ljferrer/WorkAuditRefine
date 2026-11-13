@@ -2433,7 +2433,7 @@ test('doc-contract: SKILL.md Setup step 4 threads memoryLocalRoot and names the 
 // skills/war/references/ file must join each list or sit in REFERENCES_NOT_SCANNED with a reason,
 // or every census reds. Members outside skills/war/references (SKILL.md, GLOSSARY.md, CONTEXT.md,
 // ADR files) stay hand-listed and sit outside the census. A file both listed and in the table is
-// scanned: the list wins, so design.md, schemas.md and late-defects.md stay scanned where a list names them.
+// scanned: the list wins.
 const REFERENCES_DIR = 'skills/war/references'
 const REFERENCES_NOT_SCANNED = {
   // Agent-card evictions: their prose moved from agents/*.md, never from skills/war/SKILL.md.
@@ -2464,7 +2464,6 @@ const REFERENCES_NOT_SCANNED = {
   'touched-doc-accuracy.md': 'authoring duty for /war-strategy, born cold (#1598), no moved SKILL.md block',
   'gastown-design-params.md': 'inherited Gas Town parameters, a design record since v0.1.0, no moved SKILL.md block',
   // Design and contract docs: lists that sweep them name them directly.
-  'design.md': 'the WAR design doc since v0.1.0, a partial SKILL.md eviction destination (the §4 step 3 default-roster sentence)',
   'schemas.md': 'the WAR data contracts since v0.1.0, not a SKILL.md eviction destination',
   'glossary-cold.md': 'the glossary cold home (GLOSSARY.md evictions), not a SKILL.md eviction destination',
   // Not a doc surface.
@@ -2515,6 +2514,7 @@ test('doc-contract: the references census reports a file a list drops (red-path 
   const dropped = SCOPE_HOOK_GLOB_SURFACES.filter(p => p !== 'skills/war/references/setup.md')
   assert.notEqual(dropped.length, SCOPE_HOOK_GLOB_SURFACES.length, 'the self-check must drop a real list member')
   assert.deepEqual(referencesCensus(dropped).unplaced, ['setup.md'])
+  assert.deepEqual(referencesCensus([...SCOPE_HOOK_GLOB_SURFACES, 'skills/war/references/no-such-file.md']).stale, ['no-such-file.md'])
 })
 
 test('doc-contract: SKILL.md drops the retired scope-hook-glob compatibility clause (Task 2 obsoletes it, #584)', () => {
