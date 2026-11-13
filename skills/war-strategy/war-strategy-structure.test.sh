@@ -850,8 +850,8 @@ ctl 8 "$f8a$f8b" "$r8a$r8b" r8_doc_or_char
 f9a='Duty-Class '
 f9b='Twice-Read'
 # Superset trap (#2092): a compound label that joins `lacks_doc_i` and `lacks_char_i` with a
-# slash contains `lacks_char_i`, so a count grep for `lacks_char_i pattern` over-counts its rows. Give a
-# pattern that both helpers guard a label with no sibling label inside it (ctl 8 above).
+# slash contains `lacks_char_i`, so a count grep for `lacks_char_i pattern` over-counts its rows.
+# A pattern that both helpers guard gets a label with no sibling label inside it (ctl 8 above).
 ctl 9 "$f9a$f9b" "$r9a$r9b" lacks_char_i
 f10a='[Assumed]`'
 f10b='-First Probes'
