@@ -199,13 +199,16 @@ Every trial lands as one row in one block. The label line is exact:
 **Trials run** — one row per trial:
 ```
 
-The header, on the lines after the label, carries three provenance lines:
+The header, on the lines after the label, carries four provenance lines:
 
 ```
 bounds: wall <s> s · cmd <s> s · excerpt <n> · config: <path> (section present | absent | unreadable) · overrides: none | <key>=<value> (user) Q<k> · trial tier: <model>/<effort> (config, or default)
 tokens: <n> · wall: <m> min (source: workflow usage | agent usage | n/a)
 escape-guard: clean | unsettled
+budget-check: <asked: run | skip> | not asked (<reason>)
 ```
+
+The `budget-check:` line records the § Budget check outcome.
 
 The row grammar is one `·`-separated line per trial:
 
@@ -265,8 +268,9 @@ printf '{}' | node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs --stdi
 
 and read the `interview` section: `trialWallSeconds` (the wall cap per trial, written into
 `bound:` before the run), `commandTimeoutSeconds` (the per-command cap inside a trial and
-the sweep) and `excerptLines` (the `observed` cap). The retry count is doctrine, not
-config: fixed at 1, only on `infra-failed`.
+the sweep) and `excerptLines` (the `observed` cap). Beside the three bounds, read the
+boolean knob `alwaysAskAdvancedPlanning` (the § Budget check always-ask switch). The retry
+count is doctrine, not config: fixed at 1, only on `infra-failed`.
 
 **The live read, fail-open.** At interview start, read the repo's config the way `/red-team`
 reads `agents.redteam`:
@@ -292,6 +296,30 @@ supplies both; anything else inherits the session. The header records
 `trial tier: <model>/<effort> (config, or default)`, reading `config` only when the raw
 file carries the block. The trial subagent is a
 general-purpose agent instructed by this file; no `agents/*.md` card exists for it.
+
+## Budget check
+
+Run the budget check once, when Stage 1b is about to start. Fork trials and pair beats cost
+tokens, so the operator may skip them when the budget runs low.
+
+1. Read any usage surface the host exposes: a token or rate limit meter, and the session
+   effort level.
+2. Ask the operator whether to run fork trials and pair beats if any of these holds: a
+   surface reads above 75% of any limit, the session effort is Low, or
+   `interview.alwaysAskAdvancedPlanning` is `true` in the live read of § Bounds.
+3. On `run`, trials and pair beats go ahead as usual. On `skip`, the interview runs no fork
+   trial and no pair beat, and each fork they would have settled becomes an ordinary
+   Stage 2 question.
+
+**Fail open.** If the host exposes no usage surface, skip the check, unless the knob is
+`true`. A skipped check never stops the interview, and trials go ahead as usual. An
+unreadable config falls back to the knob's default, per § Bounds.
+
+The header line records the outcome: `budget-check: asked: run`, `budget-check: asked: skip`,
+or `budget-check: not asked (<reason>)`, such as `no usage surface` or `below threshold`.
+Under `/war-machine --afk` the check is never asked: the header records
+`budget-check: not asked (afk)`, and trials and pair beats run as today, because no pair beat
+is suppressed (ADR 0044 Decision item 7).
 
 ## AFK
 

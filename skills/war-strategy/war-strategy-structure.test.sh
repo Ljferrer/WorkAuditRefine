@@ -18,7 +18,8 @@
 # oracle-duality template law, the #1494 fence Done-when connective convergence, the #1505
 # HANDOFF latitude clause, the #1602 trichotomy-token pins, and the #1604 gap-review-clause
 # pin), the 2026-10-26 fork-trials pins (#2447: references/fork-trials.md exists with its
-# nine ratified headings via $TRIALS / trial_x, the Stage-1b classify sentence + its three
+# nine ratified headings via $TRIALS / trial_x (ten with #2436's `## Budget check`, whose
+# header line, knob and Stage-1b pointer are pinned too), the Stage-1b classify sentence + its three
 # mappings + pointer,
 # the Stage-2 pair-beat bullet + the `Trials: t` status line, the Stage-3 read-aloud, the
 # Stage-4 sweep row + Trials-block enumeration, the Terminal-state usage-comment duty, the
@@ -450,7 +451,7 @@ doc_f '## Evidence + slot law (shared with the template)'
 # Strategy-verifier charter (references/strategy-verifier.md, End state 2) — presence +
 # content pins: the arming principle and its four arms, the refute output contract and
 # flow bounds, the three inline degraded-mode stamps, WAIVE semantics with arm recording,
-# the explicit AFK-unwaived statement, the three leak shapes + the ‡-marked twice-read
+# the explicit AFK-unwaived statement, the four leak shapes + the ‡-marked twice-read
 # rule, and the six-beat worked-example calibration table.
 if [ -f "$CHARTER" ]; then
   printf 'ok - references/strategy-verifier.md exists\n'
@@ -481,6 +482,11 @@ char_f 'A `WAIVE-<n>` row in an AFK-authored plan is a defect'
 char_f '**Half-floored pair**'
 char_f '**Ratified-but-homeless deliverable**'
 char_f '**Unvalidated join-executor claim**'
+# #1848 (PIN-10): the fourth leak shape and the H2 count. The retired three-shape count is
+# guarded absent below (r11 / r12, lacks_char_i).
+char_f 'four leak shapes'
+char_f '**Partial-source read**'
+char_f 'in four recorded shapes'
 char_f 'read **twice** at echo-back reconciliation'
 # #1967 (D9): the charter-side ‡ pin, lock-step with the doctrine-side one above. The
 # twice-read pin just above survives the ‡ rewording verbatim, so on its own the charter
@@ -500,8 +506,9 @@ else
   printf 'not ok - references/fork-trials.md is MISSING\n'
   fails=$((fails + 1))
 fi
-# The nine ratified section headings (End state 1), each a verbatim heading line — exact
-# whole-line (trial_x), since the file also names `## Provenance` and `## Bounds` in prose.
+# The nine ratified section headings (End state 1), plus `## Budget check` (#2436, PIN-12),
+# each a verbatim heading line — exact whole-line (trial_x), since the file also names
+# `## Provenance` and `## Bounds` in prose.
 trial_x '## When a fork qualifies'
 trial_x '## Running a fork trial'
 trial_x '## The sweep row'
@@ -511,6 +518,25 @@ trial_x '## Provenance'
 trial_x '## Bounds'
 trial_x '## AFK'
 trial_x '## Grandfather and reporting'
+trial_x '## Budget check'
+# #2436 (PIN-12): the budget check's header line, the header count, the always-ask knob in
+# the config read, and the fail-open arm. The doctrine side pins the Stage 1b pointer.
+trial_f 'budget-check: <asked: run | skip> | not asked (<reason>)'
+trial_f 'carries four provenance lines'
+trial_f '`alwaysAskAdvancedPlanning`'
+trial_f 'above 75% of any limit'
+trial_f 'If the host exposes no usage surface'
+# Operator ruling 2026-11-13 (phase 1 Checkpoint): under --afk the check is never asked.
+trial_f 'budget-check: not asked (afk)'
+doc_f 'when Stage 1b is about to start, read [references/fork-trials.md](fork-trials.md) § Budget check'
+# #1848 + #2484 (PIN-9, PIN-11): the Stage 0 whole-issue read form and the tree check.
+doc_f '`gh issue view <n> --json title,body,comments`'
+doc_f '`gh api repos/{owner}/{repo}/issues/<n>/comments`'
+doc_f 'Never pipe an evidence read through `head`'
+doc_f '`read (body + N comments)`'
+doc_f '`git status --porcelain`'
+# #2095 (PIN-7, doc half): the release-only task's requiresTest declaration.
+check_f '- **Release tasks** — state "next free patch above the live base", never a hardcoded `v<semver>`. A release-only task declares `requiresTest: false` unless its Files name a test file.'
 # The doctrine phrases the two hot surfaces point at, pinned on the cold home too.
 trial_f 'git clone --no-hardlinks'
 trial_f '**Trials run** — one row per trial:'
@@ -758,6 +784,15 @@ lacks_char_i "$r9a$r9b"
 r10a='[assumed]`'
 r10b='-first probes'
 lacks_doc_i "$r10a$r10b"
+# r11 / r12 (#1848, PIN-10): the retired three-shape counts on the charter — the H2 form and
+# the opener form. Paired positives: the four-shape pins on the charter above. lacks_char_i
+# reads one line, so a re-wrapped stale phrase is End state 10's joined-text check's job.
+r11a='three leak'
+r11b=' shapes'
+lacks_char_i "$r11a$r11b"
+r12a='three recorded'
+r12b=' shapes'
+lacks_char_i "$r12a$r12b"
 
 # Positive controls for each assembled absence pattern (#1308, D8/D11). The assembled
 # literals are unfindable by any grep, so a one-character fragment typo would leave a
@@ -818,6 +853,12 @@ ctl 9 "$f9a$f9b" "$r9a$r9b" lacks_char_i
 f10a='[Assumed]`'
 f10b='-First Probes'
 ctl 10 "$f10a$f10b" "$r10a$r10b" lacks_doc_i
+f11a='Three Leak'
+f11b=' Shapes'
+ctl 11 "$f11a$f11b" "$r11a$r11b" lacks_char_i
+f12a='Three Recorded'
+f12b=' Shapes'
+ctl 12 "$f12a$f12b" "$r12a$r12b" lacks_char_i
 
 # Commander's Intent sits BEFORE ## Build order inside the merged plan template.
 # Locators anchor to the verbatim arrow-bearing template lines (unique to the merged-template

@@ -260,6 +260,16 @@ done
 has_re "$MACHINE" 'Input selection precedence'
 has "$MACHINE" 'consumed: null'
 has_re "$MACHINE" 'consumed-stamp semantics'
+# Pipeline-skills plan T1.6 (PIN-9, PIN-19, PIN-20, PIN-21, #2484): both reader steps name the
+# whole-issue read form; tier 2 and the stamp key specs in `consumed.plans`; the survey composes
+# its manifest in the scratchpad; each MAIN= resolution runs as its own Bash call. Token
+# literals that never re-case use has(); the prose clause uses has_i().
+has   "$SURVEY"  'title,body,comments'
+has   "$MACHINE" 'title,body,comments'
+has   "$MACHINE" 'consumed.plans'
+has_i "$MACHINE" 'its own Bash call'
+has   "$SURVEY"  'scratchpad'
+has_i "$SURVEY"  'its own Bash call'
 
 printf '\n# Criterion 9b — war-campaign SKILL anchors campaign state at the main checkout (same --git-common-dir idiom)\n'
 # The flag literal is case-STABLE (a flag is never re-cased) -> exact has(). The prose rule
@@ -270,6 +280,11 @@ printf '\n# Criterion 9b — war-campaign SKILL anchors campaign state at the ma
 # noted for a follow-up, not fixed here.
 has   "$WAR_CAMPAIGN" '--git-common-dir'
 has_i "$WAR_CAMPAIGN" 'main checkout'
+# PIN-34 (#2678): from a linked worktree the host hook refuses Write and Edit under $MAIN, so the
+# campaign-state anchor and the consumed-stamp step each route the write through the scratchpad
+# and a Bash cp.
+has_i "$WAR_CAMPAIGN" 'scratchpad'
+has   "$MACHINE" 'scratchpad'
 
 printf '\n# Criterion 10 — machine predecessor-consistency, skip-and-report, --afk manifest + closing-commit rules\n'
 # Predecessor-consistency + skip-and-report were evicted (ADR 0042) to references/afk-conversion.md;

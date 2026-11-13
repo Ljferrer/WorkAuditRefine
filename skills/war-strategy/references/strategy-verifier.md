@@ -111,9 +111,9 @@ inferences:
   utter a skip, so no waive can exist there: every arming beat arms, every dispatch happens
   (or stamps a degraded mode). A `WAIVE-<n>` row in an AFK-authored plan is a defect.
 
-## The three leak shapes + the ‡ twice-read rule
+## The four leak shapes + the ‡ twice-read rule
 
-Ratified interview state leaks between beats and gates in three recorded shapes — the
+Ratified interview state leaks between beats and gates in four recorded shapes — the
 checklist the echo-back reconciliation reads:
 
 1. **Half-floored pair** — a ratified pair (a literal and its guard, a duty and its pin, a
@@ -125,6 +125,9 @@ checklist the echo-back reconciliation reads:
 3. **Unvalidated join-executor claim** — a beat resolved by asserting some existing seat or
    lens "already reads/joins" the artifact in question, with the claim never checked against
    that seat's actual charter.
+4. **Partial-source read** — an evidence object cited as read but consumed in projection
+   (an issue body without its comments, a file read through `head`, a summary in place of
+   the source). The Evidence consumed row claims a read the beat never made in full.
 
 **‡-marked twice-read rule**: the operator marks a pin ‡ in the design tree when its
 content is a standing duty or a fence. ‡ is an orthogonal row marker, never a landing

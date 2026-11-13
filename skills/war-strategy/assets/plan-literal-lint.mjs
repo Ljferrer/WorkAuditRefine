@@ -26,9 +26,10 @@
 //
 // Fourth family (plan 2026-08-25-authoring-doctrine-and-lint-coherence D3, operator-ratified
 // OD-1): the report-only ‡ INVENTORY rule (`twice-read-inventory`) — one advisory row per
-// ‡-marked design-tree pin. ‡ is mandated authoring, never a defect, so this rule rides a
-// SEPARATE informational channel: `lintInfo(text)`, excluded from `lint()`'s hits and from the
-// CLI's `anyHit`, so `--strict` still exits 0 on a ‡-marked conforming plan.
+// ‡-marked design-tree pin. ‡ is mandated authoring, never a defect, so this rule (and the sixth
+// family's `twice-read-unparsed`) rides a SEPARATE informational channel: `lintInfo(text)`,
+// excluded from `lint()`'s hits and from the CLI's `anyHit`, so `--strict` still exits 0 on a
+// ‡-marked conforming plan.
 //
 // Fifth family (plan 2026-10-20-rea-artifact-evidence D5/D7): two advisory line-level rules in
 // LINT_PATTERNS — `rea-source-base` (a `rea:` source carries a 64-hex `sha256:` base; a prefix, an
@@ -36,6 +37,13 @@
 // offset-prefixed hex-dump run in the plan body flags: cite-only, no quote carve-out). The tag
 // grammar's doctrine home is skills/war-strategy/references/artifact-evidence.md; its `Grammar: `
 // line is guarded by extraction + equality against REA_TAG_GRAMMAR / REA_SOURCE_BASE (ADR 0025).
+//
+// Sixth family (plan 2026-11-08-pipeline-skills-and-memory-tooling T1.2): `twice-read-unparsed`
+// (PIN-6, info channel) reports one row per design-tree row carrying ‡ outside the Source and
+// landing-class cells, the legacy decision-id placement. `release-requires-test-no-test-file`
+// (PIN-7, advisory hit) flags a release task with `requiresTest: true` whose backticked Files
+// name no `skills/**/*.test.mjs` or `**/*.test.sh` file. `hardcoded-version` skips fenced lines
+// and `**Trials run**` blocks (PIN-8); no other rule gains that skip.
 //
 // FAIL-OPEN BY DECISION (ADR 0030): report-and-exit-0. This is NEVER a CI gate — the only CI job is
 // war-memory's redaction lint. `--strict` is opt-in (exit non-zero on any hit) for local authoring.
@@ -134,6 +142,8 @@ export const LINT_PATTERNS = [
 // A markdown heading or a **Task N** / **Phase N** bold heading resets release scope.
 const HEADING = /^(?:#{1,6}\s|\s*[-*]*\s*\*\*(?:task|phase)\b)/i;
 const RELEASE_HEADING = /\b(?:release|version\s+bump)\b/i;
+// The `- requiresTest: true` declaration line only, so slice prose quoting the literal never matches.
+const REQUIRES_TEST_TRUE = /^\s*-\s*requiresTest:\s*true\b/im;
 
 // ---------------------------------------------------------------------------
 // Merged-template shape rules (spec §4f). Structural — scoped to a section, a logical bullet,
@@ -290,8 +300,11 @@ function parseLandingCell(cell) {
 // classes === null marks a class-less pin (anywhere-citation fallback). `marked` is the D2 ‡
 // row marker — set from a `PIN-<n>‡` id in the Source cell, from an arrow-pair-marked id, or
 // from a marked bare landing cell (applies only to pins that fall back to the bare class expression).
+// `unparsed` collects the head cell of each row that carries ‡ in any OTHER cell (PIN-6): the
+// legacy decision-id placement (`| D2 ‡ |`) that the Source / landing-class grammar never reads.
 function parseDesignTree(sectionLines) {
   const pins = [];
+  const unparsed = [];
   let srcIdx = -1;
   let landIdx = -1;
   for (const line of sectionLines) {
@@ -304,7 +317,11 @@ function parseDesignTree(sectionLines) {
       if (landIdx !== -1) continue; // header row consumed
       landIdx = cells.length - 1; // headerless fallback
     }
-    const source = cells[srcIdx >= 0 ? srcIdx : cells.length - 2] ?? '';
+    const srcAt = srcIdx >= 0 ? srcIdx : cells.length - 2;
+    const source = cells[srcAt] ?? '';
+    if (cells.some((c, k) => k !== srcAt && k !== landIdx && c.includes(TWICE_READ_MARK))) {
+      unparsed.push(cells[0]);
+    }
     const { map, bare, marked, markedBare } = parseLandingCell(cells[landIdx] ?? '');
     const srcMarked = new Set([...source.matchAll(PIN_MARKED)].map((m) => m[1]));
     const ids = new Set([...[...source.matchAll(PIN_TOKEN)].map((m) => m[1]), ...map.keys()]);
@@ -316,7 +333,7 @@ function parseDesignTree(sectionLines) {
       });
     }
   }
-  return pins;
+  return { pins, unparsed };
 }
 
 // The intent bullet opened at lines[start] (a bold-label marker line), through the line before
@@ -338,13 +355,16 @@ export function parsePlanShape(text) {
     endStateBullets: [], contextBlocks: [], taskBlocks: [], planShaped: false, hasLedger: false,
     // Third-family view: raw lines, design-tree pins, task-id → body, and the D1
     // class→section citation targets (null = section not found → anywhere fallback).
-    lines, designPins: [], taskMap: new Map(),
+    lines, designPins: [], designUnparsed: [], taskMap: new Map(),
     guardrailText: null, endStateText: null, backstopText: null, outsideDesignTree: text,
   };
   let designSpan = null;
   let intentSpan = null;
+  // The enclosing H2 (a `## Phase N — …` heading) of each `### Task` block, for release scope.
+  let phaseHeading = '';
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
+    if (H2.test(line)) phaseHeading = line.trim();
     if (INTENT_H2.test(line)) {
       doc.planShaped = true;
       const end = sectionEnd(lines, i, H2);
@@ -358,11 +378,13 @@ export function parsePlanShape(text) {
       doc.contextBlocks.push(...proseBlocks(lines.slice(i + 1, sectionEnd(lines, i, H2))));
     } else if (DESIGN_TREE_H2.test(line) && designSpan === null) {
       const end = sectionEnd(lines, i, H2);
-      doc.designPins.push(...parseDesignTree(lines.slice(i + 1, end)));
+      const tree = parseDesignTree(lines.slice(i + 1, end));
+      doc.designPins.push(...tree.pins);
+      doc.designUnparsed.push(...tree.unparsed);
       designSpan = [i, end];
     } else if (TASK_H3.test(line)) {
       const body = lines.slice(i + 1, sectionEnd(lines, i, MD_HEADING)).join('\n');
-      doc.taskBlocks.push({ heading: line.trim(), body });
+      doc.taskBlocks.push({ heading: line.trim(), body, phase: phaseHeading });
       const id = line.match(/^###\s+Task\s+([\d.]+)/i);
       if (id) doc.taskMap.set(id[1].replace(/\.$/, ''), body);
     }
@@ -387,10 +409,12 @@ export function parsePlanShape(text) {
 }
 
 // The five §4f advisory rules, the four third-family authoring-verification rules (plan
-// 2026-08-24-authoring-side-verification T1.3), and the report-only ‡ inventory (plan
-// 2026-08-25-authoring-doctrine-and-lint-coherence D3). Each scan(doc) returns match strings;
-// slot names the merged-template slot the rule checks. A rule with channel: 'info' reports on
-// the informational channel only — see lintShape.
+// 2026-08-24-authoring-side-verification T1.3), the report-only ‡ inventory (plan
+// 2026-08-25-authoring-doctrine-and-lint-coherence D3), and the sixth family's
+// `twice-read-unparsed` (report-only, info channel) and the advisory
+// `release-requires-test-no-test-file` (plan 2026-11-08-pipeline-skills-and-memory-tooling T1.2).
+// Each scan(doc) returns match strings; slot names the merged-template slot the rule checks. A
+// rule with channel: 'info' reports on the informational channel only — see lintShape.
 export const SHAPE_RULES = [
   {
     // D5/D18: every numbered End-state bullet carries one tag from the closed set.
@@ -403,7 +427,7 @@ export const SHAPE_RULES = [
     name: 'requires-test-without-done-when',
     slot: 'per-task `Done when:` (merged-template `### Task N:` block — required iff `requiresTest: true`)',
     scan: (doc) => doc.taskBlocks
-      .filter((t) => /requiresTest:\s*true/i.test(t.body) && !/\bDone when:/i.test(t.body))
+      .filter((t) => REQUIRES_TEST_TRUE.test(t.body) && !/\bDone when:/i.test(t.body))
       .map((t) => t.heading),
   },
   {
@@ -556,6 +580,34 @@ export const SHAPE_RULES = [
       .filter((p) => p.marked)
       .map((p) => `PIN-${p.pin} is ‡-marked — twice-read at echo-back`),
   },
+  {
+    // (f) PIN-6 · #2084: a design-tree row carrying ‡ outside the Source and landing-class cells
+    // (the legacy decision-id placement, `| D2 ‡ |`). The ‡ grammar never reads that cell, so the
+    // row's twice-read intent is unparsed. Report-only, one row per row: the legacy plan stays
+    // grandfathered, so this is info, never a defect.
+    name: 'twice-read-unparsed',
+    channel: 'info',
+    slot: '`## Resolved design tree` rows (‡ outside the Source and landing-class cells — not parsed as a pin mark; report-only)',
+    scan: (doc) => doc.designUnparsed
+      .map((head) => `row ${head} carries ‡ outside the Source and landing-class cells — not parsed as a pin mark`),
+  },
+  {
+    // (g) PIN-7 · #2095: a release task (its `### Task` heading or its enclosing `## Phase`
+    // heading matches the release pattern) with `requiresTest: true` whose backticked Files name
+    // no test file always routes the no-test floor. Declare `requiresTest: false`, or name a
+    // `skills/**/*.test.mjs` or `**/*.test.sh` file in Files.
+    name: 'release-requires-test-no-test-file',
+    slot: 'per-task `requiresTest` (merged-template `### Task N:` block under a release heading — `requiresTest: true` needs a test file in `Files:`)',
+    scan: (doc) => doc.taskBlocks
+      .filter((t) => RELEASE_HEADING.test(t.heading) || RELEASE_HEADING.test(t.phase))
+      .filter((t) => REQUIRES_TEST_TRUE.test(t.body))
+      .filter((t) => {
+        const files = t.body.split('\n').filter((l) => /^\s*-\s*Files:/i.test(l))
+          .flatMap((l) => [...l.matchAll(/`([^`]+)`/g)].map((m) => m[1].trim()));
+        return !files.some((f) => /^skills\/.+\.test\.mjs$/.test(f) || /(?:^|\/)[^/]+\.test\.sh$/.test(f));
+      })
+      .map((t) => t.heading),
+  },
 ];
 
 // Splits the shape rules by channel: `hits` are the advisory defects, `info` the report-only
@@ -584,15 +636,40 @@ export function lintInfo(text) {
 }
 
 // Line-based so context guards (gate directive, release heading) work.
+// PIN-8: fence state and Trials-block state skip `hardcoded-version` only. A fenced line (the
+// delimiters included) and every line from a line-initial `**Trials run**` label to the next
+// heading are not scanned by that rule. A `#` line inside a fence never ends the Trials block.
+// Every other rule still scans fenced lines: `target-content-paste` keeps "a fence is no carve-out".
+// CommonMark fence rules: an opener may carry an info string. A closer carries none, uses the
+// opener's character, and its run is at least as long as the opener's run.
+const FENCE = /^\s{0,3}(`{3,}|~{3,})/;
+const FENCE_CLOSE = /^\s{0,3}(`{3,}|~{3,})\s*$/;
+const TRIALS_LABEL = /^\s*\*\*Trials run\*\*/;
 function lintLines(text) {
   const hits = [];
   let inRelease = false;
+  let fence = null; // the opening delimiter run ({ ch, len }) while inside a fenced block
+  let inTrials = false;
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-    if (HEADING.test(line)) inRelease = RELEASE_HEADING.test(line);
+    const open = fence === null ? line.match(FENCE) : null;
+    const close = fence !== null ? line.match(FENCE_CLOSE) : null;
+    const fenced = fence !== null || open !== null;
+    if (open) fence = { ch: open[1][0], len: open[1].length };
+    else if (close && close[1][0] === fence.ch && close[1].length >= fence.len) fence = null;
+    // A `#` line inside a fence is code, not a heading: it moves neither release scope nor the
+    // Trials block, so a shell comment in a fenced release step keeps the scope it sits in.
+    if (!fenced) {
+      if (HEADING.test(line)) {
+        inRelease = RELEASE_HEADING.test(line);
+        inTrials = false;
+      }
+      if (TRIALS_LABEL.test(line)) inTrials = true;
+    }
     for (const p of LINT_PATTERNS) {
       if (p.releaseScoped && !inRelease) continue;
+      if (p.name === 'hardcoded-version' && (fenced || inTrials)) continue;
       if (p.requireOnLine && !p.requireOnLine.test(line)) continue;
       // stripBackticks entry guard: run re against the line with `backtick spans` removed, so a
       // compliant backticked token doesn't trip a rule (bare-files-path) that only wants bare ones.
