@@ -134,7 +134,7 @@ test('validateProvision: rejects a discard-exit tail', () => {
 })
 
 test('validateProvision: accepts an or-fallback to a real command', () => {
-  for (const entry of ['pnpm install --frozen-lockfile || npm ci', 'true', 'make setup || truecmd', 'make deps; trueish']) {
+  for (const entry of ['pnpm install --frozen-lockfile || npm ci', 'true', 'make setup || truecmd', 'make deps; trueish', 'make setup || : ; make verify']) {
     assert.deepEqual(validateProvision([entry]), { ok: true, errors: [] }, `expected ${JSON.stringify(entry)} to pass`)
   }
 })
