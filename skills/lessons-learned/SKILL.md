@@ -98,8 +98,8 @@ Create a todo per phase. Do them in order. Report after each.
 ### 0 — Inventory & budget (read-only except the one idempotent seed render below)
 
 - Count topic files, total disk, and `MEMORY.md` size (`wc -l -c`).
-- Budget (from `consolidate-memory`): `MEMORY.md` should stay **< 200 lines and ~25 KB** (the hard cap;
-  render refuses above it). The **advisory line** sits well under that, at `WARN_BYTES` = 17,000 B —
+- Budget (from `consolidate-memory`): `MEMORY.md` should stay **< 200 lines and within `HARD_BYTES`**
+  (the hard cap in `skills/_shared/war-memory.mjs`; render refuses above it). The **advisory line** sits well under that, at `WARN_BYTES` = 17,000 B —
   `buildProjection`'s `warn` verdict, and the **default** trigger for the `tighten` mode below (a
   stricter `--target` moves that mode's own trigger down). Compute **% full** on
   both axes; the byte axis usually binds.
@@ -113,7 +113,14 @@ Create a todo per phase. Do them in order. Report after each.
   (Skip the seed only when the Node probe reports memory unavailable — Node < 24 / no `node:sqlite`.)
 
   > **Disambiguation ("seed" names two mechanisms):** the **Setup seed render** here *projects* lessons that **already exist** in the roots into `MEMORY.md`; the **`seed` mode** (`/lessons-learned seed`) *imports* **new** lessons from the plugin-shipped portable corpus into a memory root — the two share the word, not a mechanism.
-- **Report:** local file count, disk, `MEMORY.md` lines/bytes + % full, the `$REPO_ROOT` file count (and whether the seed render ran), and a one-line verdict on whether it is over/under budget. **At or above the 17,000 B advisory line, name it and suggest `/lessons-learned tighten`** (the operator-gated projection-shrink pass, run separately from this housekeeping round) as the next step.
+- **Run a trial render on a scratch copy.** A refused render leaves the old `MEMORY.md` in place, so a stale index can still look complete. Copy the store and render the copy (omit `--repo` only when no repo root resolves); the live dir stays untouched:
+
+  ```bash
+  SCRATCH=$(mktemp -d) && cp -R "$MEM" "$SCRATCH/memory" && node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" render-index --local "$SCRATCH/memory" --repo "$REPO_ROOT"
+  ```
+
+  If it refuses, report the refusal and its axis (bytes or lines) now, before Phase 3 plans any edit. Then delete the scratch dir.
+- **Report:** local file count, disk, `MEMORY.md` lines/bytes + % full, the `$REPO_ROOT` file count (and whether the seed render ran), the trial render result, and a one-line verdict on whether it is over/under budget. **At or above the 17,000 B advisory line, name it and suggest `/lessons-learned tighten`** (the operator-gated projection-shrink pass, run separately from this housekeeping round) as the next step.
 
 ### 1 — Backup & stage (the fault-tolerance step)
 
@@ -173,6 +180,8 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" inbound <slug> --loca
 
 Produce the final action plan: the bucketed table (keep / fix-anchor / compress / retire / merge), with the archive list and any hub-downgrades named explicitly.
 
+**Tag every `cross-root dupe`.** A slug hot in both `$STAGING` and `$REPO_ROOT` is a `cross-root dupe`. Mark it so in the plan table, whatever its bucket. A local edit forks it from the committed copy, so Phase 4 skips it.
+
 **Graduation candidates.** From the Phase 2 recurrence trails, list any lesson with **≥ 2 recorded re-triggers whose content describes a machine-checkable invariant** — a greppable pattern, a diff property, an enum mirror, or a string presence. For each, record: the lesson slug, its recurrence count, and a one-line proposed enforcement shape (hook / floor / drift-guard test / lint). A lesson recurring ≥ 2 times but describing a judgment call (no mechanically checkable invariant) is **not** a candidate — leave it out. This subsection is **flag-only**: the housekeeping pass **never implements** the enforcement and **never auto-files** an issue — the operator decides whether anything is built or filed.
 
 - **Report:** the plan table and the hub-downgrade decisions, so the user sees what is about to be archived (the backup makes it reversible, but surface it anyway), plus the graduation-candidates list (or "none").
@@ -181,6 +190,7 @@ Produce the final action plan: the bucketed table (keep / fix-anchor / compress 
 
 Author a `Workflow` over the `keep-compress` + `fix-anchor` + `merge` items (batches of ~5), each agent editing files **in `$STAGING`** and re-verifying against the live repo. Rules every editor must follow:
 
+- **Skip a `cross-root dupe`.** Never edit the staging copy of a slug Phase 3 tagged `cross-root dupe`. Its fix goes to the repo copy in a reviewed PR, or both copies archive together through `/lessons-learned tighten`.
 - **Preserve frontmatter exactly** (`name`, all `metadata.*` including `provenance`, `tags`, `relates`, `created`, `originSessionId`). Touch only the body — except a `fix-anchor` may correct a wrong `files:`/path in frontmatter.
 - **`fix-anchor`:** re-anchor a drifted reference by **named construct** ("the `isHardGateEvidence` declaration in workflow-template.js"), **never a fresh line number** — line numbers rot (this repo's own `plan-line-number-refs-stale-use-construct-locator` lesson). Replace a stale quoted snippet with its current form.
 - **`keep-compress`:** trim to (a) the durable rule stated tightly, (b) a one-line "fixed/landed in `<ref>`" note, (c) surviving `[[cross-links]]` and `**Why:**`/`**How to apply:**`. Cut dated per-release logs, long code snapshots, multi-phase bookkeeping.
@@ -214,7 +224,7 @@ Author a `Workflow` over the `keep-compress` + `fix-anchor` + `merge` items (bat
 CLAUDE_MEMORY_REPO="$REPO_ROOT" bash "${CLAUDE_PLUGIN_ROOT}/skills/lessons-learned/assets/safe-swap.sh" verify "$STAGING"
 ```
 
-Set the `CLAUDE_MEMORY_REPO="$REPO_ROOT"` prefix when the repo root exists (same conditional as the Phase 5 commands; each command block runs in its own shell, so re-resolve `$REPO_ROOT` here rather than assuming live shell state — omit the prefix only when no repo root resolves). It checks: every index row maps to a file (**hard fail**; rows carrying the trailing `[repo]` marker are skipped — their files live in the repo root, not the staged local dir), every file is indexed (warn), no dangling wikilinks (warn — a link resolving into `archive/` is **not** dangling, so archived-slug links are fine; investigate only links to a slug that exists in neither the hot set nor `archive/`), `MEMORY.md` within budget (**hard fail** if over), and — when `CLAUDE_MEMORY_REPO` names a populated repo root — that the projection still carries its `[repo]` rows (**hard fail** if the repo root holds hot lessons but `MEMORY.md` carries zero `[repo]` rows: the wholesale-drop the Phase 5 `--repo` prevents). **If it does not print `VERIFY: PASS`, do NOT swap** — fix `$STAGING` and re-verify. The live store is still pristine, so there is no rush.
+Set the `CLAUDE_MEMORY_REPO="$REPO_ROOT"` prefix when the repo root exists (same conditional as the Phase 5 commands; each command block runs in its own shell, so re-resolve `$REPO_ROOT` here rather than assuming live shell state — omit the prefix only when no repo root resolves). It checks: every index row maps to a file (**hard fail**; rows carrying the trailing `[repo]` marker are skipped — their files live in the repo root, not the staged local dir), every hot topic file has an index row (**hard fail** — clear it by re-rendering with `render-index` to add the row, or by moving a non-lesson `.md` file out of the root), no dangling wikilinks (warn — a link resolving into `archive/` is **not** dangling, so archived-slug links are fine; investigate only links to a slug that exists in neither the hot set nor `archive/`), `MEMORY.md` within budget (**hard fail** if over), and — when `CLAUDE_MEMORY_REPO` names a populated repo root — that the projection still carries its `[repo]` rows (**hard fail** if the repo root holds hot lessons but `MEMORY.md` carries zero `[repo]` rows: the wholesale-drop the Phase 5 `--repo` prevents). **If it does not print `VERIFY: PASS`, do NOT swap** — fix `$STAGING` and re-verify. The live store is still pristine, so there is no rush.
 
 ### 7 — Atomic swap + final report
 
