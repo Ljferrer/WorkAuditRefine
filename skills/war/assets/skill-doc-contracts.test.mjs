@@ -264,8 +264,57 @@ test('D12 — tour step 17 (land-decision.mjs) carries no member count / line-nu
   )
 })
 
-// (D13) Every `.sh` asset invoked in SKILL.md or its eviction-destination references/ files must run
-// under `bash`, never `node` — the scripts are
+// (#2089) The D13 and D14 union scans read skills/war/SKILL.md plus a HAND-KEPT list of
+// skills/war/references/ docs. A hand list fails open: the #2635 eviction home
+// `learnings-publication.md` joined neither scan until an audit caught it. So each scan carries a
+// directory-scan census below: a FLAT `readdirSync` of skills/war/references/, minus the scan list,
+// minus the scan's exemption table (each row with its reason), must be empty, and every listed name
+// must exist. A new references file reds both censuses until it joins a scan list or an exemption
+// table. Both scans list every references doc: each OLD-absent key states a rule that holds on any
+// prose doc, so a doc never needs a reason to be scanned, only to be skipped.
+const WAR_REF_DIR = join(HERE, '..', 'references')
+const WAR_REF_DOCS = [
+  'artifact-evidence-lead.md', 'auditor-teach.md', 'backward-chain-audit.md', 'backward-chain-examples.md',
+  'backward-chain-fix.md', 'backward-chain-worker.md', 'budget-raise-floor.md', 'budget-rebaseline.md',
+  'design.md', 'disposition-eligibility.md', 'docker-gate.md', 'file-followups.md', 'finding-class.md',
+  'fix-round-doctrine.md', 'gastown-design-params.md', 'gate-audit-checklist.md',
+  'gate-failure-classification.md', 'glossary-cold.md', 'late-defects.md', 'late-fix-pass.md',
+  'launch-identity.md', 'learnings-publication.md', 'merge-provenance.md', 'model-routing.md',
+  'pin-transfer.md', 'refiner-recovery.md', 'resume-and-recovery.md', 'retired-token-sweep.md',
+  'run-manifest.md', 'schemas.md', 'setup.md', 'staged-script.md', 'submodule-flows.md',
+  'sweep-exclusion.md', 'touched-doc-accuracy.md', 'worker-servitor-edges.md',
+]
+const D13_SCAN = WAR_REF_DOCS
+const D14_SCAN = WAR_REF_DOCS
+const D13_EXEMPT = [
+  ['schemas-manifest.test.sh', 'a shell test suite, not a prose doc: it greps schemas.md and states no doctrine'],
+]
+const D14_EXEMPT = [
+  ['schemas-manifest.test.sh', 'a shell test suite, not a prose doc: it states no docker-gate doctrine'],
+]
+const readRefDoc = (name) => readFileSync(join(WAR_REF_DIR, name), 'utf8')
+const assertRefCensus = (scan, scanName, exempt) => {
+  const entries = readdirSync(WAR_REF_DIR, { withFileTypes: true })
+  assert.ok(entries.length > 20, 'skills/war/references/ did not list (non-vacuity floor)')
+  assert.ok(entries.every((e) => e.isFile()), 'skills/war/references/ gained a subdirectory, which this flat census cannot classify')
+  const names = entries.map((e) => e.name)
+  for (const [name, reason] of exempt) {
+    assert.ok(typeof reason === 'string' && reason.length > 20, `${scanName} exemption \`${name}\` must carry a reason`)
+    assert.ok(!scan.includes(name), `${scanName}: \`${name}\` is both scanned and exempt — pick one`)
+  }
+  const listed = new Set([...scan, ...exempt.map(([name]) => name)])
+  for (const name of listed) assert.ok(names.includes(name), `${scanName} lists \`${name}\`, which is not in skills/war/references/ — drop the stale row`)
+  const remainder = names.filter((n) => !listed.has(n))
+  assert.deepEqual(
+    remainder,
+    [],
+    `skills/war/references/ files in neither the ${scanName} scan list nor its exemption table: ` +
+      `${remainder.join(', ')} — add each to the scan list, or exempt it with a reason (#2089)`,
+  )
+}
+
+// (D13) Every `.sh` asset invoked in SKILL.md or any skills/war/references/ doc (the D13_SCAN list,
+// census-bound above) must run under `bash`, never `node` — the scripts are
 // `#!/usr/bin/env bash`, so a `node <script>.sh` invocation SyntaxErrors on every Setup, Gate-2, and
 // manual-land call (#741). The riskiest exposure is the Checkpoint/escalation land recipes: a
 // SyntaxError on `land-advance` tempts a Lead into the raw `git push` those recipes exist to prevent.
@@ -275,16 +324,12 @@ test('D12 — tour step 17 (land-decision.mjs) carries no member count / line-nu
 // co-occurring in prose (a `.mjs` helper followed later by `*.test.sh` never matches, since `\S*`
 // cannot cross the space between them). The `bash`-prefixed presence companion is anti-vacuous — no
 // other D-series guard locks the land recipes' presence, so a wholesale deletion would otherwise pass.
-test('D13 — SKILL.md and its eviction destinations invoke every .sh asset with bash, never node (#741)', () => {
+test('D13 — SKILL.md and every skills/war/references/ doc invoke every .sh asset with bash, never node (#741)', () => {
   // UNION scan (adjudication I): the OLD-absent invocation-shape key covers the origin surface plus
-  // every eviction destination, so a moved recipe can never re-shelter a `node …*.sh` invocation.
+  // every references doc, so a moved recipe can never re-shelter a `node …*.sh` invocation.
   for (const [name, text] of [
     ['SKILL.md', skillMd],
-    ['references/setup.md', setupRefMd],
-    ['references/docker-gate.md', dockerMd],
-    ['references/submodule-flows.md', submoduleMd],
-    ['references/resume-and-recovery.md', resumeMd],
-    ['references/learnings-publication.md', publicationMd],
+    ...D13_SCAN.map((n) => [`references/${n}`, readRefDoc(n)]),
   ]) {
     const nodeSh = text.match(/node\s+\S*\.sh\b/)
     assert.ok(
@@ -305,6 +350,10 @@ test('D13 — SKILL.md and its eviction destinations invoke every .sh asset with
   )
 })
 
+test('D13 directory-scan census — every skills/war/references/ file joins the bash-not-node scan or its exemption table (#2089)', () => {
+  assertRefCensus(D13_SCAN, 'D13', D13_EXEMPT)
+})
+
 // (D14) The Setup step-3 "Daemon reachable" docker bullet must not attribute the platform-signature
 // list to the gate-time classifier (#799): the signature list governs ONLY Setup-time per-image
 // probe-build deferral, whereas the gate-time `gate_failure_class` is produced by the refiner
@@ -317,13 +366,14 @@ test('D13 — SKILL.md and its eviction destinations invoke every .sh asset with
 // whole-file presence check) and asserts the three signatures survive — so deleting the bullet fails
 // loudly instead of passing vacuously.
 test('D14 — docker bullet does not misattribute the signature list to the gate-time classifier (#799)', () => {
-  // UNION on the OLD-absent misattribution clause (adjudication I); the bullet itself moved
-  // verbatim into references/docker-gate.md, so the extraction read relocates there.
-  for (const text of [skillMd, setupRefMd, dockerMd, submoduleMd, resumeMd, publicationMd]) {
+  // UNION on the OLD-absent misattribution clause (adjudication I) over SKILL.md and the D14_SCAN
+  // list (census-bound above); the bullet itself moved verbatim into references/docker-gate.md, so
+  // the extraction read relocates there.
+  for (const [name, text] of [['SKILL.md', skillMd], ...D14_SCAN.map((n) => [`references/${n}`, readRefDoc(n)])]) {
     assert.doesNotMatch(
       text,
       /signature list is what the gate-time classifier keys on/i,
-      'the docker prose still couples the platform-signature list to the gate-time classifier ' +
+      `${name}: the docker prose still couples the platform-signature list to the gate-time classifier ` +
         '(#799 misattribution) — the list governs only Setup-time probe-build deferral',
     )
   }
@@ -335,6 +385,10 @@ test('D14 — docker bullet does not misattribute the signature list to the gate
       `the **Daemon reachable** bullet must still name the platform signature "${sig}"`,
     )
   }
+})
+
+test('D14 directory-scan census — every skills/war/references/ file joins the misattribution scan or its exemption table (#2089)', () => {
+  assertRefCensus(D14_SCAN, 'D14', D14_EXEMPT)
 })
 
 // (D15) The 2026-06-25 §5.3 land-phase CAS prose was corrected by the #804 prose-drift pass: the
@@ -910,7 +964,9 @@ test('2485/T5.1 de-mirror — manifest top-level fields live in run-manifest.md;
 // /war-review carries the basename-vs-workflowRunId warning.
 test('doc-truth (T1.2) — relaunch arm, followUps literal, overrule clause, relaunch pointer, war-review warning (#1916, #1793, #1886)', () => {
   // run-manifest.md: the relaunch section carries the pair rule, attempts[], and the summed counts.
-  const relaunch = runManifestMd.match(/^## Relaunch[\s\S]*$/m)
+  // Bounded at the next `## ` heading (#2121): a section that ran to end of file would let a later
+  // section satisfy a key on its behalf.
+  const relaunch = runManifestMd.match(/^## Relaunch[\s\S]*?(?=\n## )/m)
   assert.ok(relaunch, 'could not locate the `## Relaunch` section in run-manifest.md — construct rotted')
   const r = norm(relaunch[0])
   assert.match(r, /Checkpoint on-return reminder/, 'the Relaunch section must span its Checkpoint on-return reminder — extraction truncated (non-vacuity floor)')
@@ -1753,8 +1809,8 @@ test('D27 — SKILL.md Lead evidence bindings paragraph carries the §4.4 skelet
 // [[spec-non-goal-citation-of-a-doctrines-home-file-can-be-wrong]] rot class D19 exists for.
 // Per compressed entry, two halves: (a) the glossary entry keeps its definition anchors plus the
 // trigger clause naming its destination path; (b) the destination still carries the delegated
-// doctrine's tokens, extracted BY CONSTRUCT from its own heading to EOF (submodule-flows.md's
-// section is its file's trailing section; the resume-and-recovery.md match deliberately spans the
+// doctrine's tokens, extracted BY CONSTRUCT from its own heading to the next `## ` heading or end
+// of input (submodule-flows.md's section is its file's trailing section; the resume-and-recovery.md match deliberately spans the
 // Recovery-relaunch subsection plus the held-partial-phase runbook — see the recDest comment)
 // — never a whole-file scan. Delete-and-trace: re-home or gut a
 // destination section and its (b) reds while GLOSSARY.md still points at it; drop a pointer or a
@@ -1782,7 +1838,7 @@ test('D28 — GLOSSARY.md compressed glossary entries keep definition + trigger 
         'sanctioned rewording, never drop the anchor to make a reword pass',
     )
   }
-  const subDest = submoduleMd.match(/^## `held:submodule-pr` sub-procedure[\s\S]*$/m)
+  const subDest = submoduleMd.match(/^## `held:submodule-pr` sub-procedure[\s\S]*?(?=\n## |(?![\s\S]))/m)
   assert.ok(
     subDest,
     'references/submodule-flows.md no longer carries the `## `held:submodule-pr` sub-procedure` ' +
@@ -1823,9 +1879,9 @@ test('D28 — GLOSSARY.md compressed glossary entries keep definition + trigger 
         'sanctioned rewording, never drop the anchor to make a reword pass',
     )
   }
-  // Heading → EOF: the pointer delegates to the whole playbook (the Recovery relaunch subsection
+  // Heading → next `## ` heading: the pointer delegates to the whole playbook (the Recovery relaunch subsection
   // plus the held-partial-phase runbook that carries orphan adoption + reclaimStaleRemote arming).
-  const recDest = resumeMd.match(/^### Recovery relaunch\n[\s\S]*$/m)
+  const recDest = resumeMd.match(/^### Recovery relaunch\n[\s\S]*?(?=\n## )/m)
   assert.ok(
     recDest,
     'references/resume-and-recovery.md no longer carries the `### Recovery relaunch` section — ' +
@@ -3568,7 +3624,7 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
   )
 })
 
-// (D43) THE RE-ENTRY / ABSORB-BUDGET BOUNDARY IN ITS THREE LIVING-DOC HOMES (#1812; plan
+// (D43) THE RE-ENTRY / ABSORB-BUDGET BOUNDARY IN EVERY LIVING-DOC HOME (#1812, #1958; plan
 // 2026-08-27-in-run-finding-resolution, D10 · Task 3; re-keyed by plan
 // 2026-09-03-in-band-absorb-default, D5 · Task 2.2). The 2026-08-27 ADR 0013 amendment retired the
 // ace ladder's budget-exhaustion stop condition in favour of budget-bounded re-entry bounded by the
@@ -3576,45 +3632,96 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
 // in favour of the per-task absorb budget (`absorbRounds < run.absorbRounds`, PIN-7). #1812's drift
 // was silent precisely because NO row carried the token, so each flip ships the guard: this row
 // binds the CURRENT boundary prose on every LIVING doc home — SKILL.md's `--ace` bullet,
-// GLOSSARY.md's **Ace bisection** glossary row, and design.md §18's disposition-routing bullet —
-// plus the retired literals' absence on those same surfaces.
+// GLOSSARY.md's **Ace bisection** glossary row, design.md §18's disposition-routing bullet, and
+// schemas.md's `aced` comment (#1958) — plus the retired literals' absence on the surfaces that
+// carried them (schemas.md never did, so it joins the per-home demote key only).
+// The schemas.md home carries the scoped re-entry wording ADR 0013 names for it (the three
+// wave-side sources re-enter under the budget; the merge-slot pin-transfer mismatch re-audit and
+// the later sources route to the sweep instead), not the bisection remainder, so its row binds that
+// wording on its own key set (`SCOPED_KEYS`) beside the shared arithmetic and re-entry keys.
 //
-// ADR 0013 IS A FOURTH HOME, with no exemption. The living-ADR law (ADR 0063) folded the dated
-// 2026-08-20, 2026-08-27 and 2026-09-03 amendments into ADR 0013's Decision as current law, so the
-// retired budget-exhaustion and reserve literals are OLD-absent there too, scoped to the ADR's
-// body (`adr0013Body`): the Considered options and the Decision log are records that may name a
-// retired rule, and Consequences and References are body. The final block below binds the folded `### The absorb
-// budget` section to the same arithmetic and sweep route the three living-doc homes carry.
+// ADR 0013 is a living-doc home as well, with no exemption. The living-ADR law (ADR 0063) folded
+// the dated 2026-08-20, 2026-08-27 and 2026-09-03 amendments into ADR 0013's Decision as current
+// law, so the retired budget-exhaustion and reserve literals are OLD-absent there too, scoped to the
+// ADR's body (`adr0013Body`): the Considered options and the Decision log are records that may name
+// a retired rule, and Consequences and References are body. The final block below binds the folded
+// `### The absorb budget` section to the same arithmetic and sweep route the other living-doc homes
+// carry.
 //
-// Extraction is BY CONSTRUCT on all three surfaces (the D35 idiom — never line numbers, which rot
-// across the serial merge queue): the `--ace` bullet → next top-level `- **` bullet; the bolded
+// Extraction is BY CONSTRUCT on every `HOMES` surface (the D35 idiom — never line numbers, which
+// rot across the serial merge queue): the `--ace` bullet → next top-level `- **` bullet; the bolded
 // glossary term → next bolded term or `###` heading; §18's disposition-routing bullet → next
-// `- **` or `##` heading. Each extraction must span its own tail marker (D26's non-vacuity floor —
-// a truncated extraction reds instead of trivially passing). Keys are token-anchored `/…/i` forms,
-// not sentence bytes: sanctioned rewording latitude on any home must not false-red; a one-sided
-// edit (one home re-authored, another left on the retired boundary) reds.
-test('D43 — the re-entry / absorb-budget boundary is present in all three living-doc homes and the retired budget-exhaustion and reserve literals are gone (#1812; reserve-retired)', () => {
+// `- **` or `##` heading; the schemas.md `aced: [ { task, finding, sha } ]` line → the next
+// two-space-indented ledger key. Each extraction must span its own tail marker (D26's non-vacuity
+// floor — a truncated extraction reds instead of trivially passing). Keys are token-anchored `/…/i`
+// forms, not sentence bytes: sanctioned rewording latitude on any home must not false-red; a
+// one-sided edit (one home re-authored, another left on the retired boundary) reds.
+test('D43 — the re-entry / absorb-budget boundary is present in every living-doc home and the retired budget-exhaustion and reserve literals are gone (#1812, #1958; reserve-retired)', () => {
+  const BUDGET_KEYS = [
+    [/re-entry/i, 'the budget-bounded re-entry token'],
+    [/absorbRounds\s*<\s*run\.absorbRounds/, 'the budget arithmetic (`absorbRounds < run.absorbRounds`)'],
+  ]
+  const LADDER_KEYS = [
+    [/absorb budget/i, 'the absorb-budget stop condition'],
+    ...BUDGET_KEYS,
+    // The three token keys above are all satisfied by a re-entry sentence ALONE, so a home can
+    // carry them while stating the ladder's OPPOSITE semantics for the bisection remainder. The
+    // engine's arm (`aceBisect`: `if (r.task.absorbRounds >= absorbRounds) … routeToSweep(f, …)`
+    // over the still-queued subsets) routes those subsets to the phase-close sweep as absorbs —
+    // never `follow-up`, never a demotion (D5: only a subset that failed its own re-audit
+    // demotes). This key binds that arm's route: the budget stop must be stated as sending the
+    // still-queued/remaining subsets to the sweep, in either clause order.
+    [
+      /(subsets still queued|still-queued subsets|remaining subsets)[\s\S]{0,160}?sweep|sweep[\s\S]{0,160}?(subsets still queued|still-queued subsets|remaining subsets)/i,
+      'the bisection budget-stop sweep route (a spent absorb budget mid-bisection sends the ' +
+        'still-queued subsets to the sweep as absorbs — never demotes them)',
+    ],
+  ]
+  // The schemas.md home's scoped wording (ADR 0013 `### Budget-bounded ace re-entry…`: "A fourth
+  // re-audit source never re-enters"): a fresh absorb born at a wave-side re-audit re-enters, and
+  // the pin-transfer mismatch re-audit's absorbs route to the sweep instead.
+  const SCOPED_KEYS = [
+    ...BUDGET_KEYS,
+    [/born at a wave-side re-audit/i, 'the wave-side re-entry source scope'],
+    [/pin-transfer mismatch re-audit[\s\S]{0,240}?route to the sweep instead/i, 'the mismatch re-audit sweep route (never re-entry)'],
+    // The budget stop on this home: the token keys above pass on a clause that demotes instead.
+    [
+      /spent budget routes[\s\S]{0,80}?sweep/i,
+      'the spent-budget sweep route (a spent absorb budget routes the rows to the phase-close ' +
+        'sweep as absorbs, never demotes them)',
+    ],
+  ]
   const HOMES = [
     [
       'skills/war/SKILL.md `--ace` bullet',
       skillMd.match(/^ {2}- \*\*`--ace`[\s\S]*?(?=\n- \*\*)/m),
       '`  - **`--ace`` → next top-level `- **` bullet',
       [/Residual rule/, 'its `Residual rule:` tail'],
+      LADDER_KEYS,
     ],
     [
       'GLOSSARY.md **Ace bisection** glossary row',
       glossaryMd.match(/^\*\*Ace bisection\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m),
       'bolded term → next bolded term or `###` heading',
       [/_Avoid_/, 'its `_Avoid_` line'],
+      LADDER_KEYS,
     ],
     [
       'skills/war/references/design.md §18 disposition-routing bullet',
       designRefMd.match(/^- \*\*Disposition routing \(ADR 0013\)[\s\S]*?(?=\n- \*\*|\n## )/m),
       '`- **Disposition routing (ADR 0013)` → next `- **` or `##` heading',
       [/orchestrator backstop/, 'its orchestrator-backstop tail'],
+      LADDER_KEYS,
+    ],
+    [
+      'skills/war/references/schemas.md `aced` comment',
+      schemasMd.match(/^ {2}aced: \[ \{ task, finding, sha \} \],[\s\S]*?(?=\n {2}[A-Za-z]\w*[:,])/m),
+      '`  aced: [ { task, finding, sha } ],` → next two-space-indented ledger key',
+      [/Canonical: `aceStage` \/ `aceBisect` \/ `aceReentry`/, 'its `aceStage` / `aceBisect` / `aceReentry` canonical tail'],
+      SCOPED_KEYS,
     ],
   ]
-  for (const [name, m, construct, [tail, tailWhat]] of HOMES) {
+  for (const [name, m, construct, [tail, tailWhat], keys] of HOMES) {
     assert.ok(m, `could not locate the ${name} (${construct}) — the extraction construct rotted`)
     const text = norm(m[0])
     assert.match(
@@ -3623,23 +3730,7 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
       `the extracted ${name} must span ${tailWhat} — extraction truncated (a short read would ` +
         'satisfy the keys below vacuously)',
     )
-    for (const [key, what] of [
-      [/absorb budget/i, 'the absorb-budget stop condition'],
-      [/re-entry/i, 'the budget-bounded re-entry token'],
-      [/absorbRounds\s*<\s*run\.absorbRounds/, 'the budget arithmetic (`absorbRounds < run.absorbRounds`)'],
-      // The three token keys above are all satisfied by a re-entry sentence ALONE, so a home can
-      // carry them while stating the ladder's OPPOSITE semantics for the bisection remainder. The
-      // engine's arm (`aceBisect`: `if (r.task.absorbRounds >= absorbRounds) … routeToSweep(f, …)`
-      // over the still-queued subsets) routes those subsets to the phase-close sweep as absorbs —
-      // never `follow-up`, never a demotion (D5: only a subset that failed its own re-audit
-      // demotes). This key binds that arm's route: the budget stop must be stated as sending the
-      // still-queued/remaining subsets to the sweep, in either clause order.
-      [
-        /(subsets still queued|still-queued subsets|remaining subsets)[\s\S]{0,160}?sweep|sweep[\s\S]{0,160}?(subsets still queued|still-queued subsets|remaining subsets)/i,
-        'the bisection budget-stop sweep route (a spent absorb budget mid-bisection sends the ' +
-          'still-queued subsets to the sweep as absorbs — never demotes them)',
-      ],
-    ]) {
+    for (const [key, what] of keys) {
       assert.match(
         text,
         key,
@@ -3683,8 +3774,8 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
     )
   }
   // The ADR 0013 home, positive half: the folded `### The absorb budget` section (the 2026-09-03
-  // amendment, ADR 0063) states the same arithmetic and the same bisection sweep route as the three
-  // living-doc homes. Extract from the RAW text (norm() strips '#', so headings do not survive it),
+  // amendment, ADR 0063) states the same arithmetic and the same bisection sweep route as the
+  // LADDER_KEYS homes. Extract from the RAW text (norm() strips '#', so headings do not survive it),
   // heading to the next `###` or `##`, then normalize the span.
   const budget = adr0013.match(/^### The absorb budget(?:(?!\n#{2,3} )[\s\S])*/m)
   assert.ok(budget && budget[0].length > 200, 'ADR 0013: the `### The absorb budget` section did not extract (non-vacuity guard)')
@@ -4639,24 +4730,42 @@ test('D17 (2026-09-06 engine-and-audit-verdict-integrity plan) — the split bou
   assert.match(norm(resumeMd), /escalated\[\]` record carries a seat's `escalate_reason` \(a \*\*decision-forked\*\* blocking finding/, "resume-and-recovery.md's step-1 adjudication arm must read a seat's escalate_reason as plan-shaped (D18)")
   assert.match(norm(warReviewSkillMd), /Two-sided boundary/, "war-review's grind row must be re-pointed at the two-sided boundary (D18)")
   // ADR 0013 — Decision 4 edited in place (the living-ADR ruling) and the dated Decision-log line.
-  assert.match(norm(adr0013Body), /blockers ALL carry a concrete in-file `suggested_fix`/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
+  // The key reads Decision 4 alone, extracted by its numbered item (#2266): the whole body would let
+  // another section satisfy it.
+  const d4 = adr0013Body.match(/\n4\. \*\*Findings route[\s\S]*?(?=\n5\. \*\*)/)
+  assert.ok(d4, 'could not locate ADR 0013 Decision 4 (`4. **Findings route` → `5. **`) — the construct rotted (non-vacuity floor)')
+  assert.ok(d4[0].length < adr0013Body.length, 'ADR 0013 Decision 4 extraction is the whole body — the item bound failed (non-vacuity floor)')
+  assert.match(norm(d4[0]), /blockers ALL carry a concrete in-file `suggested_fix`/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
   assert.match(adr0013, /^## Decision log$/m, 'ADR 0013 must carry a `## Decision log` section (the 2026-09-06 living-ADR ruling)')
   assert.match(adr0013, /^- 2026-09-08 · Decision 4 edited in place/m, "ADR 0013's Decision log must carry the dated Task 11.2 line")
 })
 
-// (D17 sibling, Task 11.2 a6 re-entry) design.md §4 step 3 is the sole prose home of the default
-// roster's enumerated lens list since the ADR 0042 eviction off skills/war/SKILL.md. war-config.mjs's
-// header rule: every prose surface restating a DEFAULTS value carries a pin row. This row binds the
-// parenthesized list to `DEFAULTS.audit.roster` so a default-roster flip reds the doc
-// (default-flip-must-audit-all-doc-surfaces).
-test('D17 sibling — design.md §4 step 3 restates DEFAULTS.audit.roster verbatim (five lenses at deep)', () => {
+// (D17 sibling, Task 11.2 a6 re-entry; widened by #2276) The default roster's enumerated lens list
+// is restated on design.md §4 step 3, README.md's **Audits** bullet and design.md decision row 16
+// (Lens catalog). war-config.mjs's header rule: every prose surface restating a DEFAULTS value
+// carries a pin row. This row binds each surface's list to `DEFAULTS.audit.roster` so a
+// default-roster flip reds every doc (default-flip-must-audit-all-doc-surfaces).
+test('D17 sibling — design.md §4 step 3, README.md Audits bullet and design.md row 16 restate DEFAULTS.audit.roster on all three surfaces (five lenses at deep)', () => {
+  const cfg = DEFAULTS.audit.roster
+  const lenses = cfg.map((r) => r.lens)
+  assert.equal(cfg.length, 5, 'the surfaces say `five` — DEFAULTS.audit.roster must carry five entries')
+  assert.ok(cfg.every((r) => r.depth === 'deep'), 'design.md §4 step 3 and README.md say `at `deep`` — every DEFAULTS.audit.roster entry must be depth `deep`')
+  // design.md §4 step 3.
   const m = designRefMd.match(/The default roster is five seats \(([^)]+)\) at `deep`/)
   assert.ok(m, 'could not locate `The default roster is five seats (...) at `deep`` in design.md §4 step 3 — construct rotted')
-  const doc = m[1].split(' / ').map((l) => l.trim())
-  const cfg = DEFAULTS.audit.roster
-  assert.deepEqual(doc, cfg.map((r) => r.lens), 'design.md §4 step 3\'s lens list must equal DEFAULTS.audit.roster in order (war-config.mjs)')
-  assert.equal(cfg.length, 5, 'design.md says `five seats` — DEFAULTS.audit.roster must carry five entries')
-  assert.ok(cfg.every((r) => r.depth === 'deep'), 'design.md says `at `deep`` — every DEFAULTS.audit.roster entry must be depth `deep`')
+  assert.deepEqual(m[1].split(' / ').map((l) => l.trim()), lenses, 'design.md §4 step 3\'s lens list must equal DEFAULTS.audit.roster in order (war-config.mjs)')
+  // README.md — the `- **Audits** —` bullet (by construct: the bullet line), then its default-roster clause.
+  const audits = readmeMd.match(/^\s*- \*\*Audits\*\* —[^\n]*/m)
+  assert.ok(audits, 'could not locate the `- **Audits** —` bullet in README.md — construct rotted')
+  const r = audits[0].match(/the default roster is the five-seat set in `DEFAULTS\.audit\.roster` \(([^)]+)\) at `deep`/)
+  assert.ok(r, 'could not locate `the default roster is the five-seat set in `DEFAULTS.audit.roster` (...) at `deep`` in the README.md Audits bullet — construct rotted')
+  assert.deepEqual(r[1].split(',').map((l) => l.trim().replace(/^`|`$/g, '')), lenses, 'the README.md Audits bullet\'s lens list must equal DEFAULTS.audit.roster in order (#2276)')
+  // design.md decision row 16 (Lens catalog).
+  const row16 = designRefMd.match(/^\| 16 \| Lens catalog \|[^\n]*/m)
+  assert.ok(row16, 'could not locate the `| 16 | Lens catalog |` row in design.md — construct rotted')
+  const d = row16[0].match(/the default five \(([^)]+)\)/)
+  assert.ok(d, 'could not locate `the default five (...)` in design.md row 16 — construct rotted')
+  assert.deepEqual(d[1].split('/').map((l) => l.trim()), lenses, 'design.md row 16\'s lens list must equal DEFAULTS.audit.roster in order (#2276)')
 })
 
 // (D20, Task 12.2 — release-slot eligibility by literal, not by file; #2000, PIN-24) The NEW rule
@@ -4670,13 +4779,19 @@ test('D17 sibling — design.md §4 step 3 restates DEFAULTS.audit.roster verbat
 // slot` sentence there, so the decisive assert is the NEW rule beside the unchanged
 // `barrier:release-slot` bullet. The barrier bullet itself stays byte-stable: `plugin.json` /
 // `marketplace.json` only.
-test('D20 — release-slot eligibility by literal: eligibility absorb block, GLOSSARY.md Version-literal guard and Disposition entries, ADR 0013 Decision 5 + log line, and the retired SKILL.md `--ace` routing clause', () => {
+test('D20 — release-slot eligibility by literal: eligibility absorb block (its RELEASE_SLOT_FILES key scoped to the Release-slot eligibility sentence), GLOSSARY.md Version-literal guard and Disposition entries, ADR 0013 Decision 5 + log line, and the retired SKILL.md `--ace` routing clause', () => {
   const block = eligibilityRef.match(/`disposition:'absorb'`[\s\S]*?(?=\n\n|\n- )/)
   assert.ok(block, "could not locate the `disposition:'absorb'` block in disposition-eligibility.md — construct rotted")
   const b = norm(block[0])
+  // #2288: the block's first paragraph already names `RELEASE_SLOT_FILES` (the orchestrator's
+  // release-slot refusal), so a whole-block key passes even if the D20 sentence drops its de-mirror.
+  // The key reads the first sentence after the bold `Release-slot eligibility by literal` label.
+  const slot = b.match(/\*\*Release-slot eligibility by literal[^*]*\*\* ([\s\S]*?\.)(?= |$)/)
+  assert.ok(slot, 'could not locate the `**Release-slot eligibility by literal …**` sentence inside the absorb blockquote — construct rotted (non-vacuity floor)')
+  assert.match(slot[1], /refuse by filename/, 'the extracted Release-slot eligibility sentence must span its `refuse by filename` clause — extraction truncated (non-vacuity floor)')
+  assert.match(slot[1], /`RELEASE_SLOT_FILES`/, 'the Release-slot eligibility sentence must name the de-mirrored basename source `RELEASE_SLOT_FILES` (D20, #2288)')
   for (const [re, what] of [
     [/version literal/i, 'the by-literal rule (`version literal`)'],
-    [/`RELEASE_SLOT_FILES`/, 'the de-mirrored basename source `RELEASE_SLOT_FILES`'],
     [/`version-slots\.test\.mjs`/, 'the merge guard `version-slots.test.mjs`'],
     [/CHANGELOG head heading/, 'the CHANGELOG head-heading literal'],
     [/`## Status`/, 'the README `## Status` token'],
@@ -4708,9 +4823,16 @@ test('D20 — release-slot eligibility by literal: eligibility absorb block, GLO
   // ADR 0013 — Decision 5 edited in place (the living-ADR ruling) and the dated Decision-log line.
   assert.ok(adr0013Body.length < adr0013.length, "ADR 0013: the record sections were not removed — the body cannot be scoped (fail closed)")
   assert.ok(adr0013Body.length > 2000, 'ADR 0013: the body (records removed) did not extract (non-vacuity guard)')
-  assert.match(norm(adr0013Body), /Release-slot eligibility is otherwise by literal, not by file/, 'ADR 0013 Decision 5 must carry the in-place by-literal rule (D20; no dated amendment)')
-  assert.match(norm(adr0013Body), /`version-slots\.test\.mjs`/, 'ADR 0013 Decision 5 must name `version-slots.test.mjs` as the merge guard')
-  assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(norm(adr0013Body)), "ADR 0013 Decision 5's retired file-based routing sentence must be gone (OLD-absent, in-place edit)")
+  // The Decision 5 keys read Decision 5 alone, extracted by its numbered item (#2266).
+  const d5 = adr0013Body.match(/\n5\. \*\*[\s\S]*?(?=\n6\. \*\*)/)
+  assert.ok(d5, 'could not locate ADR 0013 Decision 5 (`5. **` → `6. **`) — the construct rotted (non-vacuity floor)')
+  assert.ok(d5[0].length < adr0013Body.length, 'ADR 0013 Decision 5 extraction is the whole body — the item bound failed (non-vacuity floor)')
+  const d5n = norm(d5[0])
+  assert.match(d5n, /Release-slot eligibility is otherwise by literal, not by file/, 'ADR 0013 Decision 5 must carry the in-place by-literal rule (D20; no dated amendment)')
+  assert.match(d5n, /`version-slots\.test\.mjs`/, 'ADR 0013 Decision 5 must name `version-slots.test.mjs` as the merge guard')
+  assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(d5n), "ADR 0013 Decision 5's retired file-based routing sentence must be gone (OLD-absent, in-place edit)")
+  // OLD-absent keys keep the whole-body scope too: a narrow scope would let the retired sentence return elsewhere.
+  assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(norm(adr0013Body)), "ADR 0013's retired file-based routing sentence must be gone from the whole body, not only Decision 5 (OLD-absent)")
   assert.match(adr0013, /^- 2026-09-08 · Decision 5 edited in place/m, "ADR 0013's Decision log must carry the dated Task 12.2 line")
   // SKILL.md — the `--ace` bullet's file-based routing clause is retired (OLD-absent, present at ffb3ab6).
   assert.ok(!/or a release-slot filename routes to the/.test(norm(skillMd)), "skills/war/SKILL.md's `--ace` bullet must no longer route by release-slot filename (OLD-absent; D20)")
@@ -5368,7 +5490,8 @@ test('doc-truth-pins — the seat-conflict posture, design.md §18 and the Check
 })
 
 // (End state 8, #2136, #2231, #2242, #2175) The stale schemas.md literals stay gone: the producer
-// count, the site-less ace label, the future-tense clauses and the A4 hedge.
+// count, the site-less ace label, the future-tense clauses and the A4 hedge. The A4 hedge also
+// stays out of resume-and-recovery.md (#2880).
 test('doc-truth-pins — schemas.md carries none of the stale producer, ace-label, tense or hedge literals', () => {
   assert.ok(schemasMd.length > 100000, 'schemas.md did not read (non-vacuity floor)')
   for (const [re, what] of [
@@ -5378,6 +5501,7 @@ test('doc-truth-pins — schemas.md carries none of the stale producer, ace-labe
     [/A4 latitude/, 'the A4 hedge (#2175)'],
     [/produced once/, 'the future-tense producer clause (#2242)'],
   ]) assert.doesNotMatch(schemasMd, re, `schemas.md still carries ${what}`)
+  assert.doesNotMatch(resumeMd, /A4 latitude/, 'resume-and-recovery.md still carries the A4 hedge (#2880, #2175)')
 })
 
 // ---- pst T1.5 (plan 2026-11-08-pipeline-skills-and-memory-tooling, PIN-14 to PIN-18, PIN-27 to
