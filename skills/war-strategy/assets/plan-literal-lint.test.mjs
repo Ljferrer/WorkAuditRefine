@@ -950,6 +950,26 @@ test('pst T1.2: a heading right after an unclosed Trials block ends the skip', (
   assert.deepEqual(hits.map((h) => h.match), ['0.21.47']);
 });
 
+test('pst T1.2: a prose mention of the Trials label opens no Trials block', () => {
+  const plan = [
+    '### Task 2.1: Release version bump',
+    'The `**Trials run**` block lists each trial.',
+    '- Plan slice: bump to 0.21.47',
+  ].join('\n');
+  assert.equal(countOf(lint(plan), 'hardcoded-version'), 1);
+});
+
+test('pst T1.2: a Trials label inside a fence opens no Trials block', () => {
+  const plan = [
+    '### Task 2.1: Release version bump',
+    '```',
+    '**Trials run** — one row per trial:',
+    '```',
+    '- Plan slice: bump to 0.21.47',
+  ].join('\n');
+  assert.equal(countOf(lint(plan), 'hardcoded-version'), 1);
+});
+
 test('pst T1.2: a fence closes only on a bare run of its own character at least as long as its opener', () => {
   // Each inner line looks like a delimiter but must not close the fence, so the literal stays fenced.
   const inners = ['```', '```js', '~~~~', '````js', '``` x'];
