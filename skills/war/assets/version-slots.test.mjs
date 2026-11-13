@@ -392,7 +392,9 @@ function assertScope(verdict, label) {
 
 function liveStatusParagraph() {
   const readme = readFileSync(join(repoRoot, 'README.md'), 'utf8')
-  const body = readme.slice(readme.indexOf('\n## Status\n') + '\n## Status\n'.length)
+  const idx = readme.indexOf('\n## Status\n')
+  assert.notEqual(idx, -1, 'README.md has no `## Status` heading — extraction is fail-closed')
+  const body = readme.slice(idx + '\n## Status\n'.length)
   const end = body.indexOf('\nEarlier release notes live in')
   return (end === -1 ? body : body.slice(0, end)).trim()
 }
