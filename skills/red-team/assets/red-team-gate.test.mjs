@@ -933,7 +933,8 @@ test('doc-guard 5.5(d): the retired per-blocker-only ROUNDS accounting wording i
   assert.match(step5, /re-verify\s+attempts/i, 'the replacement unit (re-verify attempts) must be present — proves the extraction grabbed the real Step 5')
   // The retired accounting spent "rounds" as the per-blocker unit ("≤ 2 rounds per blocker",
   // "same bounded ≤ 2 rounds", "survives 2 re-verify rounds"); Phase 4 renamed that unit to
-  // "re-verify attempts" so "round" carries exactly one meaning in the step (a full grill sweep).
+  // "re-verify attempts" so the per-blocker unit never reuses "round" (a round is a full grill
+  // sweep, plus the routed-run exception stated in Step 5 and ADR 0045 Decision item 1).
   for (const [name, re] of [
     ['rounds per blocker', /rounds\s+per\s+blocker/i],
     ['re-verify rounds', /re-verify\s+rounds/i],
@@ -1094,7 +1095,7 @@ test('pst T1.1: Step 3 runs ensure-exclude "$MAIN" on the main checkout before t
 })
 
 test('pst T1.1: the trial-replay probe is in the lenses.md catalog and Step 2 makes it mandatory', () => {
-  assert.match(LENSES, /^\| [^|\n]*\*\*Trials run\*\*[^|\n]*\| `trial-replay` \| executed \|[^\n]*fresh clone[^\n]*`base:`[^\n]*Major[^\n]*inconclusive[^\n]*Check/m,
+  assert.match(LENSES, /^\| [^|\n]*\*\*Trials run\*\*[^|\n]*\| `trial-replay` \| executed \|[^\n]*fresh clone[^\n]*`base:`[^\n]*`command:`[^\n]*`observed:`[^\n]*Major[^\n]*inconclusive[^\n]*Check/m,
     'lenses.md catalog must carry the trial-replay executed row with the PIN-4 mechanics')
   assert.match(skillStep(2), /`trial-replay`[^.]{0,200}?mandatory[^.]{0,200}?\*\*Trials run\*\*[^.]{0,200}?settled[^.]{0,200}?inconclusive/i,
     'Step 2 must make trial-replay mandatory for a settled or ledger-backing inconclusive Trials run row')
