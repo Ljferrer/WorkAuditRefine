@@ -241,18 +241,23 @@ test('target-content-paste: flags a decompiler header and a hex-dump run; clean 
 // ===========================================================================
 
 // Every declared shape rule has a name AND slot text naming the merged-template slot it checks.
-test('SHAPE_RULES: ten named rules; each rule text names the merged-template slot it checks', () => {
-  assert.equal(SHAPE_RULES.length, 10);
+test('SHAPE_RULES: twelve named rules; each rule text names the merged-template slot it checks', () => {
+  assert.equal(SHAPE_RULES.length, 12);
   assert.deepEqual(
     SHAPE_RULES.map((r) => r.name).sort(),
     [
       'evidence-consumed-form', 'missing-assumptions-ledger', 'pin-citation',
-      'requires-test-without-done-when', 'single-signal-oracle', 'twice-read-inventory',
+      'release-requires-test-no-test-file', 'requires-test-without-done-when', 'single-signal-oracle',
+      'twice-read-inventory', 'twice-read-unparsed',
       'untagged-context-claim', 'untagged-end-state', 'vague-end-state', 'waive-row-form',
     ]
   );
-  // Exactly one rule rides the informational channel — the report-only ‡ inventory.
-  assert.deepEqual(SHAPE_RULES.filter((r) => r.channel === 'info').map((r) => r.name), ['twice-read-inventory']);
+  // Exactly two rules ride the informational channel — the report-only ‡ inventory and the
+  // report-only unparsed-‡ row (T1.2, PIN-6).
+  assert.deepEqual(
+    SHAPE_RULES.filter((r) => r.channel === 'info').map((r) => r.name).sort(),
+    ['twice-read-inventory', 'twice-read-unparsed'],
+  );
   const slotAnchor = {
     'untagged-end-state': "## Commander's Intent",
     'vague-end-state': "## Commander's Intent",
@@ -264,6 +269,8 @@ test('SHAPE_RULES: ten named rules; each rule text names the merged-template slo
     'single-signal-oracle': 'check:',
     'waive-row-form': 'WAIVE-<n>',
     'twice-read-inventory': '## Resolved design tree',
+    'twice-read-unparsed': '## Resolved design tree',
+    'release-requires-test-no-test-file': 'requiresTest',
   };
   for (const r of SHAPE_RULES) {
     assert.ok(r.slot.includes(slotAnchor[r.name]), `${r.name} slot text must name its merged-template slot`);
@@ -771,14 +778,20 @@ test('merged-shape combined fixture reports exactly one hit per shape rule; comp
     '- `docs/red-team/x.md`',
     '',
     '- WAIVE-1 · beat 3 · reason: operator call',
+    '',
+    '## Phase 2 — Release',
+    '### Task 2: Bump the slots',
+    '- Files: `.claude-plugin/plugin.json`',
+    '- requiresTest: true',
+    '- Done when: `node --test v.test.mjs`',
   ].join('\n');
   const hits = lint(badPlan);
-  // The inventory rule reports on the informational channel, so it is not in `hits` — the loop
-  // skips it and the hit-count literal stays 9 even though SHAPE_RULES now holds ten rules.
+  // The two info rules report on the informational channel, so they are not in `hits` — the
+  // loop skips them and the hit-count literal is 10 though SHAPE_RULES holds twelve rules.
   for (const name of SHAPE_RULES.filter((r) => r.channel !== 'info').map((r) => r.name)) {
     assert.equal(countOf(hits, name), 1, name);
   }
-  assert.equal(hits.length, 9, 'no line-rule noise in this fixture');
+  assert.equal(hits.length, 10, 'no line-rule noise in this fixture');
   // …and the ‡-marked row surfaces exactly once, on the informational channel only.
   assert.deepEqual(lintInfo(badPlan).map((h) => h.match), ['PIN-8 is ‡-marked — twice-read at echo-back']);
 
@@ -816,6 +829,114 @@ test('merged-shape combined fixture reports exactly one hit per shape rule; comp
   // The compliant fixture is ‡-free, so the informational channel is empty too.
   assert.ok(!goodPlan.includes('‡'), 'goodPlan stays ‡-free');
   assert.deepEqual(lintInfo(goodPlan), []);
+});
+
+// ---- Sixth family (plan 2026-11-08-pipeline-skills-and-memory-tooling T1.2) ----
+const unparsedRows = (text) => lintInfo(text).filter((h) => h.pattern === 'twice-read-unparsed');
+
+test('pst T1.2: the legacy decision-id ‡ shape gives one twice-read-unparsed info row per row', () => {
+  const plan = tree(
+    '| D1 | a | r | (user) · PIN-1 | guardrail |',
+    '| D2 ‡ | b | r | (user) · PIN-2 | guardrail |',
+    '| D3 ‡ | c | r | (user) · PIN-3, PIN-4 | guardrail |',
+  ).join('\n');
+  const rows = unparsedRows(plan);
+  assert.equal(rows.length, 2);
+  assert.match(rows[0].match, /\bD2 ‡/);
+  assert.match(rows[1].match, /\bD3 ‡/);
+  // Report-only: the info rows never reach the hit channel.
+  assert.equal(countOf(lint(plan), 'twice-read-unparsed'), 0);
+});
+
+test('pst T1.2: a PIN-<n>‡ Source cell or a ‡ landing-class cell gives no twice-read-unparsed row', () => {
+  const plan = tree(
+    '| D1 | a | r | (user) · PIN-1‡ | guardrail |',
+    '| D2 | b | r | (user) · PIN-2 | ‡ guardrail |',
+  ).join('\n');
+  assert.deepEqual(unparsedRows(plan), []);
+  // The ratified placements still feed the inventory rule.
+  assert.equal(lintInfo(plan).filter((h) => h.pattern === 'twice-read-inventory').length, 2);
+});
+
+test('pst T1.2: the legacy plan reports six twice-read-unparsed rows', () => {
+  const legacy = readFileSync(join(HERE, '../../../docs/plans/2026-08-24-authoring-side-verification.md'), 'utf8');
+  assert.equal(unparsedRows(legacy).length, 6);
+});
+
+const releaseTask = (files, heading = '### Task 2.1: Version bump', phase = '## Phase 2 — Release') => [
+  phase,
+  '',
+  heading,
+  `- Files: ${files}`,
+  '- requiresTest: true',
+  '- Done when: `node --test skills/war/assets/version-slots.test.mjs`',
+].join('\n');
+
+test('pst T1.2: a release task with requiresTest: true and only slot files is flagged', () => {
+  const slots = '`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `README.md`';
+  assert.equal(countOf(lint(releaseTask(slots)), 'release-requires-test-no-test-file'), 1);
+  // The task heading alone also scopes the rule, under a non-release phase heading.
+  assert.equal(countOf(lint(releaseTask(slots, '### Task 1.9: Release bump', '## Phase 1 — Work')),
+    'release-requires-test-no-test-file'), 1);
+  // A non-release task with the same files is out of scope.
+  assert.equal(countOf(lint(releaseTask(slots, '### Task 1.1: Slots', '## Phase 1 — Work')),
+    'release-requires-test-no-test-file'), 0);
+});
+
+test('pst T1.2: the same release task with a test file in Files is not flagged', () => {
+  const slots = '`.claude-plugin/plugin.json`, `README.md`';
+  assert.equal(countOf(lint(releaseTask(`${slots}, \`skills/war/assets/version-slots.test.mjs\``)),
+    'release-requires-test-no-test-file'), 0);
+  assert.equal(countOf(lint(releaseTask(`${slots}, \`hooks/foo.test.sh\``)),
+    'release-requires-test-no-test-file'), 0);
+  // requiresTest: false is the compliant release-only form.
+  assert.equal(countOf(lint(releaseTask(slots).replace('requiresTest: true', 'requiresTest: false')),
+    'release-requires-test-no-test-file'), 0);
+});
+
+test('pst T1.2: a version literal in a fence or a Trials block under a release heading gives no hit', () => {
+  const plan = [
+    '### Task 2.1: Release version bump',
+    '```',
+    '# a comment line inside the fence',
+    'bump to 0.21.47',
+    '```',
+    '**Trials run** — one row per trial:',
+    '```',
+    // Heading-shaped AND release-shaped, so only the Trials state can keep the next row quiet.
+    '# release script: a fenced `#` line never ends the Trials block',
+    '```',
+    '- TRIAL-1 · fact · base 0.21.46 · settled',
+  ].join('\n');
+  assert.equal(countOf(lint(plan), 'hardcoded-version'), 0);
+});
+
+test('pst T1.2: a bare version literal under a release heading still gives a hit', () => {
+  const plan = [
+    '### Task 2.1: Release version bump',
+    '```',
+    'bump to 0.21.47',
+    '```',
+    '- Plan slice: bump the slots to 0.21.47',
+  ].join('\n');
+  assert.equal(countOf(lint(plan), 'hardcoded-version'), 1);
+});
+
+test('pst T1.2: a heading right after an unclosed Trials block ends the skip', () => {
+  const plan = [
+    '### Task 2.1: Release version bump',
+    '**Trials run** — one row per trial:',
+    '- TRIAL-1 · fact · base 0.21.46 · settled',
+    '### Task 2.2: Release notes',
+    '- Plan slice: bump the slots to 0.21.47',
+  ].join('\n');
+  const hits = lint(plan).filter((h) => h.pattern === 'hardcoded-version');
+  assert.deepEqual(hits.map((h) => h.match), ['0.21.47']);
+});
+
+test('pst T1.2: a fence is still no carve-out for target-content-paste', () => {
+  const plan = ['### Task 2.1: Release version bump', '```', 'undefined8 FUN_00401000(void)', '```'].join('\n');
+  assert.ok(countOf(lint(plan), 'target-content-paste') >= 1);
 });
 
 // ---- CLI contract: report-and-exit-0 default, --strict non-zero on hits ----
