@@ -287,7 +287,7 @@ const WAR_REF_DOCS = [
 const D13_SCAN = WAR_REF_DOCS
 const D14_SCAN = WAR_REF_DOCS
 const D13_EXEMPT = [
-  ['schemas-manifest.test.sh', 'a shell test suite, not a prose doc: it runs the `.sh` assets it names and states no doctrine'],
+  ['schemas-manifest.test.sh', 'a shell test suite, not a prose doc: it greps schemas.md and states no doctrine'],
 ]
 const D14_EXEMPT = [
   ['schemas-manifest.test.sh', 'a shell test suite, not a prose doc: it states no docker-gate doctrine'],
@@ -3684,6 +3684,12 @@ test('D43 — the re-entry / absorb-budget boundary is present in every living-d
     ...BUDGET_KEYS,
     [/born at a wave-side re-audit/i, 'the wave-side re-entry source scope'],
     [/pin-transfer mismatch re-audit[\s\S]{0,240}?route to the sweep instead/i, 'the mismatch re-audit sweep route (never re-entry)'],
+    // The budget stop on this home: the token keys above pass on a clause that demotes instead.
+    [
+      /spent budget routes[\s\S]{0,80}?sweep/i,
+      'the spent-budget sweep route (a spent absorb budget routes the rows to the phase-close ' +
+        'sweep as absorbs, never demotes them)',
+    ],
   ]
   const HOMES = [
     [
