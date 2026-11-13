@@ -143,11 +143,14 @@ function git(args, root = repoRoot) {
 // commit that added GLOSSARY.md, and `moved` is GLOSSARY.md in that commit. Later glossary edits
 // change neither side. If HEAD lacks that commit but a staged merge's MERGE_HEAD has it, both
 // sides are read at that commit (#2719). Otherwise the sides are HEAD's CONTEXT.md and the
-// working-tree GLOSSARY.md. `root` defaults to repoRoot. null outside git, or in a shallow clone where git cannot read a
-// side (the clone can cut at the adding commit, so its parent is missing). In a full clone an
-// unreadable side throws, so a broken read fails the test instead of skipping it.
+// working-tree GLOSSARY.md. `root` defaults to repoRoot.
+// null outside git, or in a shallow clone where git cannot read a side (the clone can cut at the
+// adding commit, so its parent is missing). In a full clone an unreadable side throws, so a
+// broken read fails the test instead of skipping it.
 // `-c log.follow=false`: a user-level log.follow=true turns a one-path log into --follow, which
 // reads the move as a copy of CONTEXT.md and names CONTEXT.md's own first commit as the add.
+// `--no-renames`: a user-level diff.renames=copies can tag the new GLOSSARY.md as a copy (C),
+// which --diff-filter=A then skips. With no rename or copy detection a new file always reads A.
 function moveSides(root = repoRoot) {
   const g = (args) => git(args, root)
   try {
@@ -156,7 +159,7 @@ function moveSides(root = repoRoot) {
     return null
   }
   const addCommit = (rev) => {
-    const added = g(['-c', 'log.follow=false', 'log', '--diff-filter=A', '--format=%H', rev, '--', 'GLOSSARY.md'])
+    const added = g(['-c', 'log.follow=false', 'log', '--no-renames', '--diff-filter=A', '--format=%H', rev, '--', 'GLOSSARY.md'])
       .trim().split('\n').filter(Boolean)
     return added[added.length - 1]
   }
