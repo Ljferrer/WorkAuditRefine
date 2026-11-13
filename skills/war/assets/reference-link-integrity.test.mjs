@@ -1,6 +1,6 @@
 // reference-link-integrity.test.mjs — durable link-resolution + retired-citation +
 // header-truth + revert-doctrine + step-4-citation + D3-fallback sweep over the prose
-// surfaces that carry references/ pointers: the two scan directories plus README.md, the
+// surfaces that carry references/ pointers: the SCAN_DIRS directories plus README.md, the
 // root-level file entry that joined in 2026-08-25-doc-truth-and-drift-guard-debt Phase 2
 // (#1673) (plan 2026-08-02-references-pointer-link-truth Task 1.3;
 // source spec docs/specs/2026-08-02-references-pointer-link-truth-design.md §4.6, and the
@@ -49,7 +49,7 @@ const SCAN_DIRS = [AGENTS_DIR, REFERENCES_DIR];
 const ROOT_DIR = '.';
 const SCAN_FILES = ['README.md'];
 
-// Every scan UNIT — the two scan directories plus the root-level file entry. The non-vacuity
+// Every scan UNIT — the SCAN_DIRS directories plus the root-level file entry. The non-vacuity
 // floors below iterate this, not SCAN_DIRS, so a README that stops contributing a resolvable
 // link reds here instead of passing as "no dead links".
 const SCAN_UNITS = [...SCAN_DIRS, ROOT_DIR];
@@ -261,8 +261,8 @@ test('reference link integrity — every markdown link target on every scanned p
 //
 // Keyed on the CITATION FORM, never the bare phrase (the backstop-retirement-grep
 // false-red lesson: sweep for the retired form, never for a substring the sanctioned
-// replacement also carries). Three carriers of the bare phrase are ratified and must stay
-// unflagged:
+// replacement also carries). The carriers of the bare phrase listed here are ratified and
+// must stay unflagged:
 //   1. submodule-flows.md's own "Resume — submodule remote as co-source-of-truth" section
 //      heading and body — the doctrine's real home;
 //   2. design.md's co-source-of-truth paragraph;
@@ -271,7 +271,7 @@ test('reference link integrity — every markdown link target on every scanned p
 // BOTH token orders are covered (red-team adjudication 6, 2026-08-03: a single-order guard
 // false-negates on a reversed-order reintroduction of the identical dangling citation), and
 // the match is case-insensitive. Keeping the match scoped inside one parenthetical is what
-// leaves the three sanctioned carriers above green.
+// leaves the sanctioned carriers above green.
 const RETIRED_CITATION = /\([^)]*(?:SKILL\.md[^)]*co-source-of-truth|co-source-of-truth[^)]*SKILL\.md)[^)]*\)/gi;
 
 test('reference link integrity — the retired SKILL.md co-source-of-truth citation form is absent from every scanned prose surface', () => {
@@ -281,7 +281,7 @@ test('reference link integrity — the retired SKILL.md co-source-of-truth citat
   // Safe from self-match: these literals live in this .mjs and the sweeps read only *.md
   // (see the self-match note atop this file). Matched through a NON-global copy —
   // RETIRED_CITATION carries /g/, and RegExp.prototype.test's lastIndex state would leak
-  // across the two controls and into the matchAll scan below (matchAll clones inherit
+  // across the controls and into the matchAll scan below (matchAll clones inherit
   // lastIndex).
   const CITATION_ONCE = new RegExp(RETIRED_CITATION.source, RETIRED_CITATION.flags.replace('g', ''));
   for (const control of [
@@ -310,7 +310,8 @@ test('reference link integrity — the retired SKILL.md co-source-of-truth citat
 // EVERY live eviction destination under skills/war/references/ — each one's header must
 // carry the byte-identity claim qualified "at eviction time". The list is a UNION that only
 // ever grows: a new eviction destination joins it on creation, and an existing destination
-// found unlisted joins it in the same touch that notices the gap. Read by direct
+// found unlisted joins it in the same touch that notices the gap (the directory-scan census
+// below reds a file that joins neither this list nor its exemption table). Read by direct
 // readFileSync and NOT filtered out of the scan results: fail-closed, so a rename throws
 // ENOENT loudly instead of narrowing the check to whatever files still happen to match.
 const QUALIFIED_HEADERS = [
@@ -368,6 +369,48 @@ const QUALIFIED_HEADERS = [
   // #2635: the skills/war/SKILL.md Gate 2 promotion eviction destination, joined on creation.
   'learnings-publication.md',
 ];
+
+// The directory-scan census over QUALIFIED_HEADERS (#2089, PIN-11): every *.md file under
+// skills/war/references/ is either listed above or exempt below with its reason. A new file
+// that joins neither reds the census, so an unlisted eviction destination can no longer
+// narrow the header-truth arm by omission. Each reason says why the file carries no
+// byte-identity claim for the arm to check.
+const QUALIFIED_HEADERS_EXEMPT = new Map([
+  ['artifact-evidence-lead.md', 'born cold: the Lead side of the REA evidence gate, never moved off a card'],
+  ['backward-chain-audit.md', 'born cold: its rules section rides byte-equal in the dispatched prompt, pinned by the engine fixture, not moved off a card'],
+  ['backward-chain-examples.md', 'born cold: an examples bank read by pointer, never moved off a card'],
+  ['backward-chain-fix.md', 'born cold: its rules section rides byte-equal in the dispatched prompt, pinned by the engine fixture, not moved off a card'],
+  ['backward-chain-worker.md', 'born cold: its rules section rides byte-equal in the dispatched prompt, pinned by the engine fixture, not moved off a card'],
+  ['budget-rebaseline.md', 'born cold: the operator re-baseline pass, never moved off a card'],
+  ['file-followups.md', 'moved off agents/war-refiner.md under ADR 0042, but its header makes no byte-identity claim (the dispatched prompt carries the instructions verbatim), so there is no claim to qualify'],
+  ['fix-round-doctrine.md', 'born cold: the canonical home by the #2097 ruling, its rules section pinned byte-equal by the engine fixture'],
+  ['gastown-design-params.md', 'born cold: a design-parameter record, never moved off a card'],
+  ['late-fix-pass.md', 'born cold: no eviction (see Arm 8 below)'],
+  ['launch-identity.md', 'born cold: the Lead run-id doctrine, never moved off a card'],
+  ['model-routing.md', 'born cold: the routing doc home (ADR 0062), never moved off a card'],
+  ['schemas.md', 'born cold: the WAR data contracts, never moved off a card'],
+  ['sweep-exclusion.md', 'born cold: an unbudgeted cold home for a Lead duty, never moved off a card'],
+  ['touched-doc-accuracy.md', 'born cold: the touched-doc trichotomy, never moved off a card'],
+]);
+
+test('reference link integrity — QUALIFIED_HEADERS directory-scan census: every skills/war/references/*.md file is listed or exempt with a reason', () => {
+  const onDisk = readdirSync(join(REPO_ROOT, REFERENCES_DIR)).filter((f) => f.endsWith('.md')).sort();
+  assert.ok(onDisk.length > 0, `${REFERENCES_DIR}/ holds no *.md file — the census scanned nothing`);
+  const listed = new Set(QUALIFIED_HEADERS);
+  const both = [...QUALIFIED_HEADERS_EXEMPT.keys()].filter((f) => listed.has(f));
+  assert.deepEqual(both, [], `a file is both in QUALIFIED_HEADERS and exempt — pick one:\n  ${both.join('\n  ')}`);
+  const stale = [...QUALIFIED_HEADERS_EXEMPT.keys()].filter((f) => !onDisk.includes(f));
+  assert.deepEqual(stale, [], `exempt file(s) no longer on disk — drop the row:\n  ${stale.join('\n  ')}`);
+  for (const [f, reason] of QUALIFIED_HEADERS_EXEMPT) {
+    assert.ok(typeof reason === 'string' && reason.trim().length > 0, `${f}: an exemption row needs its reason`);
+  }
+  const remainder = onDisk.filter((f) => !listed.has(f) && !QUALIFIED_HEADERS_EXEMPT.has(f));
+  assert.deepEqual(
+    remainder,
+    [],
+    `${REFERENCES_DIR}/ file(s) in neither QUALIFIED_HEADERS nor its exemption table — an eviction destination joins QUALIFIED_HEADERS, any other file joins the exemption table with its reason:\n  ${remainder.join('\n  ')}`,
+  );
+});
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {
   // OLD-absent half. A default flip is only landed when the retired wording is gone from
@@ -586,7 +629,7 @@ test('reference link integrity — the step-4 citation in auditor-teach.md resol
 // Phase 1 requalified the D3 fallback: the placeholder-stripping fallback is conditioned on
 // the repo under review being the plugin itself. Every seat card states it in one sentence,
 // and this arm pins those bytes against the merged wording so a partial requalification —
-// one card reworded, the other four left stale — reds instead of drifting silently.
+// one card reworded, the others left stale — reds instead of drifting silently.
 
 // Copied from the merged tree, byte for byte. Spelled as a plain SINGLE-QUOTED string and
 // compared with String.prototype.includes — grep -F semantics, never a regex and never a
@@ -597,12 +640,13 @@ const D3_FALLBACK_SENTENCE =
 
 test('reference link integrity — every agents/ seat card carries the plugin-repo-conditioned D3 fallback sentence verbatim', () => {
   const cards = SCANNED.filter((f) => f.dir === AGENTS_DIR);
-  // Non-vacuity floor, stated as a MINIMUM rather than a roster snapshot: five cards carry
-  // the sentence today, and a sixth seat card must carry it too — a `=== 5` census would
-  // turn adding a seat into a red here rather than into the missing-sentence red below.
+  // Non-vacuity floor, stated as a MINIMUM rather than a roster snapshot: the floor is the card
+  // count when the arm was written, and every later seat card must carry the sentence too — an
+  // exact-count census would turn adding a seat into a red here rather than into the
+  // missing-sentence red below.
   assert.ok(
     cards.length >= 5,
-    `only ${cards.length} card(s) found under ${AGENTS_DIR}/ — the five-card D3 sweep did not actually run`,
+    `only ${cards.length} card(s) found under ${AGENTS_DIR}/ — the seat-card D3 sweep did not actually run`,
   );
 
   const missing = cards.filter((f) => !f.text.includes(D3_FALLBACK_SENTENCE)).map((f) => f.rel);
@@ -619,11 +663,12 @@ test('reference link integrity — every agents/ seat card carries the plugin-re
 // refiner-recovery.md (each under its own `##` heading), the `### Submodule phase` routing tail
 // into refiner-recovery.md's `## Submodule land arms (2A / 2B)` section, and the `## Gate
 // contract` middle sentences into budget-raise-floor.md's evicted Gate-contract section (the
-// card's existing pointer to that section already covers them). That fourth block was deleted
-// 2026-11-10 (#2119) as a duplicate of the section's full paragraph, so three rows remain. Each moved block is pinned by
+// card's existing pointer to that section already covers them). That Gate-contract block was deleted
+// 2026-11-10 (#2119) as a duplicate of the section's full paragraph, and its row went with it. The
+// § Land-barrier endstate-check steps eviction (#2156) holds a row here too. Each moved block is pinned by
 // SHA-256 of its pre-eviction card bytes (`git show 5da801f:agents/war-refiner.md`); the card
 // keeps a trigger pointer per block and none of the moved bodies. A sanctioned later edit
-// re-pins the digest in the same commit with its rationale.
+// re-pins the digest in the same commit with its rationale (the #2622 and #2786 rows below).
 const sha256 = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
 const refinerCardText = readFileSync(join(REPO_ROOT, 'agents/war-refiner.md'), 'utf8');
 const refinerRecoveryText = readFileSync(join(REPO_ROOT, 'skills/war/references/refiner-recovery.md'), 'utf8');
@@ -651,25 +696,32 @@ const EVICTED_2115 = [
     assert.ok(m, 'refiner-recovery.md lost the `Routing (…evicted #2115): ` lead-in under ## Submodule land arms (2A / 2B)');
     return m[1];
   }, 594, '6a05868441fb8d1435d36ce859c4796ed46e81618e57caeed0e07fbd8a4a3b5a'],
-  // 2026-11-10 (#2119, plan 2026-11-08-model-routing-and-prompt-byte-budgets Task 1.2): the fourth
-  // row, budget-raise-floor.md's blockquote of the card's condensed Gate-contract sentences, is
-  // gone. The full Gate-contract paragraph above it already states every rule the blockquote held.
+  // 2026-11-10 (#2119, plan 2026-11-08-model-routing-and-prompt-byte-budgets Task 1.2): the former
+  // Gate-contract row, budget-raise-floor.md's blockquote of the card's condensed Gate-contract
+  // sentences, is gone. The full Gate-contract paragraph above it already states every rule the blockquote held.
+  // Joined by plan 2026-11-08-shell-floors-tests-and-lint T1.10 (#2172, #2173): the card's endstate-check
+  // steps, evicted by engine-and-audit-verdict-integrity Task 5.1 (#2156).
+  ['refiner-recovery.md § Land-barrier endstate-check steps', () => evictedSectionBody(refinerRecoveryText, '## Land-barrier endstate-check steps'),
+    // Re-pinned for #2786 (refiner-recovery.md's Post-eviction edits list): step 4 **Statement boundaries**
+    // and step 5 **Expected tip** were edited after the eviction, so the row pins the bytes at the T1.10 base (75a1ad32).
+    2569, '72cee0354ac49566010ca7f26badb1271db716fb289c6969ae24cb24965ced26'],
 ];
 
 test('reference link integrity — the #2115 refiner-card evictions landed byte-identical at their references/ homes (ADR 0042, PIN-5)', () => {
-  assert.equal(EVICTED_2115.length, 3, 'the #2115 eviction census lists the three remaining moved blocks — an emptied list would pass vacuously');
+  assert.equal(EVICTED_2115.length, 4, 'the #2115 eviction census lists the four remaining moved blocks — an emptied list would pass vacuously');
   assert.ok(!/^> Run it \*\*verbatim\*\*/m.test(budgetRaiseFloorText), 'budget-raise-floor.md must not carry the deleted Gate-contract blockquote (#2119)');
   for (const [name, extract, bytes, digest] of EVICTED_2115) {
     const body = extract();
-    assert.equal(Buffer.byteLength(body, 'utf8'), bytes, `${name}: the moved block is ${bytes} B (pre-eviction card bytes)`);
+    assert.equal(Buffer.byteLength(body, 'utf8'), bytes, `${name}: the moved block is ${bytes} B (pre-eviction card bytes, or the re-pinned bytes of a sanctioned post-eviction edit: #2622, #2786)`);
     assert.equal(sha256(body), digest, `${name}: the moved block must be byte-identical to its pre-eviction card text (ADR 0042) — a sanctioned edit re-pins the digest here with its rationale`);
   }
 });
 
 test('reference link integrity — the refiner card keeps a trigger pointer per #2115 eviction and none of the moved bodies', () => {
   // Plain-text plugin-root pointers (the gate-failure-classification.md precedent): the card's
-  // exact-four markdown-link census of refiner-recovery.md pointers must not grow, so the two new
-  // pointers are trigger + bare path, never a `](…)` link. Pinned with String.includes — the
+  // markdown-link census of refiner-recovery.md pointers (`recoveryTriggers` in
+  // workflow-template.recovery.test.mjs) pins the named trigger destinations, so the Diff probe and
+  // merge-task pointers are trigger + bare path, never a `](…)` link. Pinned with String.includes — the
   // pointer carries `${CLAUDE_PLUGIN_ROOT}`, which a template literal would interpolate.
   for (const pointer of [
     'When dispatched a diff-probe run, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ Diff probe).',
@@ -752,7 +804,7 @@ test('late-defect: hold — the refiner card points at late-fix-pass.md in the w
 });
 
 // --- Arm 9: the Lead's late-defect doctrine home (2026-11-04-late-defects-fixed-in-run Task 6.2) ----
-// late-defects.md is born cold for its Lead doctrine and an eviction destination for two CONTEXT.md
+// late-defects.md is born cold for its Lead doctrine and an eviction destination for CONTEXT.md
 // passages (the Exclusion set and Terminal pass behavior-row sentences, CONTEXT.md @ 5d15665d, now GLOSSARY.md), moved to
 // fund the late-defect glossary entry (ADR 0042). Each passage sits under its own `###` heading and one
 // provenance line; the digest pins the passage bytes, so a sanctioned edit re-pins it here.
