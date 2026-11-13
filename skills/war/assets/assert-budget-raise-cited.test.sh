@@ -54,7 +54,8 @@
 #  14. numeric-form (1/1/1): a row hard value written `100_000`, `0x13880` or
 #      `1e5`, no trailer -> exit 1 — a non-integer token is unkeyed and
 #      raise-suspect (#1732); 14d: a blank-separated `2000 + 500` const
-#      value, no trailer -> exit 1
+#      value, no trailer -> exit 1; 14e: a row advisory value written
+#      `1e5`, no trailer -> exit 1 (the check runs on each field)
 #  15. rename (1/0/0/1): a renamed row whose hard value exceeds the largest
 #      only-in-old hard value, no trailer -> exit 1 (rename-plus-raise); the
 #      same rename with a lower value -> exit 0 (rename-plus-lowering, #1734);
@@ -560,6 +561,26 @@ if [ "$rc14d" -eq 1 ]; then
   pass "case 14d: blank-separated expression: 2000 + 500 -> exit 1 (non-integer token is raise-suspect)"
 else
   fail "case 14d: blank-separated expression: 2000 + 500 -> expected exit 1, got $rc14d"
+fi
+
+# Case 14e: the non-integer check runs per field, so an advisory value
+# written `1e5`, no trailer -> exit 1. Its label stays outside the
+# numeric-form count.
+R14e="$(setup_repo)"
+BASE14e="$(git -C "$R14e" rev-parse HEAD)"
+git -C "$R14e" checkout -qb task/advisory-token 2>/dev/null
+write_budget "$R14e" 1000 1e5 2000 1800
+git -C "$R14e" add "$BUDGET_REL"
+git -C "$R14e" commit -qm "raise SKILL.md advisory line as 1e5 (no trailer)"
+TASK14e="$(git -C "$R14e" rev-parse HEAD)"
+git -C "$R14e" checkout -q - 2>/dev/null
+cwd14e="$(fresh_cwd)"
+rc14e=0
+( cd "$cwd14e" && bash "$SCRIPT" "$BASE14e" "$TASK14e" --repo "$R14e" ) >/dev/null 2>&1 || rc14e=$?
+if [ "$rc14e" -eq 1 ]; then
+  pass "case 14e: advisory-field token 1e5 -> exit 1 (non-integer advisory is raise-suspect)"
+else
+  fail "case 14e: advisory-field token 1e5 -> expected exit 1, got $rc14e"
 fi
 
 # ---------------------------------------------------------------------------
