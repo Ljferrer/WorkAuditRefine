@@ -5,7 +5,7 @@ born-cold glossary bodies. The glossary was `CONTEXT.md` until #2636 moved it to
 `CONTEXT.md` text (`GLOSSARY.md` text for waves 7 and 8) **at eviction time**. Only repo-root-relative links were re-anchored for this file's
 depth. Each body moved under an additive per-term heading. The glossary keeps the `**Term**:` heading plus
 one fixed-shape trigger pointer (`when <trigger>, read skills/war/references/glossary-cold.md`).
-A born-cold body is authored here first and has no pre-eviction text to match (waves 5, 6 and 9). `GLOSSARY.md`
+A born-cold body is authored here first and has no pre-eviction text to match (waves 5, 6, 9 and 10). `GLOSSARY.md`
 holds only its `**Term**:` heading plus the same trigger pointer. One
 pointer may carry several terms when a whole cold cluster leaves together (waves 4, 8 and 9). Prose
 temperature is branch
@@ -22,6 +22,9 @@ carrying no live drift-guard key, and so are wave 8's. Wave 8 is #2273, plan 202
 Task 1.2. It moved the bodies from `## Worker block` through `## memory-mined` to bring `GLOSSARY.md` under its
 advisory line. `skills/red-team/assets/workflow-scaffold.test.mjs` pins wave 6's four born-cold merge-provenance bodies instead.
 The `living-adr-terms` row in `skills/war/assets/skill-doc-contracts.test.mjs` pins wave 9's three living-ADR bodies.
+Wave 10 (plan 2026-11-08-shell-floors-tests-and-lint Task 2.5) adds three born-cold shell-floor bodies. Only
+`## assert-submodules-ready` fit a `GLOSSARY.md` pointer under its advisory line, and the D32 row pins it. The
+other two have no pointer, and the `shell-floor-cold-terms` row in the same test file pins them.
 
 Bold glossary cross-references inside
 the moved bodies resolve in the glossary (`GLOSSARY.md`), their original home. They resolve here when the referenced term has
@@ -562,7 +565,7 @@ under `--afk`.
 
 The one Part 1 block, labelled `**Trials run** — one row per trial:`, that records every fork trial,
 pair beat and sweep an interview ran: a header carrying the bounds and their config source, the
-trial tier, token and wall-time use and the escape-guard state, then one
+trial tier, token and wall-time use, the escape-guard state and the `budget-check:` line, then one
 `- TRIAL-<n> · fact | pair | sweep · <fields>` row per trial, with `command` and `observed` in a
 nested fence. `TRIAL-<n>` reuses the PIN token grammar (digits-only, right-delimited). Placement
 latitude anywhere in Part 1 outside `## Context`, inheriting the Evidence consumed block's law by
@@ -1151,3 +1154,36 @@ needs, and gains more only at a named trigger. The triggers are a `references/` 
 context, `ToolSearch` for tools and a per-`agent_type` guard arm for permission
 ([ADR 0060](../../../docs/adr/0060-enforce-each-rule-at-the-highest-level-that-can-express-it.md)).
 _Avoid_: a card with no `tools:` line; widening every seat's guard arm for one seat's need.
+
+## assert-submodules-ready
+
+The `provision-worktrees.sh` verb that checks every submodule a worktree declares is initialized.
+`ensure-worktree` and `ensure-refinery-worktree` init any uninitialized submodule and then call it, so a provisioned worktree is
+submodule-ready or the Provision barrier fails `env-blocked`. `assert-done-when.sh` calls it before it
+runs a Done-when command, so a worktree that is not ready is an env error there, never the `done-unmet`
+route. Exit codes: the catalogue in
+[ADR 0034](../../../docs/adr/0034-engine-ingest-guards-and-provision-exit-codes.md). Contract:
+[ADR 0021](../../../docs/adr/0021-run-lifecycle-provision-contract.md).
+_Avoid_: reading a not-ready worktree as a failed acceptance check; a gate run in a worktree this verb
+never checked.
+
+## `overrides.doneWhenPreamble`
+
+The config key that holds one shell line the refiner stages above a task's `Done when:` command in the
+floor's cmd file, for example a line that puts an interpreter the gate already uses on `PATH`. The Lead
+threads it as `plan.doneWhenPreamble` at every phase launch. When the floor's command is not found, its
+diagnostic names this key. Default and validation: `DEFAULTS.overrides` in
+`skills/war/assets/war-config.mjs`. Rules: `skills/war/references/setup.md` § Done-when preamble.
+_Avoid_: editing a plan's Done-when command to add environment setup; reading a prose first token's
+command-not-found as a missing interpreter (that is a threading defect).
+
+## Pending test-floor pattern
+
+The `--pending-pattern` set the Lead threads to the **Test floor** as `plan.testPatternPending`: a
+**Pending testPattern proposal** that passed the same validator as `overrides.testPattern`. The floor
+consults it only when the active set matches no diff test file. If a pending token matches one, the
+floor adopts the set for that task and prints `adopted-pending-pattern:`. The marker never changes
+`plan.testPattern`, and adoption for the run stays the phase-launch re-check's job. Rules:
+`skills/war/references/setup.md` § Per-phase pending-proposal re-check and the `assert-test-in-diff.sh` header.
+_Avoid_: threading a validator-failing or closed proposal; treating a floor adoption as the run's new
+`overrides.testPattern`.

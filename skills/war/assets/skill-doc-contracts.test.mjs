@@ -2063,7 +2063,7 @@ test('D29 — ADR 0042 doctrine mirrors (GLOSSARY.md glossary terms, CLAUDE.md h
 // the dispatch-args census below, so the row lands as D32) moved five cold recovery-entry bodies
 // out of CONTEXT.md (now GLOSSARY.md) into the unbudgeted cold home references/glossary-cold.md, leaving per-term
 // `when <trigger>, read …` pointers; a second wave (2026-08-27, marked inline below) moved three
-// more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned; wave 7 moved two from GLOSSARY.md) and, since wave 5, the born-cold terms too, not one plan's five (wave 6's four born-cold merge-provenance bodies are pinned by skills/red-team/assets/workflow-scaffold.test.mjs, not by this row, wave 9's three living-ADR bodies by the living-adr-terms row, and the doc-truth born-cold bodies by the doc-truth-cold-terms row). Modelled on D28: each residue is a hand-copied cross-file
+// more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned; wave 7 moved two from GLOSSARY.md) and, since wave 5, the born-cold terms too, not one plan's five (wave 6's four born-cold merge-provenance bodies are pinned by skills/red-team/assets/workflow-scaffold.test.mjs, not by this row, wave 9's three living-ADR bodies by the living-adr-terms row, the doc-truth born-cold bodies by the doc-truth-cold-terms row, and wave 10's two stub-less bodies by the shell-floor-cold-terms row). Modelled on D28: each residue is a hand-copied cross-file
 // fact (the destination path plus the per-term heading it must resolve to) with no other guard —
 // a renamed or dropped destination heading must red here while GLOSSARY.md still promises it, and
 // a residue that loses its trigger clause or destination path must red too (a pointer without a
@@ -2123,6 +2123,10 @@ test('D32 — evicted glossary entries keep trigger pointers in GLOSSARY.md, and
     // Never a ceiling raise; these rows are the lock-step re-anchor the eviction owes.
     ['Relaunch attempt', '## Relaunch attempt'],
     ['stranded upstream', '## stranded upstream'],
+    // Wave 10 — plan 2026-11-08-shell-floors-tests-and-lint Task 2.5 (End state 24) authored three
+    // born-cold shell-floor bodies. Only this one fit a GLOSSARY.md pointer under the advisory line;
+    // the shell-floor-cold-terms row pins the two stub-less bodies.
+    ['assert-submodules-ready', '## assert-submodules-ready'],
   ]) {
     // Mirror D26's idiom: escape the term before building the pattern.
     const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -5675,4 +5679,32 @@ test('pst T1.5: the trials row renders a declined fork and a zero split after th
   assert.ok(fork > clause, 'the trials row must render `0 rows · 1 declined fork` after the PIN-17 clause')
   assert.ok(row.indexOf('`0 / 0 / 0 / 0`') > clause, 'the trials row must render the `0 / 0 / 0 / 0` split after the PIN-17 clause')
   assert.match(row, /never `0 trials`/, 'the declined-fork arm must say never `0 trials`')
+})
+
+// (pst seed-1, #2926) README § Repository tests names the staged gate job. The `gate(node-staged)`
+// literal is the job name repo-gate.mjs prints, so a rename on either side reds here.
+test('pst seed-1: README § Repository tests names the gate(node-staged) job and its env flag (#2926)', () => {
+  const m = readmeMd.match(/^## Repository tests\n[\s\S]*?(?=^## )/m)
+  assert.ok(m, 'could not locate README `## Repository tests` — construct rotted')
+  const s = m[0].replace(/\s+/g, ' ')
+  assert.ok(s.includes('One more job, `gate(node-staged)`, reruns'), 'README § Repository tests must name the `gate(node-staged)` job')
+  assert.ok(s.includes('`WAR_TEMPLATE_STRIPPED=1`'), 'README § Repository tests must name the staged job\'s `WAR_TEMPLATE_STRIPPED=1`')
+  const gate = readFileSync(join(HERE, 'repo-gate.mjs'), 'utf8')
+  assert.ok(gate.includes("'gate(node-staged)'"), 'repo-gate.mjs no longer names the `gate(node-staged)` job the README promises')
+})
+
+// (shell-floor-cold-terms) WAVE 10's STUB-LESS BORN-COLD BODIES (plan 2026-11-08-shell-floors-tests-
+// and-lint, Task 2.5; End state 24). GLOSSARY.md had room under its advisory line for only the
+// assert-submodules-ready pointer (pinned by D32), so these two bodies live in glossary-cold.md alone.
+// Each must resolve to exactly one heading whose body is non-empty and spans its _Avoid_ line.
+test('shell-floor-cold-terms — each stub-less born-cold shell-floor body resolves once and spans its _Avoid_ line', () => {
+  const glossaryColdMd = readFileSync(join(HERE, '..', 'references', 'glossary-cold.md'), 'utf8')
+  for (const term of ['`overrides.doneWhenPreamble`', 'Pending test-floor pattern']) {
+    const heads = glossaryColdMd.split('\n').filter((l) => l === `## ${term}`)
+    assert.equal(heads.length, 1, `glossary-cold.md must carry exactly one \`## ${term}\` heading, found ${heads.length}`)
+    const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const body = glossaryColdMd.match(new RegExp(`\\n## ${esc}\\n([\\s\\S]*?)(?=\\n## |(?![\\s\\S]))`))
+    assert.ok(body && body[1].trim().length > 0, `glossary-cold.md \`## ${term}\` has an empty body`)
+    assert.match(body[1], /\n_Avoid_: \S/, `glossary-cold.md \`## ${term}\` body must span its _Avoid_ line`)
+  }
 })
