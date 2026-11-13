@@ -19,6 +19,7 @@
 #   remove-publication-worktree <path>                                         (servitor-learnings-write-path)
 #   resolve-working-branch <desired> <slug> <date> [--owned-file PATH] [--owned REF]...  (checkout-guard)
 #   ensure-origin <resolved>                                                    (checkout-guard)
+#   assert-submodules-ready <worktree>                                         (#2346, D8)
 #   teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>              (Task 4)
 #   teardown-phase [--keep] --run-dir <ledger-dir> [--worktree-root <r>] <s> <N>  (Task 4 + clandiso/T3)
 #   prune                                                                      (Task 4)
@@ -104,12 +105,19 @@ warn() { printf '%s: %s\n' "$PROG" "$1" >&2; }
 #                       invocation contract; the provision barrier keys on the
 #                       STALE_REMOTE marker token (never this number) and classi-
 #                       fies the task per-task (env-blocked), never a phase halt.
+#   9 EX_SUBMODULES   — assert-submodules-ready found a declared submodule still
+#                       uninitialized (a `-` line in `submodule status
+#                       --recursive`), or could not read that status. The two
+#                       ensure arms exit 9 when their init failed. The marker
+#                       line SUBMODULES_UNINITIALIZED <path>... goes to stderr
+#                       first, and the barrier routes the task env-blocked.
 readonly EX_FOREIGN=3
 readonly EX_DIRTY_UNREG=4
 readonly EX_OUT_OF_RUN=5
 readonly EX_WRONG_BRANCH=6
 readonly EX_DIVERGED=7
 readonly EX_STALE_REMOTE=8
+readonly EX_SUBMODULES=9
 
 # --- git helpers ------------------------------------------------------------
 # Resolve the repo's git dir once; ensure-exclude writes inside it. Run from any
@@ -586,6 +594,9 @@ dir_is_empty() {
 #     A move or a failure emits a WORKTREE_HYGIENE marker. The barrier captures
 #     it, and the polish dispatch leaves it on stderr. A registered, present
 #     worktree never gets here.
+# Every success path (reuse, recreate, fresh cut) ends with submodules_ready
+# (#2346, see below): an uninitialized submodule is initialized, and one that
+# stays uninitialized dies EX_SUBMODULES after the marker is written.
 cmd_ensure_worktree() {
   reclaim_stale_remote=0
   path=""; branch=""; tip=""
@@ -636,6 +647,7 @@ cmd_ensure_worktree() {
       # work is only ever reported. Fail-open: never changes this path's exit
       # code or its stdout contract (markers go to stderr).
       reuse_hygiene "$path" || true
+      submodules_ready "$path"
       printf '%s\n' "$path"
       return 0
     fi
@@ -681,7 +693,52 @@ cmd_ensure_worktree() {
   fi
 
   write_marker "$path" "$branch"
+  submodules_ready "$path"
   printf '%s\n' "$path"
+}
+
+# submodules_ready <worktree> : the ensure arms' submodule step (#2346, D8). A
+# plain `git worktree add` leaves every declared submodule uninitialized, so a
+# gate there fails at collection. When `submodule status --recursive` shows a
+# `-` line, run `submodule update --init --recursive` under
+# GIT_TERMINAL_PROMPT=0, so a credential prompt fails the init instead of
+# hanging the Provision barrier. A failed init only warns here. The
+# assert-submodules-ready call that follows then dies EX_SUBMODULES, and the
+# barrier routes the task env-blocked. Writes nothing to stdout.
+submodules_ready() {
+  sr_wt="$1"
+  [ -f "$sr_wt/.gitmodules" ] || return 0
+  # Captured first, never piped into `grep -q`: under pipefail an early grep exit
+  # SIGPIPE-kills git, and the `if` would then skip the init.
+  sr_status="$(git -C "$sr_wt" submodule status --recursive 2>/dev/null || true)"
+  if printf '%s\n' "$sr_status" | awk '/^-/ { f = 1 } END { exit f ? 0 : 1 }'; then
+    GIT_TERMINAL_PROMPT=0 git -C "$sr_wt" submodule update --init --recursive >/dev/null 2>&1 \
+      || warn "submodule init failed in '$sr_wt' (an unreachable URL, or a remote that needs credentials)."
+  fi
+  cmd_assert_submodules_ready "$sr_wt"
+}
+
+# --- subcommand: assert-submodules-ready ------------------------------------
+# assert-submodules-ready <worktree>
+#
+# A no-op (exit 0, no output) without <worktree>/.gitmodules. Otherwise read
+# `git submodule status --recursive`: any `-` line (an uninitialized submodule)
+# prints `SUBMODULES_UNINITIALIZED <path>...` on stderr and dies EX_SUBMODULES.
+# A failed status read dies EX_SUBMODULES too (fail-closed). The ensure arms
+# call it after their init, and the done-when floor calls it before its command.
+cmd_assert_submodules_ready() {
+  [ $# -eq 1 ] || die "usage: assert-submodules-ready <worktree>"
+  as_wt="$1"
+  [ -f "$as_wt/.gitmodules" ] || return 0
+  as_rc=0
+  as_status="$(git -C "$as_wt" submodule status --recursive 2>/dev/null)" || as_rc=$?
+  if [ "$as_rc" -ne 0 ]; then
+    die "assert-submodules-ready: could not read the submodule status of '$as_wt' (git rc=$as_rc)." "$EX_SUBMODULES"
+  fi
+  as_missing="$(printf '%s\n' "$as_status" | awk '/^-/ { sub(/^-[0-9a-f]+ /, ""); printf "%s%s", sep, $0; sep = " " }')"
+  [ -n "$as_missing" ] || return 0
+  printf 'SUBMODULES_UNINITIALIZED %s\n' "$as_missing" >&2
+  die "assert-submodules-ready: '$as_wt' has uninitialized submodules: $as_missing. Run 'git -C $as_wt submodule update --init --recursive' and fix any URL or credential error it prints." "$EX_SUBMODULES"
 }
 
 # catch_up_reused_branch <path> <branch> <integration-tip> : on the existing-branch
@@ -805,8 +862,10 @@ stale_remote_probe() {
 # hygiene_marker <path> <action> <detail> : the machine-readable reuse-path
 # hygiene marker (#1381, the STALE_REMOTE precedent in this file: the provision
 # barrier keys on the token and the key=value payload, never an exit code).
-# action is "repaired", "detected" or "moved"; action and detail stay space-free so
-# the payload splits cleanly on key=value boundaries. <path> is a submodule path on
+# action is "repaired", "detected" or "moved"; action and detail stay space-free, so
+# the payload splits into tokens on spaces, and a reader splits on the FIRST `=` of
+# each token: a detail such as env-error:status-read-rc=128 carries its own `=`
+# and keeps it. <path> is a submodule path on
 # the reuse arm and a worktree path on the catch-up arm.
 hygiene_marker() {
   printf 'WORKTREE_HYGIENE path=%s action=%s detail=%s\n' "$1" "$2" "$3" >&2
@@ -876,7 +935,15 @@ EOF
 reuse_hygiene_one() {
   h_wt="$1"; h_sub="$2"
   [ -d "$h_wt/$h_sub" ] || return 0
-  h_dirt="$(git -C "$h_wt" status --porcelain -- "$h_sub" 2>/dev/null || true)"
+  # The superproject status runs `git status` inside the submodule, so an
+  # unreadable submodule index fails this read. A failed read is env-error:*,
+  # never a silent clean (the first read of the #1476 gap 3 rule).
+  h_rc=0
+  h_dirt="$(git -C "$h_wt" status --porcelain -- "$h_sub" 2>/dev/null)" || h_rc=$?
+  if [ "$h_rc" -ne 0 ]; then
+    hygiene_marker "$h_sub" detected "env-error:dirt-read-rc=$h_rc"
+    return 0
+  fi
   [ -n "$h_dirt" ] || return 0
 
   h_gitlink="$( { git -C "$h_wt" ls-tree HEAD -- "$h_sub" 2>/dev/null || true; } | awk '{print $3}')"
@@ -1635,7 +1702,10 @@ cmd_sync_follower() {
 # reset, never destroy work. Untracked files (e.g. the .war-task marker) do not
 # count as dirty. The reuse paths (b)/(c) run the SAME examined-but-untouched
 # submodule hygiene arm as ensure-worktree's reuse (#1476 gap 4, see
-# reuse_hygiene) — fail-open, never a die, exit discipline unchanged.
+# reuse_hygiene) — fail-open, never a die, exit discipline unchanged. Every
+# success arm (a), (b), (c) and (e) then runs submodules_ready (#2346): init any
+# uninitialized submodule, then assert-submodules-ready, which dies
+# EX_SUBMODULES if one is still uninitialized.
 #
 # Behaviors:
 #   (a) Not registered / empty dir  -> git worktree add <path> <integration-branch>
@@ -1666,6 +1736,7 @@ cmd_ensure_refinery_worktree() {
         # fail-open, markers on stderr, stdout stays the path.
         write_marker "$wt_path" "$int_branch"
         reuse_hygiene "$wt_path" || true
+        submodules_ready "$wt_path"
         printf '%s\n' "$wt_path"
         return 0
       fi
@@ -1681,6 +1752,7 @@ cmd_ensure_refinery_worktree() {
       write_marker "$wt_path" "$int_branch"
       # Re-attach is still a reuse: same hygiene arm (#1476 gap 4), fail-open.
       reuse_hygiene "$wt_path" || true
+      submodules_ready "$wt_path"
       printf '%s\n' "$wt_path"
       return 0
     fi
@@ -1709,6 +1781,7 @@ cmd_ensure_refinery_worktree() {
   fi
 
   write_marker "$wt_path" "$int_branch"
+  submodules_ready "$wt_path"
   printf '%s\n' "$wt_path"
 }
 
@@ -1724,7 +1797,10 @@ cmd_ensure_refinery_worktree() {
 #   1. Reuse arms (b) and (c). The refinery verb runs the reuse_hygiene submodule
 #      arm and emits its WORKTREE_HYGIENE markers (#1476 gap 4). This verb runs
 #      neither, because a publication worktree commits docs only, never submodule
-#      content, so no examined submodule state is ever handed on.
+#      content, so no examined submodule state is ever handed on. For the same
+#      reason it runs neither the submodule init nor the assert-submodules-ready
+#      call of the other two ensure verbs (#2346): it commits docs only and runs
+#      no gate.
 #   2. Behavior (b). This verb also refuses a DIRTY reuse (#1083); the refinery
 #      counterpart deliberately keeps today's six behaviors — extending the
 #      refusal there interacts with the serial merge queue's legitimate in-flight
@@ -2061,7 +2137,7 @@ cmd_prune() {
 # --- dispatch ---------------------------------------------------------------
 main() {
   [ $# -ge 1 ] || die "usage: $PROG <subcommand> [args...]
-subcommands: ensure-integration, record-as-owned, ensure-exclude, ensure-worktree, sync-follower, land-advance, ensure-refinery-worktree, ensure-publication-worktree, remove-publication-worktree, resolve-working-branch, ensure-origin, teardown-task, teardown-phase, prune"
+subcommands: ensure-integration, record-as-owned, ensure-exclude, ensure-worktree, sync-follower, land-advance, ensure-refinery-worktree, ensure-publication-worktree, remove-publication-worktree, resolve-working-branch, ensure-origin, assert-submodules-ready, teardown-task, teardown-phase, prune"
   sub="$1"; shift
   case "$sub" in
     ensure-integration)          cmd_ensure_integration "$@" ;;
@@ -2075,10 +2151,11 @@ subcommands: ensure-integration, record-as-owned, ensure-exclude, ensure-worktre
     remove-publication-worktree) cmd_remove_publication_worktree "$@" ;;
     resolve-working-branch)      cmd_resolve_working_branch "$@" ;;
     ensure-origin)               cmd_ensure_origin "$@" ;;
-    teardown-task)               cmd_teardown_task "$@" ;;
+    assert-submodules-ready)     cmd_assert_submodules_ready "$@" ;;
+    teardown-task)              cmd_teardown_task "$@" ;;
     teardown-phase)              cmd_teardown_phase "$@" ;;
     prune)                       cmd_prune "$@" ;;
-    *) die "unknown subcommand '$sub' (have: ensure-integration, record-as-owned, ensure-exclude, ensure-worktree, sync-follower, land-advance, ensure-refinery-worktree, ensure-publication-worktree, remove-publication-worktree, resolve-working-branch, ensure-origin, teardown-task, teardown-phase, prune)" ;;
+    *) die "unknown subcommand '$sub' (have: ensure-integration, record-as-owned, ensure-exclude, ensure-worktree, sync-follower, land-advance, ensure-refinery-worktree, ensure-publication-worktree, remove-publication-worktree, resolve-working-branch, ensure-origin, assert-submodules-ready, teardown-task, teardown-phase, prune)" ;;
   esac
 }
 
