@@ -307,8 +307,10 @@ test('reference link integrity — the retired SKILL.md co-source-of-truth citat
 });
 
 // --- Arm 3: header truth --------------------------------------------------------------
-// EVERY live eviction destination under skills/war/references/ — each one's header must
-// carry the byte-identity claim qualified "at eviction time". The list is a UNION that only
+// EVERY live eviction destination under skills/war/references/ whose header makes the
+// byte-identity claim — each one's header must carry that claim qualified "at eviction
+// time" (destinations that make no such claim, e.g. file-followups.md, sit in
+// QUALIFIED_HEADERS_EXEMPT below instead). The list is a UNION that only
 // ever grows: a new eviction destination joins it on creation, and an existing destination
 // found unlisted joins it in the same touch that notices the gap (the directory-scan census
 // below reds a file that joins neither this list nor its exemption table). Read by direct
@@ -808,7 +810,7 @@ test('late-defect: hold — the refiner card points at late-fix-pass.md in the w
 // passages (the Exclusion set and Terminal pass behavior-row sentences, CONTEXT.md @ 5d15665d, now GLOSSARY.md), moved to
 // fund the late-defect glossary entry (ADR 0042). Each passage sits under its own `###` heading and one
 // provenance line; the digest pins the passage bytes, so a sanctioned edit re-pins it here.
-test('late-defect: doctrine eviction — SKILL.md points at late-defects.md in the when <trigger>, read shape, and the two CONTEXT.md (now GLOSSARY.md) passages landed byte-identical with a pointer left behind', () => {
+test('late-defect: doctrine eviction — SKILL.md points at late-defects.md in the when <trigger>, read shape, and the CONTEXT.md (now GLOSSARY.md) passages landed byte-identical with a pointer left behind', () => {
   const skill = readFileSync(join(REPO_ROOT, 'skills/war/SKILL.md'), 'utf8');
   for (const trigger of ['When a late defect is carried, held or filed', 'when threading one', 'When ruling one'])
     assert.ok(skill.includes(`${trigger}, read [references/late-defects.md](references/late-defects.md)`),
