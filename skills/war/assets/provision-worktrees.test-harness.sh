@@ -25,11 +25,14 @@
 # preservation, SHA-mismatch control, clean control, real-edits control).
 # Subcommands exercised (plan 2026-08-25 Phase 8 Task 1, #1476 + #1712 fix 1):
 # reuse-gap rows RG.1-RG.4 (untracked-files=all, deliberate-git-rm
-# disambiguation + accepted-residual header pin, SIGPIPE regression + env-error
-# arm pin, refinery hygiene arm) and holder-die rows RG.5-RG.6 (`checked out
+# disambiguation + accepted-residual header pin, SIGPIPE regression, refinery
+# hygiene arm) and holder-die rows RG.5-RG.6 (`checked out
 # at <path>` in the two worktree-add failure dies fix 1 covered: ensure-worktree
 # and ensure-refinery-worktree). Row RG.7 (#2087, plan 2026-09-06 Task 6.2)
 # pins the same holder clause on ensure-publication-worktree's add-die.
+# Subcommands exercised (plan 2026-11-08 Task 1.6, PIN-7 + PIN-8): behavioral
+# hygiene env-error and unrecognized-dirt rows, RG.4b (the refinery (c) arm's
+# hygiene call), and the assert-submodules-ready rows.
 # Subcommands exercised (#1840, #2007): large-registry and PIPE rows pin the
 # SIGPIPE-safe branch, owned-set, delete and push classifiers.
 # Ownership seam: the run tells the script which refs it owns via --owned-file
