@@ -639,20 +639,24 @@ export function lintInfo(text) {
 // delimiters included) and every line from a line-initial `**Trials run**` label to the next
 // heading are not scanned by that rule. A `#` line inside a fence never ends the Trials block.
 // Every other rule still scans fenced lines: `target-content-paste` keeps "a fence is no carve-out".
+// CommonMark fence rules: an opener may carry an info string. A closer carries none, uses the
+// opener's character, and its run is at least as long as the opener's run.
 const FENCE = /^\s{0,3}(`{3,}|~{3,})/;
+const FENCE_CLOSE = /^\s{0,3}(`{3,}|~{3,})\s*$/;
 const TRIALS_LABEL = /^\s*\*\*Trials run\*\*/;
 function lintLines(text) {
   const hits = [];
   let inRelease = false;
-  let fence = null; // the opening delimiter's character while inside a fenced block
+  let fence = null; // the opening delimiter run ({ ch, len }) while inside a fenced block
   let inTrials = false;
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-    const delim = line.match(FENCE);
-    const fenced = fence !== null || delim !== null;
-    if (delim && fence === null) fence = delim[1][0];
-    else if (delim && delim[1][0] === fence) fence = null;
+    const open = fence === null ? line.match(FENCE) : null;
+    const close = fence !== null ? line.match(FENCE_CLOSE) : null;
+    const fenced = fence !== null || open !== null;
+    if (open) fence = { ch: open[1][0], len: open[1].length };
+    else if (close && close[1][0] === fence.ch && close[1].length >= fence.len) fence = null;
     // A `#` line inside a fence is code, not a heading: it moves neither release scope nor the
     // Trials block, so a shell comment in a fenced release step keeps the scope it sits in.
     if (!fenced) {
