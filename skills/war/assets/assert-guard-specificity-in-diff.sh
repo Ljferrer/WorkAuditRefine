@@ -40,10 +40,11 @@
 #
 # Coverage: for each unique new guard MSG, some TEST file in the same diff must contain, in
 # its ADDED lines, either MSG whole or a leading substring of MSG at least
-# ANCHORED_PREFIX_MIN (16) bytes long. A mid-message substring never covers. The set of files that count as tests is EXACTLY the
-# assert-test-in-diff.sh gate-mirror default (skills/**/*.test.mjs ∪ repo-wide **/*.test.sh,
-# excluding node_modules/.git/.claude) UNIONED with any --pattern tokens — preserving
-# floor ⊆ gate: coverage can only be credited to a test the gate would actually run.
+# ANCHORED_PREFIX_MIN (16) bytes long. A mid-message substring never covers. The set of
+# files that count as tests is EXACTLY the assert-test-in-diff.sh gate-mirror default
+# (skills/**/*.test.mjs ∪ repo-wide **/*.test.sh, excluding node_modules/.git/.claude)
+# UNIONED with any --pattern tokens — preserving floor ⊆ gate: coverage can only be
+# credited to a test the gate would actually run.
 #
 # Exit codes (load-bearing contract, mirrors assert-test-in-diff.sh / assert-packaging-in-diff.sh):
 #   0 — no new guard, or every new guard message is covered by a same-diff test
@@ -69,9 +70,9 @@
 # #     A test line covers that prefix only when it holds the whole prefix or its leading
 # #     ANCHORED_PREFIX_MIN bytes (#1834). A mid-message substring stays uncovered, so the
 # #     assert-no-repo-escape case-28 assertion (it starts mid-message) would still stamp
-# #     uncovered; a `%`-bearing message is truncated to
-# #     its literal prefix before the FIRST `%` (a `%%` literal-percent truncates too — spurious
-# #     but safe: the prefix stays a true substring of the emitted text);
+# #     uncovered; a `%`-bearing message is truncated to its literal prefix before the
+# #     FIRST `%` (a `%%` literal-percent truncates too — spurious but safe: the prefix
+# #     stays a true substring of the emitted text);
 # #   - the stderr emit-segment scan recognizes only `echo`/`printf` keywords; a multi-command
 # #     emit segment or a `cat <<EOF >&2` heredoc stays undetected (whole-line fallback);
 # #   - `exit`/`return` matched as space-delimited words on the raw line, so a stderr WARNING
