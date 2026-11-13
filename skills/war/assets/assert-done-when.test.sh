@@ -78,6 +78,7 @@
 #       quoted `node --test` text are never probed, so each exits 0 through
 #       the command's own result.
 #   31. a failed command-file scan (awk stubbed) -> exit 2.
+#   32. after a command-position cd or pushd no later node --test is probed (fail-open).
 #
 # The env-arm greps quote the floor's die literals VERBATIM (embedded $vars
 # included) inside double quotes: the test binds each variable to the runtime
@@ -806,10 +807,12 @@ fi
 # Case 29: a redirect and its target are not probed, spaced or glued, with
 # or without an fd number, and a heredoc word is not probed. RED PROOF: drop
 # the bare-operator skip and '/dev/null' or 'EOF' is reported missing; drop
-# the attached-operator skip and '1>/dev/null' or '<<EOF' is reported.
+# the `<<-` arm of the bare-operator skip and the spaced `<<- EOF` line
+# reports 'EOF'; drop the attached-operator skip and '1>/dev/null', '<<EOF'
+# or '<<-EOF' is reported.
 WT29="$(setup_nt_wt)"
 CF29="$(tmp_dir)/nt29.cmd"
-printf 'node --test a.test.mjs > /dev/null\nnode --test a.test.mjs >/dev/null 2>&1\nnode --test a.test.mjs >> /dev/null\nnode --test a.test.mjs < /dev/null\nnode --test a.test.mjs 2> /dev/null\nnode --test a.test.mjs 1>/dev/null\nnode --test a.test.mjs 1> /dev/null\nnode --test a.test.mjs 2>> /dev/null\nnode --test a.test.mjs &> /dev/null\nnode --test a.test.mjs > /dev/null <<EOF\nx\nEOF\nnode --test a.test.mjs > /dev/null << EOF\nx\nEOF\n' > "$CF29"
+printf 'node --test a.test.mjs > /dev/null\nnode --test a.test.mjs >/dev/null 2>&1\nnode --test a.test.mjs >> /dev/null\nnode --test a.test.mjs < /dev/null\nnode --test a.test.mjs 2> /dev/null\nnode --test a.test.mjs 1>/dev/null\nnode --test a.test.mjs 1> /dev/null\nnode --test a.test.mjs 2>> /dev/null\nnode --test a.test.mjs &> /dev/null\nnode --test a.test.mjs > /dev/null <<EOF\nx\nEOF\nnode --test a.test.mjs > /dev/null << EOF\nx\nEOF\nnode --test a.test.mjs > /dev/null <<- EOF\nx\nEOF\nnode --test a.test.mjs > /dev/null <<-EOF\nx\nEOF\n' > "$CF29"
 run_floor "$WT29" --cmd-file "$CF29"
 if [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
   pass "case 29: node --test redirect target is not probed (exit 0 through the command)"
@@ -828,28 +831,6 @@ if [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
   pass "case 30: quoted node --test text is not probed (exit 0 through the command)"
 else
   fail "case 30: quoted text -> expected exit 0 and no probe, got RC=$RC (err: $ERR; cmd: $(cat "$CF30"))"
-fi
-
-# Case 32: after a command-position `cd` or `pushd`, paths resolve against a
-# run-time directory, so no later node --test is probed (fail-open). The
-# test files live only under sub/. Each verb gets its own cmd file. RED
-# PROOF: drop the cdseen flag, or the `cd` or `pushd` test, and
-# 'b.test.mjs' is reported missing.
-WT32="$(setup_wt)"
-mkdir -p "$WT32/sub"
-printf "import test from 'node:test';\ntest('x', () => {});\n" > "$WT32/sub/b.test.mjs"
-CF32="$(tmp_dir)/nt32.cmd"
-printf 'cd sub && node --test b.test.mjs > /dev/null\n' > "$CF32"
-run_floor "$WT32" --cmd-file "$CF32"
-RC32a="$RC"; ERR32a="$ERR"
-CF32="$(tmp_dir)/nt32b.cmd"
-printf 'pushd sub > /dev/null && node --test b.test.mjs > /dev/null\n' > "$CF32"
-run_floor "$WT32" --cmd-file "$CF32"
-if [ "$RC32a" -eq 0 ] && ! printf '%s' "$ERR32a" | grep -qF 'missing file' \
-   && [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
-  pass "case 32: node --test after an in-command cd is not probed (exit 0 through the command)"
-else
-  fail "case 32: in-command cd -> expected exit 0 and no probe, got cd RC=$RC32a pushd RC=$RC (err: $ERR32a $ERR)"
 fi
 
 # Case 31: a failed command-file scan is an env error -> exit 2, never the
@@ -872,6 +853,28 @@ if [ "$RC" -eq 2 ] \
   pass "case 31: a failed node --test scan -> exit 2 + message (env error, never the done-unmet route)"
 else
   fail "case 31: failed scan -> expected exit 2 + message, got $RC (err: $ERR)"
+fi
+
+# Case 32: after a command-position `cd` or `pushd`, paths resolve against a
+# run-time directory, so no later node --test is probed (fail-open). The
+# test files live only under sub/. Each verb gets its own cmd file. RED
+# PROOF: drop the cdseen flag, or the `cd` or `pushd` test, and
+# 'b.test.mjs' is reported missing.
+WT32="$(setup_wt)"
+mkdir -p "$WT32/sub"
+printf "import test from 'node:test';\ntest('x', () => {});\n" > "$WT32/sub/b.test.mjs"
+CF32="$(tmp_dir)/nt32.cmd"
+printf 'cd sub && node --test b.test.mjs > /dev/null\n' > "$CF32"
+run_floor "$WT32" --cmd-file "$CF32"
+RC32a="$RC"; ERR32a="$ERR"
+CF32="$(tmp_dir)/nt32b.cmd"
+printf 'pushd sub > /dev/null && node --test b.test.mjs > /dev/null\n' > "$CF32"
+run_floor "$WT32" --cmd-file "$CF32"
+if [ "$RC32a" -eq 0 ] && ! printf '%s' "$ERR32a" | grep -qF 'missing file' \
+   && [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
+  pass "case 32: node --test after an in-command cd is not probed (exit 0 through the command)"
+else
+  fail "case 32: in-command cd -> expected exit 0 and no probe, got cd RC=$RC32a pushd RC=$RC (err: $ERR32a $ERR)"
 fi
 
 # ---------------------------------------------------------------------------

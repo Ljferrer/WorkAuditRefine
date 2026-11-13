@@ -46,7 +46,7 @@
 # a value-taking node flag written without `=`); a token holding `*`, `?`,
 # `[` or `$` (globs and variables resolve at run time); a bare redirect
 # operator with an optional fd number (`>`, `1>`, `2>>`, `&>>`, `<`, `<<`,
-# `>&`) with the token after it; and a token that starts with a redirect
+# `<<-`, `>&`) with the token after it; and a token that starts with a redirect
 # operator (`>/dev/null`, `1>log`, `2>&1`, `<<EOF`). Once a command-position
 # `cd` or `pushd` is seen, no later `node --test` is probed: paths then
 # resolve against a run-time directory, so the probe fails open. Each other
@@ -190,7 +190,7 @@ function emit(w) {
   else if (nw == 1) probing = (isnode && w == "--test" && !cdseen)
   else if (probing) {
     if (skipnext) skipnext = 0
-    else if (w ~ /^[0-9]*(>>?|<<?<?|>&|<&|&>>?)$/) skipnext = 1
+    else if (w ~ /^[0-9]*(>>?|<<-|<<?<?|>&|<&|&>>?)$/) skipnext = 1
     else if (w ~ /^[0-9]*(>|<|&>)/) { }
     else if (substr(w, 1, 1) == "-") { if (w in valflag) skipnext = 1 }
     else if (w == "" || index(w, "*") || index(w, "?") || index(w, "[") || index(w, "$") || index(w, "\n")) { }
