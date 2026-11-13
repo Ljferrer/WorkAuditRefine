@@ -133,8 +133,9 @@ an unstamped root open, or an unstamped `needsDecision` at rounds ≥ 2) — wit
 `routeUpstream: true` ⇒ verdict `BLOCKED` (a stamped-out `ADJUDICATED` run never routes upstream;
 an `INCOMPLETE` run re-runs its probes instead of routing). On a route-upstream terminal the report
 gains the `## Route upstream` block — the residual questions as the regrill agenda plus the exact
-re-entry command — and `/war-campaign`'s step-3 triage halts with `stopPoint:
-redteam-route-upstream`, never skip-and-continue (ADR 0011).
+re-entry command, or the `**Budget spent:**` line in its place when the seed already met the round
+limit — and `/war-campaign`'s step-3 triage halts with `stopPoint: redteam-route-upstream`, never
+skip-and-continue (ADR 0011).
 _Avoid_: a sixth verdict, a `KNOWN_LAND_DECISIONS` member, or Lead-invented prose (ADR 0043
 precedence untouched — the field rides beside the verdict); emitting the field with no rounds
 inputs (absent inputs ⇒ absent outputs).
