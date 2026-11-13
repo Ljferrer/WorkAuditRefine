@@ -176,6 +176,26 @@ test('gate(node-staged) fails and names the empty match when the engine exists b
   assert.match(block, /matched no tests: skills\/war\/assets\/workflow-template\.\*\.test\.mjs/)
 })
 
+test('the staged rerun passes --test-concurrency set from WAR_GATE_NODE_JOBS', t => {
+  for (const jobs of ['1', '2']) {
+    const { root, put, run } = fixture(t)
+    put('skills/war/assets/workflow-template.js', '// engine stand-in\n')
+    // Each staged file waits for its peer. Only a concurrency of 2 lets both start together.
+    for (const name of ['a', 'b']) {
+      put(`skills/war/assets/workflow-template.${name}.test.mjs`, "import { appendFileSync, existsSync, writeFileSync } from 'node:fs'\n" +
+        "import { setTimeout } from 'node:timers/promises'; import { test } from 'node:test'\n" +
+        `test('${name}', async () => {\n  if (process.env.WAR_TEMPLATE_STRIPPED !== '1') return\n` +
+        `  writeFileSync('${name}.ready', '')\n  const deadline = Date.now() + 1500\n` +
+        `  while (!existsSync('${name === 'a' ? 'b' : 'a'}.ready') && Date.now() < deadline) await setTimeout(10)\n` +
+        `  appendFileSync('record', existsSync('${name === 'a' ? 'b' : 'a'}.ready') ? 'overlap\\n' : 'alone\\n')\n})\n`)
+    }
+    const result = run({ WAR_GATE_NODE_JOBS: jobs })
+    assert.equal(result.status, 0, result.stdout + result.stderr)
+    const record = readFileSync(join(root, 'record'), 'utf8').trim().split('\n').sort()
+    assert.deepEqual(record, jobs === '1' ? ['alone', 'overlap'] : ['overlap', 'overlap'], `WAR_GATE_NODE_JOBS=${jobs}`)
+  }
+})
+
 test('invalid pool sizes fail before launching any tests', t => {
   const { run } = fixture(t)
   for (const key of ['WAR_GATE_SHELL_JOBS', 'WAR_GATE_NODE_JOBS']) for (const value of ['0', '-1', '2.5', '33', 'oops']) {

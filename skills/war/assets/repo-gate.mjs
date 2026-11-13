@@ -161,7 +161,8 @@ async function main() {
   }
   const shellWorker = pool(suites, 'bash', 'bash', null, 'shell'), nodeWorker = pool(tests, 'node', process.execPath, '--test', 'node')
   // One more job outside both pools: the workflow-template files again, in the staged form
-  // the Workflow runs (the test harness reads the flag). It is not timed. An unmatched glob
+  // the Workflow runs (the test harness reads the flag). It runs at most nodeJobs files at
+  // once (operator ruling 2026-11-13). It is not timed. An unmatched glob
   // exits 0 with `tests 0`, so that log fails the job while the engine exists.
   const staged = 'skills/war/assets/workflow-template.*.test.mjs'
   const stagedEmpty = text => (existsSync('skills/war/assets/workflow-template.js') && /^\S* ?tests 0$/m.test(text)
@@ -169,7 +170,7 @@ async function main() {
   const total = suites.length + tests.length + 1
   try {
     const results = await Promise.allSettled([
-      run('gate(node-staged)', process.execPath, ['--test', staged], 'node-staged', { WAR_TEMPLATE_STRIPPED: '1' }, stagedEmpty),
+      run('gate(node-staged)', process.execPath, ['--test', `--test-concurrency=${nodeJobs}`, staged], 'node-staged', { WAR_TEMPLATE_STRIPPED: '1' }, stagedEmpty),
       ...Array.from({ length: Math.min(nodeJobs, tests.length) }, nodeWorker),
       ...Array.from({ length: Math.min(shellJobs, suites.length) }, shellWorker),
     ])
