@@ -500,7 +500,7 @@ const dagBaseImpl = (prompt, opts) => {
 
 // ---------------------------------------------------------------------------
 // Task 5 (Phase 3 — F05): servitor memory-admission checklist
-// The Wrap-up prompt and war-servitor.md must instruct four disciplines:
+// The Wrap-up prompt and war-servitor.md must instruct these disciplines:
 //   D1 — DEDUP BEFORE WRITE: Glob memory dir + read MEMORY.md + read candidates → update existing covering file
 //   D2 — TIER PRECEDENCE: a higher tier supersedes a lower; a user-confirmed fact outranks any agent write
 //   D3 — VERIFY-ON-WRITE: verify the referent is still present before acting (facts naming a file/flag/line)
@@ -623,8 +623,8 @@ const mergePromptsOf = (calls) => {
 // written inline was swallowed into its neighbour). The skip arms and the prose mentions (the ADD_TEST
 // description, the polish-merge skip) stay excluded BY CONSTRUCTION — they carry no ${testPatternArg}.
 //
-// Paired below with a source-derived count cross-check (discovered === raw invocation heads). THREE
-// residuals, all on the record for the next editor:
+// Paired below with a source-derived count cross-check (discovered === raw invocation heads). The
+// residuals below are all on the record for the next editor:
 //   1. Inline-backtick truncation — FAIL-CLOSED. A future floor arm embedding an inline backtick BEFORE
 //      its capture tokens truncates that site's capture and reds the per-site arms: a loud false red
 //      forcing a deliberate re-anchor, never a silent pass.
@@ -811,10 +811,10 @@ const askFinding = (over = {}) => ({ severity: 'Minor', title: 'mirror or point'
 // case-tolerant per the prompt-only-clause-grep lesson. Each assertion fails if EITHER surface
 // drops the sentence.
 const CALIBRATION_SHARED = 'judge on evidence only — never soften, downgrade, or drop a finding because peers disagreed or because a fix was attempted; downgrade only with a stated reason grounded in the current diff. The pull to soften peaks right after your own finding is challenged — that is the highest-risk moment.'
-// #811 QUOTE-LINT ANCHOR: COST_CLAIM_SHARED is a quote-bearing byte literal COUPLED across THREE surfaces —
+// #811 QUOTE-LINT ANCHOR: COST_CLAIM_SHARED is a quote-bearing byte literal COUPLED across these surfaces —
 // (1) the COST-CLAIM RULE literal in auditPrompt() / workflow-template.js, (2) agents/war-auditor.md's
-// Cost-claim rule line, (3) this test's own copy below. The presence tests below byte-compare all three, so
-// any quote-style lint (straight↔curly, escaping) MUST run identically across ALL THREE in ONE commit or it
+// Cost-claim rule line, (3) this test's own copy below. The presence tests below byte-compare every copy, so
+// any quote-style lint (straight↔curly, escaping) MUST run identically across ALL COPIES in ONE commit or it
 // silently breaks the byte-identity guard here (shared-string-constant-quote-literal lesson; a JS pointer
 // comment mirrors this at the workflow-template.js literal; CALIBRATION_RULE_ANCHORS precedent).
 const COST_CLAIM_SHARED = 'a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.'
@@ -896,7 +896,7 @@ async function capturedAuditPrompt() {
 // --- args.memory prior-lessons threading (memory-sqlite-substrate T4, spec §4.5, criterion 10) ---
 // The Lead prefetches per-seat lesson blocks and threads them as args.memory
 // ({ byTask: {<id>: {worker, seats:{<lens>:block}}}, servitor }). The template concatenates a
-// memoryClause at FIVE sites (worker, auditor, fix-worker, add-test, servitor) — following the
+// memoryClause at these sites (worker, auditor, fix-worker, add-test, servitor) — following the
 // intentClause pattern — and at NONE of ace/gate-audit/polish/refiner. Distinctive sentinels per
 // site let each assertion target exactly the intended prompt.
 const WORKER_MEM = 'PRIOR-LESSONS-WORKER-t1 [wm1] (code-verified): implementer pitfall block'
@@ -1007,36 +1007,32 @@ const ES_ROWS_CHECK_SECOND = [ES_ROWS[1], ES_ROWS[0], ES_ROWS[2]]   // [gate, ch
 // cmd_bytes_mismatch contradiction on the artifact, never a silently "corrected" execution.
 const ES_BT = '`'
 // One check:-tagged row carrying the shape under test; the transport prompt is shape-driven, so each
-// fixture threads its own literal through the same single-row phase.
-const esTransportPrompt = async (check) => {
+// fixture threads its own literal through the same single-row phase. esPrompts runs that phase once
+// and returns both prompts (#2256): the runner's endstate-check prompt and the gate-audit seat prompt.
+const esPrompts = async (check) => {
   const { calls } = await runPhase(ES_ROW_ARGS({
     phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a',
       endState: [{ condition: 'condition T: the transport shape survives', tag: 'check:', check }] },
   }), gateAuditImpl)
   const es = calls.find(isEndstateCheck)
   assert.ok(es, 'endstate-check dispatch present (presence guard)')
-  return es.prompt
+  const seat = gateAuditCalls(calls)[0]
+  assert.ok(seat, 'gate-audit seat dispatch present (presence guard)')
+  return { transport: es.prompt, seat: seat.prompt }
 }
+const esTransportPrompt = async (check) => (await esPrompts(check)).transport
 // The row builder's exact fenced rendering: fence line, literal bytes, fence line.
 const esFenced = (fence, check) => `fenced below:\n${fence}\n${check}\n${fence}`
 
 // Phase 10 Task 10.1 (D16, PIN-20, A6; #1781/#1782): the seat EXECUTES the .cmd file and attests, so
-// the engine cannot test seat behavior — both fixtures are prompt-content asserts on the three
+// the engine cannot test seat behavior — both fixtures are prompt-content asserts on the
 // surfaces (the runner's ENDSTATE-CHECK DISPATCH prompt, the seat-side END-STATE CHECK block, the
 // auditor card), registry-bound by the two Task 10.1 rows below. Absence census at the task base
 // (4cb505e): `cmd[i]` and `maximum` count 0 on the card and in the template; `intake_lint` counts 0
 // on the card and appears in the template only in the runner prompt's record-only row and a source
 // comment — never in the seat-side block. So a per-surface revert of either sentence reds its fixture.
-// The seat-side prompt comes from the same claims-bearing single-row phase esTransportPrompt runs.
-const esSeatPromptFor = async (check) => {
-  const { calls } = await runPhase(ES_ROW_ARGS({
-    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a',
-      endState: [{ condition: 'condition T: the transport shape survives', tag: 'check:', check }] },
-  }), gateAuditImpl)
-  const seat = gateAuditCalls(calls)[0]
-  assert.ok(seat, 'gate-audit seat dispatch present (presence guard)')
-  return seat.prompt
-}
+// The seat-side prompt comes from the same claims-bearing single-row phase run (esPrompts).
+const esSeatPromptFor = async (check) => (await esPrompts(check)).seat
 
 // Task 3.2's doc-claim row (Task 1.2's OLD-absent owner — the war-config.test.mjs schemas-guard
 // pattern): schemas.md's handoff endState row was rewritten in place to the five-status set; the old
@@ -1166,7 +1162,7 @@ const CLS_ARGS = (over = {}) => ({
   memoryLocalRoot: '/abs/mem',
   ...over,
 })
-// A refiner impl parameterized by what the initial merge / land returns; the two bounded recovery
+// A refiner impl parameterized by what the initial merge / land returns; the bounded recovery
 // re-dispatches (labels ending :baseline-proceed / :environment-proceed) return merged/landed by default
 // so the phase can proceed. Pass mergeProceed/landProceed to drive the recovery dispatch's own result
 // (the bound tests need a SECOND failure out of the environment-proceed re-run).
@@ -1230,7 +1226,7 @@ const assertSubmodScoped = (call, where) => {
 }
 
 // ---------------------------------------------------------------------------
-// #1114 — submodule floor/note completion across the three remaining dispatch families (re-land, polish
+// #1114 — submodule floor/note completion across the remaining dispatch families (re-land, polish
 // merge, floor-retry re-merge). SIBLINGS of the #1032 block above and bound by the same doctrine: each
 // prompt test drives ONE route through the harness that already stubs it and reads the captured prompt BY
 // DISPATCH LABEL (a source occurrence count proves shape, not what the engine dispatched); each routing
@@ -1289,11 +1285,11 @@ const SINGLE_PROV = (over = {}) => withProvision({ tasks: [{ id: 't1', issue: 1,
 // <merge-sha>...origin/<working>` (the merge sha it tried to push vs. the freshly-fetched origin
 // tip, NEVER the lagging local follower): a right count of 0 (contender-less transient) buys
 // exactly ONE extra push-first attempt beyond roundLimit; a nonzero right count (real contender
-// commits) is land_stale immediately. The discrimination is emitted in ALL THREE land prompts (in-flow,
+// commits) is land_stale immediately. The discrimination is emitted in EVERY land prompt (in-flow,
 // baseline-proceed re-land, environment-proceed re-land) via the shared relandDiscrimination helper, and
 // grep-parallel with the standing copy in references/refiner-recovery.md (evicted from war-refiner.md
 // §land-phase by Task 4.1; the card's land step 3 is a trigger pointer).
-// The three plain-text anchors below appear VERBATIM in all four surfaces (mirror-drift guard, spec
+// The plain-text anchors below appear VERBATIM in every surface named above (mirror-drift guard, spec
 // §8; memory: standing-instruction-vs-dispatched-prompt-coverage-split). They are markup-free in the
 // .md source (no backtick/bold inside the span) so a raw-string includes() matches byte-for-byte.
 // ---------------------------------------------------------------------------
@@ -1347,7 +1343,7 @@ const landConfirmHolds = prompts => {
 //       prompt built in workflow-template.js — preflight, dedup, cluster, and the return contract.
 //       These are the decisive rules; per ADR 0047 adjudication O(1) the reference file is
 //       best-effort enrichment, so the prompt is the carrier and the two must never drift.
-// The five anchors below are markup-free plain-text byte-runs (no backtick or bold inside the span)
+// The anchors below are markup-free plain-text byte-runs (no backtick or bold inside the span)
 // so a raw includes() matches byte-for-byte on BOTH surfaces.
 // ---------------------------------------------------------------------------
 const FF_PREFLIGHT = 'exit 2 (tooling error) or exit 3 (account mismatch)'          // B1: the preflight abort condition
@@ -1770,7 +1766,7 @@ const GATE_SITE_CAPTURES = [
     run: (gate) => runPhase(CLS_ARGS({ plan: planWith(gate) }), clsImpl({ mergeResult: envMergeResult })) },
   { site: 'land:phase-<id>:environment-proceed re-land clause', find: (c) => c.find(x => /^land:phase-\d+:environment-proceed$/.test(x.opts.label || '')),
     run: (gate) => runPhase(CLS_ARGS({ plan: planWith(gate) }), clsImpl({ landResult: envLandResult })) },
-  // The four fix-family prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, ace) became gate-bearing when
+  // The fix-family prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, ace) became gate-bearing when
   // precision-chain Task 1.3 gave each a `Gate: ${plan.gate}` line (prompt truth, D6) — so they are
   // ADDED here, never skipped (this array's own doctrine).
   { site: 'FIX_NEEDED Gate: line (fix:<task>:r<n>)', find: (c) => c.find(x => /^fix:t1:/.test(x.opts.label || '')),
@@ -1799,7 +1795,7 @@ const GATE_SITE_CAPTURES = [
 // task.doneWhen (the plan's per-task `Done when:` acceptance command) rides the seven worker-family
 // prompt sites (MAKE_DONE_PASS joined via Task 2.3; the ace bisection subset via realized-absorb-rate
 // Task 1.1) as a `Done when:` line beside Gate:. The rows pin
-// the two contract halves the plan
+// the contract halves the plan
 // names: (1) each task-scoped fix prompt carries the gate command and the FIX_GATE_RULE (the D6
 // prompt-truth sweep), and (2) the absent ⇒ '' set-minus identity — a doneWhen-less run's prompts are
 // byte-identical to a doneWhen-bearing run's prompts minus the single inserted clause (legacy
@@ -2166,7 +2162,7 @@ const LITERAL_REGISTRY = [
   ["polish:phase-${ph.id}`, schema: WORKER_RESUL"],
   ["merge:p${ph.id}-polish`, schema: MERGE_RESUL"],
   ["phase-close sweep MERGED at ${polishSha} — t"],
-  // terminal pass (in-band-absorb-default D3a): the three dispatch labels — worker, forward-revert, merge.
+  // terminal pass (in-band-absorb-default D3a): the dispatch labels — worker, forward-revert, merge.
   ["terminal:phase-${ph.id}`, dispatchKind: 'ter"],
   ["terminal-revert:phase-${ph.id}`, dispatchKin"],
   ["merge:p${ph.id}-terminal`, schema: MERGE_RES"],
@@ -2447,7 +2443,7 @@ const BARE_INTERPOLATION_CENSUS = [
   // both construction-guaranteed strings; the enclosing MEMORY_QUERY_TOOL_LINE renders only when
   // memoryLocalRoot is threaded (its own ternary), so memoryLocalRoot's existing row covers that span.
   'MEMORY_TOOL', 'memoryQueryRepoArg',
-  // Gate-log stamp + segmented gate (engine-and-audit-verdict-integrity Task 5.1, #2086/#2094): the four
+  // Gate-log stamp + segmented gate (engine-and-audit-verdict-integrity Task 5.1, #2086/#2094): the
   // pt-built module consts (GATE_LOG_STAMP / PARTIAL_LOG_RULE / GATE_LOG_READ_RULE / GATE_LOG_UNTHREADED)
   // are construction-guaranteed strings; `shape` is backgroundGateRule's param, a pt-built literal at
   // every call site; `opts.label` is a segment continuation header's site label — every call site passes one.
@@ -2492,7 +2488,7 @@ const BARE_INTERPOLATION_CENSUS = [
   // string at both callers (CHAIN_FIX_MD, CHAIN_AUDIT_MD) — all construction-guaranteed.
   'correctiveRound', 'e.round', 'examplesPointer', 'file', 'variant', 'variantClause',
   // #2485 Task 2.1: MERGE_FACTS_RULE and NEVER_MOVE_MERGED are plain-string module consts; neverMoveStep's
-  // three params are r.task.worktree, r.task.branch and ph.integrationBranch at all four step (a) copies,
+  // params are r.task.worktree, r.task.branch and ph.integrationBranch at all four step (a) copies,
   // each entry-validated — all construction-guaranteed strings.
   'MERGE_FACTS_RULE', 'NEVER_MOVE_MERGED', 'nmBranch', 'nmTarget', 'nmWorktree',
   // Plan 2026-11-08-model-routing-and-prompt-byte-budgets Task 5.3 (PIN-27): the relay prompts' shq-quoted
@@ -2557,7 +2553,7 @@ const quietGate = (base) => (prompt, opts) => {
 // carries the body.
 // Parallel repository gate: completed suites emit out of order. Require the final completion marker
 // before treating an absent mapped path as HARD; all pre-existing checklist duties are retained.
-// Re-pinned (plan 2026-11-08-engine-findings-ace-and-late-fix T2.1): four bullets appended for the
+// Re-pinned (plan 2026-11-08-engine-findings-ace-and-late-fix T2.1): bullets appended for the
 // execution-evidence seat (D30 phase-wide, D28 confirmed tip, D32 gate scope, D31 environment note);
 // the card gains no byte, and every earlier bullet stays byte-identical.
 // Re-pinned (same task, fix round): the D28 bullet scopes the CONFIRMED TIP compare to the End-state
@@ -2979,7 +2975,7 @@ const dropDoctrineAt = (head) => {
 
 // ===========================================================================
 // BACKWARD-CHAIN DOCTRINE (plan 2026-09-11-backward-chain-doctrine, Task 2.1; D1–D16, PIN-1..PIN-11).
-// Three `## The rules` blocks ride the dispatched prompts byte-equal from skills/war/references/
+// The `## The rules` blocks ride the dispatched prompts byte-equal from skills/war/references/
 // backward-chain-{worker,fix,audit}.md: the worker block on the work: build ONLY; the fixer block on
 // the seven fix-applying builds and nowhere else (no site carries both); the audit block on the
 // roster-seat auditPrompt at corrective round >= 2 only (round 1 byte-identical to a round-omitted
@@ -3222,7 +3218,7 @@ const auditorIdx = calls => calls.map((c, i) => [c, i]).filter(([c]) => isAudito
 // gate (A14).
 // ---------------------------------------------------------------------------
 
-// A release task: its plan Files: list names both RELEASE_SLOT_FILES basenames plus the two prose twins.
+// A release task: its plan Files: list names both RELEASE_SLOT_FILES basenames plus the prose twins.
 const RELEASE_TASK = { id: 't1', issue: 101, title: 'Release 0.21.13', planSlice: 'bump the four slots', roster: [{ lens: 'correctness' }],
   files: ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', 'README.md', 'CHANGELOG.md'] }
 // A blurb Minor on the CHANGELOG head entry — prose only, fully specified, absorb.
@@ -3526,12 +3522,13 @@ const captureRangeRevertScript = async ({ dir, git, quiet, approved }) => {
 // on parents [snapshot base, source tip], a rebased source, merge tree == source tree and the exact trailer.
 const ES_MERGE_CMD = /run exactly `(git -c core\.hooksPath=\/dev\/null merge --no-ff --no-commit ([^ `]+) && git -c core\.hooksPath=\/dev\/null commit --no-verify -m "Merge WAR task t1 \(\2\)" --trailer "WAR-Task: \2")`/
 const mergeCommandOf = p => { const m = String(p).match(ES_MERGE_CMD); assert.ok(m, 'the merge prompt carries the exact two-step --no-ff merge spelling'); return m[1] }
-// The four task merge sites, each driven to dispatch once (the reconciliation-loop drivers).
-const taskMergeSitePrompts = async () => {
+// The task merge sites, each driven to dispatch once (the reconciliation-loop drivers). `over` is
+// spread into PROVISION_ARGS after the single task (a `plan` or `tasks` override; T2.3 threading rows).
+const taskMergeSitePrompts = async (over = {}) => {
   const prompts = {}
   for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-proceed']) {
     const label = site === 'initial' ? 'merge:t1' : site === 'floor-retry' ? 'merge:t1:floor-retry:r1' : 'merge:t1:' + site
-    const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+    const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, ...over }), (p, o) => {
       if (o.label === 'merge:t1' && site === 'floor-retry') return { mode: 'merge-task', status: 'no-test' }
       if (o.label === 'merge:t1' && /-proceed$/.test(site)) return { mode: 'merge-task', status: 'gate_failed', gate_failure_class: site.split('-')[0], gate_failing_ids: ['old-test'], gate_base_sha: '1'.repeat(40) }
       return defaultImpl(p, o)
@@ -3832,8 +3829,8 @@ const WORKER_SITE_LABELS = [
 ]
 
 // Refiner provision and evidence tiers (plan 2026-11-08-model-routing-and-prompt-byte-budgets Task 3.1,
-// PIN-9, PIN-14, PIN-34, PIN-35). PROVISION_TIER_KINDS: the four dispatch kinds agents.refiner.provision
-// routes. tierPhaseCalls(agents): the calls of two phases that between them reach all four kinds and a
+// PIN-9, PIN-14, PIN-34, PIN-35). PROVISION_TIER_KINDS: the dispatch kinds agents.refiner.provision
+// routes. tierPhaseCalls(agents): the calls of two phases that between them reach every kind and a
 // non-intraDep evidence dispatch — a late-fix phase with run.provision (barrier, provision-run,
 // late-fix-worktree, evidence) and a phase-close sweep phase (polish-worktree). spawnOptsOf picks the spawn
 // fields of one call's opts, in the shape spawn('refiner') returns.
@@ -3860,7 +3857,7 @@ const scriptPromptCalls = async (source = src) => {
   return runs.flatMap(r => r.calls).filter(c => seatOf(c.opts) === 'war-refiner' && (c.prompt || '').includes('provision-worktrees.sh'))
 }
 // ---- plan 2026-11-08-model-routing-and-prompt-byte-budgets, Task 5.3: the Git relays on the helper ----
-// relayRun: one ace phase that dispatches all five relays (tip-probe, pin-snapshot, pin-confirm,
+// relayRun: one ace phase that dispatches every relay (tip-probe, pin-snapshot, pin-confirm,
 // merge-snapshot, merge-confirm) and lands t1. relayCommandsOf: each git command a relay prompt
 // spells, in backticks or in MERGE_FACTS_RULE's bare form, with every <placeholder> filled by a full
 // SHA and, when the prompt names its repo in the relayRepo lead-in, -C <repo> on each side of a pipe.
@@ -4060,6 +4057,7 @@ export {
   REFINERY,
   ES_ROWS_CHECK_SECOND,
   ES_BT,
+  esPrompts,
   esTransportPrompt,
   esFenced,
   esSeatPromptFor,
