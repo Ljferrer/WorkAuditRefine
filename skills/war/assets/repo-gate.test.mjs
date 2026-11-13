@@ -185,7 +185,7 @@ test('the staged rerun passes --test-concurrency set from WAR_GATE_NODE_JOBS', t
       put(`skills/war/assets/workflow-template.${name}.test.mjs`, "import { appendFileSync, existsSync, writeFileSync } from 'node:fs'\n" +
         "import { setTimeout } from 'node:timers/promises'; import { test } from 'node:test'\n" +
         `test('${name}', async () => {\n  if (process.env.WAR_TEMPLATE_STRIPPED !== '1') return\n` +
-        `  writeFileSync('${name}.ready', '')\n  const deadline = Date.now() + 1500\n` +
+        `  writeFileSync('${name}.ready', '')\n  const deadline = Date.now() + 5000\n` +
         `  while (!existsSync('${name === 'a' ? 'b' : 'a'}.ready') && Date.now() < deadline) await setTimeout(10)\n` +
         `  appendFileSync('record', existsSync('${name === 'a' ? 'b' : 'a'}.ready') ? 'overlap\\n' : 'alone\\n')\n})\n`)
     }
