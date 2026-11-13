@@ -670,6 +670,16 @@ V_SM5="$C_SM5/$(git -C "$WT_SM5" submodule status --recursive 2>/dev/null | cut 
 expect "reuse-gap(submodules-ready): refinery reuse arm inits the submodule" \
   "0/ /one/$WT_SM5" "$V_SM5/$OUT_SM5"
 
+# The refinery re-attach arm (c): a clean worktree on a prior branch, its
+# submodule still at `-`, switches to the integration branch and inits.
+FX_SM6="$(sm_fixture)"; R_SM6="${FX_SM6%% *}"
+WT_SM6="$(new_wt_path)"
+git -C "$R_SM6" worktree add -q -b integration/myplan/phase-0 "$WT_SM6" HEAD >/dev/null 2>&1
+OUT_SM6="$( ( cd "$R_SM6" && env $SM_ALLOW bash "$SCRIPT" ensure-refinery-worktree "$WT_SM6" integration/myplan/phase-1 ) 2>/dev/null )"; C_SM6=$?
+V_SM6="$C_SM6/$(git -C "$WT_SM6" submodule status --recursive 2>/dev/null | cut -c1)/$(cat "$WT_SM6/sub/a.txt" 2>/dev/null)"
+expect "reuse-gap(submodules-ready): refinery re-attach arm inits the submodule" \
+  "0/ /one/$WT_SM6" "$V_SM6/$OUT_SM6"
+
 # The verb's own die guards, matched by their stderr text.
 R_SMU="$(new_repo)"
 ERR_SMU="$( (cd "$R_SMU" && bash "$SCRIPT" assert-submodules-ready) 2>&1 >/dev/null)"; C_SMU=$?

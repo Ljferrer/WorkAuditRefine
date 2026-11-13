@@ -701,8 +701,9 @@ cmd_ensure_worktree() {
 # plain `git worktree add` leaves every declared submodule uninitialized, so a
 # gate there fails at collection. When `submodule status --recursive` shows a
 # `-` line, run `submodule update --init --recursive` under
-# GIT_TERMINAL_PROMPT=0, so a credential prompt fails the init instead of
-# hanging the Provision barrier. A failed init only warns here. The
+# GIT_TERMINAL_PROMPT=0, so git's own credential prompt (HTTP) fails the init
+# instead of hanging the Provision barrier. An ssh passphrase or host-key
+# prompt is ssh's own and is not covered. A failed init only warns here. The
 # assert-submodules-ready call that follows then dies EX_SUBMODULES, and the
 # barrier routes the task env-blocked. Writes nothing to stdout.
 submodules_ready() {
