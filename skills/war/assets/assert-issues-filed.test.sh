@@ -32,9 +32,11 @@
 #  14. second-tier comment dropped: the separate comment call fails -> exit 0
 #      (epic closed), stderr logs the dropped comment
 #  15. object phases: an id-keyed `phases` object reads like the array, with a
-#      stderr deprecation note
+#      stderr deprecation note, and an array ledger prints no note
 #  16. node-unusable exits 2: a PATH-stubbed `node` exiting 126 -> exit 2 and
 #      one stderr line naming node and PATH, never a ledger parse failure
+#  17. second-tier bare close fails -> die exit 2 (degraded bare retry), no
+#      separate comment posted
 #
 # macOS bash 3.2.57 compatible (no globstar, no associative arrays, no ${,,}).
 # Exit 0 = all cases passed; non-zero = at least one failed.
@@ -73,8 +75,9 @@ trap cleanup EXIT
 #                   with `unknown flag: <flag>` (exit 1), emulating a still-older
 #                   gh -> the floor must take the second tier: a bare close,
 #                   then a separate `gh issue comment`.
-#   GH_CLOSE_FAIL=1 `gh issue close` WITHOUT `--reason` (or with it, when
-#                   GH_OLD_CLOSE is unset) fails with a non-flag error (exit 1)
+#   GH_CLOSE_FAIL=1 `gh issue close` that no older-gh knob rejected (a
+#                   flagless or bare close, or any close when GH_OLD_CLOSE and
+#                   GH_OLDER_CLOSE are unset) fails with a non-flag error (exit 1)
 #                   -> the floor must die (exit 2), never silently pass.
 #   GH_COMMENT_FAIL=1 `gh issue comment` fails (exit 1) -> on the second tier
 #                   the epic is still closed and the floor logs the dropped
@@ -384,7 +387,7 @@ err="$(D="$D" GH_OLDER_CLOSE=1 PATH="$D/bin:$PATH" bash "$SCRIPT" --close-epic 7
 degraded_count="$(printf '%s\n' "$err" | grep -c 'gh-degraded')"
 if [ "$rc" = "0" ] && [ "$degraded_count" = "2" ] \
    && grep -qx 'issue close 7' "$D/argv" \
-   && grep 'issue comment 7 ' "$D/argv" | grep -q 'abc123'; then
+   && grep -q 'issue comment 7 --body .*abc123' "$D/argv"; then
   pass "second-tier close: gh rejects --reason and --comment -> bare close + separate comment, gh-degraded twice"
 else
   fail "second-tier close (expected 0 + bare close + comment + 2x gh-degraded, got rc=$rc degraded=$degraded_count err=|$err| argv=|$(cat "$D/argv")|)"
@@ -410,8 +413,12 @@ fi
 # Case 15: object phases — `phases` keyed by phase id (the legacy shape) reads
 # like the array: a missing task issue still routes `issues-missing` (exit 1),
 # a clean object ledger exits 0, and both print the deprecation note.
+# An array ledger runs the same assert with stderr captured and must print
+# no deprecation note.
 # Break trace: drop the object branch -> `(led.phases || []).find` throws on
-# an object, so the parse dies exit 2 and both asserts flip.
+# an object, so the parse dies exit 2 and both asserts flip. Drop
+# `!Array.isArray(phases) &&` -> the array ledger prints the note too, so the
+# no-note assert flips.
 # ---------------------------------------------------------------------------
 D="$(make_env)"
 printf 'OPEN\t' > "$D/issues/7"
@@ -419,14 +426,19 @@ printf 'OPEN\t' > "$D/issues/8"
 L="$(write_ledger "$D" '{"phases":{"1":{"status":"running","epic_issue":7,"tasks":[{"id":"1.1","issue":8}]},"2":{"status":"pending","epic_issue":null,"tasks":[]}}}')"
 rc=0
 err="$(D="$D" PATH="$D/bin:$PATH" bash "$SCRIPT" assert "$L" 1 2>&1 >/dev/null)" || rc=$?
+L_arr="$D/ledger-array.json"
+printf '%s' '{"phases":[{"id":"1","status":"running","epic_issue":7,"tasks":[{"id":"1.1","issue":8}]}]}' > "$L_arr"
+rc_arr=0
+err_arr="$(D="$D" PATH="$D/bin:$PATH" bash "$SCRIPT" assert "$L_arr" 1 2>&1 >/dev/null)" || rc_arr=$?
 rm -f "$D/issues/8"
 rc_miss=0
 err_miss="$(D="$D" PATH="$D/bin:$PATH" bash "$SCRIPT" assert "$L" 1 2>&1 >/dev/null)" || rc_miss=$?
 if [ "$rc" = "0" ] && printf '%s' "$err" | grep -q 'deprecated' \
+   && [ "$rc_arr" = "0" ] && ! printf '%s' "$err_arr" | grep -q 'deprecated' \
    && [ "$rc_miss" = "1" ] && printf '%s' "$err_miss" | grep -q 'issues-missing'; then
   pass "object phases: id-keyed phases object reads like the array, with a deprecation note"
 else
-  fail "object phases (expected 0 + deprecated, then 1 + issues-missing, got rc=$rc err=|$err| rc_miss=$rc_miss err_miss=|$err_miss|)"
+  fail "object phases (expected 0 + deprecated, array 0 + no note, then 1 + issues-missing, got rc=$rc err=|$err| rc_arr=$rc_arr err_arr=|$err_arr| rc_miss=$rc_miss err_miss=|$err_miss|)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -451,6 +463,23 @@ if [ "$rc" = "2" ] && [ "$err_lines" = "1" ] \
   pass "node-unusable exits 2: PATH-stubbed node exit 126 -> one stderr line naming node and PATH"
 else
   fail "node-unusable (expected 2 + one line naming node and PATH, no parse message, got rc=$rc lines=$err_lines err=|$err|)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 17: second-tier bare close fails — gh rejects --reason and --comment,
+# then the bare close (no flag, so GH_CLOSE_FAIL reaches it) fails. The floor
+# dies exit 2 with the degraded-bare-retry message and posts no comment.
+# Break trace: change the bare close's `|| die` to `|| true` -> a never-closed
+# epic exits 0 and the separate comment is posted, so both asserts flip.
+# ---------------------------------------------------------------------------
+D="$(make_env)"
+rc=0
+err="$(D="$D" GH_OLDER_CLOSE=1 GH_CLOSE_FAIL=1 PATH="$D/bin:$PATH" bash "$SCRIPT" --close-epic 7 --sha abc123 2>&1 >/dev/null)" || rc=$?
+if [ "$rc" = "2" ] && printf '%s' "$err" | grep -q 'degraded bare retry' \
+   && ! grep -q 'issue comment' "$D/argv"; then
+  pass "second-tier bare close failure -> die exit 2 (degraded bare retry), no comment posted"
+else
+  fail "second-tier bare close failure (expected 2 + 'degraded bare retry' + no comment, got rc=$rc err=|$err| argv=|$(cat "$D/argv")|)"
 fi
 
 # ---------------------------------------------------------------------------

@@ -147,7 +147,7 @@ case "$mode" in
       _err="$(cat "$_errf" 2>/dev/null)"
       rm -f "$_errf"
       case "$_err" in
-        *"unknown flag: --reason"*|*"unknown flag: --comment"*)
+        *"unknown flag: --reason"*)
           printf '%s: gh-degraded: active gh lacks `issue close --reason`; closing epic #%s without a close reason (upgrade gh to restore the reason)\n' \
             "$PROG" "$_n" >&2
           _errf="$(mktemp 2>/dev/null || mktemp -t aif)"
