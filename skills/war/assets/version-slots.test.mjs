@@ -352,7 +352,9 @@ function classifyPath(path) {
 
 // Returns { skip } when the guard has nothing to judge, else the window verdict. Only an
 // unusable git context or a window with no previous bump skips past a categorical sentence.
-function categoricalScope({ cwd, current, status }) {
+function categoricalScope({ cwd, current, status: raw }) {
+  // Flatten line wraps once, so a hard-wrapped phrase or class name still matches.
+  const status = raw.replace(/\s+/g, ' ')
   if (!CATEGORICAL_PHRASES.test(status)) return { skip: 'no categorical sentence' }
   const log = readSlotLog(cwd)
   if (log.error || log.status !== 0 || String(log.stdout).trim() === '') {
@@ -430,8 +432,19 @@ test('categorical-scope: synthetic window', (t) => {
   const red = categoricalScope({ cwd: dir, current: '0.0.3', status: omits })
   assert.deepEqual(red.present.sort(), ['docs', 'hooks', 'release slots'], 'the window is the previous bump to HEAD: the pre-window agents/ file must not appear')
   assert.throws(() => assertScope(red, 'synthetic'), /never names these touched classes: hooks/)
+  assert.deepEqual(red.missing, ['hooks'])
+
+  // A hard-wrapped phrase and class name still match, so a wrap never skips the guard.
+  const wrapped = '**0.0.3** — moves the version\nslots. Every\nother change in the window is docs.'
+  assert.deepEqual(categoricalScope({ cwd: dir, current: '0.0.3', status: wrapped }).missing, ['hooks'])
 
   const names = '**0.0.3** — moves the version slots and fixes the hooks. Every other change in the window is docs.'
   assertScope(categoricalScope({ cwd: dir, current: '0.0.3', status: names }), 'synthetic')
   assert.equal(categoricalScope({ cwd: dir, current: '0.0.3', status: '**0.0.3** — hooks.' }).skip, 'no categorical sentence')
+
+  // Fail-closed arm: a window path no SCOPE_CLASSES row matches reds even when every class is named.
+  put('bin/tool', 'tool\n'); git('add', '-A'); git('commit', '-qm', 'unclassified')
+  const unmatched = categoricalScope({ cwd: dir, current: '0.0.3', status: names })
+  assert.deepEqual(unmatched.unclassified, ['bin/tool'])
+  assert.throws(() => assertScope(unmatched, 'synthetic'), /match no SCOPE_CLASSES row/)
 })
