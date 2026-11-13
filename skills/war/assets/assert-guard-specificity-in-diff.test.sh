@@ -67,8 +67,10 @@
 #   -- $var-tail prefix coverage (#1688, End state 15: prefix-covered) --
 #  17. `$var`-tail truncation family (case names carry the token `prefix-covered`):
 #      17a `die "missing snapshot: $file"` + a test asserting ONLY the distinguishing
-#          prefix -> exit 0 (prefix-covered; delete the $-truncation and this flips to 1:
-#          the whole literal is not a corpus substring).
+#          prefix -> exit 0 (prefix-covered). Removing the $-truncation no longer flips
+#          17a: the whole literal's 16-byte anchor `missing snapshot` sits inside the
+#          asserted prefix. 16a and 17b pin the truncation through their `$x`-absent and
+#          `$file`-absent stdout asserts.
 #      17b same guard, test asserts an unrelated string -> exit 1, stdout carries the
 #          prefix and NOT `$file` (truncation is not a free pass; coverage still enforced).
 #      17c empty static prefix (an all-interpolation OR leading-interpolation message) —
@@ -88,6 +90,10 @@
 #          anchored arm -> flips to 1).
 #      17i a 15-byte leading substring does not cover -> exit 1 (constant 15 -> flips to 0).
 #      17j the constant row: the source holds `ANCHORED_PREFIX_MIN=16` (constant 15 -> flips).
+#      17k a 16+-byte substring that starts mid-message does not cover -> exit 1 (an
+#          any-16-byte-window match -> flips to 0).
+#      17l under a UTF-8 locale, 16 bytes of two-byte characters cover -> exit 0 (delete
+#          LC_ALL=C in covered_by_corpus -> flips to 1).
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -711,8 +717,9 @@ fi
 # ---------------------------------------------------------------------------
 
 # 17a: `die "missing snapshot: $file"` + a test asserting ONLY the prefix -> exit 0.
-# Delete-and-trace: remove the $-truncation and the stored whole literal
-# `missing snapshot: $file` is not a corpus substring -> this flips to exit 1.
+# Removing the $-truncation no longer flips 17a: the 16-byte anchor `missing snapshot` of
+# the whole literal `missing snapshot: $file` sits inside the asserted prefix. 16a and 17b
+# pin the truncation through their `$x`-absent and `$file`-absent stdout asserts.
 R17a="$(setup_repo)"
 BASE17a="$(git -C "$R17a" rev-parse HEAD)"
 git -C "$R17a" checkout -qb task/vartail-prefix-covered 2>/dev/null
@@ -909,6 +916,30 @@ if grep -qx 'ANCHORED_PREFIX_MIN=16' "$SCRIPT"; then
   pass "case 17j: ANCHORED_PREFIX_MIN=16"
 else
   fail "case 17j: ANCHORED_PREFIX_MIN=16 assignment absent from $SCRIPT"
+fi
+
+# 17k: the test line `baseline is empty:` (18 bytes) starts mid-message, so it stays
+# uncovered. A mutation that matches any 16-byte window of the recorded prefix flips this
+# to exit 0.
+run_guard_case mid-message-18 '[ -s "$f" ] || die "snapshot baseline is empty: $f"' \
+  "grep -qF -- 'baseline is empty:' err.txt"
+if [ "$GC_RC" -eq 1 ] && printf '%s' "$GC_OUT" | grep -qF 'snapshot baseline is empty:'; then
+  pass "case 17k: an 18-byte mid-message substring does not cover the guard -> exit 1 + prefix on stdout"
+else
+  fail "case 17k: mid-message substring -> expected exit 1, got $GC_RC (any-window match? stdout: $GC_OUT)"
+fi
+
+# 17l: the recorded prefix `éééééééééé:` is 11 characters and 21 bytes. The test line holds
+# 8 of the two-byte characters (16 bytes). The floor runs under LC_ALL=en_US.UTF-8, so only
+# LC_ALL=C in covered_by_corpus makes the length test and the cut count bytes. Delete it
+# and the 11-character message skips the prefix arm -> exit 1. An absent locale falls back
+# to C, so this case never goes falsely red.
+LC_ALL=en_US.UTF-8 run_guard_case multibyte-16 '[ -s "$f" ] || die "éééééééééé: $f"' \
+  "grep -qF -- 'éééééééé' err.txt"
+if [ "$GC_RC" -eq 0 ]; then
+  pass "case 17l: 16 bytes of two-byte characters cover the guard under a UTF-8 locale -> exit 0"
+else
+  fail "case 17l: multibyte 16-byte prefix -> expected exit 0, got $GC_RC (LC_ALL=C missing? stdout: $GC_OUT)"
 fi
 
 # ---------------------------------------------------------------------------
