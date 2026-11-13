@@ -2152,7 +2152,7 @@ subcommands: ensure-integration, record-as-owned, ensure-exclude, ensure-worktre
     resolve-working-branch)      cmd_resolve_working_branch "$@" ;;
     ensure-origin)               cmd_ensure_origin "$@" ;;
     assert-submodules-ready)     cmd_assert_submodules_ready "$@" ;;
-    teardown-task)              cmd_teardown_task "$@" ;;
+    teardown-task)               cmd_teardown_task "$@" ;;
     teardown-phase)              cmd_teardown_phase "$@" ;;
     prune)                       cmd_prune "$@" ;;
     *) die "unknown subcommand '$sub' (have: ensure-integration, record-as-owned, ensure-exclude, ensure-worktree, sync-follower, land-advance, ensure-refinery-worktree, ensure-publication-worktree, remove-publication-worktree, resolve-working-branch, ensure-origin, assert-submodules-ready, teardown-task, teardown-phase, prune)" ;;

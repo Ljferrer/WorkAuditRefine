@@ -515,22 +515,23 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case (hygiene unrecognized-dirt, PIN-7, #1825) staged deletions plus a
+# Case (hygiene unrecognized-dirt, PIN-7, #1825) an emptied index plus a
 # foreign untracked file do not match the corruption signature: the reuse
-# emits `detected unrecognized-dirt` and never repairs (--force would destroy
-# the foreign file).
+# emits `detected unrecognized-dirt` and never repairs (--force would restore
+# the index and wipe the staged deletions). The index is emptied, as in HYG.j,
+# so the shape check is the only guard before the repair arm.
 # ---------------------------------------------------------------------------
 FXH_UD="$(hyg_fixture)"; RH_UD="${FXH_UD%% *}"; WTH_UD="${FXH_UD##* }"
 TIPH_UD="$(git -C "$RH_UD" rev-parse war/myplan/p2-t3)"
-git -C "$WTH_UD/sub" rm -q a.txt
+git -C "$WTH_UD/sub" read-tree --empty
 printf 'foreign\n' > "$WTH_UD/sub/foreign.txt"
 OUT_HUD="$( ( cd "$RH_UD" && bash "$SCRIPT" ensure-worktree "$WTH_UD" war/myplan/p2-t3 "$TIPH_UD" ) 2>&1 )"
 V_HUD="$(printf '%s' "$OUT_HUD" | grep -Fxq 'WORKTREE_HYGIENE path=sub action=detected detail=unrecognized-dirt' && echo unrecognized-dirt || echo no-marker)"
 V_HUD="$V_HUD/$(printf '%s' "$OUT_HUD" | grep -Fq 'action=repaired' && echo repaired || echo not-repaired)"
 expect "hygiene unrecognized-dirt: staged deletions plus a foreign file are detected, never repaired" \
   "unrecognized-dirt/not-repaired" "$V_HUD"
-expect "HYG.ud: the foreign untracked file survives" \
-  "foreign" "$(cat "$WTH_UD/sub/foreign.txt" 2>/dev/null)"
+expect "HYG.ud: the staged deletions survive" \
+  "a.txt b.txt" "$(git -C "$WTH_UD/sub" diff --cached --name-only --diff-filter=D 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
 
 # ---------------------------------------------------------------------------
 # Case (RG.4 / #1476 gap 4) refinery-worktree hygiene arm: the SAME corrupted
@@ -639,9 +640,10 @@ rm -rf "$SRC_SM2"
 WT_SM2="$(new_wt_path)"
 ERRF_SM2="$(mktemp 2>/dev/null || mktemp -t warsm2)"; REPOS="$REPOS $ERRF_SM2"
 OUT_SM2="$( ( cd "$R_SM2" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SM2" war/myplan/p1-t1 "$(git -C "$R_SM2" rev-parse HEAD)" ) 2>"$ERRF_SM2" )"; C_SM2=$?
-V_SM2="$C_SM2/$(grep -Fxq 'SUBMODULES_UNINITIALIZED sub' "$ERRF_SM2" && echo marker || echo no-marker)/stdout=$OUT_SM2"
+V_SM2="$C_SM2/$(grep -Fxq 'SUBMODULES_UNINITIALIZED sub' "$ERRF_SM2" && echo marker || echo no-marker)"
+V_SM2="$V_SM2/$(grep -Fq "assert-submodules-ready: '" "$ERRF_SM2" && echo die-text || echo no-die-text)/stdout=$OUT_SM2"
 expect "assert-submodules-ready: unreachable URL exits 9 with SUBMODULES_UNINITIALIZED on stderr" \
-  "9/marker/stdout=" "$V_SM2"
+  "9/marker/die-text/stdout=" "$V_SM2"
 
 FX_SM3="$(sm_fixture)"; R_SM3="${FX_SM3%% *}"
 WT_SM3="$(new_wt_path)"
@@ -649,6 +651,35 @@ OUT_SM3="$( ( cd "$R_SM3" && env $SM_ALLOW bash "$SCRIPT" ensure-refinery-worktr
 V_SM3="$C_SM3/$(git -C "$WT_SM3" submodule status --recursive 2>/dev/null | cut -c1)/$(cat "$WT_SM3/sub/a.txt" 2>/dev/null)"
 expect "assert-submodules-ready: refinery arm inits the submodule and keeps stdout the path" \
   "0/ /one/$WT_SM3" "$V_SM3/$OUT_SM3"
+
+# The reuse arms init too: a plain `git worktree add` leaves the submodule at
+# `-`, so the next ensure call takes the reuse arm, and its init is the
+# recovery path after a failed first init.
+FX_SM4="$(sm_fixture)"; R_SM4="${FX_SM4%% *}"
+WT_SM4="$(new_wt_path)"
+git -C "$R_SM4" worktree add -q -b war/myplan/p1-t2 "$WT_SM4" HEAD >/dev/null 2>&1
+( cd "$R_SM4" && env $SM_ALLOW bash "$SCRIPT" ensure-worktree "$WT_SM4" war/myplan/p1-t2 "$(git -C "$R_SM4" rev-parse HEAD)" ) >/dev/null 2>&1; C_SM4=$?
+V_SM4="$C_SM4/$(git -C "$WT_SM4" submodule status --recursive 2>/dev/null | cut -c1)/$(cat "$WT_SM4/sub/a.txt" 2>/dev/null)"
+expect "reuse-gap(submodules-ready): ensure-worktree reuse arm inits the submodule" "0/ /one" "$V_SM4"
+
+FX_SM5="$(sm_fixture)"; R_SM5="${FX_SM5%% *}"
+WT_SM5="$(new_wt_path)"
+git -C "$R_SM5" worktree add -q "$WT_SM5" integration/myplan/phase-1 >/dev/null 2>&1
+OUT_SM5="$( ( cd "$R_SM5" && env $SM_ALLOW bash "$SCRIPT" ensure-refinery-worktree "$WT_SM5" integration/myplan/phase-1 ) 2>/dev/null )"; C_SM5=$?
+V_SM5="$C_SM5/$(git -C "$WT_SM5" submodule status --recursive 2>/dev/null | cut -c1)/$(cat "$WT_SM5/sub/a.txt" 2>/dev/null)"
+expect "reuse-gap(submodules-ready): refinery reuse arm inits the submodule" \
+  "0/ /one/$WT_SM5" "$V_SM5/$OUT_SM5"
+
+# The verb's own die guards, matched by their stderr text.
+R_SMU="$(new_repo)"
+ERR_SMU="$( (cd "$R_SMU" && bash "$SCRIPT" assert-submodules-ready) 2>&1 >/dev/null)"; C_SMU=$?
+expect "verb usage guard: assert-submodules-ready with no argument exits 1 and prints usage" \
+  "1/usage" "$C_SMU/$(printf '%s' "$ERR_SMU" | grep -Fq 'usage: assert-submodules-ready <worktree>' && echo usage || echo no-usage)"
+D_SMS="$(mktemp -d 2>/dev/null || mktemp -d -t warsms)"; REPOS="$REPOS $D_SMS"
+: > "$D_SMS/.gitmodules"
+ERR_SMS="$( (cd "$D_SMS" && GIT_CEILING_DIRECTORIES="$(dirname "$D_SMS")" bash "$SCRIPT" assert-submodules-ready "$D_SMS") 2>&1 >/dev/null)"; C_SMS=$?
+expect "verb status-read guard: a non-repo with .gitmodules exits 9 and names the status read" \
+  "9/status-read" "$C_SMS/$(printf '%s' "$ERR_SMS" | grep -Fq "assert-submodules-ready: could not read the submodule status of '" && echo status-read || echo no-status-read)"
 
 # ---------------------------------------------------------------------------
 # Case (RG.5 / #1712 fix 1, End state 26) holder-naming die, ensure-worktree:
