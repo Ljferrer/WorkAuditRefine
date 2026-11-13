@@ -78,7 +78,7 @@ die()  { printf '%s: %s\n' "$PROG" "$1" >&2; exit "${2:-1}"; }
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
-[ $# -ge 2 ] || die "usage: $PROG <integration-base> <task-branch> [--repo <dir>] [--pattern <glob-set>]"
+[ $# -ge 2 ] || die "usage: $PROG <integration-base> <task-branch> [--repo <dir>] [--pattern <glob-set>] [--pending-pattern <glob-set>]"
 
 base="$1"
 branch="$2"
