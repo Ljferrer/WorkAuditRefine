@@ -212,7 +212,7 @@ case "$mode" in
     # Probe node first, so an unusable node (missing, or found but not
     # runnable) is reported as an env error naming node, never a parse failure.
     node --version >/dev/null 2>&1 \
-      || die "node is unusable (\`node --version\` failed): install Node >= 24 or fix PATH ($PATH)" 2
+      || die "node is unusable: node --version failed; install Node >= 24 or fix PATH ($PATH)" 2
     parsed="$(node -e '
       const fs = require("fs");
       const led = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));

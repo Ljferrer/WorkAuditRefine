@@ -415,7 +415,7 @@ fi
 # a clean object ledger exits 0, and both print the deprecation note.
 # An array ledger runs the same assert with stderr captured and must print
 # no deprecation note.
-# Break trace: drop the object branch -> `(led.phases || []).find` throws on
+# Break trace: drop the object branch -> `phases.find` throws on
 # an object, so the parse dies exit 2 and both asserts flip. Drop
 # `!Array.isArray(phases) &&` -> the array ledger prints the note too, so the
 # no-note assert flips.
@@ -459,7 +459,8 @@ err="$(D="$D" PATH="$D/bin:$PATH" bash "$SCRIPT" assert "$L" 1 2>&1 >/dev/null)"
 err_lines="$(printf '%s\n' "$err" | grep -c .)"
 if [ "$rc" = "2" ] && [ "$err_lines" = "1" ] \
    && printf '%s' "$err" | grep -q 'node' && printf '%s' "$err" | grep -q 'PATH' \
-   && ! printf '%s' "$err" | grep -q 'ledger parse failed'; then
+   && ! printf '%s' "$err" | grep -q 'ledger parse failed' \
+   && printf '%s' "$err" | grep -qF 'node is unusable: node --version failed; install Node >= 24 or fix PATH ('; then
   pass "node-unusable exits 2: PATH-stubbed node exit 126 -> one stderr line naming node and PATH"
 else
   fail "node-unusable (expected 2 + one line naming node and PATH, no parse message, got rc=$rc lines=$err_lines err=|$err|)"
@@ -475,7 +476,7 @@ fi
 D="$(make_env)"
 rc=0
 err="$(D="$D" GH_OLDER_CLOSE=1 GH_CLOSE_FAIL=1 PATH="$D/bin:$PATH" bash "$SCRIPT" --close-epic 7 --sha abc123 2>&1 >/dev/null)" || rc=$?
-if [ "$rc" = "2" ] && printf '%s' "$err" | grep -q 'degraded bare retry' \
+if [ "$rc" = "2" ] && printf '%s' "$err" | grep -qF 'gh issue close failed for epic #7 (degraded bare retry)' \
    && ! grep -q 'issue comment' "$D/argv"; then
   pass "second-tier bare close failure -> die exit 2 (degraded bare retry), no comment posted"
 else
