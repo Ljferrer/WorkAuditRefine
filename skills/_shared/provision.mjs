@@ -43,11 +43,24 @@ export function submodulePaths(repoDir) {
   return paths
 }
 
+// Discard-exit tails: a step ending in one of these always exits 0, so a failed
+// install would pass the Provision barrier (#2716). The closed set is plan
+// assumption A26 (docs/plans/2026-11-08-shell-floors-tests-and-lint.md); a new
+// tail joins it with its own fixture row. Whitespace between operator and word may vary.
+const DISCARD_EXIT_TAILS = Object.freeze([
+  { tail: '|| true', re: /\|\|\s*true$/ },
+  { tail: '|| :', re: /\|\|\s*:$/ },
+  { tail: '|| exit 0', re: /\|\|\s*exit\s+0$/ },
+  { tail: '; true', re: /;\s*true$/ },
+])
+
 /**
  * Validate a pinned provision list.
  * Accepts an array of non-empty (once trimmed) strings — an empty array is valid
- * (the default: no steps). Rejects non-arrays, and any entry that is not a
- * string or is empty/whitespace-only, with one clear, indexed error per offender.
+ * (the default: no steps). Rejects non-arrays, any entry that is not a string or
+ * is empty/whitespace-only, and any entry whose trimmed text ends in a
+ * discard-exit tail (DISCARD_EXIT_TAILS), with one clear, indexed error per
+ * offender. An `||` fallback to a real command (`a || b`) is accepted.
  *
  * @param {unknown} list
  * @returns {{ ok: boolean, errors: string[] }}
@@ -65,6 +78,11 @@ export function validateProvision(list) {
     }
     if (entry.trim() === '') {
       errors.push(`provision[${i}] must be a non-empty (non-whitespace) string`)
+      return
+    }
+    const hit = DISCARD_EXIT_TAILS.find(({ re }) => re.test(entry.trim()))
+    if (hit) {
+      errors.push(`provision[${i}] ends in a discard-exit tail ('${hit.tail}'); a failed step must fail the Provision barrier (#2716)`)
     }
   })
   return { ok: errors.length === 0, errors }
