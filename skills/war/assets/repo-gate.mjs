@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// WAR's own full gate: Node files and discovered shell suites run in separate bounded pools.
+// WAR's own full gate: Node files and discovered shell suites run in separate bounded pools,
+// beside one staged rerun of the workflow-template files.
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, mkdirSync, openSync, closeSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -110,7 +111,9 @@ async function main() {
   process.on('SIGINT', onInt)
   process.on('SIGTERM', onTerm)
 
-  async function run(label, command, args, id) {
+  // env is merged over the gate's own env for this child only. empty(text) reads the
+  // finished log and returns a message when the job ran no tests it should have run.
+  async function run(label, command, args, id, env = {}, empty = null) {
     if (interrupted) return
     const scratch = join(logs, `${id}.tmp`), log = join(logs, `${id}.log`)
     mkdirSync(scratch)
@@ -120,7 +123,7 @@ async function main() {
     try {
       result = await new Promise(resolve => {
         const child = spawn(command, args, {
-          env: { ...process.env, TMPDIR: scratch },
+          env: { ...process.env, TMPDIR: scratch, ...env },
           stdio: ['ignore', fd, fd], detached: true,
         })
         if (child.pid) active.add(child.pid)
@@ -132,10 +135,12 @@ async function main() {
         })
       })
     } finally { closeSync(fd) }
-    if (result.code !== 0 || result.signal || result.error) failed++
+    const text = readFileSync(log, 'utf8'), vacuous = empty?.(text)
+    if (result.code !== 0 || result.signal || result.error || vacuous) failed++
     // Emit each finished suite as one block so concurrent output cannot mix test evidence.
-    process.stdout.write(`\n== ${label} ==\n${readFileSync(log, 'utf8')}\n`)
+    process.stdout.write(`\n== ${label} ==\n${text}\n`)
     if (result.error) console.log(`Launch failed: ${result.error.message}`)
+    if (vacuous) console.log(vacuous)
     const seconds = (performance.now() - start) / 1000
     console.log(`== gate result: ${label}; exit=${result.code ?? result.signal ?? 'error'}; seconds=${seconds.toFixed(2)} ==`)
     completed++
@@ -155,9 +160,17 @@ async function main() {
     }
   }
   const shellWorker = pool(suites, 'bash', 'bash', null, 'shell'), nodeWorker = pool(tests, 'node', process.execPath, '--test', 'node')
-  const total = suites.length + tests.length
+  // One more job outside both pools: the workflow-template files again, in the staged form
+  // the Workflow runs (the test harness reads the flag). It runs at most nodeJobs files at
+  // once (operator ruling 2026-11-13). It is not timed. An unmatched glob
+  // exits 0 with `tests 0`, so that log fails the job while the engine exists.
+  const staged = 'skills/war/assets/workflow-template.*.test.mjs'
+  const stagedEmpty = text => (existsSync('skills/war/assets/workflow-template.js') && /^\S* ?tests 0$/m.test(text)
+    ? `Staged run matched no tests: ${staged}` : null)
+  const total = suites.length + tests.length + 1
   try {
     const results = await Promise.allSettled([
+      run('gate(node-staged)', process.execPath, ['--test', `--test-concurrency=${nodeJobs}`, staged], 'node-staged', { WAR_TEMPLATE_STRIPPED: '1' }, stagedEmpty),
       ...Array.from({ length: Math.min(nodeJobs, tests.length) }, nodeWorker),
       ...Array.from({ length: Math.min(shellJobs, suites.length) }, shellWorker),
     ])

@@ -21,6 +21,9 @@ T4.1); and the card paragraphs in § File-followups filing (plan
 2026-11-08-engine-findings-ace-and-late-fix D33 and D22).
 
 Post-eviction edits: each sanctioned edit to a moved block after its eviction, by block and clause.
+- § Submodule-as-repo provisioning: step 1 names the `SUBMODULE_INIT` init-only-uninitialized
+  pipeline, and the quoted card paragraph names the step-1 submodule init pipeline as the
+  `submodNote` carrier (operator ruling 2026-11-13).
 - § Reland discrimination: the D4 paragraph's land-advance exit arms (88663af7, #2626) and their
   rewrite to take the land confirm (#2657); the every-attempt land-advance timeout line (#2626); the
   Land confirm rule (#2657).
@@ -48,7 +51,7 @@ When a phase's `target repo` is a submodule (not the superproject), the **entire
 
 Before invoking any toolchain steps for a submodule phase:
 
-1. **Initialize the submodule checkout** in the superproject worktree: `git -C <superWorktree> submodule update --init --recursive`. This materializes the submodule's `.git` at `<superWorktree>/<submodulePath>/`.
+1. **Initialize the submodule checkout** in the superproject worktree: from `<superWorktree>`, run `git submodule status | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive -- && git submodule foreach --recursive "git submodule status | grep '^-' | cut -d ' ' -f 2 | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"`. It inits only the uninitialized submodules, nested ones under an initialized parent too, the `SUBMODULE_INIT` step of `skills/_shared/provision.mjs`, so an initialized sibling keeps its own HEAD. This materializes the submodule's `.git` at `<superWorktree>/<submodulePath>/`.
 2. The **submodule checkout** is `<superWorktree>/<submodulePath>/` — this becomes the cwd for all subsequent toolchain steps for this phase.
 3. **Cut the integration branch off the submodule's resolved base**: `git -C <submoduleCheckout> checkout -b integration/<slug>/phase-N <resolvedBase>`. The resolved base is the explicit signal from run config, the `branch` field in `.gitmodules`, or a value raised to the human at launch (never silently the remote default).
 4. **Create task worktrees under `<worktreeRoot>/<runId>/`** using `git -C <submoduleCheckout> worktree add <worktreeRoot>/<runId>/p<phase>-<taskId> <taskBranch>` (the worktree path is phase-scoped — `p<phase>-<taskId>` mirrors the task branch shape). All task and `_refinery` worktrees for a submodule phase live under the same `<worktreeRoot>/<runId>/` root, with cwd resolved relative to the submodule checkout.
@@ -57,7 +60,7 @@ All merge-task and land-phase steps below run with `<taskWorktree>` and `<_refin
 
 Evicted verbatim from the `agents/war-refiner.md` § Submodule-as-repo provisioning paragraph (ADR 0042; the card keeps the trigger pointer):
 
-> All merge-task and land-phase steps below then run with `<taskWorktree>` and `<_refinery>` rooted in the submodule checkout; the submodule's own `.git`, remote, and branches are the authority. Your dispatched provision-barrier prompt's `submodNote` (built in `workflow-template.js`) is the carrier of the submodule targetRepo/targetBase and the `git submodule update --init --recursive` step.
+> All merge-task and land-phase steps below then run with `<taskWorktree>` and `<_refinery>` rooted in the submodule checkout; the submodule's own `.git`, remote, and branches are the authority. Your dispatched provision-barrier prompt's `submodNote` (built in `workflow-template.js`) is the carrier of the submodule targetRepo/targetBase and the step-1 submodule init pipeline.
 
 ## Reland discrimination — superproject land-phase step 3
 

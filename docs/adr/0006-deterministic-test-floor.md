@@ -31,7 +31,7 @@ Add a **deterministic test-floor**: a task that *requires* a test must change at
 - Test-presence stops being "every parallel auditor must catch it" and becomes a single deterministic floor; the auditor panel is a redundant earlier check, not the sole one.
 - `MERGE_RESULT.status` gains `no-test`; `HARD_ESCALATION_REASONS` gains `no-test` (both hand-mirrored copies + the drift-guard); the task DAG gains `requiresTest`.
 - The serial merge queue is preserved — the re-audit is a localized sub-loop inside the refiner's per-task handling, not a fold-back into the parallel work wave. A per-task `fixRounds` counter must carry from the audit loop into refine so the budget is shared, not doubled.
-- The floor's test-file pattern must stay aligned with the resolved gate's test discovery, or a task could add a file the floor counts but the gate never runs.
+- The floor's test-file pattern must stay aligned with the resolved gate's test discovery, or a task could add a file the floor counts but the gate never runs. When the active pattern matches no diff test file, the floor may adopt a pending proposal that matches the diff (`--pending-pattern`).
 - The coarse floor is deliberately weak by design; non-vacuity stays the auditor's semantic job, now backed by a deterministic floor.
 
 ## References
@@ -43,3 +43,4 @@ Add a **deterministic test-floor**: a task that *requires* a test must change at
 ## Decision log
 
 - 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
+- 2026-11-13 · the floor may adopt a validator-clean pending proposal that matches the diff (`--pending-pattern`) · #2380

@@ -624,7 +624,19 @@ function main() {
         update[numKey] = Number(args[numKey])
       }
       // --backstops is the plan's handoff backstops[] as a JSON array string.
-      if (Object.prototype.hasOwnProperty.call(args, 'backstops')) update.backstops = JSON.parse(args.backstops)
+      // A bare flag (boolean true) or a value that is not a JSON array gets the
+      // same refusal: one stderr line, exit 1 BEFORE any record() call.
+      if (Object.prototype.hasOwnProperty.call(args, 'backstops')) {
+        let parsed
+        if (typeof args.backstops === 'string') {
+          try { parsed = JSON.parse(args.backstops) } catch { parsed = undefined }
+        }
+        if (!Array.isArray(parsed)) {
+          console.error(`campaign-ledger record: --backstops requires a JSON array string (got '${args.backstops}')`)
+          process.exit(1)
+        }
+        update.backstops = parsed
+      }
       console.log(JSON.stringify(record(campaignDir, update), null, 2))
       break
     }

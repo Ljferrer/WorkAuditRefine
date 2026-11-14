@@ -92,6 +92,14 @@
 #         stdout on success (OLD-absent, case-insensitive, SCOPED to the
 #         exit-0 contract only — the exit-1 "empty summary" prose stays,
 #         asserted present whole-file as the scoping contrast)
+#  14. --pending-pattern ADOPTION (PIN-12): a pending set that matches when the
+#      active set misses -> exit 0 + `adopted-pending-pattern:` on stderr; a
+#      pending set that matches nothing keeps exit 1 and today's diagnostic;
+#      no flag keeps the output byte-identical; an active match ignores it;
+#      --pending-pattern, --pattern and --repo with no value each die with
+#      their own message; an empty --pending-pattern equals the absent flag;
+#      the adopted set emits every matched path; the usage die names every
+#      flag the parser accepts.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -1175,6 +1183,181 @@ if grep -qi 'empty summary' "$SCRIPT"; then
   pass "case 13c: exit-1 'empty summary' prose retained whole-file (refiner read-contract; the scoping contrast)"
 else
   fail "case 13c: the exit-1 'empty summary' prose vanished — the refiner read-contract text must stay"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 14: --pending-pattern ADOPTION (PIN-12, #2380). The fixture diff adds
+# src/foo.test.ts (the only test file, which the default set misses (case 7a)
+# and the near-miss scan names) and src/foo.ts (an impl file that only a broad
+# pending set matches). Each row runs the floor three times (stdout, rc,
+# stderr) from a cwd seeded with a decoy app.test.ts so a missing noglob
+# reds 14a.
+#   14a adopted-pending-pattern: a pending set that matches -> exit 0, stdout
+#       EXACTLY the matched path, stderr EXACTLY the adoption marker. 14a also
+#       runs under a non-matching --pattern, so the arm runs after a custom
+#       active set too.
+#   14b pending-pattern no match: exit 1, stdout empty, stderr BYTE-IDENTICAL
+#       to the no-flag run (today's diagnostic, still naming the ACTIVE set),
+#       and no marker. Its contrast half needs 14a's matching run to adopt,
+#       so a floor that ignores the flag reds this row too.
+#   14c no pending flag byte-identical: the no-flag stderr equals today's
+#       literal diagnostic byte for byte, and the custom-pattern exit-0 path
+#       keeps an empty stderr.
+#   14d an active-set match never consults the pending set (no marker).
+#   14e missing-value die guards: --pending-pattern, --pattern, --repo.
+#   14f an empty --pending-pattern is byte-identical to the absent flag.
+#   14g the adopted set emits every matched path, not only the first hit.
+#   14h the usage die (no argument, or one positional argument) names every
+#       flag the parser accepts, --pending-pattern included.
+# ---------------------------------------------------------------------------
+R14="$(setup_repo)"
+BASE14="$(git -C "$R14" rev-parse HEAD)"
+git -C "$R14" checkout -qb task/ts-test 2>/dev/null
+mkdir -p "$R14/src"
+printf 'test\n' > "$R14/src/foo.test.ts"
+printf 'impl\n' > "$R14/src/foo.ts"
+git -C "$R14" add src
+git -C "$R14" commit -qm "add src/foo.test.ts"
+TASK14="$(git -C "$R14" rev-parse HEAD)"
+git -C "$R14" checkout -q - 2>/dev/null
+cwd14="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd14"
+printf 'decoy\n' > "$cwd14/app.test.ts"
+
+# run14 <args...>: sets rc14, out14 (sentinel-exact stdout), err14 (stderr).
+run14() {
+  rc14=0
+  out14="$( ( cd "$cwd14" && bash "$SCRIPT" "$BASE14" "$TASK14" --repo "$R14" "$@" ) 2>/dev/null; printf x )" || true
+  out14="${out14%x}"
+  ( cd "$cwd14" && bash "$SCRIPT" "$BASE14" "$TASK14" --repo "$R14" "$@" ) >/dev/null 2>&1 || rc14=$?
+  err14="$( ( cd "$cwd14" && bash "$SCRIPT" "$BASE14" "$TASK14" --repo "$R14" "$@" ) 2>&1 >/dev/null; printf x )" || true
+  err14="${err14%x}"
+}
+
+exp_out14='src/foo.test.ts
+'
+exp_marker14='adopted-pending-pattern: *.test.ts *.test.tsx
+'
+run14 --pending-pattern '*.test.ts *.test.tsx'
+rc14a1=$rc14; out14a1="$out14"; err14a1="$err14"
+run14 --pattern '*.test.js' --pending-pattern '*.test.ts *.test.tsx'
+rc14a2=$rc14; out14a2="$out14"; err14a2="$err14"
+if [ "$rc14a1" -eq 0 ] && [ "$out14a1" = "$exp_out14" ] && [ "$err14a1" = "$exp_marker14" ] \
+   && [ "$rc14a2" -eq 0 ] && [ "$out14a2" = "$exp_out14" ] && [ "$err14a2" = "$exp_marker14" ]; then
+  pass "case 14a: adopted-pending-pattern — active set misses, pending set matches -> exit 0, matched path on stdout, marker on stderr"
+else
+  fail "case 14a: adopted-pending-pattern — default: rc=$rc14a1 out=[$out14a1] err=[$err14a1]; --pattern: rc=$rc14a2 out=[$out14a2] err=[$err14a2]"
+fi
+
+run14
+rc14c=$rc14; out14c="$out14"; err14c="$err14"
+run14 --pending-pattern '*.test.py'
+rc14b=$rc14; out14b="$out14"; err14b="$err14"
+# The contrast half (rc14a1 = 0) keeps this row from passing on a floor that
+# ignores the flag: "no match keeps exit 1" means something only when a
+# matching pending set on the SAME fixture adopts.
+if [ "$rc14b" -eq 1 ] && [ -z "$out14b" ] && [ -n "$err14b" ] && [ "$err14b" = "$err14c" ] \
+   && ! printf '%s' "$err14b" | grep -qF 'adopted-pending-pattern' \
+   && [ "$rc14a1" -eq 0 ]; then
+  pass "case 14b: pending-pattern no match keeps exit 1, empty stdout and today's diagnostic byte for byte"
+else
+  fail "case 14b: pending-pattern no match — rc=$rc14b out=[$out14b] err=[$err14b] (no-flag err=[$err14c])"
+fi
+
+# Today's literal diagnostic for this fixture, built here so a drift in the
+# no-flag output reds this row even when 14b's two runs drift together.
+exp_err14c="assert-test-in-diff: no diff file matched the active test pattern set: skills/**/*.test.mjs **/*.test.sh
+assert-test-in-diff: (the unconditional *.test.sh union arm is always in force, whatever the pattern)
+assert-test-in-diff: near-miss — test-shaped files in the diff that the active pattern did NOT match:
+assert-test-in-diff:   src/foo.test.ts
+assert-test-in-diff: if those ARE the mapped tests, either the pattern is wrong for this repo (--pattern / overrides.testPattern) or the file sits under an excluded location (node_modules/, .git/, .claude/ — mirrored from the gate discovery) — not the diff.
+"
+run14 --pattern '*.test.ts'
+rc14c2=$rc14; out14c2="$out14"; err14c2="$err14"
+if [ "$rc14c" -eq 1 ] && [ -z "$out14c" ] && [ "$err14c" = "$exp_err14c" ] \
+   && [ "$rc14c2" -eq 0 ] && [ "$out14c2" = "$exp_out14" ] && [ -z "$err14c2" ]; then
+  pass "case 14c: no pending flag byte-identical — exit-1 diagnostic and exit-0 output unchanged"
+else
+  fail "case 14c: no pending flag byte-identical — exit-1: rc=$rc14c out=[$out14c] err=[$err14c]; exit-0: rc=$rc14c2 out=[$out14c2] err=[$err14c2]"
+fi
+
+run14 --pattern '*.test.ts' --pending-pattern '*.ts'
+if [ "$rc14" -eq 0 ] && [ "$out14" = "$exp_out14" ] && [ -z "$err14" ]; then
+  pass "case 14d: an active-set match never consults the pending set (no marker, pending-only paths absent)"
+else
+  fail "case 14d: active match with a pending set — rc=$rc14 out=[$out14] err=[$err14]"
+fi
+
+# 14g: the default active set misses both diff files and '*.ts' matches both,
+# so an adoption arm that stops at its first hit under-emits and reds here.
+exp_out14g='src/foo.test.ts
+src/foo.ts
+'
+run14 --pending-pattern '*.ts'
+if [ "$rc14" -eq 0 ] && [ "$out14" = "$exp_out14g" ] && [ "$err14" = 'adopted-pending-pattern: *.ts
+' ]; then
+  pass "case 14g: the adopted set emits every matched path"
+else
+  fail "case 14g: the adopted set emits every matched path — rc=$rc14 out=[$out14] err=[$err14]"
+fi
+
+# 14e: each value-taking flag given last with no value hits its own die guard.
+# die() exits 1 by default. Each stderr must carry that flag's own message, so
+# a deleted guard (set -u unbound-variable text instead) reds its row.
+e14_bad=""
+for e14 in '--pending-pattern|--pending-pattern requires a glob-set' \
+           '--pattern|--pattern requires a glob-set' \
+           '--repo|--repo requires a path'; do
+  e14_flag="${e14%%|*}"; e14_msg="${e14#*|}"
+  run14 "$e14_flag"
+  if [ "$rc14" -ne 1 ] || [ -n "$out14" ] \
+     || ! printf '%s' "$err14" | grep -qF -- "assert-test-in-diff: $e14_msg"; then
+    e14_bad="$e14_bad [$e14_flag: rc=$rc14 out=[$out14] err=[$err14]]"
+  fi
+done
+if [ -z "$e14_bad" ]; then
+  pass "case 14e: a value-taking flag with no value dies with its own message and exit 1"
+else
+  fail "case 14e: missing-value die guards —$e14_bad"
+fi
+
+# 14f: an empty --pending-pattern is the absent flag, per the script header
+# ("Absent or empty flag = no behavior change"): rc, stdout and stderr all
+# equal the no-flag run (14c's rc14c/out14c/err14c).
+run14 --pending-pattern ''
+if [ "$rc14" -eq "$rc14c" ] && [ "$out14" = "$out14c" ] && [ "$err14" = "$err14c" ] \
+   && [ "$rc14c" -eq 1 ]; then
+  pass "case 14f: an empty --pending-pattern behaves exactly as the absent flag"
+else
+  fail "case 14f: empty --pending-pattern — rc=$rc14 out=[$out14] err=[$err14] (no-flag rc=$rc14c err=[$err14c])"
+fi
+
+# 14h: fewer than two positional arguments hits the usage die. Stdout stays
+# empty, the exit is 1, and stderr is the usage line byte for byte, so a usage
+# string that drops a flag the parser accepts reds this row. The one-argument
+# call and the no-argument call take the same guard.
+exp_usage14h='assert-test-in-diff: usage: assert-test-in-diff <integration-base> <task-branch> [--repo <dir>] [--pattern <glob-set>] [--pending-pattern <glob-set>]
+'
+h14_bad=""
+for h14 in one none; do
+  if [ "$h14" = one ]; then set -- "$BASE14"; else set --; fi
+  rc14h=0
+  out14h="$( ( cd "$cwd14" && bash "$SCRIPT" "$@" ) 2>/dev/null; printf x )" || true
+  out14h="${out14h%x}"
+  ( cd "$cwd14" && bash "$SCRIPT" "$@" ) >/dev/null 2>&1 || rc14h=$?
+  err14h="$( ( cd "$cwd14" && bash "$SCRIPT" "$@" ) 2>&1 >/dev/null; printf x )" || true
+  err14h="${err14h%x}"
+  if [ "$rc14h" -ne 1 ] || [ -n "$out14h" ] || [ "$err14h" != "$exp_usage14h" ] \
+     || ! printf '%s' "$err14h" | grep -qF -- 'assert-test-in-diff: usage:' \
+     || ! printf '%s' "$err14h" | grep -qF -- '--pending-pattern'; then
+    h14_bad="$h14_bad [$h14 argument: rc=$rc14h out=[$out14h] err=[$err14h]]"
+  fi
+done
+set --
+if [ -z "$h14_bad" ]; then
+  pass "case 14h: the usage die names --pending-pattern"
+else
+  fail "case 14h: the usage die names --pending-pattern —$h14_bad"
 fi
 
 # ---------------------------------------------------------------------------

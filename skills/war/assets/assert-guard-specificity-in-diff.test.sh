@@ -65,10 +65,12 @@
 #      16b same guard + a test asserting the full literal -> exit 0 (the prefix is a
 #      substring of the full-literal assertion, so full-literal coverage still credits).
 #   -- $var-tail prefix coverage (#1688, End state 15: prefix-covered) --
-#  17. `$var`-tail truncation family (case names carry the token `prefix-covered`):
+#  17. `$var`-tail truncation family (the 17a to 17e case names carry the token `prefix-covered`):
 #      17a `die "missing snapshot: $file"` + a test asserting ONLY the distinguishing
-#          prefix -> exit 0 (prefix-covered; delete the $-truncation and this flips to 1:
-#          the whole literal is not a corpus substring).
+#          prefix -> exit 0 (prefix-covered). Removing the $-truncation no longer flips
+#          17a: the whole literal's 16-byte anchor `missing snapshot` sits inside the
+#          asserted prefix. 16a and 17b pin the truncation through their `$x`-absent and
+#          `$file`-absent stdout asserts.
 #      17b same guard, test asserts an unrelated string -> exit 1, stdout carries the
 #          prefix and NOT `$file` (truncation is not a free pass; coverage still enforced).
 #      17c empty static prefix (an all-interpolation OR leading-interpolation message) —
@@ -81,6 +83,17 @@
 #      17e single-quoted `die 'literal $cost sign'` -> whole literal recorded (a
 #          single-quoted `$` is literal text, never interpolation; delete the
 #          double-quote-only scoping and this flips).
+#   -- anchored-prefix coverage (#1834, #1835, #1836; ANCHORED_PREFIX_MIN=16) --
+#      17f a `\$`-ending prefix keeps the whole literal (delete the `*\\)` arm -> flips).
+#      17g `die "$file not found"` records whole and stays uncovered by ` not found`.
+#      17h a 16-byte leading substring of the recorded prefix covers -> exit 0 (revert the
+#          anchored arm -> flips to 1).
+#      17i a 15-byte leading substring does not cover -> exit 1 (constant 15 -> flips to 0).
+#      17j the constant row: the source holds `ANCHORED_PREFIX_MIN=16` (constant 15 -> flips).
+#      17k a 16+-byte substring that starts mid-message does not cover -> exit 1 (an
+#          any-16-byte-window match -> flips to 0).
+#      17l under a UTF-8 locale, 16 bytes of two-byte characters cover -> exit 0 (delete
+#          LC_ALL=C in covered_by_corpus -> flips to 1).
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -694,18 +707,19 @@ fi
 # ---------------------------------------------------------------------------
 # Case 17: $var-tail prefix coverage (#1688, End state 15 — the `prefix-covered` family).
 # extract_msg truncates a double-quoted message at the first `$`-interpolation, recording
-# the static distinguishing prefix, so a distinguishing-prefix stderr assertion honestly
-# covers a `$var`-tail guard. assert-no-repo-escape.test.sh case 28 (its
+# the static distinguishing prefix, so a stderr assertion of that prefix covers a
+# `$var`-tail guard. assert-no-repo-escape.test.sh case 28 (its
 # `grep -qF -- 'zero bytes (a truncated or failed snapshot write'` against a die message
 # with a `$baseline_file` tail) is the AUTHORING precedent for asserting a static
-# distinguishing prefix instead of the whole literal — but coverage still requires the test
-# line to contain the ENTIRE recorded static prefix, so a shorter mid-substring assertion
-# (case 28's own shape) would itself still stamp uncovered under this rule.
+# prefix instead of the whole literal. Coverage requires the test line to hold the whole
+# recorded prefix or its leading ANCHORED_PREFIX_MIN (16) bytes (17h, 17i, #1834), so a
+# mid-message assertion (case 28's own shape) would still stamp uncovered.
 # ---------------------------------------------------------------------------
 
 # 17a: `die "missing snapshot: $file"` + a test asserting ONLY the prefix -> exit 0.
-# Delete-and-trace: remove the $-truncation and the stored whole literal
-# `missing snapshot: $file` is not a corpus substring -> this flips to exit 1.
+# Removing the $-truncation no longer flips 17a: the 16-byte anchor `missing snapshot` of
+# the whole literal `missing snapshot: $file` sits inside the asserted prefix. 16a and 17b
+# pin the truncation through their `$x`-absent and `$file`-absent stdout asserts.
 R17a="$(setup_repo)"
 BASE17a="$(git -C "$R17a" rev-parse HEAD)"
 git -C "$R17a" checkout -qb task/vartail-prefix-covered 2>/dev/null
@@ -726,7 +740,7 @@ rc17a=0
 if [ "$rc17a" -eq 0 ]; then
   pass "case 17a: \$var-tail die guard + distinguishing-prefix assertion -> exit 0 (prefix-covered)"
 else
-  fail "case 17a: prefix-covered \$var-tail guard -> expected exit 0, got $rc17a (\$-truncation missing: whole-literal rule unsatisfiable, #1688)"
+  fail "case 17a: prefix-covered \$var-tail guard -> expected exit 0, got $rc17a (coverage broken: neither the whole recorded prefix nor its 16-byte anchor matched a test line, #1688, #1834)"
 fi
 
 # 17b: SAME guard shape, test asserts an UNRELATED string -> exit 1, stdout carries the
@@ -834,6 +848,98 @@ elif [ "$rc17e" -ne 1 ]; then
   fail "case 17e: single-quoted literal-\$ guard -> expected exit 1, got $rc17e"
 else
   fail "case 17e: exit 1 but full single-quoted literal absent on stdout — was it \$-truncated? (got: $out17e)"
+fi
+
+# run_guard_case <repo-var-suffix> <guard-line> <test-line>: build a one-commit fixture
+# (lib/g.sh holds the guard line, helpers/g.test.sh the test line), run the floor, and set
+# GC_RC / GC_OUT. An empty <test-line> adds no test file.
+run_guard_case() {
+  gc_repo="$(setup_repo)"
+  gc_base="$(git -C "$gc_repo" rev-parse HEAD)"
+  git -C "$gc_repo" checkout -qb "task/$1" 2>/dev/null
+  printf '#!/usr/bin/env bash\n%s\n' "$2" | add_file "$gc_repo" lib/g.sh
+  if [ -n "$3" ]; then
+    printf '%s\n' "$3" | add_file "$gc_repo" helpers/g.test.sh
+  fi
+  git -C "$gc_repo" commit -qm "case $1"
+  gc_task="$(git -C "$gc_repo" rev-parse HEAD)"
+  gc_cwd="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $gc_cwd"
+  GC_RC=0
+  GC_OUT="$( ( cd "$gc_cwd" && bash "$SCRIPT" "$gc_base" "$gc_task" --repo "$gc_repo" ) 2>/dev/null )" || GC_RC=$?
+}
+
+# 17f: a `\$`-ending static prefix is literal text, not interpolation, so extract_msg keeps
+# the WHOLE literal (the backslash is never emitted). Delete the `*\\)` arm and the guard
+# records the bare `price is \` prefix, so the `\$5` assert on stdout flips.
+run_guard_case escaped-dollar '[ -n "$ok" ] || die "price is \$5 for: $item"' ''
+if [ "$GC_RC" -eq 1 ] && printf '%s' "$GC_OUT" | grep -qF 'price is \$5 for: $item'; then
+  pass "case 17f: \\\$-ending prefix keeps the whole literal -> exit 1 + full literal on stdout"
+else
+  fail "case 17f: \\\$-ending prefix -> expected exit 1 + whole literal, got $GC_RC (stdout: $GC_OUT)"
+fi
+
+# 17g: a leading-interpolation message `die "$file not found"` has an empty static prefix,
+# so the whole literal records. The literal is never emitted text, so a test asserting the
+# emitted tail ` not found` cannot cover it: exit 1 + the literal on stdout.
+run_guard_case leading-interpolation '[ -f "$file" ] || die "$file not found"' \
+  "grep -qF -- ' not found' err.txt"
+if [ "$GC_RC" -eq 1 ] && printf '%s' "$GC_OUT" | grep -qF '$file not found'; then
+  pass "case 17g: die \"\$file not found\" records whole and stays uncovered -> exit 1 + literal on stdout"
+else
+  fail "case 17g: leading-interpolation guard -> expected exit 1 + literal, got $GC_RC (stdout: $GC_OUT)"
+fi
+
+# 17h: the recorded prefix `snapshot baseline is empty:` (27 bytes) is covered by a test
+# line holding only its 16-byte leading substring `snapshot baselin`. Revert the anchored
+# arm (whole-prefix rule only) and this flips to exit 1.
+run_guard_case anchored-16 '[ -s "$f" ] || die "snapshot baseline is empty: $f"' \
+  "grep -qF -- 'snapshot baselin' err.txt"
+if [ "$GC_RC" -eq 0 ]; then
+  pass "case 17h: a 16-byte leading substring of the recorded prefix covers the guard -> exit 0"
+else
+  fail "case 17h: 16-byte leading substring -> expected exit 0, got $GC_RC (anchored-prefix arm missing? stdout: $GC_OUT)"
+fi
+
+# 17i: the same guard with a 15-byte leading substring `snapshot baseli` stays uncovered.
+# Set ANCHORED_PREFIX_MIN to 15 and this flips to exit 0.
+run_guard_case anchored-15 '[ -s "$f" ] || die "snapshot baseline is empty: $f"' \
+  "grep -qF -- 'snapshot baseli' err.txt"
+if [ "$GC_RC" -eq 1 ] && printf '%s' "$GC_OUT" | grep -qF 'snapshot baseline is empty:'; then
+  pass "case 17i: a 15-byte leading substring does not cover the guard -> exit 1 + prefix on stdout"
+else
+  fail "case 17i: 15-byte leading substring -> expected exit 1, got $GC_RC (anchored floor below 16? stdout: $GC_OUT)"
+fi
+
+# 17j: the constant row. The floor's source holds the literal assignment at column 0.
+# Set the constant to 15 and this row flips (with 17i).
+if grep -qx 'ANCHORED_PREFIX_MIN=16' "$SCRIPT"; then
+  pass "case 17j: ANCHORED_PREFIX_MIN=16"
+else
+  fail "case 17j: ANCHORED_PREFIX_MIN=16 assignment absent from $SCRIPT"
+fi
+
+# 17k: the test line `baseline is empty:` (18 bytes) starts mid-message, so it stays
+# uncovered. A mutation that matches any 16-byte window of the recorded prefix flips this
+# to exit 0.
+run_guard_case mid-message-18 '[ -s "$f" ] || die "snapshot baseline is empty: $f"' \
+  "grep -qF -- 'baseline is empty:' err.txt"
+if [ "$GC_RC" -eq 1 ] && printf '%s' "$GC_OUT" | grep -qF 'snapshot baseline is empty:'; then
+  pass "case 17k: an 18-byte mid-message substring does not cover the guard -> exit 1 + prefix on stdout"
+else
+  fail "case 17k: mid-message substring -> expected exit 1, got $GC_RC (any-window match? stdout: $GC_OUT)"
+fi
+
+# 17l: the recorded prefix `éééééééééé:` is 11 characters and 21 bytes. The test line holds
+# 8 of the two-byte characters (16 bytes). The floor runs under LC_ALL=en_US.UTF-8, so only
+# LC_ALL=C in covered_by_corpus makes the length test and the cut count bytes. Delete it
+# and the 11-character message skips the prefix arm -> exit 1. An absent locale falls back
+# to C, so this case never goes falsely red.
+LC_ALL=en_US.UTF-8 run_guard_case multibyte-16 '[ -s "$f" ] || die "éééééééééé: $f"' \
+  "grep -qF -- 'éééééééé' err.txt"
+if [ "$GC_RC" -eq 0 ]; then
+  pass "case 17l: 16 bytes of two-byte characters cover the guard under a UTF-8 locale -> exit 0"
+else
+  fail "case 17l: multibyte 16-byte prefix -> expected exit 0, got $GC_RC (LC_ALL=C missing? stdout: $GC_OUT)"
 fi
 
 # ---------------------------------------------------------------------------

@@ -74,6 +74,8 @@ doctrine in-repo.**
      [ADR 0014](0014-ai-commanders-intent.md)).
    - *Done-when law and unified End states (D5, D18).* `Done when: <command>` is required iff
      `requiresTest: true`, and permitted (not required) on any other task; otherwise `None — <basis>`.
+     The command stays a bare command: environment setup it needs, such as an interpreter on
+     `PATH`, rides the run's `overrides.doneWhenPreamble` line, never the plan text.
      Spec-§10-style validation criteria and plan End states unify into one numbered End-state list
      in Commander's Intent — the criteria-carryover hole dies by construction — and every End
      state carries exactly one tag from the closed set `check:` | `gate:` | `HARD at audit_sha`
@@ -432,3 +434,4 @@ recorded on the pair row with the grafts each contributed.
 - 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
 - 2026-11-11 · Decision item 4 states the converged D4 and D5 connectives, and the Consequences no longer exempt decision records from the pin sweep · #1498, #1850 (ADR 0063) · retired: docs/adr/0044-authoring-contract-and-merged-artifact.md @ eca7a57b
 - 2026-11-12 · fourth interview key (alwaysAskAdvancedPlanning), fourth leak shape, fourth Trials header line · #2436, #1848 · retired: docs/adr/0044-authoring-contract-and-merged-artifact.md @ 2b1ac17d
+- 2026-11-13 · the Done-when law gains `overrides.doneWhenPreamble`, the run-level setup line staged above a bare command · #1837, #2928

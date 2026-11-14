@@ -1298,8 +1298,8 @@ else
   fails=$((fails + 1))
 fi
 
-# The catalogue names codes 3/4/5/6/7/8 as readonly EX_* constants.
-for pair in EX_FOREIGN=3 EX_DIRTY_UNREG=4 EX_OUT_OF_RUN=5 EX_WRONG_BRANCH=6 EX_DIVERGED=7 EX_STALE_REMOTE=8; do
+# The catalogue names codes 3/4/5/6/7/8/9 as readonly EX_* constants.
+for pair in EX_FOREIGN=3 EX_DIRTY_UNREG=4 EX_OUT_OF_RUN=5 EX_WRONG_BRANCH=6 EX_DIVERGED=7 EX_STALE_REMOTE=8 EX_SUBMODULES=9; do
   n=$((n + 1))
   if grep -qE "^readonly $pair\$" "$SCRIPT"; then
     printf 'ok %d - E: catalogue defines readonly %s\n' "$n" "$pair"

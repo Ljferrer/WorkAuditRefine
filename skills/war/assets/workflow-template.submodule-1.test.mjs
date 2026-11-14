@@ -722,6 +722,25 @@ test('T4 #297 Test 4 — targetRepo/targetBase threaded into merge-task, land, w
     `Provision prompt must include targetRepo "${TARGET_REPO}" so the refiner initializes the submodule checkout`)
 })
 
+// PIN-9 carried defect (operator ruling 2026-11-13): the barrier's submodule note and refiner-recovery.md
+// step 1 name the init-only-uninitialized pipeline that SUBMODULE_INIT in skills/_shared/provision.mjs
+// carries, so an initialized sibling keeps its own HEAD. The bare update re-checks-out every submodule.
+const SUBMODULE_INIT_PIPELINE = `git submodule status | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive -- && git submodule foreach --recursive "git submodule status | grep '^-' | cut -d ' ' -f 2 | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"`
+test('submodule barrier note and refiner-recovery.md step 1 name the init-only-uninitialized pipeline, never the bare update', async () => {
+  const args = PROVISION_ARGS({ tasks: [{ id: 'tsub', issue: 301, title: 'Sub task', planSlice: 's1', roster: [{ lens: 'correctness' }],
+    taskType: 'submodule', targetRepo: 'vendor/lib', targetBase: 'main' }] })
+  const prov = (await runPhase(args, defaultImpl)).calls.find(isProvisionTopology)
+  assert.ok(prov && prov.prompt.includes('SUBMODULE TASKS in this phase:'), 'the barrier carries the submodule note (presence guard)')
+  assert.ok(prov.prompt.includes('`' + SUBMODULE_INIT_PIPELINE + '`'), 'the note names the pipeline byte-exact')
+  assert.ok(!prov.prompt.includes('`git submodule update --init --recursive`'), 'the bare update is gone from the note')
+  const plain = (await runPhase(PROVISION_ARGS(), defaultImpl)).calls.find(isProvisionTopology)
+  assert.ok(plain && !plain.prompt.includes('submodule status'), 'a phase with no submodule task carries no pipeline')
+  const recovery = readFileSync(join(here, '../references/refiner-recovery.md'), 'utf8')
+  const step1 = (recovery.match(/^1\. \*\*Initialize[^\n]*/m) || [''])[0]
+  assert.ok(step1.includes('`' + SUBMODULE_INIT_PIPELINE + '`'), 'refiner-recovery.md step 1 names the pipeline byte-exact')
+  assert.ok(!recovery.includes('submodule update --init --recursive`'), 'refiner-recovery.md names no bare update')
+})
+
 for (const pairedPath of [undefined, './vendor/lib/']) test('dep-wave visibility: a gitlink-bump task with deps gets NO rebase-first clause (cross-repo dep — taskType scoping): ' + pairedPath, async () => {
   const args = PROVISION_ARGS({ tasks: [
     { id: 'tsub', issue: 301, title: 'Sub task', planSlice: 's1', roster: [{ lens: 'correctness' }],

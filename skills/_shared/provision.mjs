@@ -19,7 +19,18 @@ const LOCKFILE_INSTALL = Object.freeze({
   'pnpm-lock.yaml': 'pnpm install --frozen-lockfile',
 })
 
-const SUBMODULE_INIT = 'git submodule update --init --recursive'
+// Inits only the uninitialized (`-`) submodules, so a reused worktree keeps every
+// initialized sibling at its own HEAD (operator ruling 2026-11-13). A fresh
+// clone has every submodule uninitialized, so it still inits them all.
+// `xargs -r` runs no update on empty input. No `;`, so no statement split.
+// GIT_LITERAL_PATHSPECS=1 reads each repo-controlled path literally, so a `-`
+// path such as `lib*` never matches an initialized sibling such as `libx`.
+// The first half inits the superproject's own uninitialized paths. A nested
+// uninitialized path under an initialized parent is unreachable from the
+// superproject, so `foreach --recursive` runs the same init-only step inside
+// each initialized submodule. Its grep/cut filter equals the awk one and keeps
+// `$` and `\` out of the text, so every hand copy stays byte-identical.
+const SUBMODULE_INIT = `git submodule status | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive -- && git submodule foreach --recursive "git submodule status | grep '^-' | cut -d ' ' -f 2 | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"`
 
 /**
  * Parse .gitmodules and return the array of submodule path values.
@@ -43,11 +54,24 @@ export function submodulePaths(repoDir) {
   return paths
 }
 
+// Discard-exit tails: a step ending in one of these always exits 0, so a failed
+// install would pass the Provision barrier (#2716). The closed set is plan
+// assumption A26 (docs/plans/2026-11-08-shell-floors-tests-and-lint.md); a new
+// tail joins it with its own fixture row. Whitespace between operator and word may vary.
+const DISCARD_EXIT_TAILS = Object.freeze([
+  { tail: '|| true', re: /\|\|\s*true$/ },
+  { tail: '|| :', re: /\|\|\s*:$/ },
+  { tail: '|| exit 0', re: /\|\|\s*exit\s+0$/ },
+  { tail: '; true', re: /;\s*true$/ },
+])
+
 /**
  * Validate a pinned provision list.
  * Accepts an array of non-empty (once trimmed) strings — an empty array is valid
- * (the default: no steps). Rejects non-arrays, and any entry that is not a
- * string or is empty/whitespace-only, with one clear, indexed error per offender.
+ * (the default: no steps). Rejects non-arrays, any entry that is not a string or
+ * is empty/whitespace-only, and any entry whose trimmed text ends in a
+ * discard-exit tail (DISCARD_EXIT_TAILS), with one clear, indexed error per
+ * offender. An `||` fallback to a real command (`a || b`) is accepted.
  *
  * @param {unknown} list
  * @returns {{ ok: boolean, errors: string[] }}
@@ -65,6 +89,11 @@ export function validateProvision(list) {
     }
     if (entry.trim() === '') {
       errors.push(`provision[${i}] must be a non-empty (non-whitespace) string`)
+      return
+    }
+    const hit = DISCARD_EXIT_TAILS.find(({ re }) => re.test(entry.trim()))
+    if (hit) {
+      errors.push(`provision[${i}] ends in a discard-exit tail ('${hit.tail}'); a failed step must fail the Provision barrier (#2716)`)
     }
   })
   return { ok: errors.length === 0, errors }
@@ -73,7 +102,7 @@ export function validateProvision(list) {
 /**
  * Tiny structural fallback: the last-resort provisioning floor when no explicit
  * list / CI / onboarding signal is available. Returns, in order:
- *   - 'git submodule update --init --recursive'  iff repoDir/.gitmodules exists
+ *   - SUBMODULE_INIT (init only uninitialized)  iff repoDir/.gitmodules exists
  *   - the lockfile-matched install               iff a known lockfile exists
  * Both (in that order) if both apply; [] if neither. Never throws on a missing dir.
  *

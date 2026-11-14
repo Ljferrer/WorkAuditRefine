@@ -32,7 +32,8 @@ dispatch flavors — the phase git-topology barrier (`provision:phase-<id>`), th
 (`provision-run:<taskId>`), the phase-close polish worktree (`polish-worktree:phase-<id>`), and the
 late-fix worktree (`dispatchKind: late-fix-worktree`, labelled `late-fix-worktree:p<phase>-latefix-<k>`)
 — states that provisioning **is** a refiner duty ([ADR 0001](0001-explicitly-managed-worktrees.md)), and
-instructs: **a provision dispatch is never out-of-mode — do not decline it.** The late-fix worktree runs
+instructs: **a provision dispatch is never out-of-mode — do not decline it.** Provisioned worktrees
+are submodule-ready (`assert-submodules-ready`) or the barrier fails env-blocked. The late-fix worktree runs
 the polish worktree's steps for one late defect. If it fails, that late defect stops, and the defect
 then carries to the next phase or holds the phase
 ([late-fix-pass.md](../../skills/war/references/late-fix-pass.md)). All four return the **env-outcome**
@@ -153,3 +154,4 @@ widening is operator-ratified beyond #586's trio-only ask.
 - 2026-10-30 · Amendment: a merge-time provision re-run is a fourth place the refiner runs provision steps, beside the phase topology barrier, the per-task provision-run and the polish worktree. Before any gate the refiner runs, and before a dep-wave worker's gate, `run.provision` re-runs when `HEAD^{tree}` differs from the `provision_tree` marker in the worktree's `.war/` directory; `_refinery` is provisioned once per phase after the topology barrier. A failed re-run rides `MergeResult.provision` through `provisionStep`'s evidence gate to the soft env-blocked escalation (C above), so no enum or status widens · plan `docs/plans/2026-10-28-blocked-ace-and-merge-provenance.md` D15, D19 · [ADR 0054](0054-merge-commit-provenance-and-the-blocked-ace-tip-probe.md).
 - 2026-11-05 · the provision mode gains a fourth dispatch flavor, the late-fix worktree · plan `2026-11-04-late-defects-fixed-in-run` Task 3.1 · retired: docs/adr/0021-run-lifecycle-provision-contract.md @ a7c8581b
 - 2026-11-11 · ADR 0012 names the `p<N>-polish` path in place; this ADR no longer records the rename as a non-edit of a historical ADR · #1850 (ADR 0063) · failed because: the append-only law it rested on is retired · retired: docs/adr/0021-run-lifecycle-provision-contract.md @ 9af99f0e
+- 2026-11-13 · provisioned worktrees are submodule-ready (`assert-submodules-ready`) or the barrier fails env-blocked · #2346

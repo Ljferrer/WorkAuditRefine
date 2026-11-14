@@ -34,6 +34,8 @@ metadata:
 
 **Instance (still present, harmless today):** in `skills/war-strategy/war-strategy-structure.test.sh`, the `ctl()` helper takes an optional fourth argument naming the positive-control helper a pattern backs and prints `ok - <name> pattern <n> is alive`. Pattern 8's call passes the compound label `lacks_doc_i/lacks_char_i` because `r8` backs both helpers with one assembled regex. That TAP line contains the substring `lacks_char_i pattern`. The existing End-state count greps `'lacks_doc_i pattern'` with a space after the name, so the `/` in the compound label keeps the count correct. A future `grep -c 'lacks_char_i pattern'` check would over-count by pattern 8's two lines.
 
+**Resolved 2026-11-13 (#2912).** Commit cb3485d6 renamed the ctl 8 label to `r8_doc_or_char`, so no label supersets `lacks_char_i` any more.
+
 **Why it happened:** the compound label was a reasonable way to attribute one shared call to both helpers it backs. Nobody anticipated a later maintainer grepping for one helper's name in isolation.
 
 **How to apply:** when adding a compound label to a helper whose labels other checks count by substring, pick a shape that can never be a superset of any individual label already grepped for (a short joint alias like `r8`, or a delimiter absent from every individual label). Cheaper alternative: leave the label and add a comment next to any future count check for an individual sub-label noting that a compound line could inflate the count.

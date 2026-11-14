@@ -804,11 +804,12 @@ lacks_char_i "$r12a$r12b"
 # variables — deriving a fixture from rN makes the control tautological; a fragment typo
 # must be able to desynchronize pattern and fixture. Fixture fragments stay split for the
 # same repo-sweep reason as the rN fragments above.
-# $4 (optional, default `lacks_i`) names the absence helper the pattern controls, so a
+# $4 (optional, default `lacks_i`) names the absence helper the pattern controls, or a
+# display label for a pattern two helpers guard (ctl 8 uses r8_doc_or_char), so a
 # doctrine- or charter-scoped control never reports under the SKILL-scoped helper's name
 # (#1967, D10). Bash-3.2-safe default via ${4:-…}; both TAP lines carry the same name.
 ctl() { # $1=pattern number  $2=fixture (re-cased restatement)  $3=assembled rN pattern
-        # $4=helper name (optional)
+        # $4=helper name or display label (optional)
   h="${4:-lacks_i}"
   if printf '%s\n' "$2" | grep -qiF -e "$3" --; then
     printf 'ok - %s pattern %s is alive (re-cased fixture fires under -i)\n' "$h" "$1"
@@ -846,9 +847,12 @@ f7b='–7'
 ctl 7 "$f7a$f7b" "$r7a$r7b" lacks_doc_i
 f8a='Landing Class '
 f8b='Is A Duty'
-ctl 8 "$f8a$f8b" "$r8a$r8b" lacks_doc_i/lacks_char_i
+ctl 8 "$f8a$f8b" "$r8a$r8b" r8_doc_or_char
 f9a='Duty-Class '
 f9b='Twice-Read'
+# Superset trap (#2092): a compound label that joins `lacks_doc_i` and `lacks_char_i` with a
+# slash contains `lacks_char_i`, so a count grep for `lacks_char_i pattern` over-counts its rows.
+# A pattern that both helpers guard gets a label with no sibling label inside it (ctl 8 above).
 ctl 9 "$f9a$f9b" "$r9a$r9b" lacks_char_i
 f10a='[Assumed]`'
 f10b='-First Probes'

@@ -66,6 +66,22 @@
 #       guarantee until the launch got an explicit `< /dev/null`. Without it
 #       `cat` inherits the floor's stdin, never sees EOF, and times out into a
 #       false `done-unmet`.
+#   23. uninitialized submodule (local file-URL fixture) -> exit 2, never 1,
+#       the SUBMODULES_UNINITIALIZED marker re-printed, the command never
+#       runs (PIN-8). 23b: an initialized submodule runs green. 23c: no
+#       .gitmodules keeps today's stderr byte-for-byte.
+#   24. a command exit 127 -> exit 1 and the diagnostic names
+#       overrides.doneWhenPreamble; a non-127 red does not (PIN-9).
+#   25. exit 127 prints the command's first token (End state 30). 25b: with
+#       a preamble and the marker line above a multi-line command, the
+#       diagnostic names the command token. 25c: with no marker, it names
+#       the file's first token, never a continuation token.
+#   26. `node --test` naming a missing file -> exit 1 before the command runs
+#       (PIN-26). 27-30: a glob token, a `$` token, a redirect target and a
+#       quoted `node --test` text are never probed, so each exits 0 through
+#       the command's own result.
+#   31. a failed command-file scan (awk stubbed) -> exit 2.
+#   32. after a command-position cd or pushd no later node --test is probed (fail-open).
 #
 # The env-arm greps quote the floor's die literals VERBATIM (embedded $vars
 # included) inside double quotes: the test binds each variable to the runtime
@@ -633,6 +649,275 @@ elif [ "$RC" -ne 0 ]; then
   fail "case 22: expected exit 0 (cat sees immediate EOF), got $RC after ${T22_ELAPSED}s — stdin is not /dev/null under set -m (err: $ERR)"
 else
   fail "case 22: exit 0 but took ${T22_ELAPSED}s — cat blocked on an inherited stdin instead of seeing EOF"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 23: submodules-uninitialized exits 2 (PIN-8). A superproject with a
+# local file-URL submodule that is deinitialized has a `-` line in
+# `submodule status`. The floor calls the sibling assert-submodules-ready
+# verb first, re-prints its SUBMODULES_UNINITIALIZED marker and exits 2,
+# never 1, and the command never runs. RED PROOF: drop the verb call and the
+# green command runs -> exit 0 and the marker file lands.
+# protocol.file.allow=always is fixture-build-only (the clone from a local
+# path); the floor itself never clones.
+# ---------------------------------------------------------------------------
+WT23="$(setup_wt)"
+SUB23="$(setup_wt)"
+git -C "$WT23" -c protocol.file.allow=always submodule add -q "file://$SUB23" sub >/dev/null 2>&1
+git -C "$WT23" commit -qm "add sub" >/dev/null 2>&1
+git -C "$WT23" submodule deinit -q -f sub >/dev/null 2>&1
+CF23="$(tmp_dir)/green23.cmd"
+printf 'printf ran > sm-ran.txt\n' > "$CF23"
+
+run_floor "$WT23" --cmd-file "$CF23"
+worktree="$WT23"; sm_rc=9
+if [ "$RC" -eq 2 ] \
+   && printf '%s' "$ERR" | grep -qF 'SUBMODULES_UNINITIALIZED sub' \
+   && printf '%s' "$ERR" | grep -qF "worktree '$worktree' is not submodule-ready (provision-worktrees.sh assert-submodules-ready exited $sm_rc) — an env error, not the done-unmet route" \
+   && [ ! -f "$WT23/sm-ran.txt" ]; then
+  pass "case 23: submodules-uninitialized exits 2 (marker re-printed, command never ran)"
+else
+  fail "case 23: submodules-uninitialized -> expected exit 2 + SUBMODULES_UNINITIALIZED and no run, got RC=$RC, ran: $([ -f "$WT23/sm-ran.txt" ] && echo yes || echo no) (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 23b: an initialized submodule passes the verb -> the command runs,
+# exit 0. Case 23c: a repo without .gitmodules keeps today's stderr
+# byte-for-byte: exactly the one "running" line, nothing from the verb.
+# ---------------------------------------------------------------------------
+git -C "$WT23" -c protocol.file.allow=always submodule update -q --init sub >/dev/null 2>&1
+run_floor "$WT23" --cmd-file "$CF23"
+if [ "$RC" -eq 0 ] && [ -f "$WT23/sm-ran.txt" ]; then
+  pass "case 23b: initialized submodule -> exit 0, command ran"
+else
+  fail "case 23b: initialized submodule -> expected exit 0 and a run, got RC=$RC (err: $ERR)"
+fi
+
+WT23C="$(setup_wt)"
+CF23C="$(tmp_dir)/green23c.cmd"
+printf 'printf ok\n' > "$CF23C"
+run_floor "$WT23C" --cmd-file "$CF23C"
+EXP23C="assert-done-when: running done-when from $CF23C in $WT23C (timeout 600s)"
+if [ "$RC" -eq 0 ] && [ "$ERR" = "$EXP23C" ] && [ "$OUT" = "ok" ]; then
+  pass "case 23c: no .gitmodules and no node --test -> stderr byte-identical to the pre-change floor"
+else
+  fail "case 23c: expected RC 0, OUT=[ok], ERR=[$EXP23C]; got RC=$RC OUT=[$OUT] ERR=[$ERR]"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 24: exit-127 names doneWhenPreamble (PIN-9). A command whose program is
+# not on PATH exits 127; the floor still exits 1 (the done-unmet route) and
+# its diagnostic names overrides.doneWhenPreamble as the fix for a missing
+# interpreter. A non-127 red (case 2's exit 3) must NOT name the knob.
+# RED PROOF: drop the 127 branch and the knob line vanishes.
+# ---------------------------------------------------------------------------
+WT24="$(setup_wt)"
+CF24="$(tmp_dir)/notfound.cmd"
+printf 'war-no-such-interpreter-xyz --version\n' > "$CF24"
+run_floor "$WT24" --cmd-file "$CF24"
+ERR24="$ERR"; RC24="$RC"
+run_floor "$WT2" --cmd-file "$CF2"
+if [ "$RC24" -eq 1 ] \
+   && printf '%s' "$ERR24" | grep -qF 'exited 127' \
+   && printf '%s' "$ERR24" | grep -qF 'set overrides.doneWhenPreamble' \
+   && ! printf '%s' "$ERR" | grep -qF 'doneWhenPreamble'; then
+  pass "case 24: exit-127 names doneWhenPreamble (exit 1; a non-127 red does not)"
+else
+  fail "case 24: exit 127 -> expected exit 1 naming overrides.doneWhenPreamble, got RC=$RC24 (err: $ERR24); exit-3 err: $ERR"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 25: exit-127 prints first token (End state 30). A prose Done-when such
+# as `None — doc rows, guarded by Task 5.4` exits 127 on `None`; the
+# diagnostic prints that first token so the reader sees a threading defect,
+# not a missing interpreter. RED PROOF: drop the 127 branch.
+# ---------------------------------------------------------------------------
+WT25="$(setup_wt)"
+CF25="$(tmp_dir)/prose.cmd"
+printf 'None — doc rows, guarded by Task 5.4\n' > "$CF25"
+run_floor "$WT25" --cmd-file "$CF25"
+if [ "$RC" -eq 1 ] \
+   && printf '%s' "$ERR" | grep -qF "first token is 'None'" \
+   && printf '%s' "$ERR" | grep -qF 'threading broke upstream'; then
+  pass "case 25: exit-127 prints first token ('None' from a prose Done-when)"
+else
+  fail "case 25: prose Done-when -> expected exit 1 printing first token 'None', got RC=$RC (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 25b: with a preamble line staged before the command, the exit-127
+# diagnostic names the COMMAND's first token, never the preamble's
+# (operator ruling 2026-11-14). The staged cmd file holds the preamble line,
+# the `# war-done-when-command` marker line, a blank line, then a two-line
+# command; the floor prints the first token of the first non-blank line after
+# the marker. RED PROOF: read the file's first non-blank line and the
+# diagnostic names 'export'; read its last non-blank line and it names the
+# continuation token 'true'.
+# ---------------------------------------------------------------------------
+WT25B="$(setup_wt)"
+CF25B="$(tmp_dir)/preamble-notfound.cmd"
+printf 'export WAR_PREAMBLE_PROBE=1\n# war-done-when-command\n\nwar-no-such-command-25b --version &&\n  true\n' > "$CF25B"
+run_floor "$WT25B" --cmd-file "$CF25B"
+if [ "$RC" -eq 1 ] \
+   && printf '%s' "$ERR" | grep -qF "first token is 'war-no-such-command-25b'" \
+   && ! printf '%s' "$ERR" | grep -qF "first token is 'export'" \
+   && ! printf '%s' "$ERR" | grep -qF "first token is 'true'"; then
+  pass "case 25b: preamble set, multi-line exit-127 names the command token after the marker"
+else
+  fail "case 25b: preamble + marker + multi-line missing command -> expected exit 1 naming 'war-no-such-command-25b', got RC=$RC (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 25c: no preamble, so no marker. A multi-line command's exit-127
+# diagnostic names the file's first token, never the continuation token on
+# its last line. RED PROOF: read the last non-blank line and it names 'true'.
+# ---------------------------------------------------------------------------
+WT25C="$(setup_wt)"
+CF25C="$(tmp_dir)/multiline-notfound.cmd"
+printf 'war-no-such-command-25c --version &&\n  true\n' > "$CF25C"
+run_floor "$WT25C" --cmd-file "$CF25C"
+if [ "$RC" -eq 1 ] \
+   && printf '%s' "$ERR" | grep -qF "first token is 'war-no-such-command-25c'" \
+   && ! printf '%s' "$ERR" | grep -qF "first token is 'true'"; then
+  pass "case 25c: no preamble, multi-line exit-127 names the file's first token"
+else
+  fail "case 25c: no-preamble multi-line missing command -> expected exit 1 naming 'war-no-such-command-25c', got RC=$RC (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Cases 26-30: the node --test probe (PIN-26, #2718). Each fixture plants a
+# real passing a.test.mjs. Node 24 exits 0 on `node --test a.test.mjs
+# missing.test.mjs` (it skips the missing listed file), so case 26 needs the
+# probe to go red. Cases 27-30 plant only files that exist, so each exits 0
+# through the command's own result; each reds when its skip rule is dropped.
+# ---------------------------------------------------------------------------
+setup_nt_wt() {
+  nt_wt="$(setup_wt)"
+  printf "import test from 'node:test';\ntest('x', () => {});\n" > "$nt_wt/a.test.mjs"
+  printf '%s\n' "$nt_wt"
+}
+
+# Case 26: RED PROOF — drop the probe and node exits 0. Lines 2-5 put a
+# node --test after each of the `&&`, `||`, `|` and lone `&` boundaries:
+# drop one boundary and its missingN file is not named. Line 6: a complete
+# `2>&1` is not a bare operator, so the token after it is still probed.
+# Line 7: an `&>>` target is never probed (the command never runs here, so
+# bash 3.2's lack of `&>>` cannot matter).
+WT26="$(setup_nt_wt)"
+CF26="$(tmp_dir)/nt26.cmd"
+printf 'out=$(node --test --test-reporter=tap a.test.mjs missing.test.mjs) && printf ran > nt-ran.txt\ntrue && node --test a.test.mjs missing2.test.mjs\nfalse || node --test a.test.mjs missing3.test.mjs\ntrue | node --test a.test.mjs missing4.test.mjs\ntrue & node --test a.test.mjs missing5.test.mjs\nnode --test a.test.mjs 2>&1 missing6.test.mjs\nnode --test a.test.mjs &>> notprobed7.log\n' > "$CF26"
+run_floor "$WT26" --cmd-file "$CF26"
+if [ "$RC" -eq 1 ] \
+   && printf '%s' "$ERR" | grep -qF 'assert-done-when: node --test names a missing file: missing.test.mjs (node skips it silently and exits 0; the done-unmet route)' \
+   && printf '%s' "$ERR" | grep -qF 'missing file: missing2.test.mjs' \
+   && printf '%s' "$ERR" | grep -qF 'missing file: missing3.test.mjs' \
+   && printf '%s' "$ERR" | grep -qF 'missing file: missing4.test.mjs' \
+   && printf '%s' "$ERR" | grep -qF 'missing file: missing5.test.mjs' \
+   && printf '%s' "$ERR" | grep -qF 'missing file: missing6.test.mjs' \
+   && ! printf '%s' "$ERR" | grep -qF 'notprobed7.log' \
+   && ! printf '%s' "$ERR" | grep -qF 'missing file: a.test.mjs' \
+   && [ ! -f "$WT26/nt-ran.txt" ]; then
+  pass "case 26: node --test missing file exits 1 (named on stderr, command never ran)"
+else
+  fail "case 26: node --test missing file -> expected exit 1 naming missing.test.mjs, got RC=$RC (err: $ERR)"
+fi
+
+# Case 27: a quoted glob with no match is not probed. RED PROOF: drop the
+# `*`, `?` or `[` glob skip and that token is reported missing. Line 2: drop
+# the valflag table and the spaced flag value 'tap' is reported missing.
+WT27="$(setup_nt_wt)"
+CF27="$(tmp_dir)/nt27.cmd"
+printf "node --test a.test.mjs '*.nomatch.test.mjs' '?.nomatch.test.mjs' '[x].nomatch.test.mjs' > /dev/null\nnode --test --test-reporter tap a.test.mjs > /dev/null\n" > "$CF27"
+run_floor "$WT27" --cmd-file "$CF27"
+if [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
+  pass "case 27: node --test glob token is not probed (exit 0 through the command)"
+else
+  fail "case 27: glob token -> expected exit 0 and no probe, got RC=$RC (err: $ERR)"
+fi
+
+# Case 28: a variable token is resolved only at run time. RED PROOF: drop
+# the $ skip and '$f' is reported missing.
+WT28="$(setup_nt_wt)"
+CF28="$(tmp_dir)/nt28.cmd"
+printf 'f=a.test.mjs; node --test "$f"\n' > "$CF28"
+run_floor "$WT28" --cmd-file "$CF28"
+if [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
+  pass "case 28: node --test variable token is not probed (exit 0 through the command)"
+else
+  fail "case 28: variable token -> expected exit 0 and no probe, got RC=$RC (err: $ERR)"
+fi
+
+# Case 29: a redirect and its target are not probed, spaced or glued, with
+# or without an fd number, and a heredoc word is not probed. RED PROOF: drop
+# the bare-operator skip and '/dev/null' or 'EOF' is reported missing; drop
+# the `<<-` arm of the bare-operator skip and the spaced `<<- EOF` line
+# reports 'EOF'; drop the attached-operator skip and '1>/dev/null', '<<EOF'
+# or '<<-EOF' is reported.
+WT29="$(setup_nt_wt)"
+CF29="$(tmp_dir)/nt29.cmd"
+printf 'node --test a.test.mjs > /dev/null\nnode --test a.test.mjs >/dev/null 2>&1\nnode --test a.test.mjs >> /dev/null\nnode --test a.test.mjs < /dev/null\nnode --test a.test.mjs 2> /dev/null\nnode --test a.test.mjs 1>/dev/null\nnode --test a.test.mjs 1> /dev/null\nnode --test a.test.mjs 2>> /dev/null\nnode --test a.test.mjs &> /dev/null\nnode --test a.test.mjs > /dev/null <<EOF\nx\nEOF\nnode --test a.test.mjs > /dev/null << EOF\nx\nEOF\nnode --test a.test.mjs > /dev/null <<- EOF\nx\nEOF\nnode --test a.test.mjs > /dev/null <<-EOF\nx\nEOF\n' > "$CF29"
+run_floor "$WT29" --cmd-file "$CF29"
+if [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
+  pass "case 29: node --test redirect target is not probed (exit 0 through the command)"
+else
+  fail "case 29: redirect target -> expected exit 0 and no probe, got RC=$RC (err: $ERR)"
+fi
+
+# Case 30: quoted text is never a command. Line 1 is the plan's row: a probe
+# at any position (not command position) reds it. Line 2 hides a `;` inside
+# the quotes: dropping the quote state splits there and reds it.
+WT30="$(setup_nt_wt)"
+CF30="$(tmp_dir)/nt30.cmd"
+printf "printf '%%s\\\\n' 'node --test missing.test.mjs' | grep -c missing\nprintf '%%s\\\\n' 'x; node --test missing.test.mjs' | grep -c missing\n" > "$CF30"
+run_floor "$WT30" --cmd-file "$CF30"
+if [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
+  pass "case 30: quoted node --test text is not probed (exit 0 through the command)"
+else
+  fail "case 30: quoted text -> expected exit 0 and no probe, got RC=$RC (err: $ERR; cmd: $(cat "$CF30"))"
+fi
+
+# Case 31: a failed command-file scan is an env error -> exit 2, never the
+# done-unmet route. A PATH stub shadows awk with a failing stand-in (the
+# fixture has no .gitmodules, so the submodule verb never reaches awk).
+WT31="$(setup_wt)"
+CF31="$(tmp_dir)/green31.cmd"
+printf 'exit 0\n' > "$CF31"
+STUB31="$(tmp_dir)"
+printf '#!/bin/sh\nexit 1\n' > "$STUB31/awk"
+chmod +x "$STUB31/awk"
+CWD31="$(tmp_dir)"
+RC=0
+( cd "$CWD31" && PATH="$STUB31:$PATH" bash "$SCRIPT" "$WT31" --cmd-file "$CF31" ) \
+  >/dev/null 2>"$CWD31/err.txt" || RC=$?
+ERR="$(cat "$CWD31/err.txt" 2>/dev/null)"
+cmd_file_abs="$CF31"
+if [ "$RC" -eq 2 ] \
+   && printf '%s' "$ERR" | grep -qF "could not scan command file '$cmd_file_abs' for node --test paths"; then
+  pass "case 31: a failed node --test scan -> exit 2 + message (env error, never the done-unmet route)"
+else
+  fail "case 31: failed scan -> expected exit 2 + message, got $RC (err: $ERR)"
+fi
+
+# Case 32: after a command-position `cd` or `pushd`, paths resolve against a
+# run-time directory, so no later node --test is probed (fail-open). The
+# test files live only under sub/. Each verb gets its own cmd file. RED
+# PROOF: drop the cdseen flag, or the `cd` or `pushd` test, and
+# 'b.test.mjs' is reported missing.
+WT32="$(setup_wt)"
+mkdir -p "$WT32/sub"
+printf "import test from 'node:test';\ntest('x', () => {});\n" > "$WT32/sub/b.test.mjs"
+CF32="$(tmp_dir)/nt32.cmd"
+printf 'cd sub && node --test b.test.mjs > /dev/null\n' > "$CF32"
+run_floor "$WT32" --cmd-file "$CF32"
+RC32a="$RC"; ERR32a="$ERR"
+CF32="$(tmp_dir)/nt32b.cmd"
+printf 'pushd sub > /dev/null && node --test b.test.mjs > /dev/null\n' > "$CF32"
+run_floor "$WT32" --cmd-file "$CF32"
+if [ "$RC32a" -eq 0 ] && ! printf '%s' "$ERR32a" | grep -qF 'missing file' \
+   && [ "$RC" -eq 0 ] && ! printf '%s' "$ERR" | grep -qF 'missing file'; then
+  pass "case 32: node --test after an in-command cd is not probed (exit 0 through the command)"
+else
+  fail "case 32: in-command cd -> expected exit 0 and no probe, got cd RC=$RC32a pushd RC=$RC (err: $ERR32a $ERR)"
 fi
 
 # ---------------------------------------------------------------------------

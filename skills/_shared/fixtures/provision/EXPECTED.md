@@ -28,7 +28,7 @@ below explicit operator intent and above onboarding / structural fallback).
 ```json
 {
   "provision": [
-    "git submodule update --init --recursive",
+    "git submodule status | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive -- && git submodule foreach --recursive \"git submodule status | grep '^-' | cut -d ' ' -f 2 | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --\"",
     "pnpm install --frozen-lockfile"
   ],
   "source": "ci",
@@ -38,9 +38,10 @@ below explicit operator intent and above onboarding / structural fallback).
 
 ## Why this exact list, in this order
 
-1. **`git submodule update --init --recursive` first.** The CI checkout uses `submodules: recursive`
+1. **The submodule-init line first.** The CI checkout uses `submodules: recursive`
    and a real `.gitmodules` is present, so the worktree must initialize submodules before any install
-   can see vendored sources. This is exactly the submodule-init line that
+   can see vendored sources. The line inits only uninitialized submodules, so a reused worktree keeps
+   each initialized sibling at its own HEAD. This is exactly the submodule-init line that
    `structuralFallback` (`SUBMODULE_INIT` in [`../../provision.mjs`](../../provision.mjs)) emits — the
    scout reuses that floor verbatim rather than inventing its own command.
 2. **`pnpm install --frozen-lockfile` second.** Taken **verbatim from the CI workflow's install
