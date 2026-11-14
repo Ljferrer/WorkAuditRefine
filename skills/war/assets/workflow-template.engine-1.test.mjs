@@ -2548,6 +2548,9 @@ test('doneWhenPreamble null is byte-identical and a set preamble is staged', asy
   // The marker line (operator ruling 2026-11-14) sits between the preamble and the command, so the
   // floor's exit-127 diagnostic finds the command's first line. It rides only with a set preamble.
   const STAGE = `the preamble line — exactly: ${PREAMBLE_T23} — a newline, the line # war-done-when-command, a newline, then `
+  assert.ok(refinerMd.includes('# war-done-when-command'), 'agents/war-refiner.md step 8 names the marker line (the standing mirror)')
+  const setupMd = readFileSync(join(here, '../references/setup.md'), 'utf8')
+  assert.ok(setupMd.includes('# war-done-when-command'), 'skills/war/references/setup.md names the marker line (the Lead doctrine mirror)')
   for (const site of MERGE_SITES_T23) {
     assert.ok(absent[site].includes(' After the gate, run the done-when floor: write the task\'s Done when: acceptance command'),
       `${site}: the done-when floor clause rides the prompt (presence guard)`)
@@ -2558,7 +2561,7 @@ test('doneWhenPreamble null is byte-identical and a set preamble is staged', asy
     assert.equal(set[site].split('# war-done-when-command').length - 1, 1, `${site}: a set preamble stages the marker line once`)
     assert.equal(stableGatePrompt(nul[site]), stableGatePrompt(absent[site]), `${site}: a null doneWhenPreamble is byte-identical to an absent one`)
     assert.equal(stableGatePrompt(nonString[site]), stableGatePrompt(absent[site]), `${site}: a non-string doneWhenPreamble reads as null`)
-    // Staged: the preamble line comes first, then the byte-verbatim command, into the one cmd file.
+    // Staged: the preamble line, the # war-done-when-command marker line, then the byte-verbatim command, into the one cmd file.
     const clause = (set[site].match(/ After the gate, run the done-when floor:[^]*?make-this-command-pass loop\./) || [''])[0]
     assert.ok(clause.includes(`write ${STAGE}the task's Done when: acceptance command — BYTE-VERBATIM, exactly: ${DU_CMD} — to `),
       `${site}: the set preamble is staged before the verbatim command`)
