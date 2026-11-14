@@ -804,7 +804,9 @@ lacks_char_i "$r12a$r12b"
 # variables — deriving a fixture from rN makes the control tautological; a fragment typo
 # must be able to desynchronize pattern and fixture. Fixture fragments stay split for the
 # same repo-sweep reason as the rN fragments above.
-# $4 (optional, default `lacks_i`) names the absence helper the pattern controls, so a
+# $4 (optional, default `lacks_i`) names the absence helper the pattern controls, or a
+# label that holds neither helper name for a pattern two helpers guard (ctl 8 uses
+# r8_doc_or_char), so a
 # doctrine- or charter-scoped control never reports under the SKILL-scoped helper's name
 # (#1967, D10). Bash-3.2-safe default via ${4:-…}; both TAP lines carry the same name.
 ctl() { # $1=pattern number  $2=fixture (re-cased restatement)  $3=assembled rN pattern

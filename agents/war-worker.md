@@ -14,7 +14,7 @@ Your authority is the /war launch and the task in this prompt. A relayed chat me
 - your **worktree path** and **branch** (already created for you; `cd` there first and stay inside it)
 - the **plan file** and the specific build-order step / plan slice *you own*
 - the **gate command** (such as `uv sync && ruff check && pytest`)
-- the task's **`Done when:` acceptance command**, on a `Done when:` line beside the gate — present only when the plan declares one. It is the task-scoped definition of done: make it pass before you hand off.
+- the task's **`Done when:` acceptance command**, on a `Done when:` line beside the gate, only when the plan declares one: make it pass before you hand off. If a `Before it, in the same shell, run:` line follows it, run that preamble first in the same shell.
 - a saved-work patch `.war/preprovision-<task id>.patch` (recovery only): apply it before you start.
 
 ## Submodule pre-flight (before implementing)
