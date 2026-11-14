@@ -28,7 +28,7 @@ below explicit operator intent and above onboarding / structural fallback).
 ```json
 {
   "provision": [
-    "git submodule status --recursive | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --",
+    "git submodule status | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive -- && git submodule foreach --recursive \"git submodule status | grep '^-' | cut -d ' ' -f 2 | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --\"",
     "pnpm install --frozen-lockfile"
   ],
   "source": "ci",

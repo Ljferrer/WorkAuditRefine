@@ -28,7 +28,7 @@ command came from, do not emit it.
 The last-resort floor lives in [`skills/_shared/provision.mjs`](${CLAUDE_PLUGIN_ROOT}/skills/_shared/provision.mjs) as
 `structuralFallback(repoDir)`. It is **deliberately tiny** and is the ONLY place a command may be
 synthesized without a repo signal naming it:
-- `.gitmodules` present → `git submodule status --recursive | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --` (inits only uninitialized submodules)
+- `.gitmodules` present → `git submodule status | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive -- && git submodule foreach --recursive "git submodule status | grep '^-' | cut -d ' ' -f 2 | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"` (inits only uninitialized submodules, nested ones too)
 - a known lockfile present (currently **only** `pnpm-lock.yaml`) → `pnpm install --frozen-lockfile`
 - both, in that order, if both apply; `[]` otherwise.
 
@@ -74,7 +74,7 @@ it builds and tests, so it is the strongest derived signal. Read each workflow a
 order a fresh checkout needs them**:
 - **Submodules:** if any `actions/checkout` step sets `submodules: recursive` (or `true`), the
   worktree must init submodules first. Emit the **structural floor's** submodule-init line
-  (`git submodule status --recursive | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --`) as the first step. Cross-check `.gitmodules`.
+  (`git submodule status | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive -- && git submodule foreach --recursive "git submodule status | grep '^-' | cut -d ' ' -f 2 | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"`) as the first step. Cross-check `.gitmodules`.
 - **Install:** the workflow's dependency-install step(s), such as a `run:` line like
   `pnpm install --frozen-lockfile`, `npm ci`, `bundle install`, `uv sync`, `make deps`. Copy the
   command **verbatim from the workflow**. (You are not inferring it from the ecosystem; you are
