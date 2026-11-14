@@ -280,6 +280,9 @@ _Avoid_: setup script, bootstrap steps, install commands.
 **Provision tree marker**:
 when a gate's tree may differ from its provisioned tree, read skills/war/references/glossary-cold.md
 
+**assert-submodules-ready**:
+when a worktree declares submodules, read skills/war/references/glossary-cold.md
+
 **Setup-scout**:
 The read-only agent that derives the provision list from the target repo's signals, in descending
 authority (explicit → CI → dev-onboarding → structural floor). Holds no ecosystem knowledge itself.
@@ -1323,7 +1326,8 @@ when a red-team analyzed dispatch finds no preferred agent type, read skills/war
 The cumulative bound on `/red-team` grill rounds per plan — `run.redteamRoundLimit` (integer ≥ 1,
 default 3, economy preset 2), resolved by Step 3's fail-open config read (absent or invalid ⇒ the
 default 3 — the limit is never unset, config only overrides it). A **round** is one full grill sweep
-over the open blockers/`needsDecision` set, counted cumulatively across invocations via the Rounds
+over the open blockers/`needsDecision` set (a run that routes upstream before any sweep also counts
+as one, ADR 0045 Decision item 1), counted cumulatively across invocations via the Rounds
 header seed and threaded into every gate computation as `--rounds=<n> --round-limit=<resolved>`.
 _Avoid_: `run.roundLimit` (the /war retry budget — a different knob); "round" for the per-blocker
 bound (that unit is **re-verify attempts**, ≤ 2 per blocker — never rounds).

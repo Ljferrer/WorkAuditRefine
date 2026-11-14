@@ -46,7 +46,8 @@ Provision barrier heals only its own provably-safe orphans, never destroying wor
    prompt literal added without the tag — not false positives.)*
 
 4. **The provision exit-code catalogue is the single source of non-zero meanings.** `provision-worktrees.sh`
-   declares `readonly EX_FOREIGN=3 EX_DIRTY_UNREG=4 EX_OUT_OF_RUN=5 EX_WRONG_BRANCH=6 EX_DIVERGED=7` with a
+   declares `readonly EX_FOREIGN=3 EX_DIRTY_UNREG=4 EX_OUT_OF_RUN=5 EX_WRONG_BRANCH=6 EX_DIVERGED=7
+   EX_STALE_REMOTE=8 EX_SUBMODULES=9` with a
    comment block naming each code's meaning and governing ADR; every coded `die` uses its constant, and a
    test forbids any uncatalogued numeric literal. Code 3 (`EX_FOREIGN`) is deliberately overloaded across
    the foreign-branch and no-advance/escalation dies — halt-semantics are identical, and the surfacing
@@ -120,3 +121,4 @@ Provision barrier heals only its own provably-safe orphans, never destroying wor
 
 - 2026-07-10 · the undefined-render guard revised to the `pt` tagged-prompt form after this plan's first `/war` audit (Status currency clause) · the plan's first `/war` audit · retired: docs/adr/0034-engine-ingest-guards-and-provision-exit-codes.md @ cb07f484
 - 2026-11-11 · adopted under the living-ADR law · #1850 (ADR 0063)
+- 2026-11-13 · the catalogue gains `EX_SUBMODULES=9`, the `assert-submodules-ready` die, and lists `EX_STALE_REMOTE=8` · #2346 · retired: docs/adr/0034-engine-ingest-guards-and-provision-exit-codes.md @ cb07f484

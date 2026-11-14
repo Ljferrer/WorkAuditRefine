@@ -72,7 +72,8 @@
 #       .gitmodules keeps today's stderr byte-for-byte.
 #   24. a command exit 127 -> exit 1 and the diagnostic names
 #       overrides.doneWhenPreamble; a non-127 red does not (PIN-9).
-#   25. exit 127 prints the command file's first token (End state 30).
+#   25. exit 127 prints the command's first token (End state 30). 25b: with
+#       a preamble line above it, the diagnostic names the command token.
 #   26. `node --test` naming a missing file -> exit 1 before the command runs
 #       (PIN-26). 27-30: a glob token, a `$` token, a redirect target and a
 #       quoted `node --test` text are never probed, so each exits 0 through
@@ -739,6 +740,26 @@ if [ "$RC" -eq 1 ] \
   pass "case 25: exit-127 prints first token ('None' from a prose Done-when)"
 else
   fail "case 25: prose Done-when -> expected exit 1 printing first token 'None', got RC=$RC (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 25b: with a preamble line staged before the command, the exit-127
+# diagnostic names the COMMAND's first token, never the preamble's
+# (operator ruling 2026-11-13). The cmd file holds a preamble line, a blank
+# line, then a missing command; the floor prints the first token of the last
+# non-blank line. RED PROOF: read the file's first non-blank line instead and
+# the diagnostic names 'export'.
+# ---------------------------------------------------------------------------
+WT25B="$(setup_wt)"
+CF25B="$(tmp_dir)/preamble-notfound.cmd"
+printf 'export WAR_PREAMBLE_PROBE=1\n\nwar-no-such-command-25b --version\n' > "$CF25B"
+run_floor "$WT25B" --cmd-file "$CF25B"
+if [ "$RC" -eq 1 ] \
+   && printf '%s' "$ERR" | grep -qF "first token is 'war-no-such-command-25b'" \
+   && ! printf '%s' "$ERR" | grep -qF "first token is 'export'"; then
+  pass "case 25b: preamble set, exit-127 names the command token, not the preamble token"
+else
+  fail "case 25b: preamble + missing command -> expected exit 1 naming 'war-no-such-command-25b', got RC=$RC (err: $ERR)"
 fi
 
 # ---------------------------------------------------------------------------

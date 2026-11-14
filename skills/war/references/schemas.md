@@ -285,7 +285,7 @@ The read-only, Explore-class setup-scout (`agents/war-setup-scout.md`) reads the
 - **Authority (descending):** `explicit` (a non-empty `run.provision` honored verbatim, no scouting) → `manifest` (a committed `.war-provision.json`, tier 1 — above CI, below explicit) → `ci` (`.github/workflows/*.yml`) → `onboarding` (`.devcontainer`, a `Makefile`/`Justfile` `setup` target, `package.json scripts.{setup,bootstrap,prepare}`, CONTRIBUTING/README setup sections) → `structural` (the tiny floor). The scout stops at the first tier that produces a list.
 - **Scout subset vs. config enum.** The scout **emits** `{ explicit, manifest, ci, onboarding, structural }`. The full `run.provisionSource` config enum is wider: `explicit | manifest | ci | onboarding | structural | none` ([`../assets/war-config.mjs`](../assets/war-config.mjs) `PROVISION_SOURCES`). `none` is the unscouted/empty default and is never emitted by the scout.
 - **No ecosystem table:** every command is traceable to a signal actually read in the repo, or to the deterministic structural floor — `structuralFallback` in [`../../_shared/provision.mjs`](../../_shared/provision.mjs) (submodule-init + a single known-lockfile install only). The scout never synthesizes an install from a guessed language/framework.
-- **Guarded downstream:** `provision` must pass `validateProvision` (array of non-empty trimmed strings) before it is pinned, and the operator reviews `{ provision, source, rationale }` during war-room Setup. There is no automated test for the scout; its golden-check is the checked-in fixture + [`../../_shared/fixtures/provision/EXPECTED.md`](../../_shared/fixtures/provision/EXPECTED.md) (deterministic coverage of the floor lives in `provision.test.mjs`).
+- **Guarded downstream:** `provision` must pass `validateProvision` (array of non-empty trimmed strings with no discard-exit tail, per `skills/_shared/provision.mjs`) before it is pinned, and the operator reviews `{ provision, source, rationale }` during war-room Setup. There is no automated test for the scout; its golden-check is the checked-in fixture + [`../../_shared/fixtures/provision/EXPECTED.md`](../../_shared/fixtures/provision/EXPECTED.md) (deterministic coverage of the floor lives in `provision.test.mjs`).
 
 This result is the *derivation* output; pinning it into `run.provision` (and the every-time execution that follows) is governed by the §Run config below.
 
@@ -298,7 +298,7 @@ A committed JSON file at the repo root that declares an ordered provisioning lis
 { "provision": string[],   // required; ordered; [] is valid ("no steps")
   "rationale"?: string }   // optional human note
 ```
-- `"provision"` is required and must be a `string[]` passing `validateProvision` (non-empty trimmed strings).
+- `"provision"` is required and must be a `string[]` passing `validateProvision` (non-empty trimmed strings with no discard-exit tail; the tail set lives in `skills/_shared/provision.mjs`).
 - `"rationale"` is optional.
 - No other top-level keys are permitted (source assigned-not-declared rule — see below).
 
@@ -308,7 +308,7 @@ A committed JSON file at the repo root that declares an ordered provisioning lis
 - Unknown top-level keys (including a self-declared `source`)
 - Malformed / non-JSON content
 - Non-object JSON (e.g. `null`, `[]`, `"x"`, `42`) — `JSON.parse` succeeds on these, so an explicit object guard is required before key inspection
-- A `provision` entry that fails `validateProvision` (blank / whitespace-only string)
+- A `provision` entry that fails `validateProvision` (it must be a non-empty trimmed string with no discard-exit tail; the tail set lives in `skills/_shared/provision.mjs`)
 
 On a successful read: `{ found: true, ok: true, provision: [...], rationale?: "..." }`. Absent file: `{ found: false }`.
 
@@ -362,7 +362,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
            valeMarkdown,                       // toggles the plugin's advisory Vale Markdown lint (bool, default true) — read fail-open by hooks/vale-md/vale-md.py itself, never by the phase engine; only an explicit false disables
            valeStyle },                        // vale-md profile selector (enum VALE_STYLES, default 'workAuditRefine' — the repo's tuned fork) — house | workAuditRefine | google (raw upstream) | microsoftFork | writeGood | proselint | alex | readability | redhat | custom ('custom' reads the project-side .claude/war/vale/.vale.ini); subordinate to valeMarkdown
   interview: { trialWallSeconds, commandTimeoutSeconds, excerptLines, alwaysAskAdvancedPlanning },  // the fork-trial bounds (D7, D11) read fail-open by `/war-strategy`'s plan interview — the wall cap per trial, the per-command timeout inside the sweep, the fenced-excerpt cap — plus the boolean knob that makes the interviewer always ask before fork trials and pair beats (PIN-13, #2436); shape and defaults per `war-config.mjs` `validate()` and `DEFAULTS.interview` — never restated here; a null key = unset (the interview falls back to `DEFAULTS.interview` per key); no preset sets it; never threaded into Workflow args (the phase engine never reads it)
-  overrides: { gate, workingBranch, landingBranch, learningsTarget, testPattern, ghUser } }  // null = let /war auto-detect
+  overrides: { gate, workingBranch, landingBranch, learningsTarget, testPattern, ghUser, doneWhenPreamble } }  // null = let /war auto-detect
 // overrides.gate is the *declared base* command (string|null); the *resolved* gate run by agents
 // is a self-discovering string produced by war-config.mjs resolveGate(declaredGate): it appends
 // a find-based bash-suite discovery loop so every *.test.sh is found and run on each invocation.
@@ -381,6 +381,8 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
 // A custom pattern does NOT replace the floor's unconditional *.test.sh discovery arm — it is unioned in script-side
 // (assert-test-in-diff.sh, ADR 0019), so floor ⊆ gate survives any pinned pattern. The glob-safe charset
 // is enforced by war-config.mjs's validator (a quote/`;`/backtick/`$`/newline value is rejected, naming the key).
+// args.plan.testPatternPending (string|null; absent ⇒ null) — the pending set the floor may adopt; default per war-config.mjs.
+// args.plan.doneWhenPreamble (string|null; absent ⇒ null) — from overrides.doneWhenPreamble; default per war-config.mjs.
 ```
 These reach the per-phase Workflow as `args.agents`, `args.audit`, `args.run` and, when set, `args.routing` (the Lead threads them in after resolving the file); `overrides` are applied by the Lead during Setup. See [`../assets/workflow-template.js`](../assets/workflow-template.js).
 
