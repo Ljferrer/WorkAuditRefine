@@ -20,9 +20,11 @@
 #   0 — the done-when command exited 0 (green)
 #   1 — the done-when command exited non-zero OR timed out (the "done-unmet"
 #       route; not an error). Diagnostic on stderr names which. On exit 127
-#       (command not found) a second line prints the first token of the
-#       cmd file's last non-blank line (the command, below any preamble)
-#       and names `overrides.doneWhenPreamble`: a prose first token
+#       (command not found) a second line prints the command's first token
+#       and names `overrides.doneWhenPreamble`. The token is the first one
+#       on the first non-blank line after the `# war-done-when-command`
+#       marker line, which the refiner stages below a set preamble. With no
+#       marker it is the file's first token. A prose first token
 #       means the Done-when threading broke upstream, and a missing
 #       interpreter is fixed by the preamble (PIN-9).
 #       Also exit 1, BEFORE the command runs: a `node --test` at command
@@ -324,8 +326,13 @@ fi
 printf '%s: done-when command exited %s (the done-unmet route)\n' \
   "$PROG" "$cmd_status" >&2
 if [ "$cmd_status" -eq 127 ]; then
-  # The command is the LAST non-blank line: a set preamble rides above it.
-  first_tok="$(awk 'NF { tok = $1 } END { print tok }' "$cmd_file_abs" 2>/dev/null)" || first_tok=""
+  # A set preamble rides above the marker line, so the command starts on the
+  # first non-blank line after it. No marker (no preamble): the file's first token.
+  first_tok="$(awk '
+    $0 == "# war-done-when-command" { after = 1; next }
+    NF && after { print $1; found = 1; exit }
+    NF && first == "" { first = $1 }
+    END { if (!found) print first }' "$cmd_file_abs" 2>/dev/null)" || first_tok=""
   printf "%s: exit 127 is command not found; the command's first token is '%s'. If that token is prose, not a command, the Done-when threading broke upstream. If it names an interpreter missing from PATH, set overrides.doneWhenPreamble to a line that puts it there.\n" \
     "$PROG" "$first_tok" >&2
 fi

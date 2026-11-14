@@ -3530,10 +3530,11 @@ const doneWhenClause = task => (task && typeof task.doneWhen === 'string' && tas
 // doneWhen ⇒ '' (the set-minus pattern) — a legacy task dispatches byte-identical merge prompts and the
 // floor never runs (End state 9). Rides every merge-task dispatch (initial, floor-retry re-merge,
 // environment-proceed, baseline-proceed), keeping the dispatched prompts in sync with war-refiner.md.
-// A set doneWhenPreamble (PIN-9) is staged as the cmd file's first line, before the verbatim command;
-// null keeps the clause byte-identical.
+// A set doneWhenPreamble (PIN-9) is staged as the cmd file's first line, then the fixed marker line
+// `# war-done-when-command`, then the verbatim command: the floor's exit-127 diagnostic names the first
+// token after the marker (operator ruling 2026-11-14). Null keeps the clause byte-identical, no marker.
 const doneWhenFloorClause = (task, refineryPath) => (task && typeof task.doneWhen === 'string' && task.doneWhen)
-  ? pt` After the gate, run the done-when floor: write ${doneWhenPreamble ? pt`the preamble line — exactly: ${doneWhenPreamble} — then a newline, then ` : ''}the task's Done when: acceptance command — BYTE-VERBATIM, exactly: ${task.doneWhen} — to ${refineryPath}/.war/done-when-${task.id}.cmd (ensure .war/ is git-excluded inside _refinery, the step you already do for the gate log), then run assert-done-when.sh ${task.worktree} --cmd-file ${refineryPath}/.war/done-when-${task.id}.cmd (file-threaded — never interpolate the command into another script) with its combined stdout+stderr teed to the evidence artifact ${refineryPath}/.war/done-when-${task.id}.log, reading the FLOOR's OWN exit status across that capture (D14): run \`assert-done-when.sh … > ${refineryPath}/.war/done-when-${task.id}.log 2>&1\` and read \`$?\`, or if piping to tee, read \`\${PIPESTATUS[0]}\` — never the tee pipeline's status (a naive \`… 2>&1 | tee\` reports tee's 0 for a red AND an exit-2 floor). Branch on that captured code: exit 0 → the acceptance command is green; continue. exit 1 (the command exited red or timed out) → return { mode: 'merge-task', status: 'done-unmet', done_when_log_path: ${refineryPath}/.war/done-when-${task.id}.log } — the teed artifact's ABSOLUTE path rides the return; do NOT merge. The floor is fail-closed on EVERY merge-task dispatch, including a baseline-proceed: a red done-when is never proceeded over as baseline debt. exit 2 (a git/env error — bad worktree, missing/unreadable command file) → return { mode: 'merge-task', status: 'error' }, never 'done-unmet' — a transient git/env error must not spin a pointless make-this-command-pass loop.`
+  ? pt` After the gate, run the done-when floor: write ${doneWhenPreamble ? pt`the preamble line — exactly: ${doneWhenPreamble} — a newline, the line # war-done-when-command, a newline, then ` : ''}the task's Done when: acceptance command — BYTE-VERBATIM, exactly: ${task.doneWhen} — to ${refineryPath}/.war/done-when-${task.id}.cmd (git-exclude .war/ in _refinery, as for the gate log), then run assert-done-when.sh ${task.worktree} --cmd-file ${refineryPath}/.war/done-when-${task.id}.cmd (file-threaded, never interpolated) with its combined stdout+stderr teed to the evidence artifact ${refineryPath}/.war/done-when-${task.id}.log, reading the FLOOR's OWN exit status across that capture (D14): run \`assert-done-when.sh … > ${refineryPath}/.war/done-when-${task.id}.log 2>&1\` and read \`$?\`, or if piping to tee, read \`\${PIPESTATUS[0]}\` — never the tee pipeline's status (a naive \`… 2>&1 | tee\` reports tee's 0 for a red AND an exit-2 floor). Branch on that captured code: exit 0 → green; continue. exit 1 (the command exited red or timed out) → return { mode: 'merge-task', status: 'done-unmet', done_when_log_path: ${refineryPath}/.war/done-when-${task.id}.log } — the teed artifact's ABSOLUTE path rides the return; do NOT merge. The floor is fail-closed on EVERY merge-task dispatch, including a baseline-proceed: a red done-when is never proceeded over as baseline debt. exit 2 (a git/env error) → return { mode: 'merge-task', status: 'error' }, never 'done-unmet' — an env error must not spin a make-this-command-pass loop.`
   : ''
 // A1 redefinition (precision-chain D9): acceptance_criteria_covered is the task's CLAIMED End-state ids
 // — the numbered Commander's Intent End-state conditions the task claims — no longer plan-slice
@@ -4371,8 +4372,8 @@ if (tasks.length) {
     ? pt`SANCTIONED RECOVERY RELAUNCH — owned-file adoption (#2671): BEFORE step 2, run \`if git show-ref --verify --quiet refs/heads/${ph.integrationBranch} && ! grep -qxF '${ph.integrationBranch}' ${ownedFile ?? '<ownedFile>'}; then provision-worktrees.sh record-as-owned ${ph.integrationBranch} ${ph.workingBranch}${owned}; fi\` from the main checkout, then step 2 as written. On a non-zero exit return the \`{ ok: false, … }\` env-outcome with the die text in \`stderrTail\` and STOP.\n`
     : ''
   // Submodule tasks: thread the target repo + base into the Provision prompt so the refiner knows
-  // to init the uninitialized submodules (the SUBMODULE_INIT pipeline of skills/_shared/provision.mjs, so an
-  // initialized sibling keeps its own HEAD) before running ensure-integration against the submodule's base
+  // to init the uninitialized submodules, nested ones under an initialized parent too (the SUBMODULE_INIT
+  // pipeline of skills/_shared/provision.mjs, so an initialized sibling keeps its own HEAD) before running ensure-integration against the submodule's base
   // (not the superproject working branch). DP3: no script change.
   const submodTasks = tasks.filter(t => t.taskType === 'submodule')
   const submodNote = submodTasks.length
@@ -4381,9 +4382,9 @@ if (tasks.length) {
         // targetRepo/targetBase carry their own || defaults — a nested literal is a first-class census entry.
         pt`task ${t.id} targets repo "${t.targetRepo || '<targetRepo>'}" at base "${t.targetBase || '<targetBase>'}"`
       ).join(', ')}. `
-      + pt`Before ensure-integration, init the uninitialized submodules in the superproject so "${submodTasks[0] && submodTasks[0].targetRepo || '<targetRepo>'}" exists: `
-      + pt`\`git submodule status --recursive | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --\`. `
-      + pt`Run ensure-integration and ensure-worktree cwd-scoped to each submodule task's targetRepo path (not the superproject).`
+      + pt`Before ensure-integration, init the superproject's uninitialized submodules so "${submodTasks[0] && submodTasks[0].targetRepo || '<targetRepo>'}" exists: `
+      + pt`\`git submodule status | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive -- && git submodule foreach --recursive "git submodule status | grep '^-' | cut -d ' ' -f 2 | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"\`. `
+      + pt`Run ensure-integration and ensure-worktree with cwd at each submodule task's targetRepo path.`
     : ''
   // provision mode (agents/war-refiner.md ## provision): git-topology barrier — env-outcome return.
   // dispatchKind: 'provision-barrier' (DISTINCT from the per-task 'provision-run' — mocks/isProvision key on it).

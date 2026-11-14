@@ -2545,13 +2545,17 @@ test('doneWhenPreamble null is byte-identical and a set preamble is staged', asy
   const nul = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, doneWhenPreamble: null }, tasks })
   const nonString = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, doneWhenPreamble: ['x'] }, tasks })
   const set = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, doneWhenPreamble: PREAMBLE_T23 }, tasks })
-  const STAGE = `the preamble line — exactly: ${PREAMBLE_T23} — then a newline, then `
+  // The marker line (operator ruling 2026-11-14) sits between the preamble and the command, so the
+  // floor's exit-127 diagnostic finds the command's first line. It rides only with a set preamble.
+  const STAGE = `the preamble line — exactly: ${PREAMBLE_T23} — a newline, the line # war-done-when-command, a newline, then `
   for (const site of MERGE_SITES_T23) {
     assert.ok(absent[site].includes(' After the gate, run the done-when floor: write the task\'s Done when: acceptance command'),
       `${site}: the done-when floor clause rides the prompt (presence guard)`)
     for (const [name, run] of [['absent', absent], ['null', nul], ['non-string', nonString]]) {
       assert.ok(!run[site].includes('preamble line'), `${site} (${name}): no preamble instruction`)
+      assert.ok(!run[site].includes('war-done-when-command'), `${site} (${name}): no marker line without a preamble`)
     }
+    assert.equal(set[site].split('# war-done-when-command').length - 1, 1, `${site}: a set preamble stages the marker line once`)
     assert.equal(stableGatePrompt(nul[site]), stableGatePrompt(absent[site]), `${site}: a null doneWhenPreamble is byte-identical to an absent one`)
     assert.equal(stableGatePrompt(nonString[site]), stableGatePrompt(absent[site]), `${site}: a non-string doneWhenPreamble reads as null`)
     // Staged: the preamble line comes first, then the byte-verbatim command, into the one cmd file.
