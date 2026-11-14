@@ -293,13 +293,16 @@ test('structuralFallback: the submodule step leaves an initialized sibling at it
   }
 })
 
-// The scout card and the fixture doc hand-copy the step, so bind each copy to the
-// constant (itself bound to structuralFallback above). Counts name every copy.
+// The scout card, the fixture doc, the engine's submodNote and refiner-recovery.md step 1
+// hand-copy the step, so bind each copy to the constant (itself bound to structuralFallback
+// above). Counts name every copy.
 test('SUBMODULE_INIT: the scout card and EXPECTED.md carry the step byte for byte', () => {
   const repo = join(HERE, '..', '..')
   const copies = (text) => text.split(SUBMODULE_INIT).length - 1
   assert.equal(copies(readFileSync(join(repo, 'agents', 'war-setup-scout.md'), 'utf8')), 2, 'agents/war-setup-scout.md: fallback list and plan-step copies')
   assert.equal(copies(readFileSync(join(FIXTURES, 'EXPECTED.md'), 'utf8')), 1, 'skills/_shared/fixtures/provision/EXPECTED.md: expected-output copy')
+  assert.equal(copies(readFileSync(join(repo, 'skills', 'war', 'assets', 'workflow-template.js'), 'utf8')), 1, 'skills/war/assets/workflow-template.js: submodNote copy')
+  assert.equal(copies(readFileSync(join(repo, 'skills', 'war', 'references', 'refiner-recovery.md'), 'utf8')), 1, 'skills/war/references/refiner-recovery.md: step-1 copy')
 })
 
 // ----------------------------------------------------------------------------

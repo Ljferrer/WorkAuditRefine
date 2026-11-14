@@ -36,7 +36,8 @@ export const meta = {
 //                                     // merge-task floor invocation site; null and no pending set ⇒ bare.
 //                                     // testPatternPending = the validator-clean pending set, appended the same
 //                                     // way as `--pending-pattern '<value>'`; doneWhenPreamble = the
-//                                     // overrides.doneWhenPreamble line staged before each Done-when command.
+//                                     // overrides.doneWhenPreamble line staged before each Done-when command
+//                                     // and named after each prompt's Done when: line.
 //                                     // Both string|null; null ⇒ every prompt byte-identical.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                roster:[{ lens, depth?, agentType?, model?, effort?, tier? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging?, pendingAbsorbs? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
@@ -790,7 +791,8 @@ const testPattern = (plan && typeof plan.testPattern === 'string' && plan.testPa
 const testPatternPending = strOrNull((plan && plan.testPatternPending) ?? null)
 const testPatternArg = (testPattern ? ` --pattern '${testPattern}'` : '') + (testPatternPending ? pt` --pending-pattern '${testPatternPending}'` : '')
 // Done-when preamble (PIN-9): overrides.doneWhenPreamble threaded as args.plan.doneWhenPreamble
-// (string|null). doneWhenFloorClause stages it as the cmd file's first line; null ⇒ the clause is byte-identical.
+// (string|null). doneWhenFloorClause stages it as the cmd file's first line, and doneWhenClause names it
+// after the Done when: line; null ⇒ both clauses are byte-identical.
 const doneWhenPreamble = strOrNull((plan && plan.doneWhenPreamble) ?? null)
 // Partial-phase recovery (spec §4.2/§4.4): a Lead-supplied top-level arg armed ONLY on a sanctioned
 // recovery relaunch (the war skill's references/resume-and-recovery.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean, priorReturn?: { aced?: [...], minorsFiled?: [...] } }.
@@ -3509,8 +3511,10 @@ const MEMORY_QUERY_TOOL_LINE = MEMORY_QUERY_BASE_LINE.replace(/\n$/, ' If a less
 // ⇒ '' (the set-minus pattern): a legacy plan with no `Done when:` bullets dispatches prompts
 // byte-identical to a doneWhen-less run (End state 9). Prompt truth only — the floor that EXECUTES the
 // command at merge is the assert-done-when.sh floor (refiner-side; doneWhenFloorClause below), never this clause.
+// A set doneWhenPreamble (PIN-9, operator ruling 2026-11-13) adds one line after it, so the ace gate checks
+// and fix prompts run the preamble first, as the floor does. Null adds nothing: every prompt is byte-identical.
 const doneWhenClause = task => (task && typeof task.doneWhen === 'string' && task.doneWhen)
-  ? pt`\nDone when: ${task.doneWhen}`
+  ? pt`\nDone when: ${task.doneWhen}` + (doneWhenPreamble ? pt`\nBefore it, in the same shell, run: ${doneWhenPreamble}` : '')
   : ''
 // Done-when floor (precision-chain D1/D11, Task 2.3 — the done-unmet route): the refiner EXECUTES the
 // task's `Done when:` acceptance command at merge via assert-done-when.sh — file-threaded (--cmd-file,
@@ -4367,8 +4371,9 @@ if (tasks.length) {
     ? pt`SANCTIONED RECOVERY RELAUNCH — owned-file adoption (#2671): BEFORE step 2, run \`if git show-ref --verify --quiet refs/heads/${ph.integrationBranch} && ! grep -qxF '${ph.integrationBranch}' ${ownedFile ?? '<ownedFile>'}; then provision-worktrees.sh record-as-owned ${ph.integrationBranch} ${ph.workingBranch}${owned}; fi\` from the main checkout, then step 2 as written. On a non-zero exit return the \`{ ok: false, … }\` env-outcome with the die text in \`stderrTail\` and STOP.\n`
     : ''
   // Submodule tasks: thread the target repo + base into the Provision prompt so the refiner knows
-  // to initialize the submodule checkout (git submodule update --init) before running ensure-integration
-  // against the submodule's base (not the superproject working branch). DP3: no script change.
+  // to init the uninitialized submodules (the SUBMODULE_INIT pipeline of skills/_shared/provision.mjs, so an
+  // initialized sibling keeps its own HEAD) before running ensure-integration against the submodule's base
+  // (not the superproject working branch). DP3: no script change.
   const submodTasks = tasks.filter(t => t.taskType === 'submodule')
   const submodNote = submodTasks.length
     ? pt`\nSUBMODULE TASKS in this phase: ${submodTasks.map(t =>
@@ -4376,9 +4381,8 @@ if (tasks.length) {
         // targetRepo/targetBase carry their own || defaults — a nested literal is a first-class census entry.
         pt`task ${t.id} targets repo "${t.targetRepo || '<targetRepo>'}" at base "${t.targetBase || '<targetBase>'}"`
       ).join(', ')}. `
-      + pt`Before running ensure-integration for these tasks, ensure the submodule checkout is initialized: `
-      + pt`\`git submodule update --init --recursive\` in the superproject, so the submodule worktree at `
-      + pt`"${submodTasks[0] && submodTasks[0].targetRepo || '<targetRepo>'}" exists. `
+      + pt`Before ensure-integration, init the uninitialized submodules in the superproject so "${submodTasks[0] && submodTasks[0].targetRepo || '<targetRepo>'}" exists: `
+      + pt`\`git submodule status --recursive | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --\`. `
       + pt`Run ensure-integration and ensure-worktree cwd-scoped to each submodule task's targetRepo path (not the superproject).`
     : ''
   // provision mode (agents/war-refiner.md ## provision): git-topology barrier — env-outcome return.

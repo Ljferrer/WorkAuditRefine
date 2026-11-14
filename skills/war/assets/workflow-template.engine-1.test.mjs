@@ -8675,6 +8675,40 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     'zero dispatches reach the worker site on the refused launch (the floor is at entry)')
 })
 
+// PIN-9 carried defect (operator ruling 2026-11-13): doneWhenClause also feeds the ace gate checks and
+// the task-scoped fix prompts, so a set doneWhenPreamble rides it as one line after the Done when: line.
+// Without it those sites run the bare command, exit 127 and read red while the floor passes.
+test('doneWhenPreamble rides the Done when: line on the ace gate checks and every task-scoped worker prompt; null is byte-identical', async () => {
+  const PRE = 'source .venv/bin/activate'
+  const LINE = `\nDone when: ${DW_CMD}\nBefore it, in the same shell, run: ${PRE}`
+  const planOf = p => ({ plan: { ...PROVISION_ARGS().plan, ...p } })
+  const ID = 'docker build: preamble probe'
+  const tipOf = (p, re) => (String(p).match(re) || [])[1]
+  const gateSeats = { 'ace-gate': p => ({ gate_green: false, head_sha: tipOf(p, /at the ace tip ([0-9a-f]{7,40})/), gate_failing_ids: [ID], gate_output: 'red' }),
+    'ace-base-gate': p => ({ gate_green: false, head_sha: tipOf(p, /at the pre-ace tip ([0-9a-f]{7,40})/), gate_failing_ids: [ID], gate_output: 'red' }) }
+  const aceGateRun = over => runPhase(ACE_ARGS({ tasks: [dwTask({ doneWhen: DW_CMD })], ...over }),
+    buildSeqImpl({ 'ace:polish:t1:a1': [bWorker('ace00001')] }, aceBase([nit()])), gateSeats)
+  const sites = [
+    ...['ace-gate', 'ace-base-gate'].map(kind => ({ site: kind, find: c => c.find(x => x.opts.dispatchKind === kind), run: aceGateRun })),
+    ...DONE_WHEN_SITES.map(s => ({ site: s.site, find: s.find, run: over => s.run({ doneWhen: DW_CMD }, over) })),
+  ]
+  assert.equal(sites.length, 10, 'the two ace gate checks plus the eight worker-family sites')
+  for (const s of sites) {
+    const set = s.find((await s.run(planOf({ doneWhenPreamble: PRE }))).calls)
+    const nul = s.find((await s.run(planOf({ doneWhenPreamble: null }))).calls)
+    const absent = s.find((await s.run({})).calls)
+    assert.ok(set && nul && absent, `${s.site}: reached in every arm (presence guard)`)
+    assert.ok(set.prompt.includes(LINE), `${s.site}: the preamble line rides directly after the Done when: line`)
+    assert.equal(set.prompt.split(PRE).length - 1, 1, `${s.site}: the preamble is named once`)
+    assert.equal(stableGatePrompt(nul.prompt), stableGatePrompt(absent.prompt), `${s.site}: a null preamble is byte-identical to an absent one`)
+    assert.equal(stableGatePrompt(set.prompt.replace(`\nBefore it, in the same shell, run: ${PRE}`, '')), stableGatePrompt(nul.prompt),
+      `${s.site}: set minus the preamble line is byte-identical to null`)
+  }
+  // A doneWhen-less task carries no preamble line even when the preamble is set.
+  const bare = DONE_WHEN_SITES[0].find((await runPhase(PROVISION_ARGS({ tasks: [dwTask()], ...planOf({ doneWhenPreamble: PRE }) }), defaultImpl)).calls)
+  assert.ok(bare && !bare.prompt.includes(PRE), 'no Done when: command, no preamble line')
+})
+
 test('prompt truth (D6, #2617) — every fix-applying prompt carries FIX_GATE_RULE, none says keep the gate, and the worker card points to it', async () => {
   // Operator ruling 2026-11-05 (#2617 part 2): a fix-applying dispatch runs only the tests it touched and
   // any Done when: command, then commits. The engine's own gate at the new tip is the only full gate.
