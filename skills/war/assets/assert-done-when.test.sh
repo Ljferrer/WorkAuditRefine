@@ -73,7 +73,9 @@
 #   24. a command exit 127 -> exit 1 and the diagnostic names
 #       overrides.doneWhenPreamble; a non-127 red does not (PIN-9).
 #   25. exit 127 prints the command's first token (End state 30). 25b: with
-#       a preamble line above it, the diagnostic names the command token.
+#       a preamble and the marker line above a multi-line command, the
+#       diagnostic names the command token. 25c: with no marker, it names
+#       the file's first token, never a continuation token.
 #   26. `node --test` naming a missing file -> exit 1 before the command runs
 #       (PIN-26). 27-30: a glob token, a `$` token, a redirect target and a
 #       quoted `node --test` text are never probed, so each exits 0 through
@@ -745,21 +747,41 @@ fi
 # ---------------------------------------------------------------------------
 # Case 25b: with a preamble line staged before the command, the exit-127
 # diagnostic names the COMMAND's first token, never the preamble's
-# (operator ruling 2026-11-13). The cmd file holds a preamble line, a blank
-# line, then a missing command; the floor prints the first token of the last
-# non-blank line. RED PROOF: read the file's first non-blank line instead and
-# the diagnostic names 'export'.
+# (operator ruling 2026-11-14). The staged cmd file holds the preamble line,
+# the `# war-done-when-command` marker line, a blank line, then a two-line
+# command; the floor prints the first token of the first non-blank line after
+# the marker. RED PROOF: read the file's first non-blank line and the
+# diagnostic names 'export'; read its last non-blank line and it names the
+# continuation token 'true'.
 # ---------------------------------------------------------------------------
 WT25B="$(setup_wt)"
 CF25B="$(tmp_dir)/preamble-notfound.cmd"
-printf 'export WAR_PREAMBLE_PROBE=1\n\nwar-no-such-command-25b --version\n' > "$CF25B"
+printf 'export WAR_PREAMBLE_PROBE=1\n# war-done-when-command\n\nwar-no-such-command-25b --version &&\n  true\n' > "$CF25B"
 run_floor "$WT25B" --cmd-file "$CF25B"
 if [ "$RC" -eq 1 ] \
    && printf '%s' "$ERR" | grep -qF "first token is 'war-no-such-command-25b'" \
-   && ! printf '%s' "$ERR" | grep -qF "first token is 'export'"; then
-  pass "case 25b: preamble set, exit-127 names the command token, not the preamble token"
+   && ! printf '%s' "$ERR" | grep -qF "first token is 'export'" \
+   && ! printf '%s' "$ERR" | grep -qF "first token is 'true'"; then
+  pass "case 25b: preamble set, multi-line exit-127 names the command token after the marker"
 else
-  fail "case 25b: preamble + missing command -> expected exit 1 naming 'war-no-such-command-25b', got RC=$RC (err: $ERR)"
+  fail "case 25b: preamble + marker + multi-line missing command -> expected exit 1 naming 'war-no-such-command-25b', got RC=$RC (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 25c: no preamble, so no marker. A multi-line command's exit-127
+# diagnostic names the file's first token, never the continuation token on
+# its last line. RED PROOF: read the last non-blank line and it names 'true'.
+# ---------------------------------------------------------------------------
+WT25C="$(setup_wt)"
+CF25C="$(tmp_dir)/multiline-notfound.cmd"
+printf 'war-no-such-command-25c --version &&\n  true\n' > "$CF25C"
+run_floor "$WT25C" --cmd-file "$CF25C"
+if [ "$RC" -eq 1 ] \
+   && printf '%s' "$ERR" | grep -qF "first token is 'war-no-such-command-25c'" \
+   && ! printf '%s' "$ERR" | grep -qF "first token is 'true'"; then
+  pass "case 25c: no preamble, multi-line exit-127 names the file's first token"
+else
+  fail "case 25c: no-preamble multi-line missing command -> expected exit 1 naming 'war-no-such-command-25c', got RC=$RC (err: $ERR)"
 fi
 
 # ---------------------------------------------------------------------------
