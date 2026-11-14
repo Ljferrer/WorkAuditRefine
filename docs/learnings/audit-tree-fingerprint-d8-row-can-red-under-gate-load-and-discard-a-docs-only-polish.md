@@ -9,6 +9,8 @@ metadata:
     - audit-tree-fingerprint.deadline.test.sh
     - audit-tree-fingerprint.marks.test.sh
     - deadline passed on a Bash call
+    - environment-proceed re-merge
+    - mid-round flag not caught
     - flaky test
     - git-error skip labelled wrong
     - WAR_FINGERPRINT_DEADLINE_SECONDS
@@ -46,7 +48,7 @@ A 3 s stall on wtB's `git status` reproduced it: marker wtB, skipped list `wtB w
 Every `run_shim` row now uses a 10 s deadline (`SHIM_D`), and the d8 row carries that 3 s stall on every run, so it proves its own margin.
 Rows that use `run`, not `run_shim`, are still open (#2724).
 They red only when one hook run outlasts the hook's own 540 s default under extreme load.
-Two such rows have red so far: c7 (`plain sibling edit not caught beside odd names`) and g5 (`fsmonitor hook ran or the round failed`).
+Three such rows have red so far: c7 (`plain sibling edit not caught beside odd names`), g5 (`fsmonitor hook ran or the round failed`) and g3 (`mid-round flag not caught`).
 A third shape reds in `audit-tree-fingerprint.marks.test.sh`: a pattern-value row gets the `!deadline passed on a Bash call` mark in place of its expected touched set.
 
 **Sightings.** Phase 1 of 2026-11-04-late-defects-fixed-in-run: a docs-only polish gate failed the d8 row, and the engine discarded the polish (`polish-discarded`, `findings: []`), so its phase-close absorbs never landed.
@@ -70,6 +72,10 @@ The single environment-proceed re-land then came back fully green (89/89) and la
 Much of that load came from unrelated projects on the same machine. Which call stalls in the `run` rows is unproven.
 In the marks sightings the suite took over 10 times its quiet run time, which fits the same load cause.
 
+2026-11-08-shell-floors-tests-and-lint phase 2: the merge gate of task 2.2 (config and docs only) failed case 8 (g3) at 614 s, load about 29.
+The suite alone was green at base and at the task tip (85/85 each, fresh TMPDIR), so the refiner classed it `environment`.
+The single environment-proceed re-merge came back green (90/90) and merged with no Lead action.
+
 **How to apply.**
 - Before you launch a phase, or when a fingerprint row reds, check the load average (`uptime`).
 - If it is above about 20 and other projects share the machine, wait or pause them before you retry the gate.
@@ -78,7 +84,7 @@ In the marks sightings the suite took over 10 times its quiet run time, which fi
 - After a `polish-discarded`, re-route its absorbs by hand. The discard entry does not list them.
 - File the flake once against the suite, not per row. A new red row in any of the four fingerprint suites is the same flake, not a new defect.
 
-Locate-cue: verify still present before acting. The 540 s default and the `WAR_FINGERPRINT_DEADLINE_SECONDS` clamp are in `hooks/audit-tree-fingerprint.sh`. `run_shim`, `SHIM_D`, the d8 row and the g5 row (by label) are in `hooks/audit-tree-fingerprint.deadline.test.sh`, and the c7 row is in `hooks/audit-tree-fingerprint.operands.test.sh`. The `deadline passed on a Bash call` mark is set in `hooks/audit-tree-fingerprint.sh` and asserted in `hooks/audit-tree-fingerprint.marks.test.sh`. #2823 split the old single suite into four files, so row numbers changed.
+Locate-cue: verify still present before acting. The 540 s default and the `WAR_FINGERPRINT_DEADLINE_SECONDS` clamp are in `hooks/audit-tree-fingerprint.sh`. `run_shim`, `SHIM_D`, the d8 row, the g3 row and the g5 row (by label) are in `hooks/audit-tree-fingerprint.deadline.test.sh`, and the c7 row is in `hooks/audit-tree-fingerprint.operands.test.sh`. The `deadline passed on a Bash call` mark is set in `hooks/audit-tree-fingerprint.sh` and asserted in `hooks/audit-tree-fingerprint.marks.test.sh`. #2823 split the old single suite into four files, so row numbers changed.
 Grounding note (2026-11-13): the marks-suite referents were read in the plan's `_refinery` worktree on the integration branch (tip 12fbb132, the source of land merge d2fafed7).
 
 Related: [[held-escalation-lead-manual-completion]], [[never-follow-resumefromrunid-hint-after-a-land-failure]], [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]], [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]], [[polish-discarded-auditlog-entry-carries-no-findings-critical-major-ride-polish-rejected-instead]].
