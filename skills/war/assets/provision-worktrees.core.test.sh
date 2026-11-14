@@ -894,11 +894,10 @@ expect "verb status-read guard: a non-repo with .gitmodules exits 9 and names th
 # The dispatcher's own die guards in main(): the default arm and the
 # no-argument usage line both list the verb.
 ERR_SMB="$( (cd "$R_SMU" && bash "$SCRIPT" bogus) 2>&1 >/dev/null)"; C_SMB=$?
-V_SMB="$([ "$C_SMB" -ne 0 ] && echo nonzero || echo zero)"
-V_SMB="$V_SMB/$(printf '%s' "$ERR_SMB" | grep -Fq "unknown subcommand 'bogus' (have:" && echo unknown || echo no-unknown)"
+V_SMB="$C_SMB/$(printf '%s' "$ERR_SMB" | grep -Fq "unknown subcommand 'bogus' (have:" && echo unknown || echo no-unknown)"
 V_SMB="$V_SMB/$(printf '%s' "$ERR_SMB" | grep -Fq 'assert-submodules-ready' && echo verb || echo no-verb)"
-expect "dispatcher default arm: a bogus verb exits nonzero and lists assert-submodules-ready" \
-  "nonzero/unknown/verb" "$V_SMB"
+expect "dispatcher default arm: a bogus verb exits 1 and lists assert-submodules-ready" \
+  "1/unknown/verb" "$V_SMB"
 ERR_SMN="$( (cd "$R_SMU" && bash "$SCRIPT") 2>&1 >/dev/null)"; C_SMN=$?
 V_SMN="$C_SMN/$(printf '%s' "$ERR_SMN" | grep -Fq '<subcommand> [args...]' && echo usage || echo no-usage)"
 V_SMN="$V_SMN/$(printf '%s' "$ERR_SMN" | grep -F 'subcommands:' | grep -Fq 'assert-submodules-ready' && echo verb || echo no-verb)"

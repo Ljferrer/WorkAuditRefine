@@ -8639,6 +8639,8 @@ test("Done when threading (Task 1.3) — all eight worker-family sites carry the
   // Prompt-surface split (same task): the standing worker card documents the new input.
   assert.match(workerMd, /`Done when:` acceptance command/,
     'agents/war-worker.md documents the Done when: input (standing surface, same task as the dispatched line)')
+  assert.match(workerMd, /Before it, in the same shell, run:/,
+    'agents/war-worker.md names the doneWhenPreamble line the prompt carries (standing surface)')
 })
 
 test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-less prompt is byte-identical to the doneWhen-bearing prompt minus the single inserted clause (legacy byte-identity, End state 9)", async () => {
@@ -8711,6 +8713,8 @@ test('doneWhenPreamble rides the Done when: line on the ace gate checks and ever
     assert.equal(stableGatePrompt(set.prompt.replace(`\nBefore it, in the same shell, run: ${PRE}`, '')), stableGatePrompt(nul.prompt),
       `${s.site}: set minus the preamble line is byte-identical to null`)
   }
+  assert.ok(workerMd.includes('`Before it, in the same shell, run:` line'),
+    'agents/war-worker.md names the preamble line the dispatched prompt carries (standing twin)')
   // A doneWhen-less task carries no preamble line even when the preamble is set.
   const bare = DONE_WHEN_SITES[0].find((await runPhase(PROVISION_ARGS({ tasks: [dwTask()], ...planOf({ doneWhenPreamble: PRE }) }), defaultImpl)).calls)
   assert.ok(bare && !bare.prompt.includes(PRE), 'no Done when: command, no preamble line')
