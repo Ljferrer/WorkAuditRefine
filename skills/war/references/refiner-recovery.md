@@ -21,6 +21,9 @@ T4.1); and the card paragraphs in § File-followups filing (plan
 2026-11-08-engine-findings-ace-and-late-fix D33 and D22).
 
 Post-eviction edits: each sanctioned edit to a moved block after its eviction, by block and clause.
+- § Submodule-as-repo provisioning: step 1 names the `SUBMODULE_INIT` init-only-uninitialized
+  pipeline, and the quoted card paragraph names the step-1 submodule init pipeline as the
+  `submodNote` carrier (operator ruling 2026-11-13).
 - § Reland discrimination: the D4 paragraph's land-advance exit arms (88663af7, #2626) and their
   rewrite to take the land confirm (#2657); the every-attempt land-advance timeout line (#2626); the
   Land confirm rule (#2657).
