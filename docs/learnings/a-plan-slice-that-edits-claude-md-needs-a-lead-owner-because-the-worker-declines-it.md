@@ -39,6 +39,8 @@ The phase-close polish then failed its gate on an unrelated fingerprint flake an
 The CLAUDE.md gate comment still says "two bounded pools", and README.md has no `node-staged` text.
 Both gaps carry over to the Lead.
 
+**Resolved 2026-11-13 (#2926).** Seed task p2-seed-1 of phase 2 added the README `gate(node-staged)` sentence and the operator-ruled CLAUDE.md gate comment.
+
 **How to apply.**
 - Assign a CLAUDE.md edit to the Lead or operator, never to a worker task or late fix.
 - Keep a CLAUDE.md edit out of a slice that bundles other edits, so one refusal cannot sink them.
