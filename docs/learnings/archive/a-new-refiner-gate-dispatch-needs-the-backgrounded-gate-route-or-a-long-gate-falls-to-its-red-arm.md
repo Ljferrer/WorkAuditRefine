@@ -52,3 +52,5 @@ A late-defect-4 row proves a backgrounded base gate re-dispatches and then proce
 Locate-cue: verify still present before acting. `backgroundGateRule`, `aceBgRule`, `aceSegments` and `aceBaseIds` in `skills/war/assets/workflow-template.js`, and the "a backgrounded base gate re-dispatches on the segment pair" row in `skills/war/assets/workflow-template.late-defect-4.test.mjs`, found @ phase 5 landed tip 86335b32.
 
 Related: [[a-new-provision-run-in-a-shared-worktree-must-carry-the-restore-tracked-files-rule]], [[a-shared-write-clause-inside-a-read-only-prompt-contradicts-its-opener]], [[segmented-land-in-band-marker-consumed-without-its-contracted-status-pairing]].
+
+> archived 2026-11-14: resolved — moved to archive

@@ -77,3 +77,5 @@ A final-phase seed hold reaches both snapshots, so the sort skips and the pass n
 **Test.** `late-defect: carry cap` in `skills/war/assets/workflow-template.late-defect-5.test.mjs` asserts no `late-fix:` label on the held final phase. A mutant that dispatches proves the row red.
 
 Locate-cue (verify still present before acting). In `skills/war/assets/workflow-template.js`: the `for (const { task: t, why } of seedCapped)` loop directly above `const sortOwned = new Map()` in the BEHAVIOR-ROW SORT block, and the `sortOwned.get(f)` arm in the sweep-time drain. Tests: `late-defect: exclusion late hold` (late-defect-3) and `late-defect: carry cap` (late-defect-5, with the "no late-fix worker is dispatched on a phase that holds" assert).
+
+> archived 2026-11-14: resolved — moved to archive

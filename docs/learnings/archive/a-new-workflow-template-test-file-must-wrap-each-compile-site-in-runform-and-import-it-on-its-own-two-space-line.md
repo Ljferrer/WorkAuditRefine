@@ -54,3 +54,5 @@ Locate-cue: verify still present before acting. Found `compileSiteWindows`, `ass
 Read in the run's `_refinery` worktree at 6c4f0f4e, the gate-audited sha whose tree the land merge 99d325fd keeps.
 
 Related: [[the-staged-form-execution-run-is-not-in-the-repo-gate]], [[structural-test-blind-spot-narrowing-needs-negative-reference-and-default-deny-census]].
+
+> archived 2026-11-14: resolved — moved to archive
