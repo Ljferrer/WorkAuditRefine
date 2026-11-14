@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, absolute claim vs residual exception, prose nit, operator misinformation, universal quantifier overclaim, Status-blurb authoring checklist, release blurb precision]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, absolute claim vs residual exception, prose nit, operator misinformation, universal quantifier overclaim, Status-blurb authoring checklist, release blurb precision, closed trigger set, categorical-scope guard]
   provenance: code-verified
   promoted: dev/2026-08-06-doc-cli-consistency-corpus@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +25 recurrences (instances cut; see git history)"
+  phase: "submodule-inc1/T4 +26 recurrences (instances cut; see git history); latest 2026-11-08-shell-floors-tests-and-lint/phase-3 task 3.1"
   tags:
     - war
     - release
@@ -26,12 +26,12 @@ metadata:
     - "[[standing-instruction-vs-dispatched-prompt-coverage-split]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-08-25T00:00:00.000Z
+  modified: 2026-11-14T02:34:49.395Z
 ---
 
 # Release blurb prose overstates guard semantics
 
-**Rule.** A `## Status` release blurb tends to state a stronger property than its evidence covers. The writer drops a scope word, a qualifier, a condition or a residual exception, and a narrow true claim becomes a broad false one. Auditors rate each instance a Nit, never a land-halt, but the errors pile up as operator misinformation. This is the repo's most frequent release-prose defect: 25 recurrences from 2026-06-30 to 2026-09-12. The per-recurrence narratives were cut on 2026-11-10; git history of this file keeps them.
+**Rule.** A `## Status` release blurb tends to state a stronger property than its evidence covers. The writer drops a scope word, a qualifier, a condition or a residual exception, and a narrow true claim becomes a broad false one. Auditors rate each instance a Nit, never a land-halt, but the errors pile up as operator misinformation. This is the repo's most frequent release-prose defect: 26 recurrences from 2026-06-30 to 2026-11-13. The per-recurrence narratives were cut on 2026-11-10; git history of this file keeps them.
 
 The live guard is the `### Status-blurb authoring checklist` in `README.md` (under `## Releasing`). It distills this lesson. Run it over every blurb before landing.
 
@@ -50,6 +50,7 @@ The live guard is the `### Status-blurb authoring checklist` in `README.md` (und
 - **Prompt-mandated stated as code-enforced.** "Always carries a trailer" when only a dispatched worker prompt instructs it. Use "mandates" or "instructs" ([[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]]).
 - **Plan literal older than a phase-internal discovery.** The plan text was true when written; a residual found mid-phase was never threaded back into the slice the worker drafted from.
 - **Stale draft after an in-phase correction.** The blurb reuses phrasing from before this phase fixed the artifact it describes.
+- **Closed trigger set stated as open reach.** "Reds a sentence that claims the whole window" for a guard that fires only on a closed regex of three phrases and reads the whole paragraph. Say "a paragraph that uses one of its closed set of phrases". Do not spell the trigger phrases in the blurb itself: a phrase-triggered guard that reads `## Status` would start judging the live paragraph. Instance: `CATEGORICAL_PHRASES` in `skills/war/assets/version-slots.test.mjs` (fixed in `README.md` and `CHANGELOG.md` before land, 2026-11-13). Verify still present before acting.
 
 ## Pre-land checklist (beyond the README items)
 
@@ -58,6 +59,7 @@ The live guard is the `### Status-blurb authoring checklist` in `README.md` (und
 3. For "the guard is pinned/covered", check whether the code is one shared function or several copies.
 4. For a deny-message paraphrase, trace the message to its code condition.
 5. Before widening a retirement grep repo-wide, exclude the `## Status` text that quotes the retired literal.
+6. For a guard keyed on a fixed phrase list, name the list as closed and keep its phrases out of the blurb.
 
 **Why:** blurbs favor short, concrete phrasing, so the writer upgrades a narrow reach to a general one without noticing. No lint can judge it; only a careful re-read against the source can.
 
