@@ -47,3 +47,7 @@ This is a hypothesis about the root cause (a late writer); no refute pass ran.
 Related: [[audit-tree-fingerprint-d8-row-can-red-under-gate-load-and-discard-a-docs-only-polish]].
 
 Locate-cue: verify still present before acting. `skills/war/assets/workflow-template.late-defect-2.test.mjs` has three `finally { rmSync(dir, { recursive: true, force: true }) }` blocks and no `maxRetries`. First found at phase 3 landed tip aabdfe42.
+
+merged into [[repo-gate-termination-test-can-red-once-on-a-killgroup-eperm-under-full-gate-load]] (memory tighten, 2026-11-14).
+
+> archived 2026-11-14: resolved — moved to archive

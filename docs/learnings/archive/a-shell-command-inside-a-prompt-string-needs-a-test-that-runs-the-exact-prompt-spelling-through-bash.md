@@ -48,3 +48,5 @@ Check sibling reads too: the other engine trailer reads were already quoted.
 Related: [[weak-test-assertion-passes-without-feature-being-exercised]], [[template-defers-runtime-values-to-agent-via-literal-placeholder]].
 
 Locate-cue: verify still present before acting. Search `const MERGE_FACTS_RULE` (quoted form) in `skills/war/assets/workflow-template.js` and `const runTrailerRead` in `skills/war/assets/workflow-template.test-harness.mjs`. Landed at tip 9bcc4fa6 (phase 2).
+
+> archived 2026-11-14: resolved — moved to archive

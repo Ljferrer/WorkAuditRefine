@@ -49,3 +49,5 @@ Locate-cue: verify still present before acting. Found both regexes and the censu
 Read in the run's `_refinery` worktree at 6c4f0f4e, the gate-audited sha whose tree the land merge 99d325fd keeps.
 
 Related: [[ptspans-tokenizer-comment-and-string-blind-embedded-args-injects-source-bytes]], [[the-staged-form-execution-run-is-not-in-the-repo-gate]], [[fix-the-finding-class-not-the-site-and-prove-every-new-guard-red-before-commit]].
+
+> archived 2026-11-14: resolved — moved to archive
