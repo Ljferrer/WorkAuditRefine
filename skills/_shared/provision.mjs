@@ -25,7 +25,12 @@ const LOCKFILE_INSTALL = Object.freeze({
 // `xargs -r` runs no update on empty input. No `;`, so no statement split.
 // GIT_LITERAL_PATHSPECS=1 reads each repo-controlled path literally, so a `-`
 // path such as `lib*` never matches an initialized sibling such as `libx`.
-const SUBMODULE_INIT = "git submodule status --recursive | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"
+// The first half inits the superproject's own uninitialized paths. A nested
+// uninitialized path under an initialized parent is unreachable from the
+// superproject, so `foreach --recursive` runs the same init-only step inside
+// each initialized submodule. Its grep/cut filter equals the awk one and keeps
+// `$` and `\` out of the text, so every hand copy stays byte-identical.
+const SUBMODULE_INIT = `git submodule status | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive -- && git submodule foreach --recursive "git submodule status | grep '^-' | cut -d ' ' -f 2 | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"`
 
 /**
  * Parse .gitmodules and return the array of submodule path values.

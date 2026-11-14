@@ -891,6 +891,19 @@ ERR_SMS="$( (cd "$D_SMS" && GIT_CEILING_DIRECTORIES="$(dirname "$D_SMS")" bash "
 expect "verb status-read guard: a non-repo with .gitmodules exits 9 and names the status read" \
   "9/status-read" "$C_SMS/$(printf '%s' "$ERR_SMS" | grep -Fq "assert-submodules-ready: could not read the submodule status of '" && echo status-read || echo no-status-read)"
 
+# The dispatcher's own die guards in main(): the default arm and the
+# no-argument usage line both list the verb.
+ERR_SMB="$( (cd "$R_SMU" && bash "$SCRIPT" bogus) 2>&1 >/dev/null)"; C_SMB=$?
+V_SMB="$C_SMB/$(printf '%s' "$ERR_SMB" | grep -Fq "unknown subcommand 'bogus' (have:" && echo unknown || echo no-unknown)"
+V_SMB="$V_SMB/$(printf '%s' "$ERR_SMB" | grep -Fq 'assert-submodules-ready' && echo verb || echo no-verb)"
+expect "dispatcher default arm: a bogus verb exits 1 and lists assert-submodules-ready" \
+  "1/unknown/verb" "$V_SMB"
+ERR_SMN="$( (cd "$R_SMU" && bash "$SCRIPT") 2>&1 >/dev/null)"; C_SMN=$?
+V_SMN="$C_SMN/$(printf '%s' "$ERR_SMN" | grep -Fq '<subcommand> [args...]' && echo usage || echo no-usage)"
+V_SMN="$V_SMN/$(printf '%s' "$ERR_SMN" | grep -F 'subcommands:' | grep -Fq 'assert-submodules-ready' && echo verb || echo no-verb)"
+expect "dispatcher usage guard: no subcommand exits 1 and lists assert-submodules-ready" \
+  "1/usage/verb" "$V_SMN"
+
 # ---------------------------------------------------------------------------
 # Case (RG.5 / #1712 fix 1, End state 26) holder-naming die, ensure-worktree:
 # the branch is already checked out at worktree A; provisioning worktree B on

@@ -2545,16 +2545,23 @@ test('doneWhenPreamble null is byte-identical and a set preamble is staged', asy
   const nul = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, doneWhenPreamble: null }, tasks })
   const nonString = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, doneWhenPreamble: ['x'] }, tasks })
   const set = await taskMergeSitePrompts({ plan: { ...PLAN_BASE_T23, doneWhenPreamble: PREAMBLE_T23 }, tasks })
-  const STAGE = `the preamble line — exactly: ${PREAMBLE_T23} — then a newline, then `
+  // The marker line (operator ruling 2026-11-14) sits between the preamble and the command, so the
+  // floor's exit-127 diagnostic finds the command's first line. It rides only with a set preamble.
+  const STAGE = `the preamble line — exactly: ${PREAMBLE_T23} — a newline, the line # war-done-when-command, a newline, then `
+  assert.ok(refinerMd.includes('# war-done-when-command'), 'agents/war-refiner.md step 8 names the marker line (the standing mirror)')
+  const setupMd = readFileSync(join(here, '../references/setup.md'), 'utf8')
+  assert.ok(setupMd.includes('# war-done-when-command'), 'skills/war/references/setup.md names the marker line (the Lead doctrine mirror)')
   for (const site of MERGE_SITES_T23) {
     assert.ok(absent[site].includes(' After the gate, run the done-when floor: write the task\'s Done when: acceptance command'),
       `${site}: the done-when floor clause rides the prompt (presence guard)`)
     for (const [name, run] of [['absent', absent], ['null', nul], ['non-string', nonString]]) {
       assert.ok(!run[site].includes('preamble line'), `${site} (${name}): no preamble instruction`)
+      assert.ok(!run[site].includes('war-done-when-command'), `${site} (${name}): no marker line without a preamble`)
     }
+    assert.equal(set[site].split('# war-done-when-command').length - 1, 1, `${site}: a set preamble stages the marker line once`)
     assert.equal(stableGatePrompt(nul[site]), stableGatePrompt(absent[site]), `${site}: a null doneWhenPreamble is byte-identical to an absent one`)
     assert.equal(stableGatePrompt(nonString[site]), stableGatePrompt(absent[site]), `${site}: a non-string doneWhenPreamble reads as null`)
-    // Staged: the preamble line comes first, then the byte-verbatim command, into the one cmd file.
+    // Staged: the preamble line, the # war-done-when-command marker line, then the byte-verbatim command, into the one cmd file.
     const clause = (set[site].match(/ After the gate, run the done-when floor:[^]*?make-this-command-pass loop\./) || [''])[0]
     assert.ok(clause.includes(`write ${STAGE}the task's Done when: acceptance command — BYTE-VERBATIM, exactly: ${DU_CMD} — to `),
       `${site}: the set preamble is staged before the verbatim command`)
@@ -8632,6 +8639,8 @@ test("Done when threading (Task 1.3) — all eight worker-family sites carry the
   // Prompt-surface split (same task): the standing worker card documents the new input.
   assert.match(workerMd, /`Done when:` acceptance command/,
     'agents/war-worker.md documents the Done when: input (standing surface, same task as the dispatched line)')
+  assert.match(workerMd, /Before it, in the same shell, run:/,
+    'agents/war-worker.md names the doneWhenPreamble line the prompt carries (standing surface)')
 })
 
 test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-less prompt is byte-identical to the doneWhen-bearing prompt minus the single inserted clause (legacy byte-identity, End state 9)", async () => {
@@ -8704,6 +8713,8 @@ test('doneWhenPreamble rides the Done when: line on the ace gate checks and ever
     assert.equal(stableGatePrompt(set.prompt.replace(`\nBefore it, in the same shell, run: ${PRE}`, '')), stableGatePrompt(nul.prompt),
       `${s.site}: set minus the preamble line is byte-identical to null`)
   }
+  assert.ok(workerMd.includes('`Before it, in the same shell, run:` line'),
+    'agents/war-worker.md names the preamble line the dispatched prompt carries (standing twin)')
   // A doneWhen-less task carries no preamble line even when the preamble is set.
   const bare = DONE_WHEN_SITES[0].find((await runPhase(PROVISION_ARGS({ tasks: [dwTask()], ...planOf({ doneWhenPreamble: PRE }) }), defaultImpl)).calls)
   assert.ok(bare && !bare.prompt.includes(PRE), 'no Done when: command, no preamble line')

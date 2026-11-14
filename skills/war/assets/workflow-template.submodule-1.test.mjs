@@ -725,7 +725,7 @@ test('T4 #297 Test 4 — targetRepo/targetBase threaded into merge-task, land, w
 // PIN-9 carried defect (operator ruling 2026-11-13): the barrier's submodule note and refiner-recovery.md
 // step 1 name the init-only-uninitialized pipeline that SUBMODULE_INIT in skills/_shared/provision.mjs
 // carries, so an initialized sibling keeps its own HEAD. The bare update re-checks-out every submodule.
-const SUBMODULE_INIT_PIPELINE = "git submodule status --recursive | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"
+const SUBMODULE_INIT_PIPELINE = `git submodule status | awk '/^-/{print $2}' | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive -- && git submodule foreach --recursive "git submodule status | grep '^-' | cut -d ' ' -f 2 | GIT_LITERAL_PATHSPECS=1 xargs -r git submodule update --init --recursive --"`
 test('submodule barrier note and refiner-recovery.md step 1 name the init-only-uninitialized pipeline, never the bare update', async () => {
   const args = PROVISION_ARGS({ tasks: [{ id: 'tsub', issue: 301, title: 'Sub task', planSlice: 's1', roster: [{ lens: 'correctness' }],
     taskType: 'submodule', targetRepo: 'vendor/lib', targetBase: 'main' }] })
